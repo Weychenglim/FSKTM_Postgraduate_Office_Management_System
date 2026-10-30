@@ -425,6 +425,34 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 
 **Required documents.** A type can be required of every Active student, or of chosen programmes only. A returned file still counts as owed. Remind sends a notice, and an email to students with "Deadline reminders" on.
 
+## Portal maintenance endpoints (`/api/maintenance/`)
+
+While maintenance is on, only Office Staff/Admin accounts can sign in or use the
+portal. Everyone else is turned away with `503`, code `portal_maintenance`, the
+office's message, the expected end and a `Retry-After` header. Their sign-in is
+kept, so they carry on once it ends. The office ends it by hand; the expected
+end is only shown to people.
+
+| Method | Path | Who | What |
+| ------ | ---- | --- | ---- |
+| GET | `/api/maintenance/` | Anyone | `{status: off/planned/on, startsAt, expectedEnd, message}` |
+| GET | `/api/maintenance/manage/` | Office | The same, plus who set it and the last five changes |
+| PUT | `/api/maintenance/manage/` | Office | `{startsAt, expectedEnd, message}`. No `startsAt` starts it now; a future one plans it. Once it is on, only the end and the message change. |
+| POST | `/api/maintenance/manage/end/` | Office | Ends maintenance that is on, or cancels planned maintenance |
+
+A check in `maintenance.middleware` runs before every signed-in `/api/` request.
+Requests without a token only reach public views: sign-in, the password link
+views and the status check maintenance themselves, so a new public view should
+call `maintenance.state.is_on()` too. Session renewal, sign-out and reading
+one's own account (`GET /api/auth/me/`) stay open, so a signed-in person keeps
+their sign-in and sees the maintenance page; sign-in turns away anyone who is
+not office staff. The state is cached, so a normal request costs no extra query.
+
+`python manage.py maintenance status|on|off [--message TEXT] [--hours N]` lets
+the technical administrator switch it without the portal. With the in-memory
+development cache, restart the server afterwards. This only works while Django
+runs: an upgrade that stops the server needs a page at the web server.
+
 ## Scheduled commands
 
 There is no background worker. These management commands are safe to run
@@ -437,6 +465,12 @@ repeatedly, so schedule them every few minutes:
 | `send_deadline_reminders --dry-run` | Reports pending recipient/event counts without creating notifications, run records or email deliveries. |
 | `send_weekly_summary` | Emails everyone who turned the weekly summary on a list of their unread notifications from the past seven days. One email per person per week. |
 | `check_document_storage [--remove-orphans]` | Reports stored File Management files that are missing, and left-over files nothing refers to. With `--remove-orphans` it deletes left-overs more than an hour old. Run it weekly, or after restoring a backup. |
+
+While portal maintenance is on, `release_announcements`,
+`send_deadline_reminders` and `send_weekly_summary` skip their run, so nobody is
+sent to a portal they cannot open. Announcements and deadline reminders catch up
+on the first run after it ends; a weekly summary due during maintenance is
+skipped that week.
 
 Each person's Settings switches decide what they get: no reminders when
 "Deadline reminders" is off, and email copies of announcements and reminders
