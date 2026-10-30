@@ -62,6 +62,9 @@ import {
   clearAuthToken,
 } from './services/apiClient';
 import { NotificationsProvider } from './context/NotificationsContext';
+import { MaintenanceContext, useMaintenanceWatch } from './context/MaintenanceContext';
+import { MaintenanceBanner, MaintenanceScreen, SignInMaintenanceNotice } from './components/MaintenanceNotices';
+import { maintenanceStatus } from './utils/maintenance';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
@@ -175,6 +178,9 @@ export default function App() {
   }, []);
 
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+
+  const maintenanceWatch = useMaintenanceWatch();
+  const maintenanceOn = maintenanceStatus(maintenanceWatch.maintenance) === 'on';
 
   // The API client clears the token and fires this when the backend rejects it
   // mid-session. Without a listener the user stays in an authenticated shell
@@ -445,6 +451,7 @@ export default function App() {
         <AuthLayout>
           <div className="w-full flex justify-center items-center">
             <div className="w-full flex justify-center flex-col items-center">
+              <SignInMaintenanceNotice maintenance={maintenanceWatch.maintenance} />
               <LoginCard
                 onForgotPasswordClick={() => navigate(APP_ROUTES.forgotPassword)}
                 onLoginSuccess={handleSuccessfulLogin}
@@ -456,6 +463,10 @@ export default function App() {
         </AuthLayout>
       </div>
     );
+  }
+
+  if (maintenanceOn && maintenanceWatch.maintenance && currentUser.role !== 'Office Staff/Admin') {
+    return <MaintenanceScreen maintenance={maintenanceWatch.maintenance} onSignOut={handleLogout} />;
   }
 
   if (currentUser.mustChangePassword) {
@@ -500,6 +511,7 @@ export default function App() {
   return (
     <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
       {/* ==================== FRONTEND: PORTAL DASHBOARD WORKSPACE ==================== */}
+      <MaintenanceContext.Provider value={maintenanceWatch}>
       <NotificationsProvider>
         <PortalToast message={appToastMessage} />
         <AppLayout
@@ -517,6 +529,14 @@ export default function App() {
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >
+          <MaintenanceBanner
+            maintenance={maintenanceWatch.maintenance}
+            isOffice={currentUser.role === 'Office Staff/Admin'}
+            onChanged={(message) => {
+              maintenanceWatch.refresh();
+              showAppToast(message);
+            }}
+          />
           <React.Suspense fallback={<ModuleLoadingFallback />}>
             <OfficeDashboardLayout enabled={isOfficeDashboardPresentation(pathname, currentUser.role)}>
             <ModuleFeedbackScope pathname={pathname}>
@@ -959,6 +979,7 @@ export default function App() {
           </React.Suspense>
         </AppLayout>
       </NotificationsProvider>
+      </MaintenanceContext.Provider>
     </div>
   );
 }

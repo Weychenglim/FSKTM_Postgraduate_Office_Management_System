@@ -29,6 +29,7 @@ import {
 import { DemoUser } from '../types';
 import { FormInput } from './FormInput';
 import { ToggleSwitch } from './ToggleSwitch';
+import { PortalMaintenanceCard } from './PortalMaintenanceCard';
 import {
   PageHeader,
   PortalCard,
@@ -360,6 +361,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
               </PortalButton>
             </div>
           </PortalCard>
+
+          {currentUser.role === 'Office Staff/Admin' && <PortalMaintenanceCard />}
         </div>
       </fieldset>
 
