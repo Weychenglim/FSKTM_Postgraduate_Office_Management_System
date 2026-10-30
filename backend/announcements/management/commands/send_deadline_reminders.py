@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from announcements.models import DeadlineReminderRun, Notification, DeadlineEmailDelivery
 from announcements.reminders import send_deadline_reminders, preview_deadline_reminders
+from maintenance.state import is_on as under_maintenance
 
 
 class Command(BaseCommand):
@@ -33,6 +34,9 @@ class Command(BaseCommand):
                 keys = {(item['recipient'].pk, item['eventKey']) for item in items}
                 return sum(not Notification.objects.filter(recipient_id=user_id,event_key=key).exists() for user_id,key in keys)
             self.stdout.write(f'Dry run: {pending(calendar)} calendar, {pending(operations)} appointment and {pending(marks)} Marks notification(s) would be created. No writes or deliveries.')
+            return
+        if under_maintenance():
+            self.stdout.write("The portal is under maintenance; skipped.")
             return
         locked = False
         if connection.vendor == 'postgresql':

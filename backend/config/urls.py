@@ -23,5 +23,6 @@ urlpatterns = [
     path("api/letters/", include("letters.request_urls")),
     path("api/documents/", include("documents.urls")),
     path("api/faq/", include("faq.urls")),
+    path("api/maintenance/", include("maintenance.urls")),
     path("api/", include("announcements.urls")),
 ]

@@ -24,6 +24,7 @@ from rest_framework.response import Response
 
 from letters.details import letter_details
 from letters.eligibility import inactive_student_refusal
+from maintenance import state as maintenance
 
 from .account_emails import password_reset_email
 from .authentication import RefreshCookieAuthentication
@@ -115,6 +116,8 @@ def login_view(request):
 
     if user.is_technical_admin:
         raise TechnicalAccountForbidden()
+    if maintenance.blocks(user):
+        return maintenance.maintenance_response(maintenance.SIGN_IN_DETAIL)
 
     User.objects.filter(pk=user.pk).update(last_portal_login=timezone.now())
     remember = serializer.validated_data["rememberMe"]
@@ -345,6 +348,8 @@ def password_reset_view(request):
     are registered."""
     serializer = PasswordResetRequestSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    if maintenance.is_on():
+        return maintenance.maintenance_response()
     email = serializer.validated_data["email"]
 
     user = (
@@ -397,11 +402,15 @@ def password_reset_confirm_view(request):
     if is_password_link_check(request):
         check = PasswordLinkSerializer(data=request.data)
         check.is_valid(raise_exception=True)
+        if maintenance.is_on():
+            return maintenance.maintenance_response()
         _, kind = _usable_link(check.validated_data["uid"], check.validated_data["token"])
         return _invalid_link() if kind is None else Response({"kind": kind})
 
     serializer = PasswordResetConfirmSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+    if maintenance.is_on():
+        return maintenance.maintenance_response()
     token = serializer.validated_data["token"]
     new_password = serializer.validated_data["new_password"]
 
