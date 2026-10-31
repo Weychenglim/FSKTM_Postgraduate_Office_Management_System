@@ -65,6 +65,7 @@ import { NotificationsProvider } from './context/NotificationsContext';
 import { MaintenanceContext, useMaintenanceWatch } from './context/MaintenanceContext';
 import { MaintenanceBanner, MaintenanceScreen, SignInMaintenanceNotice } from './components/MaintenanceNotices';
 import { maintenanceStatus } from './utils/maintenance';
+import { toDoLabel, useFileToDo } from './context/fileToDo';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
@@ -181,6 +182,7 @@ export default function App() {
 
   const maintenanceWatch = useMaintenanceWatch();
   const maintenanceOn = maintenanceStatus(maintenanceWatch.maintenance) === 'on';
+  const fileToDo = useFileToDo(currentUser?.role === 'Student' && !currentUser.mustChangePassword && !maintenanceOn, pathname);
 
   // The API client clears the token and fires this when the backend rejects it
   // mid-session. Without a listener the user stays in an authenticated shell
@@ -526,6 +528,7 @@ export default function App() {
           }}
           userName={currentUser.fullName}
           userRole={currentUser.role}
+          sidebarBadges={fileToDo ? { [SIDEBAR_ITEMS.FILE_MANAGEMENT]: { count: fileToDo, label: toDoLabel(fileToDo) } } : undefined}
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >

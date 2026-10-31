@@ -141,6 +141,7 @@ export interface DocumentSummary {
   returned?: number;
   archived?: number;
   studentsStillToHandIn?: number;
+  toDo?: number;
 }
 
 export interface TaggableStudent {

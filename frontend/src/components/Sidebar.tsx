@@ -20,12 +20,16 @@ import {
 import { SIDEBAR_ITEMS, SIDEBAR_MENU_ORDER, resolveSidebarItem } from '../constants/navigation';
 import { allowedModulesFor } from '../auth/permissions';
 
+/** A number on a menu item, and what it means for screen readers, e.g. "1 document to hand in". */
+export type SidebarBadges = Partial<Record<string, { count: number; label: string }>>;
+
 interface SidebarProps {
   activeItem: string;
   onNavigate: (item: string) => void;
   isOpen: boolean;
   onClose: () => void;
   userRole?: string;
+  badges?: SidebarBadges;
 }
 
 // Icon + label lookup for each sidebar entry (identities live in navigation.ts).
@@ -42,7 +46,7 @@ const ITEM_META: Record<string, { label: string; icon: LucideIcon }> = {
   [SIDEBAR_ITEMS.SETTINGS]: { label: 'Settings', icon: SettingsIcon },
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen, onClose, userRole }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen, onClose, userRole, badges }) => {
   // On mobile the sidebar is an overlay drawer; dismiss it after navigating.
   const handleNavigate = (item: string) => {
     onNavigate(item);
@@ -96,10 +100,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
           const displayLabel = item.id === SIDEBAR_ITEMS.FILE_MANAGEMENT && userRole === 'Student'
             ? 'File Submission'
             : item.label;
+          const badge = badges?.[item.id];
+          const showBadge = Boolean(badge && badge.count > 0);
           return (
             <button
               key={item.id}
               onClick={() => handleNavigate(item.id)}
+              aria-label={showBadge ? `${displayLabel}, ${badge?.label}` : undefined}
               className={`w-full flex items-center gap-3.5 px-4 py-3 rounded-xl text-xs font-bold transition-all text-left cursor-pointer group ${
                 isActive 
                   ? 'bg-brand-navy text-white shadow-sm' 
@@ -112,7 +119,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeItem, onNavigate, isOpen
                 }`} 
               />
               <span className="tracking-wide">{displayLabel}</span>
-              {isActive && (
+              {showBadge ? (
+                <span aria-hidden="true" className="ml-auto min-w-[19px] h-[19px] px-1.5 rounded-full bg-rose-600 text-white text-[10.5px] font-extrabold leading-none flex items-center justify-center tabular-nums">
+                  {badge?.count}
+                </span>
+              ) : isActive && (
                 <div className="ml-auto w-1.5 h-1.5 rounded-full bg-indigo-300" />
               )}
             </button>

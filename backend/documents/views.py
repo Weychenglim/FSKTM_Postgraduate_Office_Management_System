@@ -584,7 +584,20 @@ def summary_view(request):
             rows, _ = progress(doc_type, students)
             behind.update(student.pk for student, state, _ in rows if state in STILL_TO_HAND_IN)
         payload["studentsStillToHandIn"] = len(behind)
+    if request.user.role == User.Role.STUDENT:
+        payload["toDo"] = _student_to_do(request.user, current)
     return Response(payload)
+
+
+def _student_to_do(user, current):
+    """What the student still has to hand in: required documents not handed in
+    or returned, and any other file of theirs the office returned."""
+    student = user._related_or_none("student")
+    items = mine(student) if student else []
+    owed = sum(1 for _, state, _ in items if state in STILL_TO_HAND_IN)
+    required_files = [document_id for _, _, document_id in items if document_id]
+    returned = current.filter(check_status=Document.CheckStatus.RETURNED).exclude(pk__in=required_files).count()
+    return owed + returned
 
 
 def _visible_or_none(request, scope, pk):

@@ -6,7 +6,7 @@ import { PortalModal } from './PortalModal';
  */
 
 import React, { useRef, useState } from 'react';
-import { Sidebar } from './Sidebar';
+import { Sidebar, type SidebarBadges } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Users, HelpCircle } from 'lucide-react';
@@ -22,6 +22,7 @@ interface AppLayoutProps {
   onNotificationsTrigger: () => void;
   userName: string;
   userRole: string;
+  sidebarBadges?: SidebarBadges;
   
   // Handlers for modal interactions
   activeModal: 'help' | null;
@@ -36,6 +37,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onNotificationsTrigger,
   userName,
   userRole,
+  sidebarBadges,
   activeModal,
   setActiveModal
 }) => {
@@ -44,6 +46,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const [sidebarOpen, setSidebarOpen] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
   );
+  // With the sidebar hidden (always on phones), the menu button carries the reminder.
+  const hiddenBadges = sidebarOpen ? [] : Object.values(sidebarBadges ?? {}).filter((badge) => badge && badge.count > 0);
 
   return (
     <DecisionFeedbackProvider scopeKey={`${userName}:${userRole}`}>
@@ -55,6 +59,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
         userRole={userRole}
+        badges={sidebarBadges}
       />
 
       {/* Mobile drawer backdrop */}
@@ -76,6 +81,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           onHelpdeskTrigger={() => setActiveModal('help')}
           onNotificationsTrigger={onNotificationsTrigger}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
+          menuAlert={hiddenBadges.map((badge) => badge?.label).join(', ')}
         />
 
         {/* Actionable page frame details scrollable box */}

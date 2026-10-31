@@ -108,6 +108,24 @@ class RequiredProgressTests(DocumentPeople, RequiredClient, APITestCase):
         self.client.force_authenticate(self.supervisor)
         self.assertIsNone(self.client.get(f"/api/documents/students/{self.ali.matric_no}/").data["required"])
 
+    def test_the_student_to_do_count_for_the_sidebar(self):
+        def to_do(user):
+            self.client.force_authenticate(user)
+            return self.client.get("/api/documents/summary/").data.get("toDo")
+
+        self.assertEqual(to_do(self.ali.user), 2)
+        self.made(self.ali.user, "thesis", "Ali thesis")
+        self.assertEqual(to_do(self.ali.user), 1)
+        form = self.made(self.ali.user, "supervisor-appointment-form", "Form", name="form.png", content=image_bytes())
+        self.assertEqual(to_do(self.ali.user), 0, "a file waiting for the office is not the student's to do")
+        faculty = self.made(self.ali.user, "faculty-form", "AI declaration", name="ai.png", content=image_bytes(size=(64, 64)))
+        self.client.force_authenticate(self.office)
+        for document in (form, faculty):
+            self.client.post(f"/api/documents/{document['id']}/check/", {"decision": "RETURN", "reason": "Sign it."}, format="json")
+        self.assertEqual(to_do(self.ali.user), 2, "a returned required file and a returned faculty form")
+        self.assertIsNone(to_do(self.office))
+        self.assertEqual(to_do(self.deferred.user), 0)
+
     def test_remind_once_a_day(self):
         self.made(self.ali.user, "thesis", "Ali thesis")
         self.chen.user.email_notifications = True
