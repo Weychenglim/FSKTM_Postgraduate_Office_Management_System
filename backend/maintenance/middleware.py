@@ -1,29 +1,18 @@
 """While the portal is under maintenance, turn away every signed-in API request
-that is not from PG office staff, before any module's code runs.
+before any module's code runs. The Django admin site is not under /api/, so the
+technical administrator can always reach it.
 
-Session renewal and reading one's own account stay open, so a signed-in person
-keeps their sign-in and the portal can show them the maintenance page. Requests
-without a token can only reach the public views (sign-in, password links, the
-maintenance status), and those check maintenance themselves.
+Session renewal, sign-out and reading one's own account stay open, so a
+signed-in person keeps their sign-in and carries on when maintenance ends.
+Requests without a token can only reach the public views (sign-in, password
+links, the maintenance status), and those check maintenance themselves.
 """
 from django.urls import reverse
-from rest_framework.exceptions import AuthenticationFailed
-from rest_framework_simplejwt.authentication import JWTAuthentication
-
-from accounts.authorization import office_actor
 
 from . import state
 
-OPEN_VIEWS = ("health", "maintenance-status", "login", "refresh", "logout", "password-reset", "password-reset-confirm")
+OPEN_VIEWS = ("health", "maintenance-status", "refresh", "logout")
 READ_ONLY_VIEWS = ("me",)
-
-
-def _from_office(request):
-    try:
-        found = JWTAuthentication().authenticate(request)
-    except AuthenticationFailed:
-        return False
-    return bool(found) and office_actor(found[0])
 
 
 class MaintenanceMiddleware:
@@ -33,7 +22,7 @@ class MaintenanceMiddleware:
         self.read_only_paths = None
 
     def __call__(self, request):
-        if self._checks(request) and state.is_on() and not _from_office(request):
+        if self._checks(request) and state.is_on():
             return state.maintenance_response()
         return self.get_response(request)
 

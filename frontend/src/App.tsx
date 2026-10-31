@@ -62,7 +62,7 @@ import {
   clearAuthToken,
 } from './services/apiClient';
 import { NotificationsProvider } from './context/NotificationsContext';
-import { MaintenanceContext, useMaintenanceWatch } from './context/MaintenanceContext';
+import { useMaintenanceWatch } from './context/maintenanceWatch';
 import { MaintenanceBanner, MaintenanceScreen, SignInMaintenanceNotice } from './components/MaintenanceNotices';
 import { maintenanceStatus } from './utils/maintenance';
 import { toDoLabel, useFileToDo } from './context/fileToDo';
@@ -406,7 +406,9 @@ export default function App() {
   const isPasswordLinkPage =
     pathname === APP_ROUTES.resetPassword || pathname === APP_ROUTES.activateAccount;
 
-  if (isRestoringSession && !isPasswordLinkPage) {
+  // Also wait for the maintenance check, so nobody sees the sign-in page while
+  // the portal is under maintenance.
+  if ((isRestoringSession && !isPasswordLinkPage) || !maintenanceWatch.checked) {
     return (
       <div
         id="session-restore-loading"
@@ -418,6 +420,10 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  if (maintenanceOn && maintenanceWatch.maintenance) {
+    return <MaintenanceScreen maintenance={maintenanceWatch.maintenance} onSignOut={currentUser ? handleLogout : undefined} />;
   }
 
   if (!currentUser) {
@@ -467,10 +473,6 @@ export default function App() {
     );
   }
 
-  if (maintenanceOn && maintenanceWatch.maintenance && currentUser.role !== 'Office Staff/Admin') {
-    return <MaintenanceScreen maintenance={maintenanceWatch.maintenance} onSignOut={handleLogout} />;
-  }
-
   if (currentUser.mustChangePassword) {
     return (
       <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
@@ -513,7 +515,6 @@ export default function App() {
   return (
     <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
       {/* ==================== FRONTEND: PORTAL DASHBOARD WORKSPACE ==================== */}
-      <MaintenanceContext.Provider value={maintenanceWatch}>
       <NotificationsProvider>
         <PortalToast message={appToastMessage} />
         <AppLayout
@@ -532,14 +533,7 @@ export default function App() {
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >
-          <MaintenanceBanner
-            maintenance={maintenanceWatch.maintenance}
-            isOffice={currentUser.role === 'Office Staff/Admin'}
-            onChanged={(message) => {
-              maintenanceWatch.refresh();
-              showAppToast(message);
-            }}
-          />
+          <MaintenanceBanner maintenance={maintenanceWatch.maintenance} />
           <React.Suspense fallback={<ModuleLoadingFallback />}>
             <OfficeDashboardLayout enabled={isOfficeDashboardPresentation(pathname, currentUser.role)}>
             <ModuleFeedbackScope pathname={pathname}>
@@ -982,7 +976,6 @@ export default function App() {
           </React.Suspense>
         </AppLayout>
       </NotificationsProvider>
-      </MaintenanceContext.Provider>
     </div>
   );
 }

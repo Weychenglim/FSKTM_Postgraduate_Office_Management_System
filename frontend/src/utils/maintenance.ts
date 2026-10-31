@@ -1,4 +1,4 @@
-import type { MaintenanceStatus, OfficeMaintenance, PortalMaintenance } from '../types';
+import type { MaintenanceStatus, PortalMaintenance } from '../types';
 
 export const CHECK_EVERY_MS = 60_000;
 
@@ -43,10 +43,4 @@ export function nextCheckDelay(maintenance: PortalMaintenance | null, now = Date
     if (untilStart > 0 && untilStart < CHECK_EVERY_MS) return untilStart + 1000;
   }
   return CHECK_EVERY_MS;
-}
-
-export function savedMaintenanceMessage(before: MaintenanceStatus, after: OfficeMaintenance): string {
-  if (after.status === 'on' && before !== 'on') return 'Maintenance is on. Only PG office staff can use the portal.';
-  if (after.status === 'planned' && before === 'off') return `Maintenance planned: ${maintenanceWindow(after)}.`;
-  return 'Maintenance updated.';
 }

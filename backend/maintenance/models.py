@@ -4,8 +4,8 @@ from django.db import models
 
 
 class PortalMaintenance(models.Model):
-    """The portal's one maintenance setting. From ``starts_at`` until the PG
-    office ends it, nobody but office staff can use the portal."""
+    """The portal's one maintenance setting. From ``starts_at`` until the
+    technical administrator ends it, nobody can use the portal."""
 
     starts_at = models.DateTimeField(null=True, blank=True)
     expected_end = models.DateTimeField(null=True, blank=True)
@@ -19,6 +19,9 @@ class PortalMaintenance(models.Model):
     class Meta:
         verbose_name = "portal maintenance"
         verbose_name_plural = "portal maintenance"
+
+    def __str__(self):
+        return "Portal maintenance"
 
 
 class MaintenanceEvent(models.Model):
@@ -46,6 +49,8 @@ class MaintenanceEvent(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "maintenance change"
+        verbose_name_plural = "maintenance history"
         ordering = ["-created_at", "-pk"]
 
     def save(self, *args, **kwargs):

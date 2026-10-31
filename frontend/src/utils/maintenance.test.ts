@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
-import type { OfficeMaintenance, PortalMaintenance } from '../types';
+import type { PortalMaintenance } from '../types';
 import {
   CHECK_EVERY_MS,
   expectedBackLine,
   maintenanceStatus,
   maintenanceWindow,
   nextCheckDelay,
-  savedMaintenanceMessage,
 } from './maintenance';
 
 // 10:00 pm to 11:30 pm on Saturday 31 October, Malaysia time
@@ -35,19 +34,5 @@ assert.equal(nextCheckDelay(null), CHECK_EVERY_MS);
 assert.equal(nextCheckDelay(planned, at('2026-10-31T13:59:40Z')), 21_000, 'checks again just after a planned start');
 assert.equal(nextCheckDelay(planned, at('2026-10-31T13:50:00Z')), CHECK_EVERY_MS);
 assert.equal(nextCheckDelay({ ...planned, status: 'on' }, at('2026-10-31T14:30:00Z')), CHECK_EVERY_MS);
-
-const office = (values: Partial<OfficeMaintenance>): OfficeMaintenance => ({
-  ...planned,
-  defaultMessage: 'The portal is down for maintenance. Please try again later.',
-  setBy: 'Olivia Office',
-  updatedAt: null,
-  history: [],
-  ...values,
-});
-assert.equal(savedMaintenanceMessage('off', office({ status: 'on' })), 'Maintenance is on. Only PG office staff can use the portal.');
-assert.equal(savedMaintenanceMessage('planned', office({ status: 'on' })), 'Maintenance is on. Only PG office staff can use the portal.');
-assert.equal(savedMaintenanceMessage('off', office({})), 'Maintenance planned: Sat 31 Oct, 10:00 pm to 11:30 pm.');
-assert.equal(savedMaintenanceMessage('planned', office({})), 'Maintenance updated.');
-assert.equal(savedMaintenanceMessage('on', office({ status: 'on' })), 'Maintenance updated.');
 
 console.log('Portal maintenance times, status and check timing passed');

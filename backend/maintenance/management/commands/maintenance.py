@@ -1,7 +1,7 @@
 """Show, start or end portal maintenance from the command line.
 
-For the technical administrator, for example when no office account can sign in
-to end it. The PG office normally does this in the portal's Settings.
+For the technical administrator, for example in a deploy script or when the
+admin site cannot be reached. It is normally switched in Django admin.
 """
 from datetime import timedelta
 

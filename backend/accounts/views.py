@@ -86,6 +86,8 @@ def login_view(request):
     _require_json_request(request)
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)  # 400 on missing fields
+    if maintenance.is_on():
+        return maintenance.maintenance_response()
     identifier = serializer.validated_data["identifier"].strip()
     password = serializer.validated_data["password"]
 
@@ -116,8 +118,6 @@ def login_view(request):
 
     if user.is_technical_admin:
         raise TechnicalAccountForbidden()
-    if maintenance.blocks(user):
-        return maintenance.maintenance_response(maintenance.SIGN_IN_DETAIL)
 
     User.objects.filter(pk=user.pk).update(last_portal_login=timezone.now())
     remember = serializer.validated_data["rememberMe"]

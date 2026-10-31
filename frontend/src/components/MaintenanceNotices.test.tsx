@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MemoryRouter } from 'react-router';
 import type { DemoUser, PortalMaintenance } from '../types';
 import { MaintenanceBanner, MaintenanceScreen, SignInMaintenanceNotice } from './MaintenanceNotices';
 import { SettingsView } from './SettingsView';
@@ -10,45 +11,42 @@ const inHours = (hours: number) => new Date(Date.now() + hours * 3_600_000).toIS
 const planned: PortalMaintenance = { status: 'planned', startsAt: inHours(2), expectedEnd: inHours(3), message: 'Moving to a new server.' };
 const on: PortalMaintenance = { ...planned, status: 'on', startsAt: inHours(-1) };
 const off: PortalMaintenance = { status: 'off', startsAt: null, expectedEnd: null, message: '' };
-const banner = (maintenance: PortalMaintenance | null, isOffice: boolean) =>
-  renderToStaticMarkup(<MemoryRouter><MaintenanceBanner maintenance={maintenance} isOffice={isOffice} onChanged={() => {}} /></MemoryRouter>);
+const startedSincePlanned: PortalMaintenance = { ...planned, startsAt: inHours(-0.01) };
 
-assert.equal(banner(null, false), '');
-assert.equal(banner(off, true), '');
-assert.equal(banner(on, false), '', 'everyone but the office gets the maintenance page instead');
+assert.equal(renderToStaticMarkup(<MaintenanceBanner maintenance={null} />), '');
+assert.equal(renderToStaticMarkup(<MaintenanceBanner maintenance={off} />), '');
+assert.equal(renderToStaticMarkup(<MaintenanceBanner maintenance={on} />), '', 'while it is on, nobody sees the portal at all');
+assert.equal(renderToStaticMarkup(<MaintenanceBanner maintenance={startedSincePlanned} />), '', 'a planned start that has passed counts as on');
+const banner = renderToStaticMarkup(<MaintenanceBanner maintenance={planned} />);
+assert.match(banner, /Planned maintenance:/);
+assert.match(banner, /save your work before it starts/);
+assert.doesNotMatch(banner, /<button/, 'nobody manages maintenance from the portal');
 
-const studentPlanned = banner(planned, false);
-assert.match(studentPlanned, /Planned maintenance:/);
-assert.match(studentPlanned, /save your work before it starts/);
-assert.doesNotMatch(studentPlanned, /Manage|End maintenance/);
+const signedIn = renderToStaticMarkup(<MaintenanceScreen maintenance={on} onSignOut={() => {}} />);
+assert.match(signedIn, /The portal is under maintenance/);
+assert.match(signedIn, /Moving to a new server\./);
+assert.match(signedIn, /Expected back by/);
+assert.match(signedIn, /pg\.fsktm@um\.edu\.my/);
+assert.match(signedIn, /You stay signed in/);
+assert.match(signedIn, /Sign out/);
 
-const officePlanned = banner(planned, true);
-assert.match(officePlanned, /cannot use the portal then/);
-assert.match(officePlanned, /Manage/);
-assert.doesNotMatch(officePlanned, /End maintenance/);
-
-const officeOn = banner(on, true);
-assert.match(officeOn, /Maintenance is on\./);
-assert.match(officeOn, /Only PG office staff can use the portal/);
-assert.match(officeOn, /End maintenance/);
-
-const screen = renderToStaticMarkup(<MaintenanceScreen maintenance={on} onSignOut={() => {}} />);
-assert.match(screen, /The portal is under maintenance/);
-assert.match(screen, /Moving to a new server\./);
-assert.match(screen, /Expected back by/);
-assert.match(screen, /pg\.fsktm@um\.edu\.my/);
-assert.match(screen, /You stay signed in/);
-assert.match(screen, /Sign out/);
+const visitor = renderToStaticMarkup(<MaintenanceScreen maintenance={on} />);
+assert.match(visitor, /opens the portal as soon as it is back/);
+assert.doesNotMatch(visitor, /Sign out|Sign in|password/i, 'no sign-in form or sign-in wording for visitors');
 
 assert.equal(renderToStaticMarkup(<SignInMaintenanceNotice maintenance={off} />), '');
-assert.match(renderToStaticMarkup(<SignInMaintenanceNotice maintenance={on} />), /Only PG office staff can sign in until it ends/);
+assert.equal(renderToStaticMarkup(<SignInMaintenanceNotice maintenance={on} />), '');
 assert.match(renderToStaticMarkup(<SignInMaintenanceNotice maintenance={planned} />), /The portal will be unavailable then/);
 
 const settings = (role: DemoUser['role']) => renderToStaticMarkup(
   <SettingsView currentUser={{ id: '9', fullName: 'Olivia Office', email: 'office@example.com', role, phone: '', department: 'PG Office' }} onLogout={() => {}} onUserUpdated={() => {}} onPasswordChanged={() => {}} />,
 );
-assert.match(settings('Office Staff/Admin'), /Portal maintenance/);
-assert.doesNotMatch(settings('Student'), /Portal maintenance/);
-assert.doesNotMatch(settings('Programme Coordinator'), /Portal maintenance/);
+assert.doesNotMatch(settings('Office Staff/Admin'), /maintenance/i, 'the switch is in Django admin, not in the office Settings');
 
-console.log('Portal maintenance banner, page, sign-in notice and Settings card passed');
+// While maintenance is on the app shows only this page, before it decides between sign-in and the portal.
+const app = readFileSync(resolve('src/App.tsx'), 'utf8');
+const screenAt = app.indexOf('<MaintenanceScreen');
+assert.ok(screenAt > 0 && screenAt < app.indexOf('<LoginCard'), 'the maintenance page comes before the sign-in page');
+assert.ok(app.indexOf('!maintenanceWatch.checked') < screenAt, 'the app waits for the maintenance check first');
+
+console.log('Portal maintenance banner, page and sign-in notice passed');

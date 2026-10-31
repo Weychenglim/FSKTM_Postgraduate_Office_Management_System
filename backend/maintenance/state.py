@@ -1,4 +1,5 @@
-"""Whether the portal is under maintenance, and the PG office's changes to it.
+"""Whether the portal is under maintenance, and the technical administrator's
+changes to it (in Django admin or from the command line).
 
 Every signed-in request asks, so the answer is kept in the cache and read from
 the database only when the cache has lost it.
@@ -11,8 +12,6 @@ from django.db import transaction
 from django.http import JsonResponse
 from django.utils import timezone
 
-from accounts.authorization import office_actor
-
 from .models import MaintenanceEvent, PortalMaintenance
 
 CACHE_KEY = "portal-maintenance"
@@ -20,14 +19,12 @@ NOTHING = {"startsAt": None, "expectedEnd": None, "message": ""}
 OFF, PLANNED, ON = "off", "planned", "on"
 
 DEFAULT_MESSAGE = "The portal is down for maintenance. Please try again later."
-USE_DETAIL = "The portal is under maintenance. Only PG office staff can use it until it ends."
-SIGN_IN_DETAIL = "The portal is under maintenance. Only PG office staff can sign in until it ends."
+DETAIL = "The portal is under maintenance. Please try again later."
 COMMAND_LINE = "Technical administrator (command line)"
 
 MAX_MESSAGE = 500
 MAX_NOTICE = timedelta(days=90)
 MAX_LENGTH = timedelta(days=30)
-HISTORY_SHOWN = 5
 
 
 class MaintenanceProblem(Exception):
@@ -68,9 +65,9 @@ def is_on():
     return status() == ON
 
 
-def blocks(user):
-    """True while maintenance is on, for everyone but PG office staff."""
-    return is_on() and not office_actor(user)
+def saved_status():
+    """The state as stored, ignoring the cache: for the admin page."""
+    return status(_snapshot(PortalMaintenance.objects.filter(pk=1).first()))
 
 
 def _iso(value):
@@ -95,39 +92,37 @@ def _retry_after(snapshot):
     return min(max(math.ceil((end - timezone.now()).total_seconds()), 60), 86400)
 
 
-def maintenance_response(detail=USE_DETAIL):
+def maintenance_response():
     snapshot = current()
     response = JsonResponse(
-        {"detail": detail, "code": "portal_maintenance", "maintenance": public_dict(snapshot)},
+        {"detail": DETAIL, "code": "portal_maintenance", "maintenance": public_dict(snapshot)},
         status=503,
     )
     response["Retry-After"] = str(_retry_after(snapshot))
     return response
 
 
-def _event_dict(event):
-    return {
-        "id": event.pk,
-        "action": event.action,
-        "actionLabel": event.get_action_display(),
-        "by": event.actor_name,
-        "at": _iso(event.created_at),
-        "startsAt": _iso(event.starts_at),
-        "expectedEnd": _iso(event.expected_end),
-    }
-
-
-def office_dict():
-    row = PortalMaintenance.objects.filter(pk=1).first()
-    payload = public_dict(_snapshot(row))
-    on_or_planned = payload["status"] != OFF
-    payload.update(
-        defaultMessage=DEFAULT_MESSAGE,
-        setBy=row.set_by_name if on_or_planned else "",
-        updatedAt=_iso(row.updated_at) if on_or_planned else None,
-        history=[_event_dict(event) for event in MaintenanceEvent.objects.all()[:HISTORY_SHOWN]],
-    )
-    return payload
+def problems(was, starts_at, expected_end, message, now):
+    """What is wrong with starting (no ``starts_at``) or planning maintenance."""
+    errors = {}
+    if starts_at is not None:
+        if was == ON:
+            errors["starts_at"] = "Maintenance has already started. Choose On now to change its end or message."
+        elif starts_at <= now:
+            errors["starts_at"] = "Choose a time in the future, or start it now."
+        elif starts_at > now + MAX_NOTICE:
+            errors["starts_at"] = "Plan it within the next 90 days."
+    start = starts_at or now
+    if expected_end is not None and not errors:
+        if expected_end <= max(start, now):
+            errors["expected_end"] = (
+                "The expected end must be after the start." if start > now else "The expected end must be later than now."
+            )
+        elif expected_end > start + MAX_LENGTH:
+            errors["expected_end"] = "Keep it within 30 days of the start."
+    if len((message or "").strip()) > MAX_MESSAGE:
+        errors["message"] = "Keep the message under 500 characters."
+    return errors
 
 
 def _who(actor):
@@ -145,27 +140,6 @@ def _note(action, actor, starts_at, expected_end, message):
     )
 
 
-def _problems(was, starts_at, start, expected_end, message, now):
-    errors = {}
-    if starts_at is not None:
-        if was == ON:
-            errors["startsAt"] = "Maintenance has already started. You can change the expected end and the message."
-        elif starts_at <= now:
-            errors["startsAt"] = "Choose a time in the future, or start it now."
-        elif starts_at > now + MAX_NOTICE:
-            errors["startsAt"] = "Plan it within the next 90 days."
-    if expected_end is not None and not errors:
-        if expected_end <= max(start, now):
-            errors["expectedEnd"] = (
-                "The expected end must be after the start." if start > now else "The expected end must be later than now."
-            )
-        elif expected_end > start + MAX_LENGTH:
-            errors["expectedEnd"] = "Keep it within 30 days of the start."
-    if len(message) > MAX_MESSAGE:
-        errors["message"] = "Keep the message under 500 characters."
-    return errors
-
-
 def change(actor, *, starts_at=None, expected_end=None, message=""):
     """Start maintenance now (no ``starts_at``) or plan it for later. Once it is
     on, only the expected end and the message can change."""
@@ -175,10 +149,10 @@ def change(actor, *, starts_at=None, expected_end=None, message=""):
         PortalMaintenance.objects.get_or_create(pk=1)
         row = PortalMaintenance.objects.select_for_update().get(pk=1)
         was = status(_snapshot(row), now)
-        start = row.starts_at if was == ON else starts_at or now
-        errors = _problems(was, starts_at, start, expected_end, message, now)
+        errors = problems(was, starts_at, expected_end, message, now)
         if errors:
             raise MaintenanceProblem(errors)
+        start = row.starts_at if was == ON else starts_at or now
 
         if was == ON or (was == PLANNED and start > now):
             action = MaintenanceEvent.Action.CHANGED

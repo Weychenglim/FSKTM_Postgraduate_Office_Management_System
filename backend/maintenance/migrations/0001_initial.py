@@ -27,6 +27,8 @@ class Migration(migrations.Migration):
                 ('actor', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='maintenance_events', to=settings.AUTH_USER_MODEL)),
             ],
             options={
+                'verbose_name': 'maintenance change',
+                'verbose_name_plural': 'maintenance history',
                 'ordering': ['-created_at', '-pk'],
             },
         ),

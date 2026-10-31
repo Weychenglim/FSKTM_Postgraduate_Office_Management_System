@@ -425,33 +425,38 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 
 **Required documents.** A type can be required of every Active student, or of chosen programmes only. A returned file still counts as owed. Remind sends a notice, and an email to students with "Deadline reminders" on.
 
-## Portal maintenance endpoints (`/api/maintenance/`)
+## Portal maintenance
 
-While maintenance is on, only Office Staff/Admin accounts can sign in or use the
-portal. Everyone else is turned away with `503`, code `portal_maintenance`, the
-office's message, the expected end and a `Retry-After` header. Their sign-in is
-kept, so they carry on once it ends. The office ends it by hand; the expected
-end is only shown to people.
+The technical administrator switches it in Django admin: **Portal maintenance**
+(`/admin/maintenance/portalmaintenance/`). Choose Off, On now, or Planned with a
+start time; add an expected end and a message if wanted. **Maintenance history**
+lists every change. Office staff have no switch: it is a technical task.
+
+While it is on, nobody can sign in or use the portal, office staff included.
+Every page shows only the maintenance page, with the message and the expected
+end, and checks every minute; people who were signed in stay signed in and carry
+on when it ends. The API turns requests away with `503`, code
+`portal_maintenance`, and a `Retry-After` header. Before a planned start,
+signed-in people and the sign-in page see a warning banner. It ends only when the
+technical administrator switches it off; the expected end is only shown.
 
 | Method | Path | Who | What |
 | ------ | ---- | --- | ---- |
 | GET | `/api/maintenance/` | Anyone | `{status: off/planned/on, startsAt, expectedEnd, message}` |
-| GET | `/api/maintenance/manage/` | Office | The same, plus who set it and the last five changes |
-| PUT | `/api/maintenance/manage/` | Office | `{startsAt, expectedEnd, message}`. No `startsAt` starts it now; a future one plans it. Once it is on, only the end and the message change. |
-| POST | `/api/maintenance/manage/end/` | Office | Ends maintenance that is on, or cancels planned maintenance |
 
 A check in `maintenance.middleware` runs before every signed-in `/api/` request.
 Requests without a token only reach public views: sign-in, the password link
 views and the status check maintenance themselves, so a new public view should
 call `maintenance.state.is_on()` too. Session renewal, sign-out and reading
-one's own account (`GET /api/auth/me/`) stay open, so a signed-in person keeps
-their sign-in and sees the maintenance page; sign-in turns away anyone who is
-not office staff. The state is cached, so a normal request costs no extra query.
+one's own account (`GET /api/auth/me/`) stay open. The Django admin site is not
+under `/api/`, so it keeps working. The state is cached, so a normal request
+costs no extra query.
 
-`python manage.py maintenance status|on|off [--message TEXT] [--hours N]` lets
-the technical administrator switch it without the portal. With the in-memory
-development cache, restart the server afterwards. This only works while Django
-runs: an upgrade that stops the server needs a page at the web server.
+`python manage.py maintenance status|on|off [--message TEXT] [--hours N]` does
+the same from the command line, for deploy scripts. With the in-memory
+development cache, restart the server afterwards. In development the admin site
+is at `http://localhost:8000/admin/`. This only works while Django runs: an
+upgrade that stops the server needs a page at the web server.
 
 ## Scheduled commands
 

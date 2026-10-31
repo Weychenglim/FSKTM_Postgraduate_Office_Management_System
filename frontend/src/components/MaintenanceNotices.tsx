@@ -3,125 +3,35 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// What people see about portal maintenance: a banner while it is planned (and,
-// for the office, while it is on), the page everyone else gets while it is on,
-// and a notice on the sign-in page.
+// What people see about portal maintenance: a banner while it is planned, and,
+// while it is on, one page for everyone in place of the whole portal, sign-in
+// included. The technical administrator switches it in Django admin.
 
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router';
+import React from 'react';
 import { CalendarClock, LogOut, Wrench } from 'lucide-react';
-import type { OfficeMaintenance, PortalMaintenance } from '../types';
-import { endMaintenance } from '../services/maintenanceApi';
-import { APP_ROUTES } from '../constants/routes';
+import type { PortalMaintenance } from '../types';
 import { LETTERHEAD } from '../utils/letterDocument';
 import { expectedBackLine, maintenanceStatus, maintenanceWindow } from '../utils/maintenance';
 import { AuthLayout } from './AuthLayout';
-import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
+import { PortalButton } from './PortalPrimitives';
 
-const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 const [OFFICE_PHONE, OFFICE_EMAIL] = LETTERHEAD.addressLines[2].split('|').map((part) => part.trim());
 
-export const ENDED_MESSAGE = 'Maintenance ended. Everyone can use the portal again.';
-export const CANCELLED_MESSAGE = 'Planned maintenance cancelled.';
-
-/** Ask before ending maintenance that is on, or cancelling maintenance that is planned. */
-export const EndMaintenanceConfirm: React.FC<{
-  isOpen: boolean;
-  planned: boolean;
-  onClose: () => void;
-  onEnded: (updated: OfficeMaintenance) => void;
-}> = ({ isOpen, planned, onClose, onEnded }) => {
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-
-  const confirm = async () => {
-    setBusy(true);
-    setProblem(null);
-    try {
-      onEnded(await endMaintenance());
-    } catch (err) {
-      setProblem(errorText(err, 'Could not end the maintenance.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
+/** Above every page while maintenance is planned. */
+export const MaintenanceBanner: React.FC<{ maintenance: PortalMaintenance | null }> = ({ maintenance }) => {
+  if (!maintenance || maintenanceStatus(maintenance) !== 'planned') return null;
   return (
-    <PortalConfirmModal
-      isOpen={isOpen}
-      tone="info"
-      icon={Wrench}
-      title={planned ? 'Cancel the planned maintenance?' : 'End maintenance?'}
-      message={
-        <>
-          <p>{planned ? 'Nobody will be stopped from using the portal.' : 'Everyone can sign in and use the portal again.'}</p>
-          {problem && <p role="alert" className="mt-2 font-semibold text-rose-700">{problem}</p>}
-        </>
-      }
-      confirmLabel={planned ? 'Cancel maintenance' : 'End maintenance'}
-      cancelLabel={planned ? 'Keep it planned' : 'Keep it on'}
-      isLoading={busy}
-      onConfirm={() => void confirm()}
-      onCancel={() => {
-        setProblem(null);
-        onClose();
-      }}
-    />
-  );
-};
-
-/** Shown above every page: planned maintenance to everyone, and maintenance that is on to the office. */
-export const MaintenanceBanner: React.FC<{
-  maintenance: PortalMaintenance | null;
-  isOffice: boolean;
-  onChanged: (message: string) => void;
-}> = ({ maintenance, isOffice, onChanged }) => {
-  const navigate = useNavigate();
-  const [ending, setEnding] = useState(false);
-  const status = maintenanceStatus(maintenance);
-  if (!maintenance || status === 'off' || (status === 'on' && !isOffice)) return null;
-  const on = status === 'on';
-  const Icon = on ? Wrench : CalendarClock;
-
-  return (
-    <div
-      role="status"
-      className={`mb-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-[13.5px] ${on ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}
-    >
-      <p className="flex min-w-0 flex-1 basis-72 items-start gap-2.5">
-        <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        {on ? (
-          <span><strong>Maintenance is on.</strong> Only PG office staff can use the portal. {expectedBackLine(maintenance)}</span>
-        ) : (
-          <span>
-            <strong>Planned maintenance: {maintenanceWindow(maintenance)}.</strong>{' '}
-            {isOffice ? 'Students, lecturers and coordinators cannot use the portal then.' : 'The portal will be unavailable then, so save your work before it starts.'}
-          </span>
-        )}
+    <div role="status" className="mb-5 flex items-start gap-2.5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13.5px] text-amber-900">
+      <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+      <p className="min-w-0">
+        <strong>Planned maintenance: {maintenanceWindow(maintenance)}.</strong> The portal will be unavailable then, so save your work before it starts.
       </p>
-      {isOffice && (
-        <span className="flex shrink-0 flex-wrap gap-2">
-          <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.settings)}>Manage</PortalButton>
-          {on && <PortalButton size="sm" variant="primary" onClick={() => setEnding(true)}>End maintenance</PortalButton>}
-        </span>
-      )}
-      {isOffice && on && (
-        <EndMaintenanceConfirm
-          isOpen={ending}
-          planned={false}
-          onClose={() => setEnding(false)}
-          onEnded={() => {
-            setEnding(false);
-            onChanged(ENDED_MESSAGE);
-          }}
-        />
-      )}
     </div>
   );
 };
 
-/** The whole page for everyone but the office while maintenance is on. They stay signed in. */
-export const MaintenanceScreen: React.FC<{ maintenance: PortalMaintenance; onSignOut: () => void }> = ({ maintenance, onSignOut }) => (
+/** The only page anyone sees while maintenance is on. Someone signed in stays signed in. */
+export const MaintenanceScreen: React.FC<{ maintenance: PortalMaintenance; onSignOut?: () => void }> = ({ maintenance, onSignOut }) => (
   <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
     <AuthLayout>
       <section
@@ -135,27 +45,24 @@ export const MaintenanceScreen: React.FC<{ maintenance: PortalMaintenance; onSig
         <p className="mt-3 text-[15px] leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{maintenance.message}</p>
         <p className="mt-3 text-[14px] font-bold text-slate-800">{expectedBackLine(maintenance)}</p>
         <p className="mt-6 card-description">Questions? Email the PG office at {OFFICE_EMAIL} or call {OFFICE_PHONE}.</p>
-        <p className="mt-1 text-[12px] text-slate-500">This page checks every minute and takes you back as soon as the portal is open. You stay signed in.</p>
-        <PortalButton variant="ghost" icon={LogOut} className="mt-6" onClick={onSignOut}>Sign out</PortalButton>
+        <p className="mt-1 text-[12px] text-slate-500">
+          {onSignOut
+            ? 'This page checks every minute and takes you back as soon as the portal is open. You stay signed in.'
+            : 'This page checks every minute and opens the portal as soon as it is back.'}
+        </p>
+        {onSignOut && <PortalButton variant="ghost" icon={LogOut} className="mt-6" onClick={onSignOut}>Sign out</PortalButton>}
       </section>
     </AuthLayout>
   </div>
 );
 
-/** Above the sign-in form while maintenance is planned or on. */
+/** Above the sign-in form while maintenance is planned. */
 export const SignInMaintenanceNotice: React.FC<{ maintenance: PortalMaintenance | null }> = ({ maintenance }) => {
-  const status = maintenanceStatus(maintenance);
-  if (!maintenance || status === 'off') return null;
-  const on = status === 'on';
+  if (!maintenance || maintenanceStatus(maintenance) !== 'planned') return null;
   return (
-    <div
-      role="status"
-      className={`mb-12 w-full max-w-[490px] rounded-2xl border px-5 py-4 text-left ${on ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-amber-200 bg-amber-50 text-amber-900'}`}
-    >
-      <p className="text-[14px] font-extrabold">{on ? 'The portal is under maintenance' : `Planned maintenance: ${maintenanceWindow(maintenance)}`}</p>
-      <p className="mt-1 text-[13px] leading-relaxed [overflow-wrap:anywhere]">
-        {on ? `${maintenance.message} Only PG office staff can sign in until it ends. ${expectedBackLine(maintenance)}` : 'The portal will be unavailable then.'}
-      </p>
+    <div role="status" className="mb-12 w-full max-w-[490px] rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-left text-amber-900">
+      <p className="text-[14px] font-extrabold">Planned maintenance: {maintenanceWindow(maintenance)}</p>
+      <p className="mt-1 text-[13px] leading-relaxed">The portal will be unavailable then.</p>
     </div>
   );
 };
