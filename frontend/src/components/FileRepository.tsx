@@ -223,7 +223,7 @@ export const FileRepository: React.FC = () => {
   const summaryCards = [
     ...(canCheck
       ? [
-          { key: 'check', title: 'To check', value: summary?.toCheck, caption: 'files', description: 'From students in your programme, waiting for you to accept or return.', icon: ClipboardCheck, tone: 'warning' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'check' }) },
+          { key: 'check', title: 'To check', value: summary?.toCheck, caption: 'files', description: 'Waiting for you to accept or return, from your programme and any programme without a coordinator.', icon: ClipboardCheck, tone: 'warning' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'check' }) },
           { key: 'returned', title: 'Returned', value: summary?.returned, caption: 'files', description: 'Waiting for the student to send a corrected file.', icon: RotateCcw, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all', status: 'RETURNED', programme: '' }) },
         ]
       : [

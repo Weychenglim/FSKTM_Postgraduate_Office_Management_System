@@ -408,7 +408,7 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 - The office sees every file, but only uploads, and changes only what it uploaded. Uploaders see their own. Students see only what they uploaded.
 - Staff see a student's files through real relationships, ticked per file: supervisors and co-supervisors (active appointments), the panel member (active panel appointment), and the programme coordinator (acting delegations included).
 - Staff files (about no student) go to all lecturers and coordinators, coordinators only, or the office only, optionally narrowed to programmes. Students never see them.
-- A programme coordinator always sees files about students in their programme that need a check, and checks, archives and restores them.
+- A programme coordinator always sees files about students in their programme that need a check, and checks, archives and restores them. A programme that no coordinator runs (regular or acting) is covered by every coordinator, for checks, archiving and required documents, so nothing waits for a check nobody can make.
 - Archived files are seen by the office and by the coordinator of the student's programme. A file someone may not see answers 404, the same as a missing one.
 
 **Uploads.**

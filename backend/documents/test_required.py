@@ -89,6 +89,12 @@ class RequiredProgressTests(DocumentPeople, RequiredClient, APITestCase):
         done = self.names(self.checker, "supervisor-appointment-form", "done")
         self.assertEqual([(item["name"], item["documentId"]) for item in done], [("Ali Hassan", form["id"])])
 
+    def test_students_whose_programme_has_no_coordinator_are_followed_by_every_coordinator(self):
+        self.student("DOC-S8", "Lina Legacy", "Master of Computer Science (By Coursework)")
+        self.assertEqual([item["name"] for item in self.names(self.coordinator, "thesis", "todo")], ["Bella Tan", "Lina Legacy"])
+        self.assertEqual([item["name"] for item in self.names(self.checker, "thesis", "todo")], ["Ali Hassan", "Chen Wei", "Lina Legacy"])
+        self.assertEqual(self.row(self.coordinator, "thesis")["students"], 2)
+
     def test_coordinators_follow_their_programmes_only(self):
         self.assertEqual(self.row(self.coordinator, "thesis")["students"], 1)
         self.assertEqual([item["name"] for item in self.names(self.coordinator, "thesis")], ["Bella Tan"])

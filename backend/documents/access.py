@@ -5,7 +5,9 @@ supervisor or co-supervisor appointment, an active panel appointment, or
 coordinating the student's programme (acting delegations included). The office
 sees everything but only changes what it uploaded; students see only what they
 uploaded. A programme coordinator checks, archives and restores files about
-students in their programme, and always sees the ones that need a check.
+students in their programme, and always sees the ones that need a check. A
+programme that no coordinator runs is covered by every coordinator, so no file
+waits for a check that nobody can make.
 """
 from dataclasses import dataclass, field
 
@@ -35,6 +37,18 @@ def is_staff_member(user):
 
 def programme_key(value):
     return normalise_programme(value) or str(value or "").strip().upper()
+
+
+def covered_programmes():
+    """Programmes an eligible coordinator runs today, regular or acting."""
+    found = set()
+    for user in User.objects.filter(is_active=True, role=User.Role.COORDINATOR):
+        found.update(programme_key(value) for value in coordinator_programmes(user))
+    return found
+
+
+def covering_coordinators():
+    return [user for user in User.objects.filter(is_active=True, role=User.Role.COORDINATOR) if coordinator_programmes(user)]
 
 
 def panel_student_ids(panel_member=None, student_ids=None):
@@ -69,6 +83,7 @@ class Scope:
     co_supervised: set = field(default_factory=set)
     panel: set = field(default_factory=set)
     coordinated: list = field(default_factory=list)
+    covered: set = field(default_factory=set)
     lecturer_programmes: set = field(default_factory=set)
 
     @classmethod
@@ -88,6 +103,8 @@ class Scope:
         )
         scope.panel = {student_id for student_id, _ in panel_student_ids(panel_member=user)}
         scope.coordinated = [programme_key(value) for value in coordinator_programmes(user)]
+        if scope.coordinated:
+            scope.covered = covered_programmes()
         related = scope.supervisees | scope.panel
         if related:
             scope.lecturer_programmes = {
@@ -116,14 +133,36 @@ class Scope:
             found.add("COORDINATOR")
         return found
 
-    def coordinates(self, document):
-        """Whether a student this file is about is in a programme this person coordinates."""
-        if not self.coordinated or document.is_staff_file:
+    def covers(self, student):
+        """Whether this coordinator looks after ``student``: their own programme,
+        or a programme no coordinator runs."""
+        if not self.coordinated:
             return False
-        return any(programme_key(link.student.programme) in self.coordinated for link in document.student_links.all())
+        programme = programme_key(student.programme)
+        return programme in self.coordinated or programme not in self.covered
+
+    def coordinates(self, document):
+        """Whether this person checks, archives and restores this file."""
+        if document.is_staff_file:
+            return False
+        return any(self.covers(link.student) for link in document.student_links.all())
 
     def coordinates_all(self, students):
-        return bool(students) and all(programme_key(student.programme) in self.coordinated for student in students)
+        return bool(students) and all(self.covers(student) for student in students)
+
+    def covered_q(self, prefix=""):
+        """A filter for the students this coordinator looks after."""
+        if not self.coordinated:
+            return Q(pk__in=[])
+
+        def any_of(programmes):
+            return Q(*[Q(**{f"{prefix}programme__trim__iexact": programme}) for programme in programmes], _connector=Q.OR)
+
+        return any_of(self.coordinated) | ~any_of(self.covered)
+
+    def checked_files(self):
+        """Files about a student this coordinator looks after."""
+        return Q(is_staff_file=False, pk__in=DocumentStudent.objects.filter(self.covered_q("student__")).values("document_id"))
 
     def programme_files(self):
         """Files about a student in a programme this person coordinates."""
@@ -192,9 +231,9 @@ def visible_documents(user, scope=None):
         condition |= Q(is_staff_file=False, share_panel=True) & about(Q(student_id__in=scope.panel))
     if not scope.coordinated:
         return current.filter(condition)
-    programme_files = scope.programme_files()
-    condition |= programme_files & (Q(share_coordinator=True) | ~Q(check_status=Document.CheckStatus.NONE))
-    return documents.filter(Q(archived_at__isnull=True) & condition | Q(archived_at__isnull=False) & condition & programme_files)
+    checked_files = scope.checked_files()
+    condition |= scope.programme_files() & Q(share_coordinator=True) | checked_files & ~Q(check_status=Document.CheckStatus.NONE)
+    return documents.filter(Q(archived_at__isnull=True) & condition | Q(archived_at__isnull=False) & condition & checked_files)
 
 
 def can_see(user, document, scope=None):
@@ -286,8 +325,12 @@ def people_reached(document, students=None):
         users = User.objects.in_bulk({member for _, member in panel_student_ids(student_ids=ids)})
         for user in users.values():
             add(user, "panel member")
-    if document.share_coordinator or document.check_status != Document.CheckStatus.NONE:
-        for programme in {student.programme for student in students if student.programme}:
-            for user in programme_coordinators(programme):
+    checked = document.check_status != Document.CheckStatus.NONE
+    if document.share_coordinator or checked:
+        for programme in {programme_key(student.programme) for student in students}:
+            coordinators = list(programme_coordinators(programme)) if programme else []
+            if not coordinators and checked:
+                coordinators = covering_coordinators()
+            for user in coordinators:
                 add(user, "programme coordinator")
     return list(reached.values())

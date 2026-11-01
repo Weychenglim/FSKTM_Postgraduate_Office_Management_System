@@ -232,7 +232,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
 
       {!staffKind && (
         <Section>
-          <SwitchRow id="type-check" title="The programme coordinator checks it" hint={'Uploads wait in "To check" until the student\'s programme coordinator accepts or returns them.'} checked={draft.needsCheck} onChange={needsCheck => change(needsCheck ? { needsCheck, shareCoordinator: true } : { needsCheck })} />
+          <SwitchRow id="type-check" title="The programme coordinator checks it" hint={'Uploads wait in "To check" until the student\'s programme coordinator accepts or returns them. If the programme has no coordinator, any programme coordinator can.'} checked={draft.needsCheck} onChange={needsCheck => change(needsCheck ? { needsCheck, shareCoordinator: true } : { needsCheck })} />
         </Section>
       )}
 

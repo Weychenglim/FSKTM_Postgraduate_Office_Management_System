@@ -2,9 +2,10 @@ from django.core import mail
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
+from accounts.models import Coordinator, User
 from announcements.models import Notification
 
-from .fixtures import TEST_MEDIA, DocumentPeople, image_bytes, pdf_bytes, upload
+from .fixtures import AI, TEST_MEDIA, DocumentPeople, image_bytes, pdf_bytes, upload
 from .models import Document, DocumentEvent, DocumentType
 from .test_access import DocumentClient
 
@@ -65,6 +66,30 @@ class CheckTests(DocumentPeople, DocumentClient, APITestCase):
         self.check(self.checker, "ACCEPT")
         response = self.check(self.checker, "ACCEPT")
         self.assertEqual((response.status_code, response.data["code"]), (409, "not_waiting"))
+
+    def test_a_programme_with_no_coordinator_is_covered_by_every_coordinator(self):
+        omar = self.student("DOC-S9", "Omar Orphan", AI)
+        first = self.made(omar.user, "faculty-form", "Omar form", name="omar.png", content=image_bytes(size=(66, 66)))
+        second = self.made(omar.user, "supervisor-appointment-form", "Omar second", name="omar2.png", content=image_bytes(size=(67, 67)))
+        for user in (self.coordinator, self.checker):
+            self.assertEqual(self.titles(user, "?view=check") & {"Omar form", "Omar second"}, {"Omar form", "Omar second"})
+        self.assertEqual(self.titles(self.office, "?view=check"), set())
+        self.client.force_authenticate(self.coordinator)
+        detail = self.client.get(f"/api/documents/{first['id']}/").data
+        self.assertTrue(detail["permissions"]["canCheck"])
+        self.assertTrue({"Prof Coordinator", "Prof Checker"} <= {person["name"] for person in detail["sharedWith"]})
+        accepted = self.client.post(f"/api/documents/{first['id']}/check/", {"decision": "ACCEPT"}, format="json")
+        self.assertEqual((accepted.status_code, accepted.data["checkStatus"]), (200, "ACCEPTED"))
+        self.assertIsNotNone(self.client.get(f"/api/documents/students/{omar.matric_no}/").data["required"])
+
+        ai_coordinator = self.lecturer("doc-coord-ai@example.test", "DOC-C3", "Prof Intelligence", User.Role.COORDINATOR)
+        Coordinator.objects.create(lecturer=ai_coordinator.lecturer, programme_managed=AI)
+        self.assertEqual(self.titles(ai_coordinator, "?view=check"), {"Omar second"})
+        for user in (self.coordinator, self.checker):
+            self.assertNotIn("Omar second", self.titles(user, "?view=check"))
+        self.client.force_authenticate(self.checker)
+        response = self.client.post(f"/api/documents/{second['id']}/check/", {"decision": "ACCEPT"}, format="json")
+        self.assertEqual(response.status_code, 404)
 
     def test_the_coordinator_sees_files_to_check_even_when_the_type_hides_them(self):
         DocumentType.objects.filter(code="faculty-form").update(share_coordinator=False)

@@ -26,7 +26,6 @@ from .access import (
     panel_student_ids,
     people_reached,
     permissions,
-    programme_key,
     supervisors_of,
     taggable_students,
     visible_documents,
@@ -51,7 +50,6 @@ from .required import (
     AlreadyReminded,
     NobodyToRemind,
     mine,
-    programme_filter,
     progress,
     reminded_today,
     remind,
@@ -252,6 +250,8 @@ def student_header_view(request, matric):
     student = None
     if scope.office or is_staff_member(request.user):
         student = taggable_students(request.user, scope).filter(matric_no__iexact=matric.strip()).first()
+    if student is None and scope.coordinated:
+        student = Student.objects.select_related("user").filter(scope.covered_q(), matric_no__iexact=matric.strip()).first()
     if student is None:
         return Response({"detail": "This student isn't available to you."}, status=status.HTTP_404_NOT_FOUND)
     ids = {student.user_id}
@@ -262,7 +262,7 @@ def student_header_view(request, matric):
     if scope.office:
         letters = GeneratedLetter.objects.filter(student=student, status=GeneratedLetter.Status.ISSUED).count()
     required = None
-    if programme_key(student.programme) in scope.coordinated:
+    if scope.covers(student):
         required = [{"label": doc_type.label, "state": state} for doc_type, state, _ in mine(student)]
     return Response({
         "matric": student.matric_no,
@@ -283,7 +283,7 @@ def _filtered(request, scope):
     documents = documents.filter(archived_at__isnull=not _flag(params.get("archived")))
     view = params.get("view") or "all"
     if view == "check":
-        documents = documents.filter(scope.programme_files(), check_status=Document.CheckStatus.WAITING)
+        documents = documents.filter(scope.checked_files(), check_status=Document.CheckStatus.WAITING)
     elif view == "staff":
         documents = documents.filter(is_staff_file=True)
     elif view == "mine":
@@ -577,9 +577,9 @@ def summary_view(request):
     if scope.office or scope.coordinated:
         payload["archived"] = visible.filter(archived_at__isnull=False).count()
     if scope.coordinated:
-        programme_files = current.filter(scope.programme_files())
-        payload["toCheck"] = programme_files.filter(check_status=Document.CheckStatus.WAITING).count()
-        payload["returned"] = programme_files.filter(check_status=Document.CheckStatus.RETURNED).count()
+        checked_files = current.filter(scope.checked_files())
+        payload["toCheck"] = checked_files.filter(check_status=Document.CheckStatus.WAITING).count()
+        payload["returned"] = checked_files.filter(check_status=Document.CheckStatus.RETURNED).count()
         students, _ = _required_students(scope)
         behind = set()
         for doc_type in required_types():
@@ -1195,7 +1195,7 @@ def history_view(request):
 def _required_students(scope):
     """The students whose required documents this person may follow."""
     if scope.coordinated:
-        return Student.objects.filter(programme_filter(scope.coordinated)), None
+        return Student.objects.filter(scope.covered_q()), None
     return None, Response(
         {"detail": "Only programme coordinators follow required documents.", "code": "documents_required_role"},
         status=status.HTTP_403_FORBIDDEN,

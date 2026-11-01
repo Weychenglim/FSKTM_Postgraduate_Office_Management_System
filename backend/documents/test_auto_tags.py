@@ -119,6 +119,8 @@ class AutoTagTests(DocumentPeople, DocumentClient, APITestCase):
         self.assertNotIn("studentsStillToHandIn", self.client.get("/api/documents/summary/").data)
         self.assertEqual(self.client.get("/api/documents/options/").data["intakes"], ["2025/2026 Semester 1", "2024/2025 Semester 2"])
         self.client.force_authenticate(self.coordinator)
+        self.assertEqual(self.client.get("/api/documents/summary/").data["studentsStillToHandIn"], 2, "Bella, and Chen while Data Science has no coordinator")
+        self.make_checker()
         self.assertEqual(self.client.get("/api/documents/summary/").data["studentsStillToHandIn"], 1)
         self.client.force_authenticate(self.supervisor)
         self.assertNotIn("studentsStillToHandIn", self.client.get("/api/documents/summary/").data)
