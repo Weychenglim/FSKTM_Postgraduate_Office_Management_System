@@ -1089,6 +1089,44 @@ Final validation: all 168 frontend test checks pass, including production demo/C
 
 Browser coverage: Office attention and exact pending recommendation were inspected locally. The user requested no further browser checks; cross-role desktop/mobile browser acceptance and new decision previews were not completed or claimed. Shared rendering, navigation, capability, privacy and outcome contracts have automated coverage. Temporary viewport override was reset. API restarted at 127.0.0.1:8000; portal remains localhost:3001. Implementation stays local and uncommitted; the earlier requested snapshot was already pushed separately.
 
+## Programme Transfer Moved into Student Registry (2026-11-01)
+
+Plan: `docs/superpowers/plans/2026-11-01-programme-transfer-registry.md`, from Wey Cheng's handoff notes. Xiang approved all seven recommended decisions.
+
+- **Office:**
+  - The Student Record shows "Request programme transfer" when the student has a research profile. For those students the programme is locked in Edit Details, so the old 409 dead end no longer appears.
+  - The form shows:
+    - the possible programmes (ones with no coordinator are greyed out "No coordinator yet");
+    - a required reason;
+    - who approves, in order;
+    - the supervisors, panel and unfinished tasks that stay with the student.
+  - Students without a research profile are still edited directly.
+- **Registry tab "Programme transfers":**
+  - **Office:** Pending and Past.
+  - **Coordinators:** Waiting for you (with a count) and Past.
+  - Other lecturers have no tab.
+- **A transfer's page** shows the four steps with names, dates and notes, and what stays with the student.
+  - **Coordinators:** Approve, which needs the tick that keeps the team, or Reject with a reason.
+  - **Office:** Cancel request with a reason.
+  - Back returns to wherever it was opened from, including the same Student Record (`/registry?student=<matric>`).
+- **Nobody coordinates the current programme** (decision 2, a three-line change in Wey Cheng's `research_amendments.submit()`): the request starts at the new programme's coordinator, and its steps say the first approval was skipped and why.
+- **Notices** (`accounts/transfer_notices.py`, listening to the transfer history; no edits to his files):
+  - the coordinators who must decide next are told;
+  - when it ends, the student and the office user who started it are told, with the reason for a rejection or cancellation.
+- **Unchanged:** his API, records, two-stage approval, the team tick and the blockers are reused as they are. The old Supervisor Appointments screens and links still work; removing them is Wey Cheng's cutover step.
+- **Checks:**
+  - Backend: 8 new Registry transfer tests, plus the appointments, dashboard and accounts suites (1035 tests).
+  - Frontend: new helper tests, the type check, the build and all 238 test files.
+  - In a browser, on a private copy with disposable test accounts (a second Cyber Security coordinator created on the copy, not the demo account):
+    - the office started a transfer from the Student Record, and the Data Science coordinator approved it with the tick;
+    - the Cyber Security coordinator completed it, and the record and the research profile both changed;
+    - the student and both coordinators got their notices;
+    - a rejection and a cancellation changed nothing and told the student;
+    - a Master of AI student skipped the first approval;
+    - the old research-changes link still opened, and a lecturer was sent back to Registry;
+    - no page errors and no sideways scroll at 390 px.
+  - The copy was dropped afterwards.
+
 ## Portal Maintenance in Django Admin, and a To-Do Badge for Students (2026-11-01)
 
 Plan: `docs/superpowers/plans/2026-10-30-portal-maintenance.md`. First built on 2026-10-30 with the switch in the office's Settings; redesigned on 2026-11-01 at Xiang's request, after research into Moodle, GitLab, Laravel, django-maintenance-mode and the UK government's Data Workspace.

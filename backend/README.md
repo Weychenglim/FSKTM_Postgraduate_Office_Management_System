@@ -284,6 +284,20 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 
 **History.** Every change is an `AccountChange` row with who, when and what. Rows cannot be edited or deleted, and keep the name and email as text after an account is deleted.
 
+## Programme transfers in Student Registry (`/api/registry/`)
+
+The office starts a transfer from the Student Record; the coordinator of the student's current programme approves it, then the coordinator of the new programme. The workflow, its records and its rules stay in `appointments.research_amendments` (`/api/appointments/research-amendments/`, kind `TRANSFER`); Registry only reads them.
+
+| Method | Path | Who | Returns |
+| ------ | ---- | --- | ------- |
+| GET | `students/<matric>/transfer/` | Anyone who can read that record | `{studentId, hasResearchProfile, canRequest, pending}`; the office also gets `blockers`, `currentCoordinators`, `destinations` (each with its coordinators), `team` and `unfinishedTasks` |
+| GET | `programme-coordinators/` | Office and programme coordinators | `{programmes: [{programme, coordinators}]}`, regular and acting coordinators today |
+
+- A student record also carries `userId`, which the transfer API needs.
+- A student with a research profile changes programme only through a transfer; a direct programme edit answers 409 and says to use Request programme transfer. Students without one are edited directly.
+- When nobody coordinates the student's current programme, a new transfer starts at the new programme's coordinator (its first history entry goes straight to `PENDING_DESTINATION_COORDINATOR`).
+- Notices (`accounts.transfer_notices`, target `REGISTRY` / `PROGRAMME_TRANSFER`): the coordinators who must decide next, and when it ends, the student and the office user who started it. The person acting is never told about their own step.
+
 ## FAQ knowledge base endpoints (`/api/faq/`)
 
 The chatbot's answers (UC28, UC29).

@@ -1,10 +1,15 @@
 """Student Registry and staff account routes, mounted under /api/registry/ by the project URLconf."""
 from django.urls import path
 
-from . import registry_views, staff_views
+from . import registry_transfers, registry_views, staff_views
 
 urlpatterns = [
     path("students/", registry_views.student_records_view, name="registry-students"),
+    path(
+        "programme-coordinators/",
+        registry_transfers.programme_coordinators_view,
+        name="registry-programme-coordinators",
+    ),
     path(
         "students/import/",
         registry_views.student_import_view,
@@ -24,6 +29,11 @@ urlpatterns = [
         "students/<str:matric_no>/",
         registry_views.student_record_detail_view,
         name="registry-student-detail",
+    ),
+    path(
+        "students/<str:matric_no>/transfer/",
+        registry_transfers.student_transfer_view,
+        name="registry-student-transfer",
     ),
     path(
         "students/<str:matric_no>/send-access-link/",
