@@ -34,7 +34,7 @@ assert.doesNotMatch(sidebar(SIDEBAR_ITEMS.FILE_MANAGEMENT), /bg-rose-600/);
 const header = (menuAlert?: string) => renderToStaticMarkup(
   <MemoryRouter>
     <NotificationsProvider>
-      <TopHeader userName="Ku Kian Xiang" userRole="Student" onLogout={() => {}} onHelpdeskTrigger={() => {}} onNotificationsTrigger={() => {}} onToggleSidebar={() => {}} menuAlert={menuAlert} />
+      <TopHeader userName="Ku Kian Xiang" userRole="Student" onLogout={() => {}} onNotificationsTrigger={() => {}} onToggleSidebar={() => {}} menuAlert={menuAlert} />
     </NotificationsProvider>
   </MemoryRouter>,
 );
@@ -44,5 +44,6 @@ assert.match(alerted, /bg-rose-600 ring-2 ring-white/);
 const quiet = header('');
 assert.match(quiet, /aria-label="Toggle sidebar"/);
 assert.doesNotMatch(quiet, /bg-rose-600 ring-2/);
+assert.doesNotMatch(quiet, /Administrative Manual Guide/, 'the top bar has no help button');
 
 console.log('Sidebar to-do badge and menu button dot passed');

@@ -78,7 +78,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           userName={userName}
           userRole={userRole}
           onLogout={onLogout}
-          onHelpdeskTrigger={() => setActiveModal('help')}
           onNotificationsTrigger={onNotificationsTrigger}
           onToggleSidebar={() => setSidebarOpen(v => !v)}
           menuAlert={hiddenBadges.map((badge) => badge?.label).join(', ')}
