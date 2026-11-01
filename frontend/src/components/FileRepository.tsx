@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, ClipboardCheck, FileSignature, FileStack, ListChecks, Plus, RotateCcw, Settings2, SlidersHorizontal, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, FileSignature, FileStack, History, ListChecks, Plus, RotateCcw, Settings2, SlidersHorizontal, UsersRound, X } from 'lucide-react';
 import type { DocumentAutoTag, DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { getReceivedLetters } from '../services/lettersApi';
@@ -253,7 +253,8 @@ export const FileRepository: React.FC = () => {
         subtitle="Every student's official documents, in one place. The system files and tags each one."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {isOffice && <PortalButton icon={Settings2} onClick={() => navigate(APP_ROUTES.filesSettings)}>Settings</PortalButton>}
+            {isOffice && <PortalButton icon={History} onClick={() => navigate(APP_ROUTES.filesHistory)}>History</PortalButton>}
+            {options?.canManageTypes && <PortalButton icon={Settings2} onClick={() => navigate(APP_ROUTES.filesSettings)}>Settings</PortalButton>}
             <PortalButton variant="primary" icon={Plus} onClick={() => navigate(uploadPath)}>Upload file</PortalButton>
           </div>
         }
@@ -347,7 +348,7 @@ export const FileRepository: React.FC = () => {
       )}
 
       {filters.view === 'required' && !filters.student ? (
-        <RequiredDocuments isOffice={isOffice} />
+        <RequiredDocuments canManageTypes={Boolean(options?.canManageTypes)} />
       ) : filters.view === 'letters' && !filters.student ? (
         lecturerView ? <ReceivedAppointmentLetters /> : null
       ) : (

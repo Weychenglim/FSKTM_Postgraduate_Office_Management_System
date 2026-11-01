@@ -11,7 +11,7 @@ from .test_access import DocumentClient
 
 class RequiredClient(DocumentClient):
     def require(self, code, **body):
-        self.client.force_authenticate(self.office)
+        self.client.force_authenticate(self.coordinator)
         doc_type = DocumentType.objects.get(code=code)
         return self.client.patch(f"/api/documents/types/{doc_type.pk}/", {"required": True, **body}, format="json")
 

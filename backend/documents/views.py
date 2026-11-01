@@ -160,6 +160,7 @@ def options_view(request):
         "isOffice": scope.office,
         "canUploadStaffFiles": scope.office or is_staff_member(user),
         "canSeeRequired": scope.office or bool(scope.coordinated),
+        "canManageTypes": bool(scope.coordinated),
     }
     if not student_view:
         payload["semesters"] = [
@@ -913,7 +914,19 @@ def _office_only(request):
         return scope, refused
     if not scope.office:
         return scope, Response(
-            {"detail": "Only the PG office manages File Management settings.", "code": "documents_office_only"},
+            {"detail": "Only the PG office reads the File Management history.", "code": "documents_office_only"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return scope, None
+
+
+def _coordinators_only(request):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return scope, refused
+    if not scope.coordinated:
+        return scope, Response(
+            {"detail": "Only programme coordinators manage File Management settings.", "code": "documents_coordinators_only"},
             status=status.HTTP_403_FORBIDDEN,
         )
     return scope, None
@@ -1007,8 +1020,8 @@ def _type_values(data, doc_type=None):
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def types_view(request):
-    """Every document type, switched off ones included, for the office."""
-    _, refused = _office_only(request)
+    """Every document type, switched off ones included, for programme coordinators."""
+    _, refused = _coordinators_only(request)
     if refused:
         return refused
     if request.method == "POST":
@@ -1028,7 +1041,7 @@ def types_view(request):
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def type_view(request, pk):
-    _, refused = _office_only(request)
+    _, refused = _coordinators_only(request)
     if refused:
         return refused
     doc_type = DocumentType.objects.filter(pk=pk).first()

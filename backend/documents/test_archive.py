@@ -116,7 +116,7 @@ class HistoryTests(DocumentPeople, ArchiveClient, APITestCase):
         self.client.put(f"/api/documents/{self.evaluation['id']}/sharing/", {"supervisors": True, "panel": False, "coordinator": False}, format="json")
         sharing = self.history("?show=changes").data["results"][0]
         self.assertEqual(sharing["detail"], "Now shared with supervisors")
-        self.client.force_authenticate(self.office)
+        self.client.force_authenticate(self.coordinator)
         thesis_type = Document.objects.get(pk=self.thesis["id"]).doc_type
         self.client.patch(f"/api/documents/types/{thesis_type.pk}/", {"sharePanel": False}, format="json")
         settings = self.history("?show=settings").data["results"][0]

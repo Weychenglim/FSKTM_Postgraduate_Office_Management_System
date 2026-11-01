@@ -39,6 +39,7 @@ export interface DocumentOptions {
   isOffice: boolean;
   canUploadStaffFiles: boolean;
   canSeeRequired: boolean;
+  canManageTypes: boolean;
   semesters?: Array<{ id: number; label: string }>;
   programmes?: string[];
   intakes?: string[];

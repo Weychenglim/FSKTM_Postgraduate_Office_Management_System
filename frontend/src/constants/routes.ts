@@ -32,6 +32,7 @@ export const APP_ROUTES = {
   filesDocuments: '/files/documents',
   filesLetters: '/files/letters',
   filesSettings: '/files/settings',
+  filesHistory: '/files/history',
   supervisorAppointments: '/supervisor-appointments',
   supervisorAppointmentRequests: '/supervisor-appointments/requests',
   supervisorAppointmentWorkload: '/supervisor-appointments/workload',

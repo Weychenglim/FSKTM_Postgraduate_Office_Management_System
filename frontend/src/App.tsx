@@ -105,6 +105,7 @@ const UploadNewDocument = lazyNamed('UploadNewDocument', () => import('./compone
 const DocumentPage = lazyNamed('DocumentPage', () => import('./components/DocumentPage'));
 const AppointmentLetterPage = lazyNamed('AppointmentLetterPage', () => import('./components/AppointmentLetterPage'));
 const FileSettings = lazyNamed('FileSettings', () => import('./components/FileSettings'));
+const FileHistory = lazyNamed('FileHistory', () => import('./components/FileHistory'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
 const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
 const AcademicFAQEditor = lazyNamed('AcademicFAQEditor', () => import('./components/AcademicFAQEditor'));
@@ -871,8 +872,10 @@ export default function App() {
                   onUploadSuccess={(document) => navigate(routeForDocument(document.id), { replace: true, state: { uploadedReference: document.reference } })}
                   onOpenExisting={(documentId) => navigate(routeForDocument(documentId))}
                 />
-              ) : pathname === APP_ROUTES.filesSettings && currentUser.role === 'Office Staff/Admin' ? (
+              ) : pathname === APP_ROUTES.filesSettings && currentUser.role === 'Programme Coordinator' ? (
                 <FileSettings onBack={() => navigate(APP_ROUTES.files)} />
+              ) : pathname === APP_ROUTES.filesHistory && currentUser.role === 'Office Staff/Admin' ? (
+                <FileHistory onBack={() => navigate(APP_ROUTES.files)} />
               ) : documentMatch ? (
                 <DocumentPage
                   key={documentMatch.params.documentId}

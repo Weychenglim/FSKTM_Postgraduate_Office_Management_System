@@ -16,7 +16,7 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
 /** The office's and coordinators' view of documents every student must hand in. */
-export const RequiredDocuments: React.FC<{ isOffice: boolean }> = ({ isOffice }) => {
+export const RequiredDocuments: React.FC<{ canManageTypes: boolean }> = ({ canManageTypes }) => {
   const navigate = useNavigate();
   const [overview, setOverview] = useState<RequiredOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,9 +59,9 @@ export const RequiredDocuments: React.FC<{ isOffice: boolean }> = ({ isOffice })
       <section className="app-card">
         <EmptyState
           title="No required documents yet."
-          description={isOffice ? 'In Settings, turn on "Every student must hand it in" for a document type.' : 'The PG office decides which documents every student must hand in.'}
-          actionLabel={isOffice ? 'Open Settings' : undefined}
-          onAction={isOffice ? () => navigate(APP_ROUTES.filesSettings) : undefined}
+          description={canManageTypes ? 'In Settings, turn on "Every student must hand it in" for a document type.' : 'Programme coordinators decide which documents every student must hand in.'}
+          actionLabel={canManageTypes ? 'Open Settings' : undefined}
+          onAction={canManageTypes ? () => navigate(APP_ROUTES.filesSettings) : undefined}
         />
       </section>
     );
