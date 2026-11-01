@@ -181,7 +181,10 @@ def submit(*, actor, data):
         if not programme_coordinators(destination).exists():
             raise AmendmentConflict('No eligible coordinator currently manages the destination programme.')
         after = {**snapshot(profile), 'programme': destination}
-        status = 'PENDING_SOURCE_COORDINATOR'
+        # Nobody can give the first approval when the current programme has no
+        # coordinator, so the request starts with the destination coordinator.
+        status = ('PENDING_SOURCE_COORDINATOR' if programme_coordinators(student.programme).exists()
+                  else 'PENDING_DESTINATION_COORDINATOR')
     semester = current_effective_semester()
     if semester is None:
         raise AmendmentConflict('An active academic semester is required for a new amendment.')
