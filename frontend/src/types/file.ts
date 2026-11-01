@@ -40,6 +40,7 @@ export interface DocumentOptions {
   canUploadStaffFiles: boolean;
   canSeeRequired: boolean;
   canManageTypes: boolean;
+  canCheck: boolean;
   semesters?: Array<{ id: number; label: string }>;
   programmes?: string[];
   intakes?: string[];
@@ -242,6 +243,7 @@ export interface SharingPerson {
 
 export interface StudentFileSharingOptions {
   isStaffFile: false;
+  coordinatorChecks: boolean;
   share: DocumentSharing;
   followsType: boolean;
   people: Record<keyof DocumentSharing, SharingPerson[]>;

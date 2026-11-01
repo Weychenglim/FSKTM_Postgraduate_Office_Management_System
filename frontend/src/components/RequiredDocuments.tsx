@@ -15,7 +15,7 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
-/** The office's and coordinators' view of documents every student must hand in. */
+/** Programme coordinators' view of documents every student in their programme must hand in. */
 export const RequiredDocuments: React.FC<{ canManageTypes: boolean }> = ({ canManageTypes }) => {
   const navigate = useNavigate();
   const [overview, setOverview] = useState<RequiredOverview | null>(null);

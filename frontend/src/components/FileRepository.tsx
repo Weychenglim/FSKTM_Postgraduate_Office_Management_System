@@ -4,8 +4,8 @@
  */
 
 // File Management for staff: every file they may see, with the system's tags as
-// one-click filters. The office gets counts to act on first (files to check,
-// files returned, students still owing a required document).
+// one-click filters. Programme coordinators get counts to act on first (files to
+// check, files returned, students still owing a required document).
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
@@ -37,7 +37,7 @@ const SENDER_LABELS: Record<Exclude<DocumentFilters['sender'], ''>, string> = {
   office: 'PG office',
 };
 const STATUS_LABELS: Record<Exclude<DocumentFilters['status'], ''>, string> = {
-  WAITING: 'Waiting for office',
+  WAITING: 'Waiting for a check',
   RETURNED: 'Returned',
   ACCEPTED: 'Accepted',
   NONE: 'No check needed',
@@ -189,6 +189,7 @@ export const FileRepository: React.FC = () => {
   };
 
   const isOffice = Boolean(options?.isOffice);
+  const canCheck = Boolean(options?.canCheck);
   const from = `${location.pathname}${location.search}`;
   const groupLabel = (value: string) => options?.groups.find(group => group.value === value)?.label ?? value;
   const semesterLabel = (value: string) => (value === 'none' ? 'Not linked to a semester' : options?.semesters?.find(item => String(item.id) === value)?.label ?? value);
@@ -220,13 +221,13 @@ export const FileRepository: React.FC = () => {
   const pageCount = Math.max(1, Math.ceil(count / pageSize));
 
   const summaryCards = [
-    ...(isOffice
+    ...(canCheck
       ? [
-          { key: 'check', title: 'To check', value: summary?.toCheck, caption: 'files', description: 'Waiting for the office to accept or return.', icon: ClipboardCheck, tone: 'warning' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'check' }) },
-          { key: 'returned', title: 'Returned', value: summary?.returned, caption: 'files', description: 'Waiting for the student to send a corrected file.', icon: RotateCcw, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all', status: 'RETURNED' }) },
+          { key: 'check', title: 'To check', value: summary?.toCheck, caption: 'files', description: 'From students in your programme, waiting for you to accept or return.', icon: ClipboardCheck, tone: 'warning' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'check' }) },
+          { key: 'returned', title: 'Returned', value: summary?.returned, caption: 'files', description: 'Waiting for the student to send a corrected file.', icon: RotateCcw, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all', status: 'RETURNED', programme: '' }) },
         ]
       : [
-          { key: 'all', title: 'Files you can see', value: summary?.all, caption: 'files', description: 'About your students, or shared with staff.', icon: FileStack, tone: 'info' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all' }) },
+          { key: 'all', title: isOffice ? 'All files' : 'Files you can see', value: summary?.all, caption: 'files', description: isOffice ? "Every student's files and every staff file." : 'About your students, or shared with staff.', icon: FileStack, tone: 'info' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all' }) },
         ]),
     ...(options?.canSeeRequired
       ? [{ key: 'required', title: 'Still to hand in', value: summary?.studentsStillToHandIn, caption: 'students', description: 'Owe at least one required document.', icon: UsersRound, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'required' }) }]
@@ -338,7 +339,7 @@ export const FileRepository: React.FC = () => {
             onChange={view => update({ view })}
             options={[
               { value: 'all', label: 'All files', icon: FileStack },
-              ...(isOffice ? [{ value: 'check' as const, label: `To check (${summary?.toCheck ?? 0})`, icon: ClipboardCheck }] : []),
+              ...(canCheck ? [{ value: 'check' as const, label: `To check (${summary?.toCheck ?? 0})`, icon: ClipboardCheck }] : []),
               ...(options?.canSeeRequired ? [{ value: 'required' as const, label: 'Required documents', icon: ListChecks }] : []),
               { value: 'staff', label: 'Staff files', icon: UsersRound },
               ...(lecturerView ? [{ value: 'letters' as const, label: 'Appointment letters', icon: FileSignature }] : []),
@@ -463,7 +464,7 @@ export const FileRepository: React.FC = () => {
                   Uploaded to
                   <input type="date" value={filters.to} onChange={event => update({ to: event.target.value })} className="form-control form-control-sm mt-1" />
                 </label>
-                {isOffice && (
+                {(isOffice || canCheck) && (
                   <label className="form-label">
                     Show
                     <PortalSelect className="form-control form-control-sm mt-1" value={filters.archived} onChange={event => update({ archived: event.target.value as DocumentFilters['archived'] })}>

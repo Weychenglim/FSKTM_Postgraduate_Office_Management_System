@@ -177,9 +177,9 @@ def _remove_files(names):
             pass
 
 
-def add_version(document, *, actor, checked, note, is_office):
+def add_version(document, *, actor, checked, note, by_checker):
     """A corrected or newer file. Older versions stay; the check starts again
-    for types the office checks, unless the office added the version."""
+    for types the coordinator checks, unless the coordinator added the version."""
     stored_name = default_storage.save(version_path(None, checked.original_name), ContentFile(checked.content))
     try:
         with transaction.atomic():
@@ -200,9 +200,9 @@ def add_version(document, *, actor, checked, note, is_office):
             version.file.name = stored_name
             version.save()
             document.current_version = version
-            if document.doc_type.needs_check:
-                document.check_status = Document.CheckStatus.ACCEPTED if is_office else Document.CheckStatus.WAITING
-                if is_office:
+            if document.doc_type.needs_check and not document.is_staff_file:
+                document.check_status = Document.CheckStatus.ACCEPTED if by_checker else Document.CheckStatus.WAITING
+                if by_checker:
                     document.checked_by, document.checked_at, document.check_reason = actor, timezone.now(), ""
             document.save(update_fields=["current_version", "check_status", "checked_by", "checked_at", "check_reason", "updated_at"])
             record_event(document, DocumentEvent.Action.VERSION_ADDED, actor, version_number=number, reason=note)
@@ -237,14 +237,15 @@ def check_document(document, *, actor, accept, reason):
 
 def send_check_notice(document, number):
     uploader = document.uploaded_by
-    if not uploader.is_active or uploader.role == User.Role.OFFICE_ADMIN:
+    if not uploader.is_active:
         return
     accepted = document.check_status == Document.CheckStatus.ACCEPTED
     title = f"Accepted: {document.title}" if accepted else f"Returned: {document.title}"
+    checker = f"{document.checked_by.full_name}, programme coordinator," if document.checked_by else "The programme coordinator"
     message = (
-        f"The PG office accepted your {document.doc_type.label}, {document.title}."
+        f"{checker} accepted your {document.doc_type.label}, {document.title}."
         if accepted
-        else f"The PG office returned your {document.doc_type.label}, {document.title}: {document.check_reason} Please upload a corrected file."
+        else f"{checker} returned your {document.doc_type.label}, {document.title}: {document.check_reason} Please upload a corrected file."
     )
     _notify(
         [uploader],
@@ -343,7 +344,7 @@ def change_sharing(document, *, actor, sharing):
 
 
 def archive_document(document, *, actor, reason):
-    """The office takes a file out of use without deleting it (UC27)."""
+    """The student's programme coordinator takes a file out of use without deleting it (UC27)."""
     with transaction.atomic():
         document = Document.objects.select_for_update(of=("self",)).get(pk=document.pk)
         document.archived_at = timezone.now()

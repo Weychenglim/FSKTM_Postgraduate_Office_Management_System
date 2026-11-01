@@ -112,11 +112,11 @@ class AutoTagTests(DocumentPeople, DocumentClient, APITestCase):
         self.client.force_authenticate(self.office)
         self.assertNotIn("me", self.client.get("/api/documents/options/").data)
 
-    def test_the_office_and_coordinators_see_how_many_students_are_behind(self):
+    def test_coordinators_see_how_many_students_are_behind(self):
         DocumentType.objects.filter(code="thesis").update(required=True)
         self.made(self.ali.user, "thesis", "Ali thesis")
         self.client.force_authenticate(self.office)
-        self.assertEqual(self.client.get("/api/documents/summary/").data["studentsStillToHandIn"], 2)
+        self.assertNotIn("studentsStillToHandIn", self.client.get("/api/documents/summary/").data)
         self.assertEqual(self.client.get("/api/documents/options/").data["intakes"], ["2025/2026 Semester 1", "2024/2025 Semester 2"])
         self.client.force_authenticate(self.coordinator)
         self.assertEqual(self.client.get("/api/documents/summary/").data["studentsStillToHandIn"], 1)

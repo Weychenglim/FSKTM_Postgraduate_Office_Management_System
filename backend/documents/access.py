@@ -3,7 +3,9 @@
 People reach a student's files through real relationships: an active
 supervisor or co-supervisor appointment, an active panel appointment, or
 coordinating the student's programme (acting delegations included). The office
-sees everything; students see only what they uploaded.
+sees everything but only changes what it uploaded; students see only what they
+uploaded. A programme coordinator checks, archives and restores files about
+students in their programme, and always sees the ones that need a check.
 """
 from dataclasses import dataclass, field
 
@@ -114,6 +116,22 @@ class Scope:
             found.add("COORDINATOR")
         return found
 
+    def coordinates(self, document):
+        """Whether a student this file is about is in a programme this person coordinates."""
+        if not self.coordinated or document.is_staff_file:
+            return False
+        return any(programme_key(link.student.programme) in self.coordinated for link in document.student_links.all())
+
+    def coordinates_all(self, students):
+        return bool(students) and all(programme_key(student.programme) in self.coordinated for student in students)
+
+    def programme_files(self):
+        """Files about a student in a programme this person coordinates."""
+        programme_q = Q(pk__in=[])
+        for programme in self.coordinated:
+            programme_q |= Q(student__programme__trim__iexact=programme)
+        return Q(is_staff_file=False, pk__in=DocumentStudent.objects.filter(programme_q).values("document_id"))
+
     def relation_label(self, student):
         if student.user_id in self.supervised:
             return "Your supervisee"
@@ -172,12 +190,11 @@ def visible_documents(user, scope=None):
         condition |= Q(is_staff_file=False, share_supervisors=True) & about(Q(student_id__in=scope.supervisees))
     if scope.panel:
         condition |= Q(is_staff_file=False, share_panel=True) & about(Q(student_id__in=scope.panel))
-    if scope.coordinated:
-        programme_q = Q(pk__in=[])
-        for programme in scope.coordinated:
-            programme_q |= Q(student__programme__trim__iexact=programme)
-        condition |= Q(is_staff_file=False, share_coordinator=True) & about(programme_q)
-    return current.filter(condition)
+    if not scope.coordinated:
+        return current.filter(condition)
+    programme_files = scope.programme_files()
+    condition |= programme_files & (Q(share_coordinator=True) | ~Q(check_status=Document.CheckStatus.NONE))
+    return documents.filter(Q(archived_at__isnull=True) & condition | Q(archived_at__isnull=False) & condition & programme_files)
 
 
 def can_see(user, document, scope=None):
@@ -185,18 +202,18 @@ def can_see(user, document, scope=None):
 
 
 def permissions(user, document, scope):
-    office = scope.office
     uploader = document.uploaded_by_id == user.pk
     archived = document.archived_at is not None
+    coordinator = scope.coordinates(document)
     return {
         "canDownload": True,
         "canDelete": uploader,
-        "canUploadVersion": (uploader or office) and not archived,
-        "canEdit": (uploader or office) and not archived,
-        "canChangeSharing": (office or (uploader and user.role != User.Role.STUDENT)) and not archived,
-        "canCheck": office and not archived and document.check_status == Document.CheckStatus.WAITING,
-        "canArchive": office and not archived,
-        "canRestore": office and archived,
+        "canUploadVersion": uploader and not archived,
+        "canEdit": uploader and not archived,
+        "canChangeSharing": uploader and user.role != User.Role.STUDENT and not archived,
+        "canCheck": coordinator and not archived and document.check_status == Document.CheckStatus.WAITING,
+        "canArchive": coordinator and not archived,
+        "canRestore": coordinator and archived,
     }
 
 
@@ -269,7 +286,7 @@ def people_reached(document, students=None):
         users = User.objects.in_bulk({member for _, member in panel_student_ids(student_ids=ids)})
         for user in users.values():
             add(user, "panel member")
-    if document.share_coordinator:
+    if document.share_coordinator or document.check_status != Document.CheckStatus.NONE:
         for programme in {student.programme for student in students if student.programme}:
             for user in programme_coordinators(programme):
                 add(user, "programme coordinator")

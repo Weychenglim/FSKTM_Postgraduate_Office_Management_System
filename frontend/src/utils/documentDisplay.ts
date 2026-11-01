@@ -28,7 +28,7 @@ export function formatFileSize(bytes: number): string {
 
 /** The chip shown only when someone needs to act or has just acted. */
 export function checkChip(status: DocumentCheckStatus): { label: string; className: string } | null {
-  if (status === 'WAITING') return { label: 'Waiting for office', className: 'bg-amber-100 text-amber-800' };
+  if (status === 'WAITING') return { label: 'Waiting for a check', className: 'bg-amber-100 text-amber-800' };
   if (status === 'RETURNED') return { label: 'Returned', className: 'bg-rose-100 text-rose-700' };
   if (status === 'ACCEPTED') return { label: 'Accepted', className: 'bg-emerald-100 text-emerald-700' };
   return null;
@@ -36,9 +36,9 @@ export function checkChip(status: DocumentCheckStatus): { label: string; classNa
 
 type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
-/** The office check as a status badge; null when the file needs no check. */
+/** The coordinator's check as a status badge; null when the file needs no check. */
 export function checkBadge(status: DocumentCheckStatus): { label: string; tone: BadgeTone } | null {
-  if (status === 'WAITING') return { label: 'Waiting for office', tone: 'warning' };
+  if (status === 'WAITING') return { label: 'Waiting for a check', tone: 'warning' };
   if (status === 'RETURNED') return { label: 'Returned', tone: 'danger' };
   if (status === 'ACCEPTED') return { label: 'Accepted', tone: 'success' };
   return null;
@@ -52,7 +52,7 @@ export function requiredBadge(state: RequiredState, check?: DocumentCheckStatus)
   return { label: check === 'ACCEPTED' ? 'Accepted' : 'Handed in', tone: 'success' };
 }
 
-/** The office check as progress steps, like a letter request; empty when the file needs no check. */
+/** The coordinator's check as progress steps, like a letter request; empty when the file needs no check. */
 export function checkSteps(document: Pick<PortalDocument, 'checkStatus' | 'checkReason' | 'checkedBy' | 'checkedAt' | 'uploadedBy' | 'uploadedAt' | 'file'>): ApprovalStep[] {
   if (document.checkStatus === 'NONE') return [];
   const version = document.file?.number ?? 1;
@@ -63,20 +63,20 @@ export function checkSteps(document: Pick<PortalDocument, 'checkStatus' | 'check
     actorName: document.uploadedBy.isMe ? 'You' : document.uploadedBy.name,
     occurredAt: document.file?.uploadedAt ?? document.uploadedAt,
   };
-  const office = document.checkedBy || 'PG office';
+  const checker = document.checkedBy || 'Programme coordinator';
   if (document.checkStatus === 'WAITING') {
-    return [uploaded, { id: 'check', label: 'Office check', state: 'current', description: 'Waiting for the PG office to check it.' }, { id: 'accepted', label: 'Accepted', state: 'upcoming' }];
+    return [uploaded, { id: 'check', label: 'Coordinator check', state: 'current', description: 'Waiting for the programme coordinator to check it.' }, { id: 'accepted', label: 'Accepted', state: 'upcoming' }];
   }
   if (document.checkStatus === 'RETURNED') {
     return [
       uploaded,
-      { id: 'check', label: 'Returned', state: 'rejected', actorName: office, occurredAt: document.checkedAt ?? undefined, reason: document.checkReason || undefined },
+      { id: 'check', label: 'Returned', state: 'rejected', actorName: checker, occurredAt: document.checkedAt ?? undefined, reason: document.checkReason || undefined },
       { id: 'accepted', label: 'Accepted', state: 'not_reached', description: 'A corrected file is checked again.' },
     ];
   }
   return [
     uploaded,
-    { id: 'check', label: 'Checked by the office', state: 'completed', actorName: office, occurredAt: document.checkedAt ?? undefined },
+    { id: 'check', label: 'Checked by the office', state: 'completed', actorName: checker, occurredAt: document.checkedAt ?? undefined },
     { id: 'accepted', label: 'Accepted', state: 'completed', showRecordedDetails: false },
   ];
 }

@@ -66,7 +66,7 @@ export function typeChanges(original: DocumentTypeInput, draft: DocumentTypeInpu
 
 export const isStaffKind = (kind: DocumentTypeKind) => kind === 'STAFF';
 
-/** A short line for the list: who uploads, who sees it, and whether the office checks it. */
+/** A short line for the list: who uploads, who sees it, and whether the coordinator checks it. */
 export function typeSummary(type: DocumentTypeInput): string {
   const parts: string[] = [];
   if (type.uploaders.includes('STUDENT')) parts.push('Students upload');
@@ -81,7 +81,7 @@ export function typeSummary(type: DocumentTypeInput): string {
     ].filter(Boolean);
     parts.push(seen.length ? `seen by ${seen.join(', ')}` : 'office only');
   }
-  if (type.needsCheck) parts.push('office checks');
+  if (type.needsCheck) parts.push('coordinator checks');
   if (type.required) parts.push('every student hands it in');
   return parts.join(' · ');
 }
@@ -110,7 +110,7 @@ export function saveNotices(type: DocumentTypeSetting | null, draft: DocumentTyp
     notices.push(`${files(type.files)} ${type.files === 1 ? 'uses' : 'use'} this type. ${type.files === 1 ? 'It stays' : 'They stay'}, but nobody can choose it for new uploads.`);
   }
   if (original.needsCheck && !draft.needsCheck && type.waiting > 0) {
-    notices.push(`${files(type.waiting)} still ${type.waiting === 1 ? 'waits' : 'wait'} in To check. The PG office can still accept or return ${type.waiting === 1 ? 'it' : 'them'}.`);
+    notices.push(`${files(type.waiting)} still ${type.waiting === 1 ? 'waits' : 'wait'} in To check. The programme coordinator can still accept or return ${type.waiting === 1 ? 'it' : 'them'}.`);
   }
   return notices;
 }

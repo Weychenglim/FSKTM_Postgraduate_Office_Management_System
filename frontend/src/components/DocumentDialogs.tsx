@@ -87,7 +87,7 @@ export const NewVersionDialog: React.FC<DialogProps> = ({ document, isOpen, onCl
     >
       <p className="text-[13px] text-slate-600">
         The new file replaces what people see. Older versions stay listed on this page.
-        {document.checkStatus === 'RETURNED' || document.checkStatus === 'ACCEPTED' ? ' The PG office will check it again.' : ''}
+        {document.checkStatus === 'RETURNED' || document.checkStatus === 'ACCEPTED' ? ' The programme coordinator will check it again.' : ''}
       </p>
       <input ref={input} type="file" className="sr-only" accept={acceptAttribute(['PDF', 'DOCX', 'IMAGE', 'XLSX', 'PPTX'])} onChange={event => setFile(event.target.files?.[0] ?? null)} />
       {file ? (
@@ -342,16 +342,21 @@ export const SharingDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
             ['supervisors', 'Supervisors', peopleLine(options.people.supervisors, 'No supervisor yet')],
             ['panel', 'Panel member', peopleLine(options.people.panel, 'No panel member yet')],
             ['coordinator', 'Programme coordinator', peopleLine(options.people.coordinator, 'None')],
-          ] as const).map(([key, label, people]) => (
-            <label key={key} className="flex cursor-pointer items-start gap-3 rounded-xl px-1 py-1.5">
-              <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-navy" checked={share[key]} onChange={() => setShare(current => ({ ...current, [key]: !current[key] }))} />
+          ] as const).map(([key, label, people]) => {
+            const locked = key === 'coordinator' && options.coordinatorChecks;
+            return (
+            <label key={key} className={`flex items-start gap-3 rounded-xl px-1 py-1.5 ${locked ? 'cursor-default' : 'cursor-pointer'}`}>
+              <input type="checkbox" className="mt-0.5 h-5 w-5 accent-brand-navy" checked={share[key] || locked} disabled={locked} onChange={() => setShare(current => ({ ...current, [key]: !current[key] }))} />
               <span>
                 <span className="block text-[14px] font-bold text-slate-800">{label}</span>
                 <span className="block text-[13px] text-slate-500">{people}</span>
               </span>
             </label>
-          ))}
-          <p className="text-[12px] text-slate-500">The PG office and the uploader always see it.</p>
+            );
+          })}
+          <p className="text-[12px] text-slate-500">
+            The PG office and the uploader always see it.{options.coordinatorChecks ? ' The programme coordinator checks this file, so they always see it too.' : ''}
+          </p>
           {options.followsType && (
             <p className="rounded-xl bg-slate-50 px-4 py-3 text-[13px] text-slate-700">Right now this file follows the settings for {document.type.label}. If you change it here, it keeps your choice.</p>
           )}
@@ -364,7 +369,7 @@ export const SharingDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
 
 const ARCHIVE_REASONS = ['Uploaded by mistake.', 'Replaced by a newer file.', 'No longer needed.'];
 
-/** The office takes a file out of use. It is kept, and can be restored. */
+/** The student's programme coordinator takes a file out of use. It is kept, and can be restored. */
 export const ArchiveDialog: React.FC<DialogProps> = ({ document, isOpen, onClose, onDone }) => {
   const titleId = useModalTitle();
   const [reason, setReason] = useState('');
@@ -386,7 +391,7 @@ export const ArchiveDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
     setBusy(true);
     try {
       const updated = await archiveDocument(document.id, reason.trim());
-      onDone(updated, 'Archived. Only the PG office can see it now.');
+      onDone(updated, 'Archived. Only the PG office and the programme coordinator can see it now.');
     } catch (err) {
       setProblem(fieldErrors(err).reason || errorText(err, 'Could not archive this file.'));
     } finally {
@@ -406,7 +411,7 @@ export const ArchiveDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
         <PortalButton variant="danger" isLoading={busy} disabled={!reason.trim()} onClick={() => void send()}>Archive</PortalButton>
       </>}
     >
-      <p className="text-[13px] text-slate-600">The file is kept, but only the PG office can see it. You can restore it at any time.</p>
+      <p className="text-[13px] text-slate-600">The file is kept, but only the PG office and the programme coordinator can see it. You can restore it at any time.</p>
       <label className="block space-y-1.5">
         <span className="sr-only">Reason</span>
         <textarea className="form-control min-h-20 px-3.5 py-3 text-[14px]" maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="Why is it archived?" />

@@ -24,7 +24,7 @@ assert.equal(formatFileSize(640 * 1024), '640 KB');
 assert.equal(formatFileSize(2.5 * 1024 * 1024), '2.5 MB');
 assert.equal(formatFileSize(10 * 1024 * 1024), '10 MB');
 assert.equal(checkChip('NONE'), null, 'No chip when nobody needs to act');
-assert.equal(checkChip('WAITING')?.label, 'Waiting for office');
+assert.equal(checkChip('WAITING')?.label, 'Waiting for a check');
 assert.equal(checkChip('RETURNED')?.label, 'Returned');
 assert.deepEqual(studentsLine([]), { main: 'Staff file', sub: '' });
 assert.deepEqual(studentsLine([{ matric: 'S1', name: 'Ali Hassan', programme: '' }]), { main: 'Ali Hassan', sub: 'S1' });
@@ -138,7 +138,7 @@ assert.deepEqual(preview.map(tag => `${tag.kind}:${tag.label}`), [
 assert.deepEqual(uploadTags({ type: null, semester: null, role: 'Student', programmes: [], intakes: [] }), []);
 
 // Status badges and who will see an upload
-assert.deepEqual(checkBadge('WAITING'), { label: 'Waiting for office', tone: 'warning' });
+assert.deepEqual(checkBadge('WAITING'), { label: 'Waiting for a check', tone: 'warning' });
 const checked = {
   checkReason: '', checkedBy: '', checkedAt: null, uploadedAt: '2026-10-26T01:00:00Z',
   uploadedBy: { name: 'Ali Hassan', role: 'Student', roleLabel: 'Student', isMe: false },
@@ -146,7 +146,7 @@ const checked = {
 };
 assert.deepEqual(checkSteps({ ...checked, checkStatus: 'NONE' }), [], 'No steps when the office does not check the type');
 const waitingSteps = checkSteps({ ...checked, checkStatus: 'WAITING' });
-assert.deepEqual(waitingSteps.map(step => `${step.label}:${step.state}`), ['Version 2 uploaded:completed', 'Office check:current', 'Accepted:upcoming']);
+assert.deepEqual(waitingSteps.map(step => `${step.label}:${step.state}`), ['Version 2 uploaded:completed', 'Coordinator check:current', 'Accepted:upcoming']);
 assert.equal(waitingSteps[0].occurredAt, '2026-10-26T02:00:00Z', 'The step dates the version being checked');
 const returnedSteps = checkSteps({ ...checked, checkStatus: 'RETURNED', checkReason: 'Sign page 2.', checkedBy: 'Siti', checkedAt: '2026-10-26T03:00:00Z' });
 assert.deepEqual([returnedSteps[1].state, returnedSteps[1].reason, returnedSteps[1].actorName, returnedSteps[2].state], ['rejected', 'Sign page 2.', 'Siti', 'not_reached']);

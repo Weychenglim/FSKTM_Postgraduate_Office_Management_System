@@ -390,25 +390,26 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 | GET | `options/` | Everyone: the types they may choose, semesters, programmes and intakes; a student also gets `me` (their programme, intake, supervisors, panel and coordinators) for the upload summary |
 | GET | `students/?search=`, `students/<matric>/` | Staff: students they may tag, and one student's header |
 | GET, POST | `/` (list with `view`, `q`, `type`, `group`, `semester`, `programme`, `intake`, `student`, `uploader`, `sender`, `required`, `status`, `kind`, `from`, `to`, `archived`; multipart upload) | Everyone, by the access rules below |
-| GET | `summary/` | Everyone (tab counts; the office and coordinators also get `studentsStillToHandIn`) |
-| GET, PATCH, DELETE | `<id>/` | View right; edit by the uploader or the office; delete by the uploader |
+| GET | `summary/` | Everyone (tab counts; programme coordinators also get `toCheck`, `returned` and `studentsStillToHandIn` for their programmes) |
+| GET, PATCH, DELETE | `<id>/` | View right; edit and delete by the uploader |
 | GET | `<id>/download/?version=`, `<id>/preview/`, `<id>/preview/pages/<n>/` | View right |
 | POST | `download-zip/` (`{ids}`) | View right on every file |
-| POST | `<id>/versions/` (multipart) | The uploader or the office |
-| POST | `<id>/check/` (`{decision: ACCEPT or RETURN, reason, expectedVersion}`) | Office Staff/Admin |
-| GET, PUT | `<id>/sharing/` | The office, or the staff member who uploaded it |
-| POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | Office Staff/Admin |
-| GET, POST | `types/`, PATCH `types/<id>/` | Office Staff/Admin |
+| POST | `<id>/versions/` (multipart) | The uploader |
+| POST | `<id>/check/` (`{decision: ACCEPT or RETURN, reason, expectedVersion}`) | The programme coordinator of a student the file is about |
+| GET, PUT | `<id>/sharing/` | The staff member who uploaded it |
+| POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | The programme coordinator of a student the file is about |
+| GET, POST | `types/`, PATCH `types/<id>/` | Programme coordinators |
 | GET | `history/?show=&q=` | Office Staff/Admin |
-| GET | `required/`, `required/<typeId>/students/?show=todo,waiting,done` | Office Staff/Admin, and programme coordinators for their programmes |
-| POST | `required/<typeId>/remind/` | Office Staff/Admin, once a day per type |
+| GET | `required/`, `required/<typeId>/students/?show=todo,waiting,done` | Programme coordinators, for their programmes |
+| POST | `required/<typeId>/remind/` | Programme coordinators, their programmes' students, once a day per type each |
 | GET | `required/mine/` | Student |
 
 **Who sees what.**
-- The office sees every file. Uploaders see their own. Students see only what they uploaded.
+- The office sees every file, but only uploads, and changes only what it uploaded. Uploaders see their own. Students see only what they uploaded.
 - Staff see a student's files through real relationships, ticked per file: supervisors and co-supervisors (active appointments), the panel member (active panel appointment), and the programme coordinator (acting delegations included).
 - Staff files (about no student) go to all lecturers and coordinators, coordinators only, or the office only, optionally narrowed to programmes. Students never see them.
-- Archived files are seen by the office only. A file someone may not see answers 404, the same as a missing one.
+- A programme coordinator always sees files about students in their programme that need a check, and checks, archives and restores them.
+- Archived files are seen by the office and by the coordinator of the student's programme. A file someone may not see answers 404, the same as a missing one.
 
 **Uploads.**
 - Up to 10 MB (`DOCUMENT_MAX_UPLOAD_BYTES`) and 100 an hour per person (`DOCUMENT_UPLOAD_THROTTLE_RATE`).
@@ -417,7 +418,7 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 - Files are stored under `MEDIA_ROOT/documents/<year>/<month>/` with random names and are only served through the permission-checked download, as attachments.
 - Previews are drawn on the server as PNG pages, because the production security policy blocks the browser's own PDF viewer.
 
-**Checking and versions.** For types the office checks, uploads wait in "To check". Returning needs a reason; the uploader is told in the app, and by email when "Email alerts" is on. A new version waits again.
+**Checking and versions.** For types the programme coordinator checks, uploads wait in the coordinator's "To check" (a coordinator's own upload for their students needs no check). Returning needs a reason; the uploader is told in the app, and by email when "Email alerts" is on. A new version waits again.
 
 **Automatic tags (2026-10-26).** Nobody types tags. Each file's `autoTags` are worked out when it is shown: Category (the type's group), Required, Semester, From (`sender`: student, lecturer, coordinator or office), and each student's Programme and Intake (a staff file's chosen programmes). Each tag carries the list filter it opens. They follow a student who changes programme. Search also matches programme, intake and category words. Typed tags and their endpoints were removed in `documents.0005`.
 

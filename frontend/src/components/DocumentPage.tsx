@@ -179,7 +179,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
                 <div>
                   <p className="text-[15px] font-extrabold text-slate-800">Archived{document.archivedBy ? ` by ${document.archivedBy}` : ''}{document.archivedAt ? `, ${shortDocumentDate(document.archivedAt)}` : ''}</p>
                   {document.archiveReason && <p className="mt-1 text-[14px] text-slate-700">"{document.archiveReason}"</p>}
-                  <p className="mt-1 text-[13px] text-slate-600">Only the PG office can see it.</p>
+                  <p className="mt-1 text-[13px] text-slate-600">Only the PG office and the programme coordinator can see it.</p>
                 </div>
               </div>
               {document.permissions.canRestore && (
@@ -190,7 +190,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
           {!document.archived && document.checkStatus === 'RETURNED' && (
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4">
               <div>
-                <p className="text-[15px] font-extrabold text-rose-800">Returned by the PG office</p>
+                <p className="text-[15px] font-extrabold text-rose-800">Returned by the programme coordinator</p>
                 <p className="mt-1 text-[14px] text-rose-800">"{document.checkReason}"{document.checkedBy ? ` ${document.checkedBy}, ${shortDocumentDate(document.checkedAt)}` : ''}</p>
               </div>
               {document.permissions.canUploadVersion && document.uploadedBy.isMe && (
@@ -201,7 +201,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
           {!document.archived && document.checkStatus === 'WAITING' && (
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
               <div>
-                <p className="text-[15px] font-extrabold text-amber-900">{document.permissions.canCheck ? 'Waiting for you to check' : 'Waiting for the PG office to check it'}</p>
+                <p className="text-[15px] font-extrabold text-amber-900">{document.permissions.canCheck ? 'Waiting for you to check' : 'Waiting for the programme coordinator to check it'}</p>
                 {document.permissions.canCheck && (document.file?.number ?? 1) > 1 && (
                   <p className="mt-1 text-[14px] text-amber-900">This is version {document.file?.number}. Earlier versions are listed under Versions.</p>
                 )}
@@ -221,7 +221,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
             <div className="space-y-5">
               {steps.length > 0 && !document.archived && (
                 <div className="app-card p-5">
-                  <ApprovalProcess steps={steps} title="Office check" />
+                  <ApprovalProcess steps={steps} title="Coordinator check" />
                 </div>
               )}
               <section aria-label="Details" className="app-card space-y-4 p-5">

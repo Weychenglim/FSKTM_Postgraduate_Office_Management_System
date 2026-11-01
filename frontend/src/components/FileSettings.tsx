@@ -41,9 +41,9 @@ const KIND_CHOICES: Array<{ value: DocumentTypeKind; label: string; hint: string
   { value: 'STAFF', label: 'Staff files', hint: 'Not about any student, for example a rubric or meeting notes' },
 ];
 
-const Pill: React.FC<{ checked: boolean; onChange: () => void; children: React.ReactNode }> = ({ checked, onChange, children }) => (
-  <label className={`inline-flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border px-3.5 text-[14px] font-semibold transition ${checked ? 'border-brand-navy bg-slate-50 text-brand-navy' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-    <input type="checkbox" className="h-[18px] w-[18px] accent-brand-navy" checked={checked} onChange={onChange} />
+const Pill: React.FC<{ checked: boolean; disabled?: boolean; onChange: () => void; children: React.ReactNode }> = ({ checked, disabled = false, onChange, children }) => (
+  <label className={`inline-flex min-h-11 items-center gap-2.5 rounded-xl border px-3.5 text-[14px] font-semibold transition ${disabled ? 'cursor-default opacity-70' : 'cursor-pointer'} ${checked ? 'border-brand-navy bg-slate-50 text-brand-navy' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+    <input type="checkbox" className="h-[18px] w-[18px] accent-brand-navy" checked={checked} disabled={disabled} onChange={onChange} />
     {children}
   </label>
 );
@@ -215,18 +215,26 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         ) : (
           <>
             <div role="group" aria-labelledby="type-viewers" className="flex flex-wrap gap-2">
-              {SHARE_TICKS.map(tick => (
-                <Pill key={tick.key} checked={draft[tick.key]} onChange={() => change({ [tick.key]: !draft[tick.key] })}>{tick.label}</Pill>
-              ))}
+              {SHARE_TICKS.map(tick => {
+                const locked = tick.key === 'shareCoordinator' && draft.needsCheck;
+                return (
+                  <Pill key={tick.key} checked={draft[tick.key] || locked} disabled={locked} onChange={() => change({ [tick.key]: !draft[tick.key] })}>{tick.label}</Pill>
+                );
+              })}
             </div>
-            <p className="text-[12px] text-slate-500">Of the students the file is about. The PG office sees everything, and students see their own uploads. Staff can change this when they upload.</p>
+            <p className="text-[12px] text-slate-500">
+              Of the students the file is about. The PG office sees everything, and students see their own uploads. Staff can change this when they upload.
+              {draft.needsCheck ? ' The programme coordinator checks this type, so they always see it.' : ''}
+            </p>
           </>
         )}
       </Section>
 
-      <Section>
-        <SwitchRow id="type-check" title="The office checks it" hint={'Uploads wait in "To check" until the PG office accepts or returns them.'} checked={draft.needsCheck} onChange={needsCheck => change({ needsCheck })} />
-      </Section>
+      {!staffKind && (
+        <Section>
+          <SwitchRow id="type-check" title="The programme coordinator checks it" hint={'Uploads wait in "To check" until the student\'s programme coordinator accepts or returns them.'} checked={draft.needsCheck} onChange={needsCheck => change(needsCheck ? { needsCheck, shareCoordinator: true } : { needsCheck })} />
+        </Section>
+      )}
 
       {!staffKind && (
         <Section>
