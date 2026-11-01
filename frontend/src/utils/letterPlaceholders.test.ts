@@ -26,9 +26,10 @@ assert.deepEqual(
 // each appointment tag works in the same letter kinds as on the server
 const purposeBlock = registry.match(/^APPOINTMENT_PURPOSES = \{([\s\S]*?)^\}/m)?.[1] ?? '';
 const purposeNames: Record<string, string[]> = {
-  _BOTH: ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'],
+  _APPOINTMENTS: ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT', 'CO_SUPERVISOR_APPOINTMENT'],
   '(SUPERVISOR_LETTER,)': ['SUPERVISOR_APPOINTMENT'],
   '(PANEL_LETTER,)': ['PANEL_APPOINTMENT'],
+  '(CO_SUPERVISOR_LETTER,)': ['CO_SUPERVISOR_APPOINTMENT'],
   '(REQUEST,)': ['REQUEST'],
 };
 const serverPurposes = [...purposeBlock.matchAll(/^\s+"([A-Z_]+)": ([^\n]+),$/gm)].map(([, name, value]) => ({

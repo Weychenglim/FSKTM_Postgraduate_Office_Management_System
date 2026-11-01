@@ -18,7 +18,9 @@ import {
 import { documentState } from '../utils/faqOffice';
 import { shortDocumentDate } from '../utils/documentDisplay';
 import { PortalButton, PortalToast } from './PortalPrimitives';
-import { ErrorState, LoadingState } from './StateViews';
+import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { AppointmentSection } from './AppointmentPrimitives';
+import { WorkspaceSectionHeader } from './RequestWorkspacePrimitives';
 import { OverflowMenu } from './DocumentParts';
 import { DialogShell } from './DocumentDialogs';
 
@@ -159,20 +161,18 @@ export const FaqDocumentsTab: React.FC = () => {
   if (!documents) return <LoadingState message="Loading documents..." />;
   return (
     <div className="space-y-5">
-      <section aria-label="Add a reference document" className="app-card space-y-4 p-5">
-        <div>
-          <h2 className="section-label">Add a reference document</h2>
-          <p className="mt-1 text-[12px] text-slate-500">
-            A handbook or guide. When no FAQ entry fits a question, the chatbot can show a short passage from it, marked as an extract. PDF or Word, up to 10 MB. Scanned PDFs have no text to search.
-          </p>
-        </div>
+      <AppointmentSection
+        title="Add a reference document"
+        description="A handbook or guide. When no answer fits a question, the chatbot can show a short passage from it, marked as an extract. PDF or Word, up to 10 MB. Scanned PDFs have no text to search."
+        icon={Upload}
+      >
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
           <div className="space-y-1.5">
-            <label htmlFor={`${ids}-title`} className="block text-[13px] font-bold text-slate-700">Title (optional)</label>
+            <label htmlFor={`${ids}-title`} className="form-label block">Title (optional)</label>
             <input id={`${ids}-title`} className="form-control form-control-md text-[14px]" maxLength={200} value={title} placeholder="Postgraduate Handbook 2026" onChange={event => setTitle(event.target.value)} />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor={`${ids}-file`} className="block text-[13px] font-bold text-slate-700">File</label>
+            <label htmlFor={`${ids}-file`} className="form-label block">File</label>
             <input
               ref={fileInput}
               id={`${ids}-file`}
@@ -188,13 +188,14 @@ export const FaqDocumentsTab: React.FC = () => {
           <PortalButton variant="primary" icon={Upload} isLoading={busy === 'upload'} disabled={!file} onClick={() => void upload()}>Upload</PortalButton>
         </div>
         {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
-      </section>
+      </AppointmentSection>
 
-      <section aria-label="Reference documents" className="app-card p-0">
+      <section aria-label="Reference documents" className="app-card appointment-workspace-card">
+        <WorkspaceSectionHeader title="Reference documents" description="The chatbot quotes from ready documents when no answer fits. Archived documents are not quoted." />
         {documents.length === 0 ? (
-          <p className="px-5 py-10 text-center text-[13px] font-semibold text-slate-500">No reference documents yet.</p>
+          <EmptyState title="No reference documents yet." description="Add a handbook or guide above." />
         ) : (
-          <ul className="divide-y divide-slate-100">
+          <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
             {documents.map(item => {
               const state = documentState(item);
               return (

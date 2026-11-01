@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// Approved supervisor and panel appointments that have no letter yet (UC22),
+// Approved supervisor, panel and supporting supervisor appointments that have no letter yet (UC22),
 // for example because no template was active when they were approved. Shown
 // only when there are some, with one button to make the letters.
 
@@ -12,7 +12,7 @@ import { AlertTriangle } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { MissingAppointmentLetter } from '../types';
 import { getMissingAppointmentLetters, makeMissingAppointmentLetters } from '../services';
-import { missingLettersSummary } from '../utils/appointmentLetters';
+import { APPOINTMENT_ROLE, missingLettersSummary } from '../utils/appointmentLetters';
 
 interface MissingAppointmentLettersProps {
   onMessage: (message: string) => void;
@@ -69,7 +69,7 @@ export const MissingAppointmentLetters: React.FC<MissingAppointmentLettersProps>
           <ul className="mt-2 space-y-1">
             {rows.map((row) => (
               <li key={`${row.kind}-${row.appointmentId}`}>
-                {row.studentName} ({row.matricNumber}), {row.kind} {row.lecturerName}
+                {row.studentName} ({row.matricNumber}), {APPOINTMENT_ROLE[row.kind]} {row.lecturerName}
                 {row.problem ? `: ${row.problem}` : ''}
               </li>
             ))}

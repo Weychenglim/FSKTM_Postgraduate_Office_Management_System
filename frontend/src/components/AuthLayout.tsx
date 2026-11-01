@@ -17,7 +17,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
       {/* Left Branding Panel */}
       <div 
         id="branding-sidebar" 
-        className="w-full md:w-[45%] lg:w-[48%] bg-[#080f21] p-6 md:p-14 xl:p-16 flex flex-col justify-between border-r border-[#1a2c54]/20 relative overflow-hidden shrink-0"
+        className="w-full md:w-[45%] lg:w-[48%] bg-[#080f21] px-5 py-5 md:p-14 xl:p-16 flex flex-col justify-between border-r border-[#1a2c54]/20 relative overflow-hidden shrink-0"
       >
         {/* Abstract background graphics for elevated premium mood */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(30,58,138,0.15),transparent_60%)] pointer-events-none" />
@@ -33,7 +33,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
         >
           <div 
             id="logo-icon-card" 
-            className="w-12 h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center shadow-lg backdrop-blur-md"
+            className="w-10 h-10 md:w-12 md:h-12 bg-white/5 border border-white/10 rounded-xl flex items-center justify-center shadow-lg backdrop-blur-md"
           >
             <GraduationCap id="cap-icon" className="w-6 h-6 text-indigo-300" />
           </div>
@@ -46,12 +46,12 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
         </motion.div>
 
         {/* Welcome message in the center block (kept short on phones so the form is in view) */}
-        <div id="welcome-message-block" className="mt-6 md:my-auto relative z-10 max-w-lg text-left">
+        <div id="welcome-message-block" className="mt-4 md:my-auto relative z-10 max-w-lg text-left">
           <motion.div 
             initial={{ opacity: 0, x: -15 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.15 }}
-            className="flex items-center gap-2 mb-4"
+            className="hidden md:flex items-center gap-2 mb-4"
           >
             <div className="w-8 h-[1px] bg-indigo-400" />
             <span id="welcome-eyebrow" className="text-xs uppercase font-extrabold tracking-[0.25em] text-indigo-300">
@@ -64,7 +64,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
             id="welcome-title" 
-            className="text-white text-2xl md:text-3xl lg:text-4xl xl:text-[44px] font-extrabold tracking-tight leading-[1.12]"
+            className="text-white text-xl md:text-3xl lg:text-4xl xl:text-[44px] font-extrabold tracking-tight leading-[1.12]"
           >
             Postgraduate Management System
           </motion.h1>
@@ -94,7 +94,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
       {/* Right Form Pane */}
       <div 
         id="login-form-pane" 
-        className="w-full md:w-[55%] lg:w-[52%] bg-[#f8fafc] flex flex-col justify-center items-center p-6 md:p-10 xl:p-14 relative"
+        className="w-full md:w-[55%] lg:w-[52%] flex-1 bg-[#f8fafc] flex flex-col justify-start md:justify-center items-center px-4 pt-12 pb-10 sm:px-6 md:p-10 xl:p-14 relative"
       >
         {children}
       </div>

@@ -8,6 +8,7 @@
 // fails if they drift apart.
 
 import type { LetterRequestDetails } from '../types';
+import { MALAYSIA } from './addressPlaces';
 
 export const RECIPIENT_PURPOSE_LABELS: Record<string, string> = {
   BANKING: 'Banking',
@@ -44,6 +45,7 @@ export const EMPTY_REQUEST_DETAILS: LetterRequestDetails = {
   postcode: '',
   city: '',
   state: '',
+  country: MALAYSIA,
   include: [],
 };
 
@@ -51,7 +53,8 @@ export const EMPTY_REQUEST_DETAILS: LetterRequestDetails = {
 export function recipientAddressLines(details: Partial<LetterRequestDetails> | undefined): string[] {
   if (!details) return [];
   const cityLine = [details.postcode, details.city].filter(Boolean).join(' ');
-  return [details.addressLine1, details.addressLine2, cityLine, details.state].filter((line): line is string => Boolean(line));
+  const country = details.country === MALAYSIA ? '' : details.country;
+  return [details.addressLine1, details.addressLine2, cityLine, details.state, country].filter((line): line is string => Boolean(line));
 }
 
 /** The optional details the student asked to show, as readable labels. */

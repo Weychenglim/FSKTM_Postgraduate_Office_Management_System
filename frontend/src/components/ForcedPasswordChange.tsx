@@ -50,7 +50,7 @@ export const ForcedPasswordChange: React.FC<ForcedPasswordChangeProps> = ({
           type="button"
           onClick={onLogout}
           disabled={saving}
-          className="mt-5 self-center text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="mt-3 py-2 self-center text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Sign out instead
         </button>

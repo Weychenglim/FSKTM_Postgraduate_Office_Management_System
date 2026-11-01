@@ -27,6 +27,7 @@ type SessionContract = {
 type SessionConstructor = new (
   fetcher: typeof fetch,
   refreshUrl: string,
+  tabName?: string | null,
 ) => SessionContract;
 
 let AuthSession: SessionConstructor;
@@ -133,6 +134,52 @@ for (const outcome of ['success', 'failure', 'network'] as const) {
   else finish(new Response(JSON.stringify({ token: 'old-session-renewal' }), { status: outcome === 'success' ? 200 : 401 }));
   assert.equal(await pending, null);
   assert.equal(session.getAccessToken(), 'session-b', 'an old refresh must not replace or clear a new login');
+}
+
+const jwtFor = (userId: number) =>
+  `header.${Buffer.from(JSON.stringify({ user_id: userId, jti: Math.random() })).toString('base64url')}.signature`;
+
+{
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const fetcher = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ url: String(input), init });
+    return new Response(JSON.stringify({ token: jwtFor(7) }), { status: 200 });
+  }) as typeof fetch;
+  const session = new AuthSession(fetcher, '/api/auth/refresh/', 'tab-one-1234');
+
+  assert.equal(await session.refreshAccessToken() !== null, true);
+  assert.equal(new Headers(calls[0].init?.headers).get('X-Portal-Tab'), 'tab-one-1234', 'the refresh names the tab');
+  assert.equal(calls[0].init?.body, undefined, 'a tab starting up may begin from the browser sign-in');
+
+  await session.fetch('/api/private/');
+  assert.equal(new Headers(calls[1].init?.headers).get('X-Portal-Tab'), 'tab-one-1234', 'every request names the tab');
+
+  await session.refreshAccessToken();
+  assert.equal(calls[2].init?.body, JSON.stringify({ resume: true }), 'a signed-in tab only renews its own sign-in');
+}
+
+{
+  let next = jwtFor(7);
+  const fetcher = (async () => new Response(JSON.stringify({ token: next }), { status: 200 })) as typeof fetch;
+  const session = new AuthSession(fetcher, '/api/auth/refresh/', 'tab-one-1234');
+  session.setAccessToken(jwtFor(7));
+  next = jwtFor(9);
+  assert.equal(await session.refreshAccessToken(), null, 'a renewal for another account ends the session');
+  assert.equal(session.getAccessToken(), null);
+
+  session.setAccessToken(jwtFor(7));
+  next = jwtFor(7);
+  assert.equal(await session.refreshAccessToken(), next, 'the same account renews as before');
+}
+
+{
+  const calls: RequestInit[] = [];
+  const session = new AuthSession((async (_input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push(init ?? {});
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  }) as typeof fetch, '/api/auth/refresh/');
+  await session.fetch('/api/private/');
+  assert.equal(new Headers(calls[0].headers).has('X-Portal-Tab'), false, 'without a tab name nothing is added');
 }
 
 console.log('JWT API session tests passed.');

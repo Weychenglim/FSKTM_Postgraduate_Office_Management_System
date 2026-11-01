@@ -1,22 +1,31 @@
-from django.conf import settings
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
 
-from .session_tokens import CookieRefreshToken, is_blacklisted, rotation_grace_allows
+from .session_tokens import (
+    CookieRefreshToken,
+    is_blacklisted,
+    refresh_cookie_name,
+    rotation_grace_allows,
+    signed_in_tab,
+)
 
 
 class RefreshCookieAuthentication(JWTAuthentication):
-    """Authenticate refresh/logout requests from the scoped refresh cookie."""
+    """Authenticate refresh/logout requests from the scoped refresh cookie:
+    the tab's own when it has one, else the browser's latest sign-in. The view
+    finds which in request.refresh_tab."""
 
     def authenticate(self, request):
-        raw_token = request.COOKIES.get(settings.JWT_REFRESH_COOKIE_NAME)
+        tab = signed_in_tab(request)
+        request.refresh_tab = tab
+        raw_token = request.COOKIES.get(refresh_cookie_name(tab))
         if not raw_token:
             raise AuthenticationFailed("A valid refresh session is required.")
 
         try:
             refresh = CookieRefreshToken(raw_token)
-            if is_blacklisted(refresh) and not rotation_grace_allows(request, refresh):
+            if is_blacklisted(refresh) and not rotation_grace_allows(request, refresh, tab):
                 raise TokenError("Token is blacklisted")
             user = self.get_user(refresh)
         except TokenError as error:

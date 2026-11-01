@@ -2,6 +2,17 @@ type RefreshPayload = {
   token?: unknown;
 };
 
+const TAB_HEADER = 'X-Portal-Tab';
+
+function tokenUser(token: string): unknown {
+  try {
+    const payload = token.split('.')[1] ?? '';
+    return (JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { user_id?: unknown }).user_id;
+  } catch {
+    return undefined;
+  }
+}
+
 
 export class AuthSession {
   private accessToken: string | null = null;
@@ -11,7 +22,13 @@ export class AuthSession {
   constructor(
     private readonly fetcher: typeof fetch,
     private readonly refreshUrl: string,
+    private readonly tabName: string | null = null,
   ) {}
+
+  private withTab(headers: Headers): Headers {
+    if (this.tabName) headers.set(TAB_HEADER, this.tabName);
+    return headers;
+  }
 
   setAccessToken(token: string): void {
     this.sessionVersion += 1;
@@ -42,11 +59,13 @@ export class AuthSession {
 
   private async performRefresh(): Promise<string | null> {
     const sessionVersion = this.sessionVersion;
+    const signedInAs = this.accessToken ? tokenUser(this.accessToken) : undefined;
     try {
       const response = await this.fetcher(this.refreshUrl, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.withTab(new Headers({ 'Content-Type': 'application/json' })),
+        body: this.accessToken ? JSON.stringify({ resume: true }) : undefined,
       });
       if (this.sessionVersion !== sessionVersion) return null;
       if (!response.ok) {
@@ -57,6 +76,11 @@ export class AuthSession {
       const payload = (await response.json()) as RefreshPayload;
       if (this.sessionVersion !== sessionVersion) return null;
       if (typeof payload.token !== 'string' || payload.token.length === 0) {
+        this.accessToken = null;
+        return null;
+      }
+      // A tab never changes account on its own: another account's renewal ends this session.
+      if (signedInAs !== undefined && tokenUser(payload.token) !== signedInAs) {
         this.accessToken = null;
         return null;
       }
@@ -90,7 +114,7 @@ export class AuthSession {
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
-    const headers = new Headers(init?.headers);
+    const headers = this.withTab(new Headers(init?.headers));
     if (this.accessToken) {
       headers.set('Authorization', `Bearer ${this.accessToken}`);
     } else {

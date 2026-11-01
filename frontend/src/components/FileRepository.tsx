@@ -3,29 +3,50 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// File Management for staff: every file they may see, with the system's tags as
+// one-click filters. The office gets counts to act on first (files to check,
+// files returned, students still owing a required document).
+
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Plus, Search, Settings2, SlidersHorizontal } from 'lucide-react';
-import type { DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
+import { ArrowLeft, ClipboardCheck, FileSignature, FileStack, ListChecks, Plus, RotateCcw, Settings2, SlidersHorizontal, UsersRound, X } from 'lucide-react';
+import type { DocumentAutoTag, DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { getReceivedLetters } from '../services/lettersApi';
 import { APP_ROUTES, routeForDocument, routeForFileLetter } from '../constants/routes';
-import { filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
-import { shortDocumentDate, studentsLine, typeAndTags, uploadedLine } from '../utils/documentDisplay';
+import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
+import { checkBadge, shortDocumentDate, studentsLine, uploadedLine } from '../utils/documentDisplay';
 import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
-import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
-import { SelectMenu, SelectMenuOption } from './SelectMenu';
+import { titleCase } from '../utils/programmeLabel';
+import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PortalSelect } from './PortalSelect';
+import { OfficeToolViews } from './OfficeToolPrimitives';
+import { SummaryCardButton } from './SummaryCardButton';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
-import { CheckChip, DownloadIconButton, KindBadge } from './DocumentParts';
+import { AutoTagChips, DownloadIconButton, KindBadge } from './DocumentParts';
 import { RequiredDocuments } from './RequiredDocuments';
-
-const PAGE_SIZE = 25;
+import { ReceivedAppointmentLetters } from './ReceivedAppointmentLetters';
+import { WORKSPACE_PAGE_SIZE, WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
-const ArchivedChip: React.FC = () => (
-  <span className="inline-flex items-center rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-700">Archived</span>
-);
+const SENDER_LABELS: Record<Exclude<DocumentFilters['sender'], ''>, string> = {
+  student: 'Students',
+  lecturer: 'Lecturers',
+  coordinator: 'Programme coordinators',
+  office: 'PG office',
+};
+const STATUS_LABELS: Record<Exclude<DocumentFilters['status'], ''>, string> = {
+  WAITING: 'Waiting for office',
+  RETURNED: 'Returned',
+  ACCEPTED: 'Accepted',
+  NONE: 'No check needed',
+};
+const KIND_LABELS: Record<Exclude<DocumentFilters['kind'], ''>, string> = { PDF: 'PDF', DOCX: 'Word', IMAGE: 'Photo or scan', XLSX: 'Excel', PPTX: 'PowerPoint' };
+const UPLOADER_LABELS: Record<Exclude<DocumentFilters['uploader'], ''>, string> = { me: 'Me', students: 'Students', staff: 'Staff' };
+const ROW_TAGS: ReadonlyArray<DocumentAutoTag['kind']> = ['category', 'required', 'semester', 'from'];
+
+const ArchivedBadge: React.FC = () => <StatusBadge tone="neutral" dot>Archived</StatusBadge>;
 
 export const FileRepository: React.FC = () => {
   const [params, setParams] = useSearchParams();
@@ -37,10 +58,11 @@ export const FileRepository: React.FC = () => {
   const [rows, setRows] = useState<PortalDocument[]>([]);
   const [count, setCount] = useState(0);
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(filters.q);
   const [moreOpen, setMoreOpen] = useState(moreFilterCount(filters) > 0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(WORKSPACE_PAGE_SIZE);
   const [downloading, setDownloading] = useState<number | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(
     typeof location.state?.message === 'string' ? { message: location.state.message, tone: 'success' } : null,
@@ -53,6 +75,7 @@ export const FileRepository: React.FC = () => {
 
   const update = useCallback((changes: Partial<DocumentFilters>) => {
     setParams(filtersToParams({ ...filters, ...changes }), { replace: true });
+    setPage(1);
   }, [filters, setParams]);
 
   useEffect(() => {
@@ -71,22 +94,22 @@ export const FileRepository: React.FC = () => {
     return () => window.clearTimeout(timer);
   }, [search, filters.q, update]);
 
-  // Rows only show for the filters they were loaded for, so a tab switch never
-  // flashes the previous list.
-  const listKey = `${params.toString()}#${reload}`;
+  // Rows only show for the filters and page they were loaded for, so a tab
+  // switch never flashes the previous list.
+  const listKey = `${params.toString()}#${reload}#${page}#${pageSize}`;
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    if (filters.view === 'required') {
+    if (filters.view === 'required' || filters.view === 'letters') {
       setRows([]);
       setLoadedKey(listKey);
       return;
     }
-    getDocuments(filters, 0, PAGE_SIZE)
-      .then(page => {
+    getDocuments(filters, (page - 1) * pageSize, pageSize)
+      .then(found => {
         if (cancelled) return;
-        setRows(page.results);
-        setCount(page.count);
+        setRows(found.results);
+        setCount(found.count);
         setLoadedKey(listKey);
       })
       .catch(err => {
@@ -124,25 +147,12 @@ export const FileRepository: React.FC = () => {
     }
     let cancelled = false;
     getReceivedLetters(filters.student)
-      .then(rows => !cancelled && setAppointmentLetters(rows))
+      .then(found => !cancelled && setAppointmentLetters(found))
       .catch(() => !cancelled && setAppointmentLetters([]));
     return () => {
       cancelled = true;
     };
   }, [filters.student, lecturerView]);
-
-  const loadMore = async () => {
-    setLoadingMore(true);
-    try {
-      const page = await getDocuments(filters, rows.length, PAGE_SIZE);
-      setRows(current => [...current, ...page.results]);
-      setCount(page.count);
-    } catch (err) {
-      setToast({ message: errorText(err, 'Could not load more files.'), tone: 'danger' });
-    } finally {
-      setLoadingMore(false);
-    }
-  };
 
   const stopSelecting = () => {
     setSelecting(false);
@@ -178,33 +188,69 @@ export const FileRepository: React.FC = () => {
     }
   };
 
-  const typeOptions: SelectMenuOption<string>[] = [
-    { value: '', label: 'All types', triggerLabel: 'All' },
-    ...(options?.types ?? []).map(type => ({ value: type.code, label: type.label, description: type.groupLabel })),
-  ];
-  const semesterOptions: SelectMenuOption<string>[] = [
-    { value: '', label: 'All semesters', triggerLabel: 'All' },
-    ...(options?.semesters ?? []).map(semester => ({ value: String(semester.id), label: semester.label })),
-    { value: 'none', label: 'Not linked to a semester' },
-  ];
-  const activeFilters = Boolean(filters.q || filters.type || filters.semester || moreFilterCount(filters));
-  const from = `${location.pathname}${location.search}`;
   const isOffice = Boolean(options?.isOffice);
-  const tabs: Array<{ view: DocumentFilters['view']; label: string; short?: string; count?: number; alert?: boolean }> = [
-    { view: 'all', label: 'All files' },
-    ...(isOffice ? [{ view: 'check' as const, label: 'To check', count: summary?.toCheck ?? 0, alert: true }] : []),
-    ...(options?.canSeeRequired ? [{ view: 'required' as const, label: 'Required documents', short: 'Required' }] : []),
-    { view: 'staff', label: 'Staff files' },
+  const from = `${location.pathname}${location.search}`;
+  const groupLabel = (value: string) => options?.groups.find(group => group.value === value)?.label ?? value;
+  const semesterLabel = (value: string) => (value === 'none' ? 'Not linked to a semester' : options?.semesters?.find(item => String(item.id) === value)?.label ?? value);
+  const typeLabel = (value: string) => options?.types.find(item => item.code === value)?.label ?? value;
+  const chip = (key: keyof DocumentFilters, label: string) => (filters[key] ? [{ key, label }] : []);
+  const applied: Array<{ key: keyof DocumentFilters; label: string }> = [
+    ...chip('group', groupLabel(filters.group)),
+    ...chip('required', 'Required documents'),
+    ...chip('programme', titleCase(filters.programme)),
+    ...chip('intake', `Intake ${filters.intake}`),
+    ...chip('semester', semesterLabel(filters.semester)),
+    ...chip('sender', filters.sender ? `From ${SENDER_LABELS[filters.sender]}` : ''),
+    ...chip('type', typeLabel(filters.type)),
+    ...chip('status', filters.status ? STATUS_LABELS[filters.status] : ''),
+    ...chip('kind', filters.kind ? KIND_LABELS[filters.kind] : ''),
+    ...chip('uploader', filters.uploader ? `Uploaded by ${UPLOADER_LABELS[filters.uploader].toLowerCase()}` : ''),
+    ...chip('from', `From ${shortDocumentDate(filters.from)}`),
+    ...chip('to', `To ${shortDocumentDate(filters.to)}`),
+    ...chip('archived', 'Archived files'),
   ];
+  const clearFilters = () => {
+    setSearch('');
+    setParams(filtersToParams({ view: filters.view, student: filters.student }), { replace: true });
+    setPage(1);
+  };
   const uploadPath = filters.student
     ? `${APP_ROUTES.filesUpload}?student=${encodeURIComponent(filters.student)}`
     : APP_ROUTES.filesUpload;
+  const pageCount = Math.max(1, Math.ceil(count / pageSize));
+
+  const summaryCards = [
+    ...(isOffice
+      ? [
+          { key: 'check', title: 'To check', value: summary?.toCheck, caption: 'files', description: 'Waiting for the office to accept or return.', icon: ClipboardCheck, tone: 'warning' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'check' }) },
+          { key: 'returned', title: 'Returned', value: summary?.returned, caption: 'files', description: 'Waiting for the student to send a corrected file.', icon: RotateCcw, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all', status: 'RETURNED' }) },
+        ]
+      : [
+          { key: 'all', title: 'Files you can see', value: summary?.all, caption: 'files', description: 'About your students, or shared with staff.', icon: FileStack, tone: 'info' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all' }) },
+        ]),
+    ...(options?.canSeeRequired
+      ? [{ key: 'required', title: 'Still to hand in', value: summary?.studentsStillToHandIn, caption: 'students', description: 'Owe at least one required document.', icon: UsersRound, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'required' }) }]
+      : []),
+  ];
+  const cardSelected = (key: string) =>
+    (key === 'check' && filters.view === 'check') || (key === 'required' && filters.view === 'required') || (key === 'returned' && filters.view === 'all' && filters.status === 'RETURNED');
+
+  const columns = filters.student ? ['File', 'Uploaded', 'Status', 'Action'] : ['File', 'Student', 'Uploaded', 'Status', 'Action'];
+  const widths = filters.student ? [50, 18, 18, 14] : [35, 20, 14, 17, 14];
+  const heading =
+    filters.view === 'check' ? 'Waiting for a check' : filters.view === 'staff' ? 'Staff files' : filters.student ? 'Their files' : 'All files';
+  const headingNote =
+    filters.view === 'check'
+      ? 'Open one to accept it, or return it with a reason.'
+      : filters.view === 'staff'
+        ? 'Files not about any student, such as rubrics and meeting notes.'
+        : 'Click a tag on any file to see every file with that tag.';
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="File Management"
-        subtitle="Every student's official documents, in one place."
+        subtitle="Every student's official documents, in one place. The system files and tags each one."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {isOffice && <PortalButton icon={Settings2} onClick={() => navigate(APP_ROUTES.filesSettings)}>Settings</PortalButton>}
@@ -225,7 +271,7 @@ export const FileRepository: React.FC = () => {
               </span>
               <div className="min-w-0">
                 <h2 className="truncate text-[19px] font-extrabold text-brand-navy">{student?.name ?? filters.student}</h2>
-                <p className="truncate text-[13px] text-slate-500">{student ? `${student.matric} · ${student.programme || 'No programme'}` : 'Loading the student...'}</p>
+                <p className="truncate text-[13px] text-slate-500">{student ? `${student.matric} · ${student.programme ? titleCase(student.programme) : 'No programme'}` : 'Loading the student...'}</p>
               </div>
             </div>
             {student && (
@@ -238,7 +284,7 @@ export const FileRepository: React.FC = () => {
                     <dt className="text-slate-500">Your appointment letters</dt>
                     <dd className="font-bold">
                       {appointmentLetters.map(letter => (
-                        <Link key={letter.id} to={routeForFileLetter(letter.id)} className="block text-blue-700 hover:underline">
+                        <Link key={letter.id} to={routeForFileLetter(letter.id)} state={{ from }} className="block text-blue-700 hover:underline">
                           {letter.templateName}{letter.status === 'Revoked' ? ' (revoked)' : ''}
                         </Link>
                       ))}
@@ -263,189 +309,290 @@ export const FileRepository: React.FC = () => {
           </section>
         </div>
       ) : (
-        <div role="tablist" aria-label="File views" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-          {tabs.map(tab => {
-            const selected = filters.view === tab.view;
-            return (
-              <button
-                key={tab.view}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => update({ view: tab.view })}
-                className={`card-value inline-flex items-center gap-2 rounded-lg px-4 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${selected ? 'bg-brand-navy text-white' : 'text-slate-600 hover:bg-white'}`}
-              >
-                {tab.short ? (
-                  <>
-                    <span className="sm:hidden">{tab.short}</span>
-                    <span className="hidden sm:inline">{tab.label}</span>
-                  </>
-                ) : tab.label}
-                {tab.count !== undefined && (
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${tab.alert && tab.count ? 'bg-amber-100 text-amber-800' : selected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'}`}>{tab.count}</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {summaryCards.length > 0 && (
+            <div className={`grid gap-4 ${summaryCards.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
+              {summaryCards.map(card => {
+                const on = cardSelected(card.key);
+                return (
+                  <SummaryCardButton
+                    key={card.key}
+                    title={card.title}
+                    value={card.value ?? '-'}
+                    caption={card.caption}
+                    description={card.description}
+                    icon={card.icon}
+                    tone={card.tone}
+                    selected={on}
+                    onClick={on ? () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all' }) : card.open}
+                  />
+                );
+              })}
+            </div>
+          )}
+          <OfficeToolViews<DocumentFilters['view']>
+            label="File views"
+            appearance="workspace"
+            value={filters.view === 'mine' ? 'all' : filters.view}
+            onChange={view => update({ view })}
+            options={[
+              { value: 'all', label: 'All files', icon: FileStack },
+              ...(isOffice ? [{ value: 'check' as const, label: `To check (${summary?.toCheck ?? 0})`, icon: ClipboardCheck }] : []),
+              ...(options?.canSeeRequired ? [{ value: 'required' as const, label: 'Required documents', icon: ListChecks }] : []),
+              { value: 'staff', label: 'Staff files', icon: UsersRound },
+              ...(lecturerView ? [{ value: 'letters' as const, label: 'Appointment letters', icon: FileSignature }] : []),
+            ]}
+          />
+        </>
       )}
 
-      {filters.view === 'required' ? (
+      {filters.view === 'required' && !filters.student ? (
         <RequiredDocuments isOffice={isOffice} />
+      ) : filters.view === 'letters' && !filters.student ? (
+        lecturerView ? <ReceivedAppointmentLetters /> : null
       ) : (
-        <>
-          <div className="space-y-3">
-            <label className="flex min-h-12 items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 focus-within:border-brand-navy focus-within:ring-1 focus-within:ring-brand-navy">
-              <Search className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
-              <span className="sr-only">Search files</span>
+        <section aria-label="Files" className="app-card appointment-workspace-card">
+          <WorkspaceSectionHeader
+            title={heading}
+            description={headingNote}
+            actions={selecting ? (
+              <>
+                <span className="text-[13px] font-bold text-slate-700">{selected.length} selected</span>
+                <PortalButton size="sm" variant="primary" disabled={!selected.length} isLoading={zipping} onClick={() => void downloadZip()}>Download as ZIP</PortalButton>
+                <PortalButton size="sm" onClick={stopSelecting}>Cancel</PortalButton>
+              </>
+            ) : rows.length > 0 ? (
+              <PortalButton size="sm" onClick={() => setSelecting(true)}>Select files</PortalButton>
+            ) : undefined}
+          />
+          <WorkspaceFilterCard
+            fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-5"
+            onReset={clearFilters}
+            actions={
+              <PortalButton size="sm" icon={SlidersHorizontal} aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)}>
+                {moreOpen ? 'Fewer filters' : `More filters${moreFilterCount(filters) ? ` (${moreFilterCount(filters)})` : ''}`}
+              </PortalButton>
+            }
+          >
+            <label className="form-label sm:col-span-2">
+              Find a file
               <input
                 type="search"
+                className="form-control form-control-sm mt-1"
                 value={search}
                 onChange={event => setSearch(event.target.value)}
-                placeholder={filters.student ? 'Search this student’s files' : 'Search by student name, student ID, file name or tag'}
-                className="min-w-0 flex-1 border-0 bg-transparent py-3 text-[14px] font-medium text-slate-800 outline-none placeholder:text-slate-400"
+                placeholder={filters.student ? 'Search this student’s files' : 'Student, matric number, file name or programme'}
               />
             </label>
-            <div className="flex flex-wrap items-center gap-2">
-              <SelectMenu<string> variant="filter" size="sm" prefix="Type" aria-label="Type" value={filters.type} options={typeOptions} onChange={value => update({ type: value })} />
-              {options?.semesters && (
-                <SelectMenu<string> variant="filter" size="sm" prefix="Semester" aria-label="Semester" value={filters.semester} options={semesterOptions} onChange={value => update({ semester: value })} />
-              )}
-              <PortalButton size="sm" icon={SlidersHorizontal} aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)}>
-                More filters{moreFilterCount(filters) ? ` (${moreFilterCount(filters)})` : ''}
-              </PortalButton>
-              <span className="ml-auto flex items-center gap-2">
-                {selecting ? (
-                  <>
-                    <span className="text-[13px] font-bold text-slate-700">{selected.length} selected</span>
-                    <PortalButton size="sm" variant="primary" disabled={!selected.length} isLoading={zipping} onClick={() => void downloadZip()}>Download as ZIP</PortalButton>
-                    <PortalButton size="sm" onClick={stopSelecting}>Cancel</PortalButton>
-                  </>
-                ) : rows.length > 0 && (
-                  <PortalButton size="sm" onClick={() => setSelecting(true)}>Select</PortalButton>
-                )}
-              </span>
-              {activeFilters && (
-                <button type="button" className="px-2 text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => {
-                  setSearch('');
-                  setParams(filtersToParams({ view: filters.view, student: filters.student }), { replace: true });
-                }}>
-                  Clear filters
-                </button>
-              )}
-            </div>
-            {moreOpen && (
-              <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <SelectMenu<DocumentFilters['uploader']>
-                  variant="filter" size="sm" prefix="Uploaded by" aria-label="Uploaded by" value={filters.uploader}
-                  options={[{ value: '', label: 'Anyone', triggerLabel: 'Anyone' }, { value: 'me', label: 'Me' }, { value: 'students', label: 'Students' }, { value: 'staff', label: 'Staff' }]}
-                  onChange={value => update({ uploader: value })}
-                />
-                <SelectMenu<DocumentFilters['status']>
-                  variant="filter" size="sm" prefix="Status" aria-label="Status" value={filters.status}
-                  options={[{ value: '', label: 'Any status', triggerLabel: 'Any' }, { value: 'WAITING', label: 'Waiting for office' }, { value: 'RETURNED', label: 'Returned' }, { value: 'ACCEPTED', label: 'Accepted' }, { value: 'NONE', label: 'No check needed' }]}
-                  onChange={value => update({ status: value })}
-                />
-                <SelectMenu<DocumentFilters['kind']>
-                  variant="filter" size="sm" prefix="File" aria-label="File kind" value={filters.kind}
-                  options={[{ value: '', label: 'Any kind', triggerLabel: 'Any' }, { value: 'PDF', label: 'PDF' }, { value: 'DOCX', label: 'Word' }, { value: 'IMAGE', label: 'Photo or scan' }, { value: 'XLSX', label: 'Excel' }, { value: 'PPTX', label: 'PowerPoint' }]}
-                  onChange={value => update({ kind: value })}
-                />
-                {isOffice && (
-                  <SelectMenu<DocumentFilters['archived']>
-                    variant="filter" size="sm" prefix="Show" aria-label="Show" value={filters.archived}
-                    options={[
-                      { value: '', label: 'Current files', triggerLabel: 'Current files' },
-                      { value: '1', label: `Archived files${summary?.archived ? ` (${summary.archived})` : ''}`, triggerLabel: 'Archived files' },
-                    ]}
-                    onChange={value => update({ archived: value })}
-                  />
-                )}
-                <label className="text-[12px] font-bold text-slate-600">
-                  From
-                  <input type="date" value={filters.from} onChange={event => update({ from: event.target.value })} className="form-control form-control-sm mt-1 block" />
-                </label>
-                <label className="text-[12px] font-bold text-slate-600">
-                  To
-                  <input type="date" value={filters.to} onChange={event => update({ to: event.target.value })} className="form-control form-control-sm mt-1 block" />
-                </label>
-              </div>
+            <label className="form-label">
+              Category
+              <PortalSelect className="form-control form-control-sm mt-1" value={filters.group} onChange={event => update({ group: event.target.value })}>
+                <option value="">All categories</option>
+                {(options?.groups ?? []).map(group => <option key={group.value} value={group.value}>{group.label}</option>)}
+              </PortalSelect>
+            </label>
+            {!filters.student && (
+              <label className="form-label">
+                Programme
+                <PortalSelect className="form-control form-control-sm mt-1" value={filters.programme} onChange={event => update({ programme: event.target.value })}>
+                  <option value="">All programmes</option>
+                  {(options?.programmes ?? []).map(programme => <option key={programme} value={programme}>{titleCase(programme)}</option>)}
+                </PortalSelect>
+              </label>
             )}
-          </div>
-
-          <section aria-label="Files" className="app-card overflow-hidden">
-            {loading ? (
-              <LoadingState message="Loading files..." />
-            ) : error ? (
-              <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
-            ) : !rows.length ? (
-              <EmptyState
-                title="No matching files found."
-                description={activeFilters ? 'Try other words, or clear the filters.' : 'Files you upload, or that are shared with you, appear here.'}
-              />
-            ) : (
+            <label className="form-label">
+              Semester
+              <PortalSelect className="form-control form-control-sm mt-1" value={filters.semester} onChange={event => update({ semester: event.target.value })}>
+                <option value="">All semesters</option>
+                {(options?.semesters ?? []).map(semester => <option key={semester.id} value={String(semester.id)}>{semester.label}</option>)}
+                <option value="none">Not linked to a semester</option>
+              </PortalSelect>
+            </label>
+            {moreOpen && (
               <>
-                <ul>
+                {!filters.student && (
+                  <label className="form-label">
+                    Intake
+                    <PortalSelect className="form-control form-control-sm mt-1" value={filters.intake} onChange={event => update({ intake: event.target.value })}>
+                      <option value="">All intakes</option>
+                      {(options?.intakes ?? []).map(intake => <option key={intake} value={intake}>{intake}</option>)}
+                    </PortalSelect>
+                  </label>
+                )}
+                <label className="form-label">
+                  From
+                  <PortalSelect className="form-control form-control-sm mt-1" value={filters.sender} onChange={event => update({ sender: event.target.value as DocumentFilters['sender'] })}>
+                    <option value="">Anyone</option>
+                    {(Object.keys(SENDER_LABELS) as Array<keyof typeof SENDER_LABELS>).map(value => <option key={value} value={value}>{SENDER_LABELS[value]}</option>)}
+                  </PortalSelect>
+                </label>
+                <label className="form-label">
+                  Type
+                  <PortalSelect className="form-control form-control-sm mt-1" value={filters.type} onChange={event => update({ type: event.target.value })}>
+                    <option value="">All types</option>
+                    {(options?.types ?? []).map(type => <option key={type.code} value={type.code}>{type.label}</option>)}
+                  </PortalSelect>
+                </label>
+                <label className="form-label">
+                  Status
+                  <PortalSelect className="form-control form-control-sm mt-1" value={filters.status} onChange={event => update({ status: event.target.value as DocumentFilters['status'] })}>
+                    <option value="">Any status</option>
+                    {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map(value => <option key={value} value={value}>{STATUS_LABELS[value]}</option>)}
+                  </PortalSelect>
+                </label>
+                <label className="form-label">
+                  File
+                  <PortalSelect className="form-control form-control-sm mt-1" value={filters.kind} onChange={event => update({ kind: event.target.value as DocumentFilters['kind'] })}>
+                    <option value="">Any kind</option>
+                    {(Object.keys(KIND_LABELS) as Array<keyof typeof KIND_LABELS>).map(value => <option key={value} value={value}>{KIND_LABELS[value]}</option>)}
+                  </PortalSelect>
+                </label>
+                <label className="form-label">
+                  Uploaded by
+                  <PortalSelect className="form-control form-control-sm mt-1" value={filters.uploader} onChange={event => update({ uploader: event.target.value as DocumentFilters['uploader'] })}>
+                    <option value="">Anyone</option>
+                    {(Object.keys(UPLOADER_LABELS) as Array<keyof typeof UPLOADER_LABELS>).map(value => <option key={value} value={value}>{UPLOADER_LABELS[value]}</option>)}
+                  </PortalSelect>
+                </label>
+                <label className="form-label">
+                  Uploaded from
+                  <input type="date" value={filters.from} onChange={event => update({ from: event.target.value })} className="form-control form-control-sm mt-1" />
+                </label>
+                <label className="form-label">
+                  Uploaded to
+                  <input type="date" value={filters.to} onChange={event => update({ to: event.target.value })} className="form-control form-control-sm mt-1" />
+                </label>
+                {isOffice && (
+                  <label className="form-label">
+                    Show
+                    <PortalSelect className="form-control form-control-sm mt-1" value={filters.archived} onChange={event => update({ archived: event.target.value as DocumentFilters['archived'] })}>
+                      <option value="">Current files</option>
+                      <option value="1">Archived files{summary?.archived ? ` (${summary.archived})` : ''}</option>
+                    </PortalSelect>
+                  </label>
+                )}
+              </>
+            )}
+          </WorkspaceFilterCard>
+
+          {applied.length > 0 && (
+            <ul aria-label="Filters in use" className="flex flex-wrap items-center gap-2">
+              {applied.map(item => (
+                <li key={item.key}>
+                  <button
+                    type="button"
+                    onClick={() => update({ [item.key]: '' } as Partial<DocumentFilters>)}
+                    aria-label={`Remove the filter ${item.label}`}
+                    className="inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-indigo-50 py-1 pl-3 pr-2 text-[12px] font-bold text-indigo-800 hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy"
+                  >
+                    {item.label}
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {loading ? (
+            <LoadingState message="Loading files..." />
+          ) : error ? (
+            <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
+          ) : !rows.length ? (
+            <EmptyState
+              title={applied.length || filters.q ? 'No files match these filters.' : filters.view === 'check' ? 'Nothing is waiting for a check.' : 'No files yet.'}
+              description={applied.length || filters.q ? 'Remove a filter above, or clear them all.' : 'Files you upload, or that are shared with you, appear here.'}
+            />
+          ) : (
+            <>
+              <table aria-label="Files" className="data-table block table-fixed lg:table">
+                <colgroup className="hidden lg:table-column-group">
+                  {widths.map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
+                </colgroup>
+                <thead className="hidden lg:table-header-group">
+                  <tr className="data-thead bg-slate-50">{columns.map(column => <th key={column} scope="col" className="data-th">{column}</th>)}</tr>
+                </thead>
+                <tbody className="block space-y-3 lg:table-row-group lg:space-y-0">
                   {rows.map(document => {
                     const who = studentsLine(document.students);
                     const first = document.students[0];
+                    const badge = checkBadge(document.checkStatus);
                     return (
-                      <li key={document.id} className="border-t border-slate-100 px-4 py-4 first:border-t-0 hover:bg-slate-50/70 md:px-5">
-                        <div className={`flex items-start gap-3 md:grid md:items-center md:gap-4 ${filters.student ? 'md:grid-cols-[auto_minmax(0,4fr)_minmax(0,1.6fr)_13rem]' : 'md:grid-cols-[auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.6fr)_13rem]'}`}>
-                          <span className="flex shrink-0 items-center gap-3">
+                      <tr key={document.id} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 py-2 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-0">
+                        <td className="data-td-strong col-span-2 block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                          <div className="flex items-start gap-3">
                             {selecting && (
                               <input
                                 type="checkbox"
-                                className="h-5 w-5 accent-brand-navy"
+                                className="mt-2.5 h-5 w-5 shrink-0 accent-brand-navy"
                                 aria-label={`Select ${document.title}`}
                                 checked={selected.includes(document.id)}
                                 onChange={() => toggle(document.id)}
                               />
                             )}
                             <KindBadge kind={document.file?.kind} />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <Link to={routeForDocument(document.id)} state={{ from }} className="block truncate text-[14px] font-bold text-brand-navy hover:underline">
-                              {document.title}
-                            </Link>
-                            <p className="truncate text-[12px] text-slate-500">{typeAndTags(document.type.label, document.tags)}</p>
-                            <p className="mt-1 truncate text-[12px] text-slate-600 md:hidden">{filters.student ? '' : `${who.main} · `}{shortDocumentDate(document.uploadedAt)}</p>
-                            <div className="mt-1.5 md:hidden">{document.archived ? <ArchivedChip /> : <CheckChip status={document.checkStatus} hideAccepted />}</div>
+                            <div className="min-w-0 flex-1 space-y-1.5">
+                              <div>
+                                <Link to={routeForDocument(document.id)} state={{ from }} className="block truncate text-[14px] font-bold text-brand-navy hover:underline">{document.title}</Link>
+                                <p className="truncate text-[12px] font-normal text-slate-500">{document.type.label}</p>
+                              </div>
+                              <AutoTagChips tags={document.autoTags.filter(tag => ROW_TAGS.includes(tag.kind))} onPick={tag => update(tag.filter)} />
+                            </div>
                           </div>
-                          <div className={filters.student ? 'hidden' : 'hidden min-w-0 md:block'}>
-                            {first && !filters.student ? (
-                              <button type="button" className="block max-w-full truncate text-left text-[13px] font-bold text-slate-800 underline decoration-slate-300 underline-offset-4 hover:decoration-brand-navy" onClick={() => update({ student: first.matric, view: 'all' })} aria-label={`Show every file about ${first.name}`}>
+                        </td>
+                        {!filters.student && (
+                          <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:col-span-1 lg:table-cell lg:px-5 lg:py-4">
+                            <span className="card-label mb-1 block lg:hidden">Student</span>
+                            {first ? (
+                              <button type="button" className="block max-w-full truncate text-left text-[13px] font-bold text-slate-800 underline decoration-slate-300 underline-offset-4 hover:decoration-brand-navy" onClick={() => update({ ...EMPTY_DOCUMENT_FILTERS, student: first.matric, view: 'all' })} aria-label={`Show every file about ${first.name}`}>
                                 {who.main}
                               </button>
                             ) : (
-                              <p className="truncate text-[13px] font-bold text-slate-800">{who.main}</p>
+                              <p className="text-[13px] font-bold text-slate-800">{who.main}</p>
                             )}
-                            <p className="truncate text-[12px] text-slate-500">{document.isStaffFile ? document.staffAudienceLabel : who.sub}</p>
-                          </div>
-                          <div className="hidden min-w-0 md:block">
-                            <p className="text-[13px] text-slate-700">{shortDocumentDate(document.uploadedAt)}</p>
-                            <p className="truncate text-[12px] text-slate-500">{uploadedLine(document.uploadedBy.name, document.uploadedBy.isMe)}</p>
-                          </div>
-                          <div className="flex shrink-0 items-center justify-end gap-2">
-                            <span className="hidden md:inline-flex">{document.archived ? <ArchivedChip /> : <CheckChip status={document.checkStatus} hideAccepted />}</span>
-                            {filters.view === 'check' && !filters.student && (
-                              <PortalButton size="sm" variant="primary" onClick={() => navigate(routeForDocument(document.id), { state: { from } })}>Review</PortalButton>
+                            <p className="card-caption mt-0.5 line-clamp-2">
+                              {document.isStaffFile ? document.staffAudienceLabel : first ? `${first.matric}${first.programme ? ` · ${titleCase(first.programme)}` : ''}` : ''}
+                            </p>
+                          </td>
+                        )}
+                        <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                          <span className="card-label mb-1 block lg:hidden">Uploaded</span>
+                          <p className="text-[13px]">{shortDocumentDate(document.uploadedAt)}</p>
+                          <p className="card-caption mt-0.5 truncate">{uploadedLine(document.uploadedBy.name, document.uploadedBy.isMe)}</p>
+                        </td>
+                        <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                          <span className="card-label mb-1 block lg:hidden">Status</span>
+                          {document.archived ? <ArchivedBadge /> : badge ? <StatusBadge tone={badge.tone} dot className="whitespace-nowrap">{badge.label}</StatusBadge> : <span className="text-[12.5px] text-slate-400">No check needed</span>}
+                        </td>
+                        <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                          <div className="flex items-center gap-2">
+                            {document.checkStatus === 'WAITING' && document.permissions.canCheck ? (
+                              <PortalButton size="sm" variant="primary" className="whitespace-nowrap" aria-label={`Review ${document.title}`} onClick={() => navigate(routeForDocument(document.id), { state: { from } })}>Review</PortalButton>
+                            ) : (
+                              <PortalButton size="sm" className="whitespace-nowrap" aria-label={`Open ${document.title}`} onClick={() => navigate(routeForDocument(document.id), { state: { from } })}>Open</PortalButton>
                             )}
                             <DownloadIconButton label={`Download ${document.title}`} busy={downloading === document.id} onClick={() => void download(document)} />
                           </div>
-                        </div>
-                      </li>
+                        </td>
+                      </tr>
                     );
                   })}
-                </ul>
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4">
-                  <span className="text-[13px] text-slate-500">Showing {rows.length} of {count} files</span>
-                  {rows.length < count && <PortalButton size="sm" isLoading={loadingMore} onClick={() => void loadMore()}>Load more</PortalButton>}
-                </div>
-              </>
-            )}
-          </section>
-        </>
+                </tbody>
+              </table>
+              <WorkspacePagination
+                page={Math.min(page, pageCount)}
+                pageCount={pageCount}
+                total={count}
+                noun="files"
+                onPage={setPage}
+                pageSize={pageSize}
+                onPageSize={size => {
+                  setPageSize(workspacePageSize(size));
+                  setPage(1);
+                }}
+              />
+            </>
+          )}
+        </section>
       )}
       <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
     </div>

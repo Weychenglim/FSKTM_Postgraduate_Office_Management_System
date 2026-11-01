@@ -8,13 +8,14 @@
 // letter for?" offers the office's recipients list; the office's own questions
 // become blanks it can place in the letter.
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ListChecks, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { PortalButton, StatusBadge } from './PortalPrimitives';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { ToggleSwitch } from './ToggleSwitch';
 import { PortalSelect } from './PortalSelect';
 import { LetterFormFields } from './LetterFormFields';
+import { FloatingMenu } from './FloatingMenu';
 import type { ChoiceListSummary, LetterFormQuestion, LetterQuestion, LetterQuestionKind, LetterRecipientPurpose } from '../types';
 import { EMPTY_REQUEST_DETAILS, OPTIONAL_DETAIL_LABELS, offeredDetails } from '../utils/letterRecipients';
 import { MAX_QUESTIONS, QUESTION_KINDS, isCustomQuestion, listInWords, newQuestion, questionKindLabel } from '../utils/letterEditor';
@@ -52,6 +53,7 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState<LetterQuestionKind | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const addButton = useRef<HTMLDivElement>(null);
   const [newLabel, setNewLabel] = useState('');
   const [labelError, setLabelError] = useState<string | null>(null);
   const simpleLists = (lists ?? []).filter((list) => list.kind === 'SIMPLE');
@@ -296,12 +298,12 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
             </div>
           </div>
         ) : (
-          <div className="relative">
+          <div ref={addButton} className="w-fit">
             <PortalButton icon={Plus} disabled={questions.length >= MAX_QUESTIONS} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
               Add question
             </PortalButton>
             {menuOpen && (
-              <div className="absolute left-0 z-20 mt-2 w-80 max-w-[calc(100vw-3rem)] rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+              <FloatingMenu anchor={addButton} onClose={() => setMenuOpen(false)} width={320} className="rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
                 {QUESTION_KINDS.map((kind) => {
                   const taken = (kind.kind === 'recipient' || kind.kind === 'extras') && has(kind.kind);
                   return (
@@ -317,7 +319,7 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                     </button>
                   );
                 })}
-              </div>
+              </FloatingMenu>
             )}
           </div>
         )}

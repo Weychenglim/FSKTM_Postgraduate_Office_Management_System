@@ -23,6 +23,7 @@ import {
   request,
   setAuthToken,
 } from './apiClient';
+import { otherOpenTabs } from './browserTab';
 
 export interface LoginResponse {
   token: string;
@@ -65,10 +66,15 @@ export function logout(): Promise<void> {
   // session by its refresh cookie), so nothing that finishes later can wipe a
   // newer sign-in.
   clearAuthToken();
-  pendingLogout = request('/auth/logout/', { method: 'POST' }, { retryAuth: false }).then(
-    () => undefined,
-    () => undefined,
-  );
+  // The account is also signed out of closed tabs; tabs still open keep theirs.
+  pendingLogout = otherOpenTabs()
+    .then((openTabs) =>
+      request('/auth/logout/', { method: 'POST', body: JSON.stringify({ openTabs }) }, { retryAuth: false }),
+    )
+    .then(
+      () => undefined,
+      () => undefined,
+    );
   return pendingLogout;
 }
 
@@ -123,9 +129,10 @@ export async function getCurrentUser(): Promise<DemoUser> {
 
 export async function restoreSession(): Promise<DemoUser | null> {
   let token = await refreshAuthToken();
-  // Tabs reloading together share one refresh cookie: the first rotates it and
-  // the others are refused. The winner's response leaves the new cookie in the
-  // browser, so one retry a moment later picks it up.
+  // Two pages renewing one refresh cookie together (a duplicated tab, or a
+  // browser that sends no tab name): the first rotates it and the other is
+  // refused. The winner's response leaves the new cookie in the browser, so
+  // one retry a moment later picks it up.
   if (!token && onPortalPage()) {
     await delay(400);
     token = await refreshAuthToken();

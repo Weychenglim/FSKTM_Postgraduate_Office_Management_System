@@ -25,7 +25,7 @@ from .entries import (
     entry_dict,
 )
 from .models import FaqCategory, FaqDocument, FaqEntry, FaqSettings
-from .questions import question_stats, review_questions, waiting_groups
+from .questions import month_start, question_stats, review_questions, waiting_groups
 from .references import add_document, document_dict, rename_document, replace_document, set_archived
 from .review_export import review_workbook
 
@@ -77,7 +77,12 @@ def _page_number(value, default, upper=None):
 
 
 def _entries(params):
-    entries = FaqEntry.objects.select_related("category", "updated_by").annotate(alt_count=Count("alt_questions", distinct=True))
+    this_month = Q(asked__asked_at__gte=month_start())
+    entries = FaqEntry.objects.select_related("category", "updated_by").annotate(
+        alt_count=Count("alt_questions", distinct=True),
+        asked_this_month=Count("asked", filter=this_month, distinct=True),
+        not_helpful_this_month=Count("asked", filter=this_month & Q(asked__helpful=False), distinct=True),
+    )
     search = (params.get("search") or "").strip()
     if search:
         entries = entries.filter(

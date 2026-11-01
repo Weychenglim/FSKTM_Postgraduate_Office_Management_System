@@ -7,12 +7,13 @@
 // with the details it fills in shown as [Student Name] rather than as tags, and
 // the printed letter previewed beside it as it is typed.
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Bold, ChevronDown, Italic, List, ListChecks, Pencil, Plus, Trash2, Underline } from 'lucide-react';
 import { PortalButton, SegmentedControl } from './PortalPrimitives';
 import { AlertMessage } from './AlertMessage';
 import { AppointmentSection } from './AppointmentPrimitives';
 import { LetterPages } from './LetterPages';
+import { FloatingMenu } from './FloatingMenu';
 import type { LetterCustomField, LetterPlaceholder } from '../types';
 import {
   APPOINTMENT_PLACEHOLDERS,
@@ -121,6 +122,25 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
     onEdited(language === 'ms' ? 'contentMs' : 'content');
   };
 
+  // The text box grows with the letter, so the page never gets a second scrollbar.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    let width = 0;
+    const fit = () => {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    };
+    fit();
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry.contentRect.width === width) return;
+      width = entry.contentRect.width;
+      fit();
+    });
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [shown]);
+
   // After a change the text box did not make itself, put the caret back where it belongs.
   useEffect(() => {
     if (pendingCursor.current === null) return;
@@ -129,20 +149,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
     textareaRef.current?.focus();
     textareaRef.current?.setSelectionRange(cursor, cursor);
   }, [values.content, values.contentMs]);
-
-  useEffect(() => {
-    if (!insertOpen) return;
-    const onDown = (event: MouseEvent) => {
-      if (!insertMenuRef.current?.contains(event.target as Node)) setInsertOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setInsertOpen(false);
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [insertOpen]);
 
   const type = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     const typed = event.target.value;
@@ -257,7 +263,13 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
   const officeTags = [...fields.map((f) => f.name), ...questionNames(values.questions)];
   const previewHtml = (text: string) =>
     renderLetterBodyHtml(sample ? fillLetterTags(text, sample.values) : text, { highlightPlaceholders: true, officeFields: officeTags, tagLabels: labels.toLabel });
-  const closing = letterClosing({ purpose, signatoryName: values.signatoryName, signatoryTitle: values.signatoryTitle });
+  const closing = letterClosing({
+    purpose,
+    signatoryName: values.signatoryName,
+    signatoryTitle: values.signatoryTitle,
+    signatoryNameMs: values.signatoryNameMs,
+    signatoryTitleMs: values.signatoryTitleMs,
+  });
   const reference = `${(values.referencePrefix.trim() || DEFAULT_REFERENCE_PREFIX).replace(/\/+$/, '')}/${new Date().getFullYear()}/####`;
   const inLetter = (name: string) => `${values.content}\n${values.contentMs}`.includes(`{{${name}}}`);
 
@@ -306,7 +318,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                   <ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-slate-400" />
                 </button>
                 {insertOpen && (
-                  <div className="absolute left-0 z-20 mt-2 w-80 max-w-[calc(100vw-3rem)] max-h-[26rem] overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                  <FloatingMenu anchor={insertMenuRef} onClose={() => setInsertOpen(false)} width={320} className="rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
                     <p className="px-2 pb-2 card-caption">Goes in where the cursor is, and is filled in for each letter.</p>
                     {insertGroups.map((group) => (
                       <div key={group.title} className="py-1">
@@ -346,7 +358,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                     {request && studentQuestions.length === 0 && (
                       <p className="px-2 py-1 card-caption">To ask the student something, add a question in the Student form step.</p>
                     )}
-                  </div>
+                  </FloatingMenu>
                 )}
               </div>
             </div>
@@ -363,7 +375,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
               onChange={type}
               aria-label={language === 'ms' ? 'Malay letter content' : 'Letter content'}
               aria-invalid={(language === 'ms' ? malayIssue : englishIssue) ? true : undefined}
-              className="block w-full resize-y border-0 bg-white px-6 py-5 text-[14px] leading-7 text-slate-800 placeholder:text-slate-400 focus:outline-none"
+              className="block w-full resize-none overflow-hidden border-0 bg-white px-6 py-5 text-[14px] leading-7 text-slate-800 placeholder:text-slate-400 focus:outline-none"
               placeholder={language === 'ms' ? 'Tulis surat dalam Bahasa Melayu. Insert detail works here too.' : "Write the letter. Use Insert detail for the student's name, matric number and other details."}
             />
             <div className="space-y-3 border-t border-slate-100 px-5 py-4">

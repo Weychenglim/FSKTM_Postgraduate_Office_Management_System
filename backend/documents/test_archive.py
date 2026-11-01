@@ -96,7 +96,7 @@ class HistoryTests(DocumentPeople, ArchiveClient, APITestCase):
 
     def test_deleted_files_stay_in_the_history(self):
         self.client.force_authenticate(self.ali.user)
-        self.client.patch(f"/api/documents/{self.thesis['id']}/", {"title": "Ali thesis v2", "tags": ["draft"]}, format="json")
+        self.client.patch(f"/api/documents/{self.thesis['id']}/", {"title": "Ali thesis v2"}, format="json")
         self.client.get(f"/api/documents/{self.thesis['id']}/download/")
         self.client.delete(f"/api/documents/{self.thesis['id']}/")
         deleted = self.history("?show=deleted").data
@@ -107,7 +107,7 @@ class HistoryTests(DocumentPeople, ArchiveClient, APITestCase):
         every = self.history().data["results"]
         self.assertNotIn("DOWNLOADED", [item["action"] for item in every])
         changed = next(item for item in every if item["action"] == "DETAILS_CHANGED")
-        self.assertEqual(changed["detail"], "Changed title and tags")
+        self.assertEqual(changed["detail"], "Changed title")
         self.assertEqual(self.history("?show=opened").data["count"], 1)
         self.assertEqual([item["title"] for item in self.history("?q=Evaluation").data["results"]], ["Evaluation"])
 

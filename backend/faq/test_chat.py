@@ -182,11 +182,11 @@ class AskTests(ChatBase):
         self.assertIsNone(FaqQuestion.objects.get(pk=first.data["questionId"]).helpful)
 
     def test_the_start_screen(self):
-        FaqSettings.objects.update_or_create(pk=1, defaults={"common_questions": ["How do I register courses?", " ", "Fees?"]})
+        FaqSettings.objects.update_or_create(pk=1, defaults={"common_questions": ["how do i register   courses every semester?", " ", "Fees?"]})
         response = self.client.get("/api/faq/start/")
         self.assertEqual([group["name"] for group in response.data["categories"]], ["Course registration", "Fees"])
         self.assertEqual(response.data["categories"][0]["questions"][0]["question"], "How do I register courses every semester?")
-        self.assertEqual(response.data["commonQuestions"], ["How do I register courses?", "Fees?"])
+        self.assertEqual(response.data["commonQuestions"], ["how do i register   courses every semester?"], "only questions a live answer still has")
 
     def test_the_start_screen_suggests_questions_when_none_are_set(self):
         response = self.client.get("/api/faq/start/")

@@ -66,3 +66,31 @@ export function staffTypeChoices(
     return options.students.every(student => student.roles.some(role => type.uploaders.includes(role)));
   });
 }
+
+const named = (names: string[], role: string, missing: string) => (names.length ? `${names.join(', ')} (${role})` : missing);
+
+/** Who will see a student's upload of `type`, by name where the student has them. */
+export function studentReach(
+  type: DocumentTypeOption | null | undefined,
+  me: { supervisors: string[]; panel: string[]; coordinators: string[] } | undefined,
+): string[] {
+  if (!type) return [];
+  return [
+    'You',
+    'The PG office',
+    ...(type.shareSupervisors ? [named(me?.supervisors ?? [], me?.supervisors.length === 1 ? 'supervisor' : 'supervisors', 'Your supervisor, once appointed')] : []),
+    ...(type.sharePanel ? [named(me?.panel ?? [], 'panel member', 'Your panel member, once appointed')] : []),
+    ...(type.shareCoordinator ? [named(me?.coordinators ?? [], 'programme coordinator', 'Your programme coordinator')] : []),
+  ];
+}
+
+/** Who will see a staff upload about `students` with the `share` ticks. */
+export function staffReach(share: DocumentSharing, students: TaggableStudent[]): string[] {
+  const names = sharingNames(students);
+  return [
+    'The PG office',
+    ...(share.supervisors ? [named(names.supervisors, names.supervisors.length === 1 ? 'supervisor' : 'supervisors', students.length ? 'No other supervisor' : 'Their supervisors')] : []),
+    ...(share.panel ? [named(names.panel, 'panel member', students.length ? 'No panel member yet' : 'Their panel member')] : []),
+    ...(share.coordinator ? [named(names.coordinators, 'programme coordinator', students.length ? 'No programme coordinator' : 'Their programme coordinator')] : []),
+  ];
+}

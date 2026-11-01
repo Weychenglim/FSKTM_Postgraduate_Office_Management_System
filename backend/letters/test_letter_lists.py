@@ -7,7 +7,7 @@ from .models import ChoiceGroup, ChoiceItem, ChoiceList, GeneratedLetter, Letter
 from .test_letter_requests import REQUESTS, LetterRequestTestCase, User, make_student, make_user
 
 LISTS = "/api/letters/lists/"
-ADDRESS = {"addressLine1": "Jalan Universiti", "postcode": "50603", "city": "Kuala Lumpur", "state": "Wilayah Persekutuan"}
+ADDRESS = {"addressLine1": "Jalan Universiti", "postcode": "50603", "city": "Kuala Lumpur", "state": "Wilayah Persekutuan Kuala Lumpur", "country": "Malaysia"}
 
 
 class ListTestCase(LetterRequestTestCase):
@@ -74,6 +74,17 @@ class ManagingListsTests(ListTestCase):
         transport = next(p for p in form["questions"][0]["options"] if p["code"] == "TRANSPORTATION")
         grab = next(o for o in transport["organisations"] if o["name"] == "Grab Malaysia")
         self.assertEqual((grab["addressLine1"], grab["postcode"], grab["city"]), ("Level 35, Menara MAX", "50250", "Kuala Lumpur"))
+
+    def test_a_saved_state_and_country_come_from_the_lists(self):
+        url = f"{LISTS}{self.recipients.pk}/items/"
+        typed = self.as_office().post(url, {"groupId": self.transport.pk, "name": "Rapid KL", "state": "KL"}, format="json")
+        self.assertEqual(typed.status_code, status.HTTP_400_BAD_REQUEST)
+        abroad = self.as_office().post(
+            url, {"groupId": self.transport.pk, "name": "SBS Transit", "state": "Selangor", "country": "Singapore"}, format="json"
+        )
+        self.assertEqual(abroad.status_code, status.HTTP_201_CREATED, abroad.data)
+        item = ChoiceItem.objects.get(name="SBS Transit")
+        self.assertEqual((item.state, item.country), ("", "Singapore"))
 
     def test_names_are_unique_within_a_purpose_and_many_can_be_pasted(self):
         duplicate = self.as_office().post(

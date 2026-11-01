@@ -106,7 +106,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.45 }}
         id="login-main-card"
-        className="w-full bg-white rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.08)] border border-slate-100 p-8 md:p-10 text-center relative flex flex-col items-center"
+        className="w-full bg-white rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.08)] border border-slate-100 px-5 pt-8 pb-7 sm:p-8 md:p-10 text-center relative flex flex-col items-center"
       >
         {/* Padlock badge */}
         <div
@@ -139,7 +139,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
               id="email-or-username"
               label="Email or Staff / Student ID"
               icon={User}
-              placeholder="Enter your student/staff ID or institutional email"
+              placeholder="Student/staff ID or UM email"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               error={errors.id}
@@ -159,13 +159,13 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
               required
             />
 
-            <label htmlFor="remember-me" className="flex items-center gap-2.5 w-fit mb-6 cursor-pointer select-none group">
+            <label htmlFor="remember-me" className="flex items-center gap-3 w-fit py-2 mb-4 -mt-2 cursor-pointer select-none group">
               <input
                 id="remember-me"
                 type="checkbox"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 shrink-0 accent-blue-600 cursor-pointer"
+                className="w-5 h-5 shrink-0 accent-blue-600 cursor-pointer"
               />
               <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">
                 Remember me on this device
@@ -191,7 +191,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
             <button
               type="button"
               onClick={() => setActiveModal('helpdesk')}
-              className="text-blue-600 font-bold hover:underline cursor-pointer"
+              className="text-blue-600 font-bold hover:underline cursor-pointer py-2 -my-2"
             >
               IT Helpdesk
             </button>{' '}
@@ -199,7 +199,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
             <button
               type="button"
               onClick={() => setActiveModal('manual')}
-              className="text-blue-600 font-bold hover:underline cursor-pointer"
+              className="text-blue-600 font-bold hover:underline cursor-pointer py-2 -my-2"
             >
               Student Manual
             </button>.

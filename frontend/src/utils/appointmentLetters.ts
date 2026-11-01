@@ -4,9 +4,9 @@
  */
 
 // Wording for appointment letters (UC22): letters made by themselves when a
-// coordinator approves a supervisor or panel appointment.
+// coordinator approves a supervisor, panel or supporting supervisor appointment.
 
-import type { GeneratedLetter, LetterRecipient, MissingAppointmentLetter } from '../types';
+import type { AppointmentLetterKind, GeneratedLetter, LetterRecipient, MissingAppointmentLetter } from '../types';
 import { isAppointmentLetter } from './letterDocument';
 
 /** The banner above the issued letters, or null when nothing is missing. */
@@ -25,10 +25,17 @@ export function missingLettersSummary(rows: readonly MissingAppointmentLetter[])
   return { title, detail, ready, blocked };
 }
 
+export const APPOINTMENT_ROLE: Record<AppointmentLetterKind, string> = {
+  supervisor: 'supervisor',
+  panel: 'panel member',
+  supporting: 'supporting supervisor',
+};
+
 /** "Made automatically" for appointment letters; the letter type otherwise. */
 export function letterOrigin(letter: Pick<GeneratedLetter, 'purpose' | 'letterType'>): string {
   if (letter.purpose === 'SUPERVISOR_APPOINTMENT') return 'Sent automatically on supervisor approval';
   if (letter.purpose === 'PANEL_APPOINTMENT') return 'Sent automatically on panel approval';
+  if (letter.purpose === 'CO_SUPERVISOR_APPOINTMENT') return 'Sent automatically on supporting supervisor approval';
   return letter.letterType;
 }
 

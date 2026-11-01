@@ -6,10 +6,11 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown, Download, MoreHorizontal, Search, X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
-import type { DocumentCheckStatus, DocumentKind, TaggableStudent } from '../types';
-import { getTagSuggestions, searchTaggableStudents } from '../services/filesApi';
+import { FloatingMenu } from './FloatingMenu';
+import type { DocumentAutoTag, DocumentCheckStatus, DocumentKind, TaggableStudent } from '../types';
+import { searchTaggableStudents } from '../services/filesApi';
 import { checkChip, KIND_CLASSES, KIND_SHORT } from '../utils/documentDisplay';
-import { addTags } from '../utils/documentTags';
+import { tagText } from '../utils/documentTags';
 
 export const KindBadge: React.FC<{ kind: DocumentKind | null | undefined; size?: 'md' | 'lg' }> = ({ kind, size = 'md' }) => (
   <span
@@ -45,28 +46,9 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
   const wrapper = useRef<HTMLDivElement>(null);
   const menuId = useId();
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (wrapper.current && !wrapper.current.contains(event.target as Node)) setOpen(false);
-    };
-    const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-        wrapper.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus();
-      }
-    };
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', escape);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', escape);
-    };
-  }, [open]);
-
   if (!actions.length) return null;
   return (
-    <div ref={wrapper} className="relative shrink-0">
+    <div ref={wrapper} className="shrink-0">
       {triggerLabel ? <PortalButton size="sm" icon={ChevronDown} iconPosition="right" disabled={disabled} aria-label={label} aria-haspopup="menu" aria-expanded={open}
         aria-controls={open ? menuId : undefined} onClick={() => setOpen(value => !value)}>
         {triggerLabel}
@@ -75,7 +57,7 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
         <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
       </button>}
       {open && (
-        <div id={menuId} role="menu" className={`absolute top-12 z-30 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg ${align === 'right' ? 'right-0' : 'left-0'}`}>
+        <FloatingMenu id={menuId} role="menu" anchor={wrapper} onClose={() => setOpen(false)} width={224} align={align} className="rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
           {actions.map(action => (
             <button
               key={action.label}
@@ -92,7 +74,7 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
               {action.label}
             </button>
           ))}
-        </div>
+        </FloatingMenu>
       )}
     </div>
   );
@@ -144,15 +126,6 @@ export const StudentPicker: React.FC<{
     };
   }, [text, open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent) => {
-      if (wrapper.current && !wrapper.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-
   const choices = results.filter(result => !picked.some(student => student.matric === result.matric));
   const pick = (student: TaggableStudent) => {
     onChange([...picked, student]);
@@ -161,8 +134,8 @@ export const StudentPicker: React.FC<{
   };
 
   return (
-    <div ref={wrapper} className="relative">
-      <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 focus-within:border-brand-navy focus-within:ring-1 focus-within:ring-brand-navy">
+    <div>
+      <div ref={wrapper} className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 focus-within:border-brand-navy focus-within:ring-1 focus-within:ring-brand-navy">
         {picked.map(student => (
           <Chip key={student.matric} onRemove={() => onChange(picked.filter(item => item.matric !== student.matric))} removeLabel={`Remove ${student.name}`}>
             {student.name} <span className="font-semibold text-indigo-500">{student.matric}</span>
@@ -208,7 +181,7 @@ export const StudentPicker: React.FC<{
         </div>
       </div>
       {open && (
-        <div className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+        <FloatingMenu anchor={wrapper} onClose={() => setOpen(false)} maxHeight={288} className="rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
           <ul id={listId} role="listbox" aria-label="Students you can add">
             {choices.map((student, index) => (
               <li
@@ -234,90 +207,36 @@ export const StudentPicker: React.FC<{
               {loading ? 'Searching...' : problem ?? (text ? 'No students match.' : 'No more students you can add.')}
             </p>
           )}
-        </div>
+        </FloatingMenu>
       )}
     </div>
   );
 };
 
-/** Keyword tags as chips, with suggestions from tags already in use. */
-export const TagInput: React.FC<{ tags: string[]; onChange: (tags: string[]) => void; inputId?: string; disabled?: boolean }> = ({
+/** The tags the system gave a file. With `onPick`, each one filters the list by it. */
+export const AutoTagChips: React.FC<{ tags: DocumentAutoTag[]; onPick?: (tag: DocumentAutoTag) => void; limit?: number; className?: string }> = ({
   tags,
-  onChange,
-  inputId,
-  disabled = false,
+  onPick,
+  limit,
+  className = '',
 }) => {
-  const [text, setText] = useState('');
-  const [problem, setProblem] = useState<string | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-
-  useEffect(() => {
-    const value = text.replace(/^#/, '').trim();
-    if (value.length < 1) {
-      setSuggestions([]);
-      return;
-    }
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      getTagSuggestions(value)
-        .then(found => !cancelled && setSuggestions(found.map(item => item.name)))
-        .catch(() => !cancelled && setSuggestions([]));
-    }, 250);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [text]);
-
-  const commit = (raw: string) => {
-    const result = addTags(tags, raw);
-    onChange(result.tags);
-    setProblem(result.problem);
-    setText('');
-  };
-  const shown = suggestions.filter(name => !tags.some(tag => tag.toLowerCase() === name.toLowerCase())).slice(0, 5);
-
+  const shown = limit ? tags.slice(0, limit) : tags;
+  const hidden = tags.length - shown.length;
+  const look = 'inline-flex max-w-full items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11.5px] font-semibold text-slate-600';
   return (
-    <div className="space-y-2">
-      <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2 focus-within:border-brand-navy focus-within:ring-1 focus-within:ring-brand-navy">
-        {tags.map(tag => (
-          <Chip key={tag} tone="plain" onRemove={() => onChange(tags.filter(item => item !== tag))} removeLabel={`Remove the tag ${tag}`}>
-            #{tag}
-          </Chip>
-        ))}
-        <input
-          id={inputId}
-          type="text"
-          value={text}
-          disabled={disabled}
-          placeholder={tags.length ? 'Add another tag' : 'Type a tag and press Enter'}
-          className="min-w-[10rem] flex-1 border-0 bg-transparent px-1 py-1 text-[14px] font-medium text-slate-800 outline-none placeholder:text-slate-400"
-          onChange={event => {
-            const value = event.target.value;
-            if (value.includes(',')) commit(value);
-            else setText(value);
-          }}
-          onKeyDown={event => {
-            if (event.key === 'Enter') {
-              event.preventDefault();
-              if (text.trim()) commit(text);
-            } else if (event.key === 'Backspace' && !text && tags.length) {
-              onChange(tags.slice(0, -1));
-            }
-          }}
-          onBlur={() => text.trim() && commit(text)}
-        />
-      </div>
-      {shown.length > 0 && (
-        <div className="flex flex-wrap gap-2" aria-label="Tags already in use">
-          {shown.map(name => (
-            <button key={name} type="button" className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-600 hover:bg-slate-50" onMouseDown={event => event.preventDefault()} onClick={() => commit(name)}>
-              #{name}
+    <ul aria-label="Tags" className={`flex flex-wrap gap-1.5 ${className}`}>
+      {shown.map(tag => (
+        <li key={`${tag.kind}:${tag.label}`} className="min-w-0 max-w-full">
+          {onPick ? (
+            <button type="button" title={`Show files tagged ${tagText(tag)}`} className={`${look} cursor-pointer hover:border-brand-navy hover:text-brand-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy`} onClick={() => onPick(tag)}>
+              <span className="truncate">{tagText(tag)}</span>
             </button>
-          ))}
-        </div>
-      )}
-      {problem && <p className="text-[12px] font-semibold text-rose-700">{problem}</p>}
-    </div>
+          ) : (
+            <span className={look}><span className="truncate">{tagText(tag)}</span></span>
+          )}
+        </li>
+      ))}
+      {hidden > 0 && <li className="inline-flex items-center px-1 text-[11.5px] font-semibold text-slate-400">+{hidden}</li>}
+    </ul>
   );
 };

@@ -218,6 +218,7 @@ export default function App() {
     : pathname === APP_ROUTES.faqQuestions ? 'questions'
     : pathname === APP_ROUTES.faqDocuments ? 'documents'
     : pathname === APP_ROUTES.faqSettings ? 'settings'
+    : pathname === APP_ROUTES.faqTest ? 'test'
     : 'entries';
   const isStaffRoute = pathname === APP_ROUTES.registryStaff || pathname.startsWith(`${APP_ROUTES.registryStaff}/`);
   const staffAccountMatch = pathname === APP_ROUTES.registryStaffNew ? null : matchPath(`${APP_ROUTES.registryStaff}/:accountId`, pathname);

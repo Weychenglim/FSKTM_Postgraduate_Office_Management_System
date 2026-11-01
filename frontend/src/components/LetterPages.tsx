@@ -19,32 +19,37 @@ interface LetterPagesProps {
   date: string;
   /** Letter body already rendered with renderLetterBodyHtml. */
   bodyHtml: string;
-  /** 1 fits the page to the width available; above 1 zooms in. */
-  zoom?: number;
   /** The closing lines; the faculty defaults when left out. */
-  closing?: { disclaimer: string; signatoryName: string; signatoryOffice: string };
+  closing?: {
+    disclaimer: string;
+    malayDisclaimer?: string;
+    signatoryName: string;
+    signatoryOffice: string;
+    malaySignatoryName?: string;
+    malaySignatoryOffice?: string;
+  };
   /** The Malay page prints its labels, date and disclaimer in Malay. */
   language?: LetterLanguage;
   /** The Malay page's body, shown after the English pages when there is one. */
   malayBodyHtml?: string;
 }
 
-const DEFAULT_CLOSING = {
+const DEFAULT_CLOSING: NonNullable<LetterPagesProps['closing']> = {
   disclaimer: LETTERHEAD.disclaimer,
   signatoryName: LETTERHEAD.signatoryName,
   signatoryOffice: LETTERHEAD.signatoryOffice,
 };
 
-const Letterhead: React.FC = () => (
+const Letterhead: React.FC<{ malay: boolean }> = ({ malay }) => (
   <div className="border-b-2 border-double border-slate-800 pb-4 mb-7 flex items-center justify-between gap-6">
     <div className="flex items-center gap-4">
       <img src={LETTERHEAD.logoPath} alt="Universiti Malaya" className="h-[45px] w-auto object-contain" />
       <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wide leading-tight block max-w-[170px]">
-        {LETTERHEAD.faculty}
+        {malay ? LETTERHEAD.malayFaculty : LETTERHEAD.faculty}
       </span>
     </div>
     <div className="text-right text-[10px] font-bold text-slate-400 leading-relaxed">
-      {LETTERHEAD.addressLines.map((line) => (
+      {(malay ? LETTERHEAD.malayAddressLines : LETTERHEAD.addressLines).map((line) => (
         <span key={line} className="block">{line}</span>
       ))}
     </div>
@@ -68,13 +73,14 @@ const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
   referenceText,
   date,
   bodyHtml,
-  zoom = 1,
   closing = DEFAULT_CLOSING,
   language = 'en',
 }) => {
   const words = LETTER_WORDS[language];
   const malay = language === 'ms';
-  const disclaimer = malay ? LETTERHEAD.malayDisclaimer : closing.disclaimer;
+  const disclaimer = malay ? closing.malayDisclaimer ?? LETTERHEAD.malayDisclaimer : closing.disclaimer;
+  const signatoryName = malay ? closing.malaySignatoryName ?? LETTERHEAD.malaySignatoryName : closing.signatoryName;
+  const signatoryOffice = malay ? closing.malaySignatoryOffice ?? LETTERHEAD.malaySignatoryOffice : closing.signatoryOffice;
   const frame = useRef<HTMLDivElement>(null);
   const measurer = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState<number>(A4_PAGE.width);
@@ -82,14 +88,14 @@ const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
 
   const bodyBlocks = splitLetterBlocks(bodyHtml);
   const blocks: React.ReactNode[] = [
-    <Letterhead key="letterhead" />,
+    <Letterhead key="letterhead" malay={malay} />,
     <div key="reference" className="flex flex-wrap justify-between items-baseline gap-x-6 gap-y-1 text-slate-600 mb-7">
       <div>{words.reference}: <span className="font-mono font-bold text-slate-800">{reference}</span></div>
       <div>{words.date}: <span className="font-bold text-slate-800">{malay ? malayLetterDate(date) : date}</span></div>
     </div>,
     ...bodyBlocks.map((html, index) => <div key={`body-${index}`} dangerouslySetInnerHTML={{ __html: html }} />),
     <p key="disclaimer" className="text-slate-500 font-semibold text-[11.5px] leading-relaxed mt-2">{disclaimer}</p>,
-    <Signature key="signature" name={closing.signatoryName} office={closing.signatoryOffice} stamp={words.stamp} />,
+    <Signature key="signature" name={signatoryName} office={signatoryOffice} stamp={words.stamp} />,
   ];
 
   // Heights come from an unscaled, hidden copy of the content.
@@ -105,19 +111,21 @@ const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
     let active = true;
     document.fonts?.ready.then(() => { if (active) measure(); });
     return () => { active = false; };
-  }, [measure, bodyHtml, referenceText, date, disclaimer, closing.signatoryName, closing.signatoryOffice]);
+  }, [measure, bodyHtml, referenceText, date, disclaimer, signatoryName, signatoryOffice]);
 
   useLayoutEffect(() => {
     const element = frame.current;
     if (!element) return;
-    const update = () => setWidth(element.clientWidth);
+    const update = () => setWidth(Math.floor(element.clientWidth));
     update();
     const observer = new ResizeObserver(update);
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
-  const scale = Math.min(1, width / A4_PAGE.width) * zoom;
+  const scale = Math.min(1, width / A4_PAGE.width);
+  const pageWidth = Math.floor(A4_PAGE.width * scale);
+  const pageHeight = Math.floor(A4_PAGE.height * scale);
   const pageGroups = pages ?? [blocks.map((_, index) => index)];
   const contentClass = 'font-sans text-[14px] leading-[1.6] text-slate-700 text-left';
 
@@ -133,15 +141,14 @@ const LetterSheets: React.FC<Omit<LetterPagesProps, 'malayBodyHtml'>> = ({
         </div>
       </div>
 
-      {/* Scrolls sideways only when zoomed in past the available width. */}
-      <div ref={frame} className="w-full overflow-x-auto overflow-y-hidden">
-      <div className="flex flex-col items-center gap-4" style={{ minWidth: A4_PAGE.width * scale }}>
+      <div ref={frame} className="w-full">
+      <div className="flex flex-col items-center gap-4">
         {pageGroups.map((group, pageIndex) => (
           <section
             key={pageIndex}
             aria-label={`${malay ? 'Malay page' : 'Page'} ${pageIndex + 1} of ${pageGroups.length}`}
-            className="relative shrink-0 bg-white border border-slate-200 shadow-sm"
-            style={{ width: A4_PAGE.width * scale, height: A4_PAGE.height * scale }}
+            className="relative shrink-0 overflow-hidden bg-white border border-slate-200 shadow-sm"
+            style={{ width: pageWidth, height: pageHeight }}
           >
             <div
               className={`absolute left-0 top-0 ${contentClass}`}

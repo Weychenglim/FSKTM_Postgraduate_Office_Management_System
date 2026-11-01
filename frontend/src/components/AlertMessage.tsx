@@ -55,7 +55,7 @@ export const AlertMessage: React.FC<AlertMessageProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Dismiss message"
-          className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded-lg"
+          className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors -m-1.5 p-2 rounded-lg"
         >
           <X className="w-4 h-4" />
         </button>

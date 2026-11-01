@@ -44,6 +44,15 @@ class OfficeBase(APITestCase):
 
 
 class StudentQuestionTests(OfficeBase):
+    def test_answers_show_how_often_they_were_used_this_month(self):
+        self.asked("where to park", outcome=Outcome.ANSWERED, entry=self.parking)
+        self.asked("parking please", outcome=Outcome.ANSWERED, entry=self.parking, helpful=False)
+        self.asked("park last month", outcome=Outcome.ANSWERED, entry=self.parking, days_ago=40)
+        row = next(row for row in self.client.get("/api/faq/entries/").data["results"] if row["id"] == str(self.parking.pk))
+        self.assertEqual((row["askedThisMonth"], row["notHelpfulThisMonth"]), (2, 1))
+        detail = self.client.get(f"/api/faq/entries/{self.parking.pk}/").data
+        self.assertEqual((detail["askedThisMonth"], detail["notHelpfulThisMonth"]), (2, 1))
+
     def test_questions_that_need_a_look_are_grouped(self):
         self.asked("Where to park?")
         self.asked("park where")
@@ -131,19 +140,19 @@ class SettingsTests(OfficeBase):
     def test_contact_text_and_common_questions(self):
         response = self.client.patch(
             "/api/faq/settings/",
-            {"contactText": "  Email pgoffice@example.test  ", "commonQuestions": ["How do I register?", "  ", "When   is add/drop?"]},
+            {"contactText": "  Email pgoffice@example.test  ", "commonQuestions": ["Where can I park?", "  ", "When   is add/drop?"]},
             format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data["contactText"], "Email pgoffice@example.test")
-        self.assertEqual(response.data["commonQuestions"], ["How do I register?", "When is add/drop?"])
+        self.assertEqual(response.data["commonQuestions"], ["Where can I park?", "When is add/drop?"])
         self.assertEqual(response.data["updatedBy"], "Faq Desk")
         too_many = self.client.patch("/api/faq/settings/", {"commonQuestions": ["a", "b", "c", "d", "e"]}, format="json")
         self.assertEqual(too_many.status_code, status.HTTP_400_BAD_REQUEST)
         student = User.objects.create_user(email="faq-s@example.test", password="pw", full_name="S", role=User.Role.STUDENT)
         self.client.force_authenticate(student)
         start = self.client.get("/api/faq/start/").data
-        self.assertEqual((start["contactText"], start["commonQuestions"]), ("Email pgoffice@example.test", ["How do I register?", "When is add/drop?"]))
+        self.assertEqual((start["contactText"], start["commonQuestions"]), ("Email pgoffice@example.test", ["Where can I park?"]))
 
     def test_only_the_office(self):
         for role in (User.Role.STUDENT, User.Role.COORDINATOR, User.Role.LECTURER):

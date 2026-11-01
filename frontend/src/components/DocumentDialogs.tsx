@@ -13,7 +13,7 @@ import { acceptAttribute, kindForName } from '../utils/documentUpload';
 import { peopleLine, STAFF_AUDIENCES } from '../utils/documentSharing';
 import { PortalButton } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
-import { KindBadge, TagInput } from './DocumentParts';
+import { KindBadge } from './DocumentParts';
 import { SelectMenu } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
 
@@ -116,11 +116,10 @@ export const NewVersionDialog: React.FC<DialogProps> = ({ document, isOpen, onCl
   );
 };
 
-/** Title, tags and note. */
+/** Title and note. Tags are the system's. */
 export const EditDetailsDialog: React.FC<DialogProps> = ({ document, isOpen, onClose, onDone }) => {
   const titleId = useModalTitle();
   const [title, setTitle] = useState(document.title);
-  const [tags, setTags] = useState(document.tags);
   const [note, setNote] = useState(document.description);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -128,7 +127,6 @@ export const EditDetailsDialog: React.FC<DialogProps> = ({ document, isOpen, onC
   useEffect(() => {
     if (isOpen) {
       setTitle(document.title);
-      setTags(document.tags);
       setNote(document.description);
       setProblem(null);
     }
@@ -141,11 +139,11 @@ export const EditDetailsDialog: React.FC<DialogProps> = ({ document, isOpen, onC
     }
     setBusy(true);
     try {
-      const updated = await updateDocument(document.id, { title: title.trim(), tags, description: note });
+      const updated = await updateDocument(document.id, { title: title.trim(), description: note });
       onDone(updated, 'Details saved.');
     } catch (err) {
       const fields = err instanceof ApiError && err.status === 400 ? fieldErrors(err) : {};
-      setProblem(fields.title || fields.tags || fields.description || errorText(err, 'Could not save the details.'));
+      setProblem(fields.title || fields.description || errorText(err, 'Could not save the details.'));
     } finally {
       setBusy(false);
     }
@@ -167,10 +165,6 @@ export const EditDetailsDialog: React.FC<DialogProps> = ({ document, isOpen, onC
         <span className="text-[13px] font-bold text-slate-700">Title</span>
         <input className="form-control form-control-md text-[14px]" maxLength={200} value={title} onChange={event => setTitle(event.target.value)} />
       </label>
-      <div className="space-y-1.5">
-        <span className="text-[13px] font-bold text-slate-700">Tags</span>
-        <TagInput tags={tags} onChange={setTags} />
-      </div>
       <label className="block space-y-1.5">
         <span className="text-[13px] font-bold text-slate-700">Note</span>
         <textarea className="form-control min-h-20 px-3.5 py-3 text-[14px]" maxLength={1000} value={note} onChange={event => setNote(event.target.value)} />

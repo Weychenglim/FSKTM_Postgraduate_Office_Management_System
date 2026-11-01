@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { LETTER_WORDS, buildLetterHtml, malayLetterDate, renderLetterBodyHtml } from './letterDocument';
+import { COUNTRIES, MALAYSIA, MALAYSIAN_STATES } from './addressPlaces';
 import {
   OPTIONAL_DETAIL_LABELS,
   OPTIONAL_DETAIL_TAGS,
@@ -41,6 +42,18 @@ for (const language of ['en', 'ms'] as const) {
 // the address is printed under the name, postcode and city together
 const details = { organisation: 'CIMB Bank Berhad', addressLine1: 'Jalan Universiti', addressLine2: '', postcode: '50603', city: 'Kuala Lumpur', state: '', include: ['MAX_PERIOD'] };
 assert.deepEqual(recipientAddressLines(details), ['Jalan Universiti', '50603 Kuala Lumpur']);
+assert.deepEqual(recipientAddressLines({ ...details, state: 'Selangor', country: 'Malaysia' }), ['Jalan Universiti', '50603 Kuala Lumpur', 'Selangor']);
+assert.deepEqual(recipientAddressLines({ ...details, postcode: '048616', city: 'Singapore', country: 'Singapore' }), ['Jalan Universiti', '048616 Singapore', 'Singapore']);
+
+// the states and countries offered are the server's lists
+const places = readFileSync(resolve('../backend/letters/places.py'), 'utf8');
+const pythonTuple = (name: string) => {
+  const from = places.indexOf(`${name} = (`);
+  return [...places.slice(from, places.indexOf(')', from)).matchAll(/"([^"]+)"/g)].map(([, text]) => text);
+};
+assert.deepEqual([...MALAYSIAN_STATES], pythonTuple('MALAYSIAN_STATES'));
+assert.deepEqual([...COUNTRIES], pythonTuple('COUNTRIES'));
+assert.equal(COUNTRIES[0], MALAYSIA);
 assert.deepEqual(chosenDetailLabels(details), ['Maximum period of study']);
 assert.deepEqual(recipientAddressLines(undefined), []);
 
@@ -79,7 +92,7 @@ assert.match(form, /Letter Details Application Form/);
 assert.match(form, /Required information/);
 assert.match(form, /'Letter details', 'Check and send'/, 'two steps, ending with a check');
 assert.match(form, /getLetterForm\(template\.id\)/, 'the questions come from the letter type');
-for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'Address Line 2', 'Postcode', 'City', 'State/Country', 'Application Date', 'Additional Information']) {
+for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'Address Line 2', 'Postcode', 'City', 'State', 'Country', 'Application Date', 'Additional Information']) {
   assert.ok(fields.includes(`'${label}'`) || fields.includes(`"${label}"`), `the form has ${label}`);
 }
 assert.match(form, /requestLetter\(\s*template\.id,\s*note\.trim\(\),\s*recipientQuestion \? details : undefined,/);

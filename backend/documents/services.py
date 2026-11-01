@@ -1,6 +1,4 @@
-"""Creating and deleting documents, tags, and the notices they send."""
-import re
-
+"""Creating and deleting documents, and the notices they send."""
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
@@ -15,43 +13,12 @@ from .models import (
     Document,
     DocumentEvent,
     DocumentStudent,
-    DocumentTag,
     DocumentVersion,
-    Tag,
     version_path,
 )
 
 FILES_MODULE = "FILES"
 DOCUMENT_RECORD = "STUDENT_DOCUMENT"
-MAX_TAGS = 10
-TAG_PATTERN = re.compile(r"^[^,#]{2,30}$")
-
-
-class TagProblem(ValueError):
-    pass
-
-
-def clean_tags(values):
-    """Trim, drop a leading #, collapse spaces and remove repeats (ignoring capitals)."""
-    tags = {}
-    for value in values or []:
-        text = re.sub(r"\s+", " ", str(value or "").strip().lstrip("#")).strip()
-        if not text:
-            continue
-        if not TAG_PATTERN.match(text):
-            raise TagProblem("Each tag is 2 to 30 characters, without commas or #.")
-        tags.setdefault(text.casefold(), text)
-    if len(tags) > MAX_TAGS:
-        raise TagProblem(f"A file can have at most {MAX_TAGS} tags.")
-    return list(tags.values())
-
-
-def tags_for(names, actor):
-    found = []
-    for name in names:
-        tag, _ = Tag.objects.get_or_create(key=name.casefold(), defaults={"name": name, "created_by": actor})
-        found.append(tag)
-    return found
 
 
 def record_event(document, action, actor, *, version_number=None, reason="", details=None):
@@ -127,7 +94,7 @@ def send_upload_notices(document, students, version_number=1):
 
 
 def create_document(*, actor, uploader_role, doc_type, checked, title, description, semester,
-                    students, tags, is_staff_file, share, follows_type, audience, programmes, check_status):
+                    students, is_staff_file, share, follows_type, audience, programmes, check_status):
     """Store the file first, then write every row in one transaction. If the
     database step fails, the stored file is removed again."""
     stored_name = default_storage.save(version_path(None, checked.original_name), ContentFile(checked.content))
@@ -167,9 +134,6 @@ def create_document(*, actor, uploader_role, doc_type, checked, title, descripti
             document.save(update_fields=["reference", "current_version"])
             DocumentStudent.objects.bulk_create(
                 [DocumentStudent(document=document, student=student) for student in students]
-            )
-            DocumentTag.objects.bulk_create(
-                [DocumentTag(document=document, tag=tag) for tag in tags_for(tags, actor)]
             )
             record_event(
                 document,
@@ -300,22 +264,18 @@ def send_check_notice(document, number):
     )
 
 
-def update_details(document, *, actor, changes, students=None, tags=None):
+def update_details(document, *, actor, changes, students=None):
     with transaction.atomic():
         document = Document.objects.select_for_update().get(pk=document.pk)
         before = {
             "title": document.title,
             "description": document.description,
             "semester": document.semester_id,
-            "tags": sorted(link.tag.name for link in document.tag_links.select_related("tag")),
             "students": sorted(document.students.values_list("matric_no", flat=True)),
         }
         for field, value in changes.items():
             setattr(document, field, value)
         document.save()
-        if tags is not None:
-            DocumentTag.objects.filter(document=document).delete()
-            DocumentTag.objects.bulk_create([DocumentTag(document=document, tag=tag) for tag in tags_for(tags, actor)])
         if students is not None:
             DocumentStudent.objects.filter(document=document).delete()
             DocumentStudent.objects.bulk_create([DocumentStudent(document=document, student=student) for student in students])
@@ -323,7 +283,6 @@ def update_details(document, *, actor, changes, students=None, tags=None):
             "title": document.title,
             "description": document.description,
             "semester": document.semester_id,
-            "tags": sorted(tags) if tags is not None else before["tags"],
             "students": sorted(student.matric_no for student in students) if students is not None else before["students"],
         }
         changed = {key: {"before": before[key], "after": after[key]} for key in before if before[key] != after[key]}

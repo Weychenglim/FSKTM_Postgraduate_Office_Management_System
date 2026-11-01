@@ -18,7 +18,7 @@ from rest_framework.decorators import (
     permission_classes,
     throttle_classes,
 )
-from rest_framework.exceptions import PermissionDenied, UnsupportedMediaType
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, UnsupportedMediaType
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -39,16 +39,22 @@ from .serializers import (
     PasswordResetRequestSerializer,
 )
 from .session_tokens import (
-    SESSION_KEY_COOKIE,
+    TAB_NAME,
     blacklist_user_refresh_tokens,
     delete_refresh_cookie,
     end_session,
     SessionTokenRefreshSerializer,
     issue_refresh,
+    make_room_for_tab,
     new_session_key,
     note_rotation,
     remembered,
+    request_tab,
+    session_key_cookie_name,
     set_refresh_cookie,
+    set_sign_in_cookies,
+    sign_out_account_in_browser,
+    signed_in_tab,
 )
 from .throttles import (
     ChangePasswordRateThrottle,
@@ -116,7 +122,7 @@ def login_view(request):
     response = Response(
         {"token": str(refresh.access_token), "user": user.to_public_dict()}
     )
-    return set_refresh_cookie(response, refresh, remember, session_key=new_session_key())
+    return set_sign_in_cookies(request, response, user, refresh, remember)
 
 
 @api_view(["POST"])
@@ -124,15 +130,27 @@ def login_view(request):
 @permission_classes([IsAuthenticated])
 def refresh_view(request):
     _require_json_request(request)
+    tab = request.refresh_tab
     if request.user.is_technical_admin:
         request.auth.blacklist()
         response = Response(
             TechnicalAccountForbidden.default_detail, status=status.HTTP_403_FORBIDDEN
         )
-        return delete_refresh_cookie(response)
+        return delete_refresh_cookie(response, tab)
+    new_tab = request_tab(request)
+    if new_tab and not tab:
+        # A tab with no sign-in of its own starts from the browser's latest one,
+        # unless it was already signed in: then its own sign-in has ended.
+        if isinstance(request.data, dict) and request.data.get("resume") is True:
+            raise AuthenticationFailed("This tab's session has ended.")
+        remember = remembered(request.auth)
+        refresh = issue_refresh(request.user, remember)
+        response = Response({"token": str(refresh.access_token)})
+        make_room_for_tab(request, response, new_tab)
+        return set_refresh_cookie(response, refresh, remember, session_key=new_session_key(), tab=new_tab)
     # Noted before rotating, so a second request from the same page load
     # that arrives mid-rotation already finds the grace.
-    note_rotation(request, request.auth)
+    note_rotation(request, request.auth, tab)
     serializer = SessionTokenRefreshSerializer(data={"refresh": str(request.auth)})
     serializer.is_valid(raise_exception=True)
     response = Response({"token": serializer.validated_data["access"]})
@@ -140,20 +158,32 @@ def refresh_view(request):
         response,
         serializer.validated_data["refresh"],
         remembered(request.auth),
-        session_key=request.COOKIES.get(SESSION_KEY_COOKIE),
+        session_key=request.COOKIES.get(session_key_cookie_name(tab)),
+        tab=tab,
     )
+
+
+def _open_tabs(request):
+    tabs = request.data.get("openTabs") if isinstance(request.data, dict) else None
+    if not isinstance(tabs, list):
+        return set()
+    return {tab for tab in tabs[:50] if isinstance(tab, str) and TAB_NAME.fullmatch(tab)}
 
 
 @api_view(["POST"])
 @authentication_classes([RefreshCookieAuthentication])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
-    """Revoke the authenticated refresh session and remove its cookie."""
+    """Revoke the authenticated refresh session and remove its cookie. The
+    account is also signed out for new tabs and in closed ones; other open
+    tabs, listed by the page in openTabs, keep their own sign-in."""
     _require_json_request(request)
+    tab = request.refresh_tab
     request.auth.blacklist()
-    end_session(request)
+    end_session(request, tab)
     response = Response({"message": "Logged out successfully."})
-    return delete_refresh_cookie(response)
+    delete_refresh_cookie(response, tab)
+    return sign_out_account_in_browser(request, response, request.user, _open_tabs(request) - {tab})
 
 
 @api_view(["GET", "PATCH"])
@@ -192,7 +222,7 @@ def change_password_view(request):
     blacklist_user_refresh_tokens(request.user)
 
     # The new session keeps the "Remember me" choice of the one in use.
-    end_session(request)
+    end_session(request, signed_in_tab(request))
     remember = remembered(request.auth)
     refresh = issue_refresh(request.user, remember)
     response = Response(
@@ -201,7 +231,7 @@ def change_password_view(request):
             "token": str(refresh.access_token),
         }
     )
-    return set_refresh_cookie(response, refresh, remember, session_key=new_session_key())
+    return set_sign_in_cookies(request, response, request.user, refresh, remember)
 
 
 PREFERENCE_FIELDS = {
@@ -261,8 +291,10 @@ def settings_password_view(request):
         user.must_change_password = False
         user.save(update_fields=["password", "must_change_password"])
         blacklist_user_refresh_tokens(user)
-    end_session(request)
-    return delete_refresh_cookie(Response({"message": "Password updated. Please sign in again."}))
+    tab = signed_in_tab(request)
+    end_session(request, tab)
+    response = delete_refresh_cookie(Response({"message": "Password updated. Please sign in again."}), tab)
+    return sign_out_account_in_browser(request, response, user)
 
 
 @api_view(["GET"])

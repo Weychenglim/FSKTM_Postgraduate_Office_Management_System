@@ -14,8 +14,10 @@ import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitive
 import { PortalModal, useModalTitle } from './PortalModal';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { ToggleSwitch } from './ToggleSwitch';
+import { SelectMenu } from './SelectMenu';
 import { LoadingState, ErrorState, EmptyState } from './StateViews';
 import type { ChoiceGroup, ChoiceItem, ChoiceListDetail, ChoiceListSummary } from '../types';
+import { COUNTRIES, MALAYSIA, MALAYSIAN_STATES, asksState } from '../utils/addressPlaces';
 import {
   createChoiceGroup,
   createChoiceItems,
@@ -32,14 +34,17 @@ import {
 } from '../services';
 
 type Selection = { listId: string; groupId: string | null };
-type ItemForm = { id?: string; name: string; nameMs: string; addressLine1: string; addressLine2: string; postcode: string; city: string; state: string };
+type ItemForm = { id?: string; name: string; nameMs: string; addressLine1: string; addressLine2: string; postcode: string; city: string; state: string; country: string };
 type GroupForm = { id?: string; name: string; nameMs: string; itemNoun: string; allowOther: boolean };
 type ListForm = { id?: string; name: string; itemNoun: string; description: string };
 
-const EMPTY_ITEM: ItemForm = { name: '', nameMs: '', addressLine1: '', addressLine2: '', postcode: '', city: '', state: '' };
+const EMPTY_ITEM: ItemForm = { name: '', nameMs: '', addressLine1: '', addressLine2: '', postcode: '', city: '', state: '', country: '' };
+const NOT_SAVED = { value: '', label: 'Not saved' };
+const STATE_OPTIONS = [NOT_SAVED, ...MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))];
+const COUNTRY_OPTIONS = [NOT_SAVED, ...COUNTRIES.map((country) => ({ value: country, label: country }))];
 const errorText = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 const addressLine = (item: ChoiceItem) =>
-  [item.addressLine1, item.addressLine2, [item.postcode, item.city].filter(Boolean).join(' '), item.state].filter(Boolean).join(', ');
+  [item.addressLine1, item.addressLine2, [item.postcode, item.city].filter(Boolean).join(' '), item.state, item.country === MALAYSIA ? '' : item.country].filter(Boolean).join(', ');
 
 export const LetterListsManager: React.FC<{ onMessage: (message: string) => void }> = ({ onMessage }) => {
   const [summaries, setSummaries] = useState<ChoiceListSummary[]>([]);
@@ -418,7 +423,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
                         </td>
                         <td className="data-td block px-3 py-2 lg:table-cell lg:px-5 lg:py-3">
                           <div className="flex flex-wrap items-center gap-1 lg:flex-nowrap lg:justify-end">
-                            <PortalButton size="sm" icon={Pencil} onClick={() => { setFormError(null); setItemForm({ id: item.id, name: item.name, nameMs: item.nameMs, addressLine1: item.addressLine1, addressLine2: item.addressLine2, postcode: item.postcode, city: item.city, state: item.state }); }}>Edit</PortalButton>
+                            <PortalButton size="sm" icon={Pencil} onClick={() => { setFormError(null); setItemForm({ id: item.id, name: item.name, nameMs: item.nameMs, addressLine1: item.addressLine1, addressLine2: item.addressLine2, postcode: item.postcode, city: item.city, state: item.state, country: item.country }); }}>Edit</PortalButton>
                             <PortalButton size="sm" icon={item.hidden ? Eye : EyeOff} disabled={busy} onClick={() => toggleHidden(item)}>{item.hidden ? 'Show' : 'Hide'}</PortalButton>
                             <PortalButton
                               size="icon"
@@ -461,7 +466,27 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
                   <input aria-label="Postcode" className="form-control form-control-sm" maxLength={20} placeholder="Postcode" value={itemForm.postcode} onChange={(event) => setItemForm({ ...itemForm, postcode: event.target.value })} />
                   <input aria-label="City" className="form-control form-control-sm" maxLength={80} placeholder="City" value={itemForm.city} onChange={(event) => setItemForm({ ...itemForm, city: event.target.value })} />
                 </div>
-                <input aria-label="State or country" className="form-control form-control-sm" maxLength={80} placeholder="State or country" value={itemForm.state} onChange={(event) => setItemForm({ ...itemForm, state: event.target.value })} />
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {asksState(itemForm.country) && (
+                    <SelectMenu<string>
+                      aria-label="State"
+                      size="sm"
+                      value={itemForm.state}
+                      placeholder="State"
+                      options={STATE_OPTIONS}
+                      onChange={(state) => setItemForm({ ...itemForm, state })}
+                    />
+                  )}
+                  <SelectMenu<string>
+                    aria-label="Country"
+                    size="sm"
+                    value={itemForm.country}
+                    placeholder="Country"
+                    searchPlaceholder="Search"
+                    options={COUNTRY_OPTIONS}
+                    onChange={(country) => setItemForm({ ...itemForm, country, state: asksState(country) ? itemForm.state : '' })}
+                  />
+                </div>
               </fieldset>
             )}
             {formError && <p role="alert" className="text-sm text-rose-800">{formError}</p>}

@@ -1,9 +1,9 @@
-"""The office's settings for File Management: document types and tags (UC26)."""
+"""The office's settings for File Management: document types (UC26)."""
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.utils.text import slugify
 
-from .models import Document, DocumentTag, DocumentType, SettingsChange
+from .models import Document, DocumentType, SettingsChange
 
 KIND_UPLOADERS = {
     DocumentType.Kind.STUDENT: ("STUDENT", "SUPERVISOR", "PANEL", "COORDINATOR"),
@@ -124,48 +124,3 @@ def change_type(doc_type, *, actor, values):
         )
     return doc_type, updated
 
-
-def rename_tag(tag, *, actor, name):
-    with transaction.atomic():
-        before = tag.name
-        tag.name, tag.key = name, name.casefold()
-        tag.save(update_fields=["name", "key"])
-        note_change(
-            SettingsChange.Area.TAG,
-            SettingsChange.Action.RENAMED,
-            name,
-            actor,
-            details={"before": before, "after": name},
-        )
-    return tag
-
-
-def merge_tag(tag, into, *, actor):
-    """Move every file from ``tag`` to ``into``, then remove ``tag``."""
-    with transaction.atomic():
-        already = list(DocumentTag.objects.filter(tag=into).values_list("document_id", flat=True))
-        moved = DocumentTag.objects.filter(tag=tag).exclude(document_id__in=already).update(tag=into)
-        name = tag.name
-        tag.delete()
-        note_change(
-            SettingsChange.Area.TAG,
-            SettingsChange.Action.MERGED,
-            into.name,
-            actor,
-            details={"from": name, "into": into.name, "files": moved},
-        )
-    return moved
-
-
-def remove_tag(tag, *, actor):
-    with transaction.atomic():
-        name, uses = tag.name, tag.document_links.count()
-        tag.delete()
-        note_change(
-            SettingsChange.Area.TAG,
-            SettingsChange.Action.REMOVED,
-            name,
-            actor,
-            details={"files": uses},
-        )
-    return uses

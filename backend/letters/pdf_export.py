@@ -46,6 +46,12 @@ ADDRESS_LINES = (
     "50603 Kuala Lumpur, Malaysia",
     "+603-7967 6300  |  pg.fsktm@um.edu.my",
 )
+MALAY_FACULTY = "Fakulti Sains Komputer & Teknologi Maklumat"
+MALAY_ADDRESS_LINES = (
+    "Pejabat Hal Ehwal Akademik, Aras 4",
+    "50603 Kuala Lumpur, Malaysia",
+    "+603-7967 6300  |  pg.fsktm@um.edu.my",
+)
 DISCLAIMER = (
     "This letter is issued upon the student's request for official purposes only. "
     "Any alteration to this document shall render it invalid."
@@ -58,8 +64,14 @@ MALAY_DISCLAIMER = (
     "Surat ini dikeluarkan atas permintaan pelajar untuk urusan rasmi sahaja. "
     "Sebarang pindaan pada dokumen ini menjadikannya tidak sah."
 )
+MALAY_APPOINTMENT_DISCLAIMER = (
+    "Surat ini dikeluarkan oleh pejabat pascasiswazah untuk urusan rasmi sahaja. "
+    "Sebarang pindaan pada dokumen ini menjadikannya tidak sah."
+)
 SIGNATORY_NAME = "Dean of Postgraduate Studies"
 SIGNATORY_OFFICE = "FSKTM Office Executive Secretariat"
+MALAY_SIGNATORY_NAME = "Dekan Pengajian Pascasiswazah"
+MALAY_SIGNATORY_OFFICE = "Sekretariat Eksekutif Pejabat FSKTM"
 
 INK = colors.HexColor("#1E293B")
 MUTED = colors.HexColor("#64748B")
@@ -105,15 +117,17 @@ def _marked(text):
     return "".join(parts)
 
 
-def _letterhead(width):
+def _letterhead(width, words=ENGLISH):
+    malay = words is MALAY
     brand = []
     if LOGO.exists():
         logo_width, logo_height = ImageReader(str(LOGO)).getSize()
         logo = Image(str(LOGO), width=12 * mm * logo_width / logo_height, height=12 * mm)
         logo.hAlign = "LEFT"
         brand.append(logo)
-    brand.append(Paragraph(escape(FACULTY.upper()), FACULTY_STYLE))
-    address = Paragraph("<br/>".join(escape(line) for line in ADDRESS_LINES), ADDRESS_STYLE)
+    brand.append(Paragraph(escape((MALAY_FACULTY if malay else FACULTY).upper()), FACULTY_STYLE))
+    lines = MALAY_ADDRESS_LINES if malay else ADDRESS_LINES
+    address = Paragraph("<br/>".join(escape(line) for line in lines), ADDRESS_STYLE)
     table = Table([[brand, address]], colWidths=[width * 0.55, width * 0.45])
     table.setStyle(
         TableStyle(
@@ -177,9 +191,16 @@ def _body(content, width):
 
 
 def _closing(letter, words=ENGLISH):
-    disclaimer = MALAY_DISCLAIMER if words is MALAY else APPOINTMENT_DISCLAIMER if letter.is_automatic else DISCLAIMER
-    name = letter.signatory_name or SIGNATORY_NAME
-    office = letter.signatory_title or SIGNATORY_OFFICE
+    if words is MALAY:
+        disclaimer = MALAY_APPOINTMENT_DISCLAIMER if letter.is_automatic else MALAY_DISCLAIMER
+    else:
+        disclaimer = APPOINTMENT_DISCLAIMER if letter.is_automatic else DISCLAIMER
+    if words is MALAY:
+        name = letter.signatory_name_ms or letter.signatory_name or MALAY_SIGNATORY_NAME
+        office = letter.signatory_title_ms or letter.signatory_title or MALAY_SIGNATORY_OFFICE
+    else:
+        name = letter.signatory_name or SIGNATORY_NAME
+        office = letter.signatory_title or SIGNATORY_OFFICE
     return [
         Paragraph(escape(disclaimer), DISCLAIMER_STYLE),
         KeepTogether(
@@ -225,7 +246,7 @@ def build_letter_pdf(letter):
     if (letter.content_ms or "").strip():
         story += [
             PageBreak(),
-            *_letterhead(width),
+            *_letterhead(width, MALAY),
             *_meta_line(letter, width, MALAY),
             *_body(letter.content_ms, width),
             *_closing(letter, MALAY),

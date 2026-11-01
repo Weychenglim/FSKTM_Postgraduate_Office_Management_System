@@ -68,6 +68,9 @@ export interface FaqEntrySummary {
   imported: boolean;
   note: string;
   altCount: number;
+  /** Students who got this answer this month, and how many said it didn't help. */
+  askedThisMonth: number;
+  notHelpfulThisMonth: number;
   updatedAt: string;
   updatedBy: string;
 }
@@ -101,6 +104,7 @@ export interface FaqEntryFilters {
   category: string;
   status: FaqStatusFilter;
   page: number;
+  pageSize?: number;
 }
 
 export interface FaqCategorySummary {

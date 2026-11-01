@@ -30,6 +30,7 @@ TEMPLATES = [
         "valid_months": 3,
         "ready_in_days": 2,
         "signatory_name": "Dean / Director",
+        "signatory_name_ms": "Dekan / Pengarah",
     },
     {
         # Replaced by the Student Confirmation Letter.

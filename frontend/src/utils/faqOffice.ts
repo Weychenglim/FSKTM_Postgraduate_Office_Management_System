@@ -7,7 +7,7 @@ import type { FaqChangeRow, FaqPortalLink, FaqQuestionGroup, FaqStatus } from '.
 import { FAQ_PORTAL_LINKS } from './faqText';
 
 export const FAQ_STATUS_LABEL: Record<FaqStatus, string> = {
-  PUBLISHED: 'Published',
+  PUBLISHED: 'Live',
   DRAFT: 'Draft',
   NEEDS_CHECKING: 'Needs checking',
   ARCHIVED: 'Archived',

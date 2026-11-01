@@ -29,6 +29,12 @@ export const LETTERHEAD = {
     '50603 Kuala Lumpur, Malaysia',
     '+603-7967 6300  |  pg.fsktm@um.edu.my',
   ],
+  malayFaculty: 'Fakulti Sains Komputer & Teknologi Maklumat',
+  malayAddressLines: [
+    'Pejabat Hal Ehwal Akademik, Aras 4',
+    '50603 Kuala Lumpur, Malaysia',
+    '+603-7967 6300  |  pg.fsktm@um.edu.my',
+  ],
   recipient: 'TO WHOM IT MAY CONCERN',
   disclaimer:
     "This letter is issued upon the student's request for official purposes only. " +
@@ -39,8 +45,13 @@ export const LETTERHEAD = {
   malayDisclaimer:
     'Surat ini dikeluarkan atas permintaan pelajar untuk urusan rasmi sahaja. ' +
     'Sebarang pindaan pada dokumen ini menjadikannya tidak sah.',
+  malayAppointmentDisclaimer:
+    'Surat ini dikeluarkan oleh pejabat pascasiswazah untuk urusan rasmi sahaja. ' +
+    'Sebarang pindaan pada dokumen ini menjadikannya tidak sah.',
   signatoryName: 'Dean of Postgraduate Studies',
   signatoryOffice: 'FSKTM Office Executive Secretariat',
+  malaySignatoryName: 'Dekan Pengajian Pascasiswazah',
+  malaySignatoryOffice: 'Sekretariat Eksekutif Pejabat FSKTM',
 } as const;
 
 export type LetterLanguage = 'en' | 'ms';
@@ -77,8 +88,11 @@ export interface LetterData {
   matricNumber: string;
   /** The closing lines; the faculty defaults when left out. */
   disclaimer?: string;
+  malayDisclaimer?: string;
   signatoryName?: string;
   signatoryOffice?: string;
+  malaySignatoryName?: string;
+  malaySignatoryOffice?: string;
 }
 
 /** The placeholder tags a template author can use, with friendly labels. */
@@ -103,16 +117,17 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
   { tag: '{{EXPECTED_COMPLETION}}', label: 'Expected Completion' },
 ];
 
-const APPOINTMENT_LETTERS: ReadonlyArray<LetterPurpose> = ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT'];
+const APPOINTMENT_LETTERS: ReadonlyArray<LetterPurpose> = ['SUPERVISOR_APPOINTMENT', 'PANEL_APPOINTMENT', 'CO_SUPERVISOR_APPOINTMENT'];
 
 /** What each kind of template is called where its tags are explained. */
 const PURPOSE_PLURAL: Record<LetterPurpose, string> = {
   REQUEST: 'student request letters',
   SUPERVISOR_APPOINTMENT: 'supervisor appointment letters',
   PANEL_APPOINTMENT: 'panel appointment letters',
+  CO_SUPERVISOR_APPOINTMENT: 'supporting supervisor appointment letters',
 };
 
-export const isAppointmentLetter = (purpose: LetterPurpose | undefined) => purpose === 'SUPERVISOR_APPOINTMENT' || purpose === 'PANEL_APPOINTMENT';
+export const isAppointmentLetter = (purpose: LetterPurpose | undefined) => !!purpose && APPOINTMENT_LETTERS.includes(purpose);
 
 /**
  * Tags only some letter kinds may use: appointment letters' tags, filled from
@@ -128,6 +143,9 @@ export const APPOINTMENT_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: strin
   { tag: '{{PANEL_NAME}}', label: 'Panel Member', purposes: ['PANEL_APPOINTMENT'] },
   { tag: '{{PANEL_DEPARTMENT}}', label: 'Panel Department', purposes: ['PANEL_APPOINTMENT'] },
   { tag: '{{PANEL_ACCEPTED_DATE}}', label: 'Panel Accepted On', purposes: ['PANEL_APPOINTMENT'] },
+  { tag: '{{CO_SUPERVISOR_NAME}}', label: 'Supporting Supervisor', purposes: ['CO_SUPERVISOR_APPOINTMENT'] },
+  { tag: '{{CO_SUPERVISOR_DEPARTMENT}}', label: 'Supporting Supervisor Department', purposes: ['CO_SUPERVISOR_APPOINTMENT'] },
+  { tag: '{{CO_SUPERVISOR_ACCEPTED_DATE}}', label: 'Supporting Supervisor Accepted On', purposes: ['CO_SUPERVISOR_APPOINTMENT'] },
   { tag: '{{COORDINATOR_NAME}}', label: 'Approved By', purposes: APPOINTMENT_LETTERS },
   { tag: '{{APPROVED_DATE}}', label: 'Approved On', purposes: APPOINTMENT_LETTERS },
   { tag: '{{APPOINTMENT_DATE}}', label: 'Appointment Date', purposes: APPOINTMENT_LETTERS },
@@ -150,7 +168,9 @@ export function placeholdersFor(purpose: LetterPurpose = 'REQUEST') {
 /** For a tag only some letter kinds may use, which ones; else null. Same wording as the server. */
 export function placeholderPurposeHint(tag: string): string | null {
   const purposes = TAG_PURPOSES.get(tag);
-  return purposes ? `${tag} works only in ${purposes.map((p) => PURPOSE_PLURAL[p]).join(' and ')}.` : null;
+  if (!purposes) return null;
+  const kinds = purposes === APPOINTMENT_LETTERS ? 'appointment letters' : purposes.map((p) => PURPOSE_PLURAL[p]).join(' and ');
+  return `${tag} works only in ${kinds}.`;
 }
 const TOKEN_RE = /\{\{([^{}]*)\}\}/g;
 const TRIPLE_RE = /\{\{\{[^{}]*\}\}\}/g;
@@ -334,12 +354,22 @@ export function formatLetterDate(date: Date = new Date()): string {
 /** What the reference line shows before the office approves a request. */
 export const PENDING_REFERENCE = 'Assigned on approval';
 
-/** The closing lines of a letter: the template's own signatory, else the faculty default. */
-export function letterClosing(letter: Pick<GeneratedLetter, 'purpose' | 'signatoryName' | 'signatoryTitle'>) {
+/**
+ * The closing lines of a letter: the template's own signatory, else the faculty
+ * default. The Malay page takes its own lines, then the English ones, then the
+ * Malay default.
+ */
+export function letterClosing(letter: Pick<GeneratedLetter, 'purpose' | 'signatoryName' | 'signatoryTitle' | 'signatoryNameMs' | 'signatoryTitleMs'>) {
+  const appointment = isAppointmentLetter(letter.purpose);
+  const name = letter.signatoryName?.trim();
+  const title = letter.signatoryTitle?.trim();
   return {
-    disclaimer: isAppointmentLetter(letter.purpose) ? LETTERHEAD.appointmentDisclaimer : LETTERHEAD.disclaimer,
-    signatoryName: letter.signatoryName?.trim() || LETTERHEAD.signatoryName,
-    signatoryOffice: letter.signatoryTitle?.trim() || LETTERHEAD.signatoryOffice,
+    disclaimer: appointment ? LETTERHEAD.appointmentDisclaimer : LETTERHEAD.disclaimer,
+    malayDisclaimer: appointment ? LETTERHEAD.malayAppointmentDisclaimer : LETTERHEAD.malayDisclaimer,
+    signatoryName: name || LETTERHEAD.signatoryName,
+    signatoryOffice: title || LETTERHEAD.signatoryOffice,
+    malaySignatoryName: letter.signatoryNameMs?.trim() || name || LETTERHEAD.malaySignatoryName,
+    malaySignatoryOffice: letter.signatoryTitleMs?.trim() || title || LETTERHEAD.malaySignatoryOffice,
   };
 }
 
@@ -383,25 +413,27 @@ export function buildLetterHtml(data: LetterData): string {
   const logoUrl = `${window.location.origin}${LETTERHEAD.logoPath}`;
   const title = letterFileName(data);
 
-  const addressHtml = LETTERHEAD.addressLines.map((line) => esc(line)).join('<br>');
-
   // The body goes through the shared markup formatter, so the printed letter
   // matches the on-screen preview exactly.
   const sheet = (body: string, language: LetterLanguage) => {
     const words = LETTER_WORDS[language];
-    const disclaimer = language === 'ms' ? LETTERHEAD.malayDisclaimer : data.disclaimer ?? LETTERHEAD.disclaimer;
+    const malay = language === 'ms';
+    const disclaimer = malay ? data.malayDisclaimer ?? LETTERHEAD.malayDisclaimer : data.disclaimer ?? LETTERHEAD.disclaimer;
+    const name = malay ? data.malaySignatoryName ?? LETTERHEAD.malaySignatoryName : data.signatoryName ?? LETTERHEAD.signatoryName;
+    const office = malay ? data.malaySignatoryOffice ?? LETTERHEAD.malaySignatoryOffice : data.signatoryOffice ?? LETTERHEAD.signatoryOffice;
+    const addressHtml = (malay ? LETTERHEAD.malayAddressLines : LETTERHEAD.addressLines).map((line) => esc(line)).join('<br>');
     return `<div class="sheet">
     <div class="header">
       <div class="brand">
         <img src="${logoUrl}" alt="Universiti Malaya" />
-        <div class="faculty">${esc(LETTERHEAD.faculty)}</div>
+        <div class="faculty">${esc(malay ? LETTERHEAD.malayFaculty : LETTERHEAD.faculty)}</div>
       </div>
       <div class="address">${addressHtml}</div>
     </div>
 
     <div class="meta">
       <div>${words.reference}: <span class="value">${esc(data.refNo)}</span></div>
-      <div>${words.date}: <span class="value">${esc(language === 'ms' ? malayLetterDate(data.date) : data.date)}</span></div>
+      <div>${words.date}: <span class="value">${esc(malay ? malayLetterDate(data.date) : data.date)}</span></div>
     </div>
 
     ${renderLetterBodyHtml(body)}
@@ -411,8 +443,8 @@ export function buildLetterHtml(data: LetterData): string {
     <div class="signature">
       <div>
         <div class="line"></div>
-        <div class="name">${esc(data.signatoryName ?? LETTERHEAD.signatoryName)}</div>
-        <div class="office">${esc(data.signatoryOffice ?? LETTERHEAD.signatoryOffice)}</div>
+        <div class="name">${esc(name)}</div>
+        <div class="office">${esc(office)}</div>
       </div>
       <div class="stamp">${esc(words.stamp)}</div>
     </div>

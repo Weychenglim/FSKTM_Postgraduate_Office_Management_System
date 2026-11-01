@@ -1,4 +1,5 @@
-import type { DocumentCheckStatus, DocumentKind, DocumentStudentRef, RequiredState } from '../types';
+import type { DocumentCheckStatus, DocumentKind, DocumentStudentRef, PortalDocument, RequiredState } from '../types';
+import type { ApprovalStep } from './approvalProcess';
 import { formatMalaysiaDate } from './malaysiaDateTime';
 
 export const KIND_SHORT: Record<DocumentKind, string> = {
@@ -33,6 +34,53 @@ export function checkChip(status: DocumentCheckStatus): { label: string; classNa
   return null;
 }
 
+type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+
+/** The office check as a status badge; null when the file needs no check. */
+export function checkBadge(status: DocumentCheckStatus): { label: string; tone: BadgeTone } | null {
+  if (status === 'WAITING') return { label: 'Waiting for office', tone: 'warning' };
+  if (status === 'RETURNED') return { label: 'Returned', tone: 'danger' };
+  if (status === 'ACCEPTED') return { label: 'Accepted', tone: 'success' };
+  return null;
+}
+
+/** Where one required document stands for a student, as a status badge. */
+export function requiredBadge(state: RequiredState, check?: DocumentCheckStatus): { label: string; tone: BadgeTone } {
+  if (state === 'MISSING') return { label: 'Not handed in', tone: 'danger' };
+  if (state === 'RETURNED') return { label: 'Returned, upload again', tone: 'warning' };
+  if (state === 'WAITING') return { label: 'Waiting for check', tone: 'info' };
+  return { label: check === 'ACCEPTED' ? 'Accepted' : 'Handed in', tone: 'success' };
+}
+
+/** The office check as progress steps, like a letter request; empty when the file needs no check. */
+export function checkSteps(document: Pick<PortalDocument, 'checkStatus' | 'checkReason' | 'checkedBy' | 'checkedAt' | 'uploadedBy' | 'uploadedAt' | 'file'>): ApprovalStep[] {
+  if (document.checkStatus === 'NONE') return [];
+  const version = document.file?.number ?? 1;
+  const uploaded: ApprovalStep = {
+    id: 'uploaded',
+    label: version > 1 ? `Version ${version} uploaded` : 'Uploaded',
+    state: 'completed',
+    actorName: document.uploadedBy.isMe ? 'You' : document.uploadedBy.name,
+    occurredAt: document.file?.uploadedAt ?? document.uploadedAt,
+  };
+  const office = document.checkedBy || 'PG office';
+  if (document.checkStatus === 'WAITING') {
+    return [uploaded, { id: 'check', label: 'Office check', state: 'current', description: 'Waiting for the PG office to check it.' }, { id: 'accepted', label: 'Accepted', state: 'upcoming' }];
+  }
+  if (document.checkStatus === 'RETURNED') {
+    return [
+      uploaded,
+      { id: 'check', label: 'Returned', state: 'rejected', actorName: office, occurredAt: document.checkedAt ?? undefined, reason: document.checkReason || undefined },
+      { id: 'accepted', label: 'Accepted', state: 'not_reached', description: 'A corrected file is checked again.' },
+    ];
+  }
+  return [
+    uploaded,
+    { id: 'check', label: 'Checked by the office', state: 'completed', actorName: office, occurredAt: document.checkedAt ?? undefined },
+    { id: 'accepted', label: 'Accepted', state: 'completed', showRecordedDetails: false },
+  ];
+}
+
 /** "Ali Hassan" / "Ali Hassan and 2 more", with the IDs or remaining names underneath. */
 export function studentsLine(students: DocumentStudentRef[]): { main: string; sub: string } {
   if (!students.length) return { main: 'Staff file', sub: '' };
@@ -41,9 +89,6 @@ export function studentsLine(students: DocumentStudentRef[]): { main: string; su
   return { main: `${first.name} and ${rest.length} more`, sub: rest.map(student => student.name).join(', ') };
 }
 
-export function typeAndTags(typeLabel: string, tags: string[]): string {
-  return [typeLabel, tags.map(tag => `#${tag}`).join('  ')].filter(Boolean).join('   ');
-}
 
 export function uploadedLine(name: string, isMe: boolean): string {
   return isMe ? 'Uploaded by you' : `Uploaded by ${name}`;

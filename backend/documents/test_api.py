@@ -12,7 +12,7 @@ from rest_framework.test import APITestCase
 from announcements.models import Notification
 
 from .fixtures import TEST_MEDIA, DocumentPeople, image_bytes, office_bytes, pdf_bytes
-from .models import Document, DocumentEvent, DocumentType, DocumentVersion, Tag
+from .models import Document, DocumentEvent, DocumentType, DocumentVersion
 from .test_access import DocumentClient
 
 
@@ -98,14 +98,6 @@ class UploadRuleTests(DocumentPeople, DocumentClient, APITestCase):
         self.assertTrue(response.data["requiresAcknowledgement"])
         self.made(self.ali.user, "letter", "Letter again", content=content, acknowledgeWarnings="true")
 
-    def test_tags_ignore_capitals_and_have_limits(self):
-        self.made(self.ali.user, "letter", "One", tags=["Draft", "#signed"])
-        second = self.made(self.ali.user, "letter", "Two", tags=["draft, Final"], content=pdf_bytes(2))
-        self.assertEqual(sorted(second["tags"]), ["Draft", "Final"])
-        self.assertEqual(Tag.objects.filter(key="draft").count(), 1)
-        self.assertIn("tags", self.send(self.ali.user, "letter", tags=[f"tag{n}" for n in range(11)]).data)
-        self.assertIn("tags", self.send(self.ali.user, "letter", tags=["x"]).data)
-
     @override_settings(DOCUMENT_UPLOAD_THROTTLE_RATE="2/hour")
     def test_uploads_are_throttled(self):
         self.made(self.ali.user, "letter", "One")
@@ -165,7 +157,7 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.made(self.ali.user, "thesis", "Ali thesis", tags=["Draft"])
+        self.made(self.ali.user, "thesis", "Ali thesis")
         self.made(self.ali.user, "supervisor-appointment-form", "Ali form", name="form.png",
                   content=image_bytes())
         self.made(self.supervisor, "evaluation-form", "Evaluation", students=[self.bella.matric_no], semester="none")
@@ -184,12 +176,10 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
         self.assertEqual(self.titles(office, "?status=WAITING"), {"Ali form"})
         self.assertEqual(self.titles(office, "?kind=IMAGE"), {"Ali form"})
         self.assertEqual(self.titles(office, "?kind=DOCX"), {"Rubric"})
-        self.assertEqual(self.titles(office, "?tag=draft"), {"Ali thesis"})
         self.assertEqual(self.titles(office, "?semester=none"), {"Evaluation"})
         self.assertEqual(self.titles(office, f"?semester={self.semester.pk}&type=thesis"), {"Ali thesis"})
         self.assertEqual(self.titles(office, "?q=ali hassan"), {"Ali thesis", "Ali form"})
         self.assertEqual(self.titles(office, f"?q={self.bella.matric_no}"), {"Evaluation"})
-        self.assertEqual(self.titles(office, "?q=%23draft"), {"Ali thesis"})
         self.assertEqual(self.titles(office, "?q=nothing matches"), set())
         reference = Document.objects.get(title="Rubric").reference
         self.assertEqual(self.titles(office, f"?q={reference}"), {"Rubric"})
@@ -210,16 +200,18 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
             self.client.get("/api/documents/")
         for number in range(6):
             self.made(self.office, "evaluation-form", f"More {number}", students=[self.ali.matric_no, self.bella.matric_no],
-                      tags=["extra"], content=pdf_bytes(number + 2))
+                      content=pdf_bytes(number + 2))
         self.client.force_authenticate(self.office)
         with CaptureQueriesContext(connection) as many:
             self.client.get("/api/documents/")
         self.assertEqual(len(few.captured_queries), len(many.captured_queries))
 
-    def test_summary_options_tags_and_student_search(self):
+    def test_summary_options_and_student_search(self):
         self.client.force_authenticate(self.office)
-        self.assertEqual(self.client.get("/api/documents/summary/").data, {"all": 4, "staffFiles": 1, "mine": 1, "toCheck": 1, "returned": 0, "archived": 0})
-        self.assertEqual([t["name"] for t in self.client.get("/api/documents/tags/?search=dr").data], ["Draft"])
+        self.assertEqual(
+            self.client.get("/api/documents/summary/").data,
+            {"all": 4, "staffFiles": 1, "mine": 1, "toCheck": 1, "returned": 0, "archived": 0, "studentsStillToHandIn": 0},
+        )
         self.client.force_authenticate(self.ali.user)
         options = self.client.get("/api/documents/options/").data
         codes = {t["code"] for t in options["types"]}

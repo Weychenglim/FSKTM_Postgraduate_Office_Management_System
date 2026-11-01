@@ -37,7 +37,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
           <button
             type="button"
             onClick={onForgotPasswordClick}
-            className="back-link transition-colors"
+            className="back-link transition-colors py-2 -my-2"
           >
             Forgot Password?
           </button>
@@ -56,7 +56,7 @@ export const PasswordInput: React.FC<PasswordInputProps> = ({
         <button
           type="button"
           onClick={toggleVisibility}
-          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+          className="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
           title={showPassword ? "Hide password" : "Show password"}
           aria-label={showPassword ? "Hide password" : "Show password"}
         >

@@ -12,6 +12,7 @@
  */
 
 import { AuthSession } from './authSession';
+import { TAB_NAME } from './browserTab';
 
 const parseBooleanEnv = (value: string | undefined, fallback: boolean): boolean => {
   if (value === undefined || value.trim() === '') return fallback;
@@ -29,6 +30,7 @@ export const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL?.trim() || '/api'
 const authSession = new AuthSession(
   (input, init) => fetch(input, init),
   `${API_BASE_URL}/auth/refresh/`,
+  TAB_NAME,
 );
 
 // Simulated network latency for mock responses (ms).

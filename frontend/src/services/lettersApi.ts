@@ -54,6 +54,8 @@ export interface LetterTemplateInput {
   purpose?: LetterPurpose;
   signatoryName?: string;
   signatoryTitle?: string;
+  signatoryNameMs?: string;
+  signatoryTitleMs?: string;
   contentMs?: string;
   asksRecipient?: boolean;
   validMonths?: number | null;

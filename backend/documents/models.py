@@ -165,7 +165,6 @@ class Document(models.Model):
     students = models.ManyToManyField(
         "accounts.Student", through="DocumentStudent", related_name="documents"
     )
-    tags = models.ManyToManyField("Tag", through="DocumentTag", related_name="documents")
 
     class Meta:
         ordering = ["-created_at", "-pk"]
@@ -191,39 +190,6 @@ class DocumentStudent(models.Model):
         ordering = ["pk"]
         constraints = [
             models.UniqueConstraint(fields=["document", "student"], name="one_link_per_document_student")
-        ]
-
-
-class Tag(models.Model):
-    """A keyword tag. ``key`` is the lower-cased form used for matching; ``name``
-    keeps the spelling first used."""
-
-    name = models.CharField(max_length=30)
-    key = models.CharField(max_length=30, unique=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name="document_tags",
-        null=True,
-        blank=True,
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
-
-
-class DocumentTag(models.Model):
-    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="tag_links")
-    tag = models.ForeignKey(Tag, on_delete=models.CASCADE, related_name="document_links")
-
-    class Meta:
-        ordering = ["pk"]
-        constraints = [
-            models.UniqueConstraint(fields=["document", "tag"], name="one_link_per_document_tag")
         ]
 
 
@@ -317,7 +283,8 @@ class DocumentEvent(models.Model):
 
 
 class SettingsChange(models.Model):
-    """The office's changes to document types and tags. Never changed or deleted."""
+    """The office's changes to document types (and, before tags became automatic,
+    to typed tags). Never changed or deleted."""
 
     class Area(models.TextChoices):
         TYPE = "TYPE", "Document type"

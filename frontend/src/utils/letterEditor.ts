@@ -27,6 +27,11 @@ export const PURPOSE_OPTIONS: ReadonlyArray<{ value: LetterPurpose; label: strin
     label: 'After a panel member is approved',
     description: 'Sent automatically once the coordinator approves a panel appointment.',
   },
+  {
+    value: 'CO_SUPERVISOR_APPOINTMENT',
+    label: 'After a supporting supervisor is approved',
+    description: 'Sent automatically once the coordinator approves a supporting supervisor.',
+  },
 ];
 
 export const PURPOSE_NOTE: Partial<Record<LetterPurpose, string>> = {
@@ -34,12 +39,15 @@ export const PURPOSE_NOTE: Partial<Record<LetterPurpose, string>> = {
     'Goes to the student and the supervisor, with a notice to each. Students cannot request it, and only one template can be active for it.',
   PANEL_APPOINTMENT:
     'Goes to the student and the panel member, with the supervisor in copy and a notice to each. Students cannot request it, and only one template can be active for it.',
+  CO_SUPERVISOR_APPOINTMENT:
+    'Goes to the student and the supporting supervisor, with the main supervisor in copy and a notice to each. Students cannot request it, and only one template can be active for it.',
 };
 
 export const PURPOSE_CHIP: Record<LetterPurpose, string> = {
   REQUEST: 'Requested by students',
   SUPERVISOR_APPOINTMENT: 'Sent after supervisor approval',
   PANEL_APPOINTMENT: 'Sent after panel approval',
+  CO_SUPERVISOR_APPOINTMENT: 'Sent after supporting supervisor approval',
 };
 
 export const STATUS_HINT: Record<LetterTemplateStatus, string> = {
@@ -117,6 +125,8 @@ export interface EditorValues {
   readyInDays: string;
   signatoryName: string;
   signatoryTitle: string;
+  signatoryNameMs: string;
+  signatoryTitleMs: string;
 }
 
 // A new letter type is only saved when the office presses Save.
@@ -135,6 +145,8 @@ export const BLANK_TEMPLATE: EditorValues = {
   readyInDays: '',
   signatoryName: '',
   signatoryTitle: '',
+  signatoryNameMs: '',
+  signatoryTitleMs: '',
 };
 
 export const valuesOf = (template: LetterTemplate): EditorValues => ({
@@ -152,6 +164,8 @@ export const valuesOf = (template: LetterTemplate): EditorValues => ({
   readyInDays: template.readyInDays ? String(template.readyInDays) : '',
   signatoryName: template.signatoryName ?? '',
   signatoryTitle: template.signatoryTitle ?? '',
+  signatoryNameMs: template.signatoryNameMs ?? '',
+  signatoryTitleMs: template.signatoryTitleMs ?? '',
 });
 
 export const sameValues = (a: EditorValues, b: EditorValues) => JSON.stringify(a) === JSON.stringify(b);

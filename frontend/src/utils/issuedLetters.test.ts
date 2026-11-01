@@ -58,8 +58,11 @@ assert.deepEqual(letterDataFromIssued(issued), {
   studentName: 'Ali bin Abu',
   matricNumber: 'S2101234',
   disclaimer: LETTERHEAD.disclaimer,
+  malayDisclaimer: LETTERHEAD.malayDisclaimer,
   signatoryName: LETTERHEAD.signatoryName,
   signatoryOffice: LETTERHEAD.signatoryOffice,
+  malaySignatoryName: LETTERHEAD.malaySignatoryName,
+  malaySignatoryOffice: LETTERHEAD.malaySignatoryOffice,
 });
 assert.equal(letterFileName(letterDataFromIssued(issued)), 'UM_Confirmation_of_Study_S2101234');
 
@@ -183,10 +186,15 @@ const pythonStrings = (name: string) => {
 };
 assert.equal(pythonStrings('FACULTY').join(''), LETTERHEAD.faculty);
 assert.deepEqual(pythonStrings('ADDRESS_LINES'), [...LETTERHEAD.addressLines]);
+assert.equal(pythonStrings('MALAY_FACULTY').join(''), LETTERHEAD.malayFaculty);
+assert.deepEqual(pythonStrings('MALAY_ADDRESS_LINES'), [...LETTERHEAD.malayAddressLines]);
 assert.equal(pythonStrings('DISCLAIMER').join(''), LETTERHEAD.disclaimer);
 assert.equal(pythonStrings('APPOINTMENT_DISCLAIMER').join(''), LETTERHEAD.appointmentDisclaimer);
 assert.equal(pythonStrings('MALAY_DISCLAIMER').join(''), LETTERHEAD.malayDisclaimer);
+assert.equal(pythonStrings('MALAY_APPOINTMENT_DISCLAIMER').join(''), LETTERHEAD.malayAppointmentDisclaimer);
 assert.equal(pythonStrings('SIGNATORY_NAME').join(''), LETTERHEAD.signatoryName);
 assert.equal(pythonStrings('SIGNATORY_OFFICE').join(''), LETTERHEAD.signatoryOffice);
+assert.equal(pythonStrings('MALAY_SIGNATORY_NAME').join(''), LETTERHEAD.malaySignatoryName);
+assert.equal(pythonStrings('MALAY_SIGNATORY_OFFICE').join(''), LETTERHEAD.malaySignatoryOffice);
 
 console.log('Issued letter tests passed.');

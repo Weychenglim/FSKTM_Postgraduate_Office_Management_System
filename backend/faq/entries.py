@@ -88,7 +88,18 @@ def history_dict(change):
     }
 
 
+def usage(entry):
+    """How often students got this answer this month, and how often it didn't help."""
+    if hasattr(entry, "asked_this_month"):
+        return entry.asked_this_month, entry.not_helpful_this_month
+    from .questions import month_start
+
+    asked = entry.asked.filter(asked_at__gte=month_start())
+    return asked.count(), asked.filter(helpful=False).count()
+
+
 def entry_dict(entry, detail=False):
+    asked, not_helpful = usage(entry)
     data = {
         "id": str(entry.pk),
         "question": entry.question,
@@ -99,6 +110,8 @@ def entry_dict(entry, detail=False):
         "imported": bool(entry.source_ref),
         "note": entry.source_note if entry.status == Status.NEEDS_CHECKING else "",
         "altCount": entry.alt_count if hasattr(entry, "alt_count") else entry.alt_questions.count(),
+        "askedThisMonth": asked,
+        "notHelpfulThisMonth": not_helpful,
         "updatedAt": entry.updated_at.isoformat(),
         "updatedBy": entry.updated_by.full_name if entry.updated_by else "",
     }

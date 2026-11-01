@@ -1,8 +1,10 @@
 """Appointment letters (UC22).
 
-When a coordinator approves a supervisor or panel appointment, the appointment
-code saves a new active appointment. ``signals.py`` hears that and, once the
-approval is saved for good, calls ``make_letter_after_approval``.
+When a coordinator approves a supervisor, panel or supporting supervisor
+appointment, the appointment code saves a new active appointment. ``signals.py``
+hears that and, once the approval is saved for good, calls
+``make_letter_after_approval``. When an appointment ends or is replaced, its
+letter is revoked by ``revoke_after_end``.
 
 The letter comes from the office's active template for that kind of letter. It
 is issued at once and sent to the student and the lecturers on it. If a value
@@ -13,6 +15,7 @@ Generation. A failed letter never undoes the approval.
 """
 import logging
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.timezone import localtime
@@ -20,7 +23,7 @@ from django.utils.timezone import localtime
 from accounts.models import Student, User
 from announcements.emails import LETTER, SIGN_OFF, email_users, portal_link
 from announcements.models import Notification
-from appointments.models import PanelAppointment, StudentResearchProfile, SupervisorAppointment
+from appointments.models import CoSupervisorAppointment, PanelAppointment, StudentResearchProfile, SupervisorAppointment
 
 from .details import letter_details
 from .issuing import issue_letter
@@ -34,13 +37,18 @@ LETTER_RECORD = "APPOINTMENT_LETTER"
 MISSING_RECORD = "APPOINTMENT_LETTERS_MISSING"
 REQUEST_RECORD = "LETTER_REQUEST"
 LIVE = (GeneratedLetter.Status.PENDING, GeneratedLetter.Status.ISSUED)
-SUPERVISOR, PANEL = "supervisor", "panel"
+SUPERVISOR, PANEL, SUPPORTING = "supervisor", "panel", "supporting"
 KINDS = {
     SUPERVISOR: (SupervisorAppointment, LetterPurpose.SUPERVISOR_APPOINTMENT, "supervisor_appointment"),
     PANEL: (PanelAppointment, LetterPurpose.PANEL_APPOINTMENT, "panel_appointment"),
+    SUPPORTING: (CoSupervisorAppointment, LetterPurpose.CO_SUPERVISOR_APPOINTMENT, "co_supervisor_appointment"),
 }
-LABELS = {SUPERVISOR: "supervisor appointment letter", PANEL: "panel appointment letter"}
-STUDENT, SUPERVISOR_ROLE, PANEL_ROLE = "Student", "Supervisor", "Panel member"
+# How each kind is named: in a letter's name ("panel appointment letter") and
+# for the person appointed ("panel member").
+LETTER_WORDS = {SUPERVISOR: "supervisor", PANEL: "panel", SUPPORTING: "supporting supervisor"}
+ROLE_WORDS = {SUPERVISOR: "supervisor", PANEL: "panel member", SUPPORTING: "supporting supervisor"}
+LABELS = {kind: f"{word} appointment letter" for kind, word in LETTER_WORDS.items()}
+STUDENT, SUPERVISOR_ROLE, PANEL_ROLE, SUPPORTING_ROLE = "Student", "Supervisor", "Panel member", "Supporting supervisor"
 NOT_LINKED = "The research profile is not linked to a student account."
 
 
@@ -55,11 +63,11 @@ class LetterValuesMissing(Exception):
 
 
 def kind_of(appointment):
-    return SUPERVISOR if isinstance(appointment, SupervisorAppointment) else PANEL
+    return next(kind for kind, (model, _, _) in KINDS.items() if isinstance(appointment, model))
 
 
 def kind_of_letter(letter):
-    return SUPERVISOR if letter.purpose == LetterPurpose.SUPERVISOR_APPOINTMENT else PANEL
+    return next(kind for kind, (_, purpose, _) in KINDS.items() if letter.purpose == purpose)
 
 
 def _day(value):
@@ -79,7 +87,7 @@ def appointment_student(appointment):
     """The Student an appointment is about. A panel appointment's research
     profile names its student by account, or for older records only by matric
     number."""
-    if isinstance(appointment, SupervisorAppointment):
+    if isinstance(appointment, (SupervisorAppointment, CoSupervisorAppointment)):
         return appointment.student
     profile = appointment.profile
     if profile.student_id:
@@ -107,11 +115,15 @@ def _primary_appointment(student):
 
 def _supervisor(appointment, student):
     """The supervisor named on the letter: the appointed one for a supervisor
-    letter, the student's current primary supervisor for a panel letter."""
+    letter, the student's current primary supervisor for the others."""
     if isinstance(appointment, SupervisorAppointment):
         return appointment.supervisor
     primary = _primary_appointment(student)
-    return primary.supervisor if primary else appointment.supervisor
+    if primary:
+        return primary.supervisor
+    if isinstance(appointment, CoSupervisorAppointment):
+        return appointment.nomination.primary_appointment.supervisor
+    return appointment.supervisor
 
 
 def appointment_values(appointment):
@@ -135,6 +147,19 @@ def appointment_values(appointment):
             supervisorAcceptedDate=_day(application.supervisor_decided_at),
             approvedDate=_day(application.coordinator_decided_at or appointment.created_at),
             semester=application.academic_semester.label if application.academic_semester_id else "",
+        )
+    elif isinstance(appointment, CoSupervisorAppointment):
+        nomination = appointment.nomination
+        primary = _primary_appointment(student) or nomination.primary_appointment
+        values.update(
+            researchTitle=(profile.proposed_topic if profile else "") or primary.application.research_title,
+            researchArea=(profile.research_area if profile else "") or primary.application.research_area,
+            courseCodes=primary.application.project_course_codes,
+            coSupervisorName=appointment.supervisor.full_name,
+            coSupervisorDepartment=_department(appointment.supervisor),
+            coSupervisorAcceptedDate=_day(nomination.candidate_decided_at),
+            approvedDate=_day(nomination.coordinator_decided_at or appointment.created_at),
+            semester=nomination.academic_semester.label if nomination.academic_semester_id else "",
         )
     else:
         recommendation = appointment.recommendation
@@ -160,6 +185,8 @@ def recipients_for(appointment, student):
     people = [student.user]
     if isinstance(appointment, PanelAppointment):
         people.append(appointment.panel_member)
+    if isinstance(appointment, CoSupervisorAppointment):
+        people.append(appointment.supervisor)
     people.append(_supervisor(appointment, student))
     unique = {}
     for person in people:
@@ -168,15 +195,18 @@ def recipients_for(appointment, student):
 
 
 def relation(letter, user):
-    """How ``user`` is named on ``letter``: Student, Supervisor or Panel member."""
+    """How ``user`` is named on ``letter``: Student, Supervisor, Panel member or
+    Supporting supervisor."""
     if letter.student_id and letter.student.user_id == user.pk:
         return STUDENT
     if letter.panel_appointment_id and letter.panel_appointment.panel_member_id == user.pk:
         return PANEL_ROLE
+    if letter.co_supervisor_appointment_id and letter.co_supervisor_appointment.supervisor_id == user.pk:
+        return SUPPORTING_ROLE
     return SUPERVISOR_ROLE
 
 
-ROLE_ORDER = {STUDENT: 0, PANEL_ROLE: 1, SUPERVISOR_ROLE: 2}
+ROLE_ORDER = {STUDENT: 0, PANEL_ROLE: 1, SUPPORTING_ROLE: 1, SUPERVISOR_ROLE: 2}
 
 
 def recipient_rows(letter):
@@ -221,34 +251,29 @@ def _wording(letter, role):
     data = letter.student_data or {}
     student = data.get("studentName") or "the student"
     reference = letter.reference_number
+    kind = kind_of_letter(letter)
+    letter_word, role_word = LETTER_WORDS[kind], ROLE_WORDS[kind]
+    appointed = {PANEL: data.get("panelName"), SUPPORTING: data.get("coSupervisorName")}.get(kind) or data.get("supervisorName")
     if role == STUDENT:
-        if kind_of_letter(letter) == SUPERVISOR:
-            return (
-                "Your supervisor appointment letter is ready",
-                f"The appointment of {data.get('supervisorName')} as your supervisor was approved. "
-                f"Your letter (reference {reference}) is ready to view and download.",
-            )
-        return (
-            "Your panel appointment letter is ready",
-            f"{data.get('panelName')} was appointed as your panel member. "
-            f"Your letter (reference {reference}) is ready to view and download.",
+        lead = (
+            f"The appointment of {appointed} as your supervisor was approved."
+            if kind == SUPERVISOR
+            else f"{appointed} was appointed as your {role_word}."
         )
-    if role == PANEL_ROLE:
         return (
-            f"Appointment letter: panel member for {student}",
-            f"You are now {student}'s panel member. Your copy of the appointment letter "
-            f"(reference {reference}) is ready.",
+            f"Your {letter_word} appointment letter is ready",
+            f"{lead} Your letter (reference {reference}) is ready to view and download.",
         )
-    if kind_of_letter(letter) == SUPERVISOR:
+    if role == SUPERVISOR_ROLE and kind != SUPERVISOR:
         return (
-            f"Appointment letter: supervisor for {student}",
-            f"You are now {student}'s supervisor. Your copy of the appointment letter "
-            f"(reference {reference}) is ready.",
+            f"Copy of {student}'s {letter_word} appointment letter",
+            f"{appointed} was appointed as {student}'s {role_word}. As the supervisor, "
+            f"you get a copy of the letter (reference {reference}).",
         )
     return (
-        f"Copy of {student}'s panel appointment letter",
-        f"{data.get('panelName')} was appointed as {student}'s panel member. As the supervisor, "
-        f"you get a copy of the letter (reference {reference}).",
+        f"Appointment letter: {role_word} for {student}",
+        f"You are now {student}'s {role_word}. Your copy of the appointment letter "
+        f"(reference {reference}) is ready.",
     )
 
 
@@ -291,8 +316,8 @@ def notify_recipients(letter, *, replaces="", resend=0):
 
 
 def notify_revoked(letter, reason):
-    """Tell the lecturers on a revoked appointment letter. The student is told
-    by the usual revoke notice."""
+    """Tell the lecturers on a revoked appointment letter; ``revoke_appointment_letter``
+    tells the student."""
     for user in letter.recipients.filter(is_active=True).exclude(pk=letter.student.user_id if letter.student_id else None):
         send_notice(
             user,
@@ -300,15 +325,38 @@ def notify_revoked(letter, reason):
             title=f"Letter revoked: {letter.template_name}",
             summary=f"Reference {letter.reference_number}",
             message=(
-                f"The postgraduate office revoked the {letter.template_name} for "
+                f"The {letter.template_name} for "
                 f"{(letter.student_data or {}).get('studentName') or 'the student'} "
-                f"({letter.reference_number}). Reason: {reason}"
+                f"({letter.reference_number}) is no longer valid. Reason: {reason}"
             ),
             record_type=LETTER_RECORD,
             record_id=letter.pk,
             reference=letter.reference_number,
             priority=Notification.Priority.HIGH,
         )
+
+
+def revoke_appointment_letter(letter, *, actor, reason):
+    """Revoke an issued appointment letter and tell everyone on it. The office's
+    Revoke uses this, and so does an appointment that ends."""
+    letter.status = GeneratedLetter.Status.REVOKED
+    letter.revoked_at = timezone.now()
+    letter.revoked_by = actor
+    letter.revoke_reason = reason
+    letter.save(update_fields=["status", "revoked_at", "revoked_by", "revoke_reason"])
+    if letter.student is not None:
+        send_notice(
+            letter.student.user,
+            event_key=f"letters:letter-revoked:{letter.pk}",
+            title=f"Letter revoked: {letter.template_name}",
+            summary=f"Reference {letter.reference_number}",
+            message=f"Your {letter.template_name} ({letter.reference_number}) is no longer valid. Reason: {reason}",
+            record_type=LETTER_RECORD,
+            record_id=letter.pk,
+            reference=letter.reference_number,
+            priority=Notification.Priority.HIGH,
+        )
+    notify_revoked(letter, reason)
 
 
 def notify_office_missing(appointment, problem):
@@ -325,9 +373,9 @@ def notify_office_missing(appointment, problem):
             user,
             event_key=f"letters:appointment-letter-missing:{kind}:{appointment.pk}",
             title="Appointment letter not made",
-            summary=f"{name}, {kind} appointment",
+            summary=f"{name}, {LETTER_WORDS[kind]} appointment",
             message=(
-                f"{name}'s {kind} appointment was approved, but no letter was made. {problem} "
+                f"{name}'s {LETTER_WORDS[kind]} appointment was approved, but no letter was made. {problem} "
                 "Fix this in Letter Generation, then press Create letters."
             ),
             record_type=MISSING_RECORD,
@@ -422,12 +470,49 @@ def make_letter_after_approval(model, appointment_id):
                 logger.exception("The office was not told about the missing appointment letter.")
 
 
+def _end_reason(appointment):
+    """Why an ended appointment's letter no longer counts, in plain words."""
+    kind = kind_of(appointment)
+    when = _day(appointment.ended_at or timezone.now())
+    if appointment.end_outcome == "REPLACED":
+        try:
+            replacement = appointment.replacement_appointment
+        except ObjectDoesNotExist:
+            replacement = None
+        if replacement is not None:
+            person = replacement.panel_member if kind == PANEL else replacement.supervisor
+            return f"Replaced on {when}: {person.full_name} is now the {ROLE_WORDS[kind]}."
+        return f"The {ROLE_WORDS[kind]} was replaced on {when}."
+    return f"The {ROLE_WORDS[kind]} appointment ended on {when}."
+
+
+def revoke_after_end(model, appointment_id):
+    """Run after an appointment ends: its letter is revoked and the people on it
+    are told. A letter still waiting for the office is withdrawn instead."""
+    try:
+        appointment = model.objects.get(pk=appointment_id)
+        if appointment.status == model.Status.ACTIVE:
+            return
+        field = KINDS[kind_of(appointment)][2]
+        reason = _end_reason(appointment)
+        with transaction.atomic():
+            for letter in GeneratedLetter.objects.select_for_update().filter(**{field: appointment}, status__in=LIVE):
+                if letter.status == GeneratedLetter.Status.ISSUED:
+                    revoke_appointment_letter(letter, actor=appointment.ended_by, reason=reason)
+                else:
+                    letter.status = GeneratedLetter.Status.WITHDRAWN
+                    letter.withdrawn_at = timezone.now()
+                    letter.save(update_fields=["status", "withdrawn_at"])
+    except Exception:
+        logger.exception("The letter for ended %s %s was not revoked.", model.__name__, appointment_id)
+
+
 def missing_appointment_letters():
     """Active appointments with no letter yet, newest first, each with the
     reason it cannot be made right now (or None)."""
     rows = []
     for kind, (model, purpose, _) in KINDS.items():
-        related = ("student__user", "supervisor") if kind == SUPERVISOR else ("profile__student", "panel_member", "supervisor")
+        related = ("profile__student", "panel_member", "supervisor") if kind == PANEL else ("student__user", "supervisor")
         appointments = (
             model.objects.filter(status=model.Status.ACTIVE)
             .exclude(letters__status__in=LIVE)
@@ -440,7 +525,7 @@ def missing_appointment_letters():
                 name, matric = student.user.full_name, student.matric_no
             else:
                 name, matric = appointment.profile.student_name, appointment.profile.matric_no
-            lecturer = appointment.supervisor if kind == SUPERVISOR else appointment.panel_member
+            lecturer = appointment.panel_member if kind == PANEL else appointment.supervisor
             rows.append(
                 {
                     "kind": kind,

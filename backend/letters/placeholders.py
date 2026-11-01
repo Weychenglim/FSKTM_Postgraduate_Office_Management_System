@@ -20,10 +20,12 @@ import re
 REQUEST = "REQUEST"
 SUPERVISOR_LETTER = "SUPERVISOR_APPOINTMENT"
 PANEL_LETTER = "PANEL_APPOINTMENT"
+CO_SUPERVISOR_LETTER = "CO_SUPERVISOR_APPOINTMENT"
 PURPOSE_LABELS = {
     REQUEST: "student request letters",
     SUPERVISOR_LETTER: "supervisor appointment letters",
     PANEL_LETTER: "panel appointment letters",
+    CO_SUPERVISOR_LETTER: "supporting supervisor appointment letters",
 }
 
 PLACEHOLDERS = {
@@ -54,6 +56,9 @@ APPOINTMENT_PLACEHOLDERS = {
     "PANEL_NAME": ("Panel Member", "The appointed panel member"),
     "PANEL_DEPARTMENT": ("Panel Department", "The panel member's department"),
     "PANEL_ACCEPTED_DATE": ("Panel Accepted On", "The date the panel member accepted"),
+    "CO_SUPERVISOR_NAME": ("Supporting Supervisor", "The appointed supporting supervisor"),
+    "CO_SUPERVISOR_DEPARTMENT": ("Supporting Supervisor Department", "The supporting supervisor's department"),
+    "CO_SUPERVISOR_ACCEPTED_DATE": ("Supporting Supervisor Accepted On", "The date the supporting supervisor accepted"),
     "COORDINATOR_NAME": ("Approved By", "The programme coordinator who approved the appointment"),
     "APPROVED_DATE": ("Approved On", "The date the coordinator approved the appointment"),
     "APPOINTMENT_DATE": ("Appointment Date", "The date the appointment starts"),
@@ -67,20 +72,23 @@ REQUEST_PLACEHOLDERS = {
     "BALANCE_SEMESTERS_MAX": ("Semesters Left (Maximum)", "Semesters until the maximum semester, from the registry"),
 }
 
-_BOTH = (SUPERVISOR_LETTER, PANEL_LETTER)
+_APPOINTMENTS = (SUPERVISOR_LETTER, PANEL_LETTER, CO_SUPERVISOR_LETTER)
 APPOINTMENT_PURPOSES = {
-    "RESEARCH_TITLE": _BOTH,
-    "RESEARCH_AREA": _BOTH,
-    "COURSE_CODES": _BOTH,
-    "SUPERVISOR_DEPARTMENT": _BOTH,
+    "RESEARCH_TITLE": _APPOINTMENTS,
+    "RESEARCH_AREA": _APPOINTMENTS,
+    "COURSE_CODES": _APPOINTMENTS,
+    "SUPERVISOR_DEPARTMENT": _APPOINTMENTS,
     "SUPERVISOR_ACCEPTED_DATE": (SUPERVISOR_LETTER,),
     "PANEL_NAME": (PANEL_LETTER,),
     "PANEL_DEPARTMENT": (PANEL_LETTER,),
     "PANEL_ACCEPTED_DATE": (PANEL_LETTER,),
-    "COORDINATOR_NAME": _BOTH,
-    "APPROVED_DATE": _BOTH,
-    "APPOINTMENT_DATE": _BOTH,
-    "SEMESTER": _BOTH,
+    "CO_SUPERVISOR_NAME": (CO_SUPERVISOR_LETTER,),
+    "CO_SUPERVISOR_DEPARTMENT": (CO_SUPERVISOR_LETTER,),
+    "CO_SUPERVISOR_ACCEPTED_DATE": (CO_SUPERVISOR_LETTER,),
+    "COORDINATOR_NAME": _APPOINTMENTS,
+    "APPROVED_DATE": _APPOINTMENTS,
+    "APPOINTMENT_DATE": _APPOINTMENTS,
+    "SEMESTER": _APPOINTMENTS,
     "RECIPIENT": (REQUEST,),
     "VALID_UNTIL": (REQUEST,),
     "BALANCE_SEMESTERS_MIN": (REQUEST,),
@@ -115,6 +123,9 @@ VALUE_KEYS = {
     "PANEL_NAME": "panelName",
     "PANEL_DEPARTMENT": "panelDepartment",
     "PANEL_ACCEPTED_DATE": "panelAcceptedDate",
+    "CO_SUPERVISOR_NAME": "coSupervisorName",
+    "CO_SUPERVISOR_DEPARTMENT": "coSupervisorDepartment",
+    "CO_SUPERVISOR_ACCEPTED_DATE": "coSupervisorAcceptedDate",
     "COORDINATOR_NAME": "coordinatorName",
     "APPROVED_DATE": "approvedDate",
     "APPOINTMENT_DATE": "appointmentDate",
@@ -146,7 +157,7 @@ MAX_VALUE_LENGTH = 300
 
 
 def placeholder_catalogue():
-    every = (REQUEST, SUPERVISOR_LETTER, PANEL_LETTER)
+    every = (REQUEST, SUPERVISOR_LETTER, PANEL_LETTER, CO_SUPERVISOR_LETTER)
     return [
         {"tag": f"{{{{{name}}}}}", "name": name, "label": label, "source": source,
          "purposes": list(APPOINTMENT_PURPOSES.get(name, every))}
@@ -165,7 +176,8 @@ def purpose_hint(tag):
     purposes = APPOINTMENT_PURPOSES.get(match.group(1)) if match else None
     if not purposes:
         return None
-    return f"{tag} works only in {' and '.join(PURPOSE_LABELS[purpose] for purpose in purposes)}."
+    kinds = "appointment letters" if purposes == _APPOINTMENTS else " and ".join(PURPOSE_LABELS[purpose] for purpose in purposes)
+    return f"{tag} works only in {kinds}."
 
 
 def clean_custom_fields(raw):

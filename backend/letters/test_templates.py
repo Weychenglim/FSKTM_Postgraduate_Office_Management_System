@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from .models import LetterTemplate
 from .placeholders import ALL_PLACEHOLDERS, PLACEHOLDERS
+from .test_appointment_letters import clear_sample_templates
 
 User = get_user_model()
 
@@ -66,6 +67,7 @@ class LetterTemplateLifecycleTests(APITestCase):
 
 class PlaceholderValidationTests(APITestCase):
     def setUp(self):
+        clear_sample_templates()
         self.office = User.objects.create_user(
             email="placeholders-office@example.test",
             password="pw-office-5503",
@@ -141,6 +143,7 @@ class OfficeFilledFieldTests(APITestCase):
     """Fields the office types in when it approves a request, e.g. attendance."""
 
     def setUp(self):
+        clear_sample_templates()
         self.office = User.objects.create_user(
             email="fields-office@example.test",
             password="pw-office-5504",
@@ -207,6 +210,7 @@ class TemplateWordingVisibilityTests(APITestCase):
     """Students choose a letter by name; they never see its wording."""
 
     def setUp(self):
+        clear_sample_templates()
         self.template = LetterTemplate.objects.create(
             name="Visa Support",
             status=LetterTemplate.Status.ACTIVE,

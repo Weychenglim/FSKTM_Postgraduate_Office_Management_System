@@ -79,6 +79,7 @@ export const LetterTypesList: React.FC<{
             <option value="REQUEST">{PURPOSE_CHIP.REQUEST}</option>
             <option value="SUPERVISOR_APPOINTMENT">{PURPOSE_CHIP.SUPERVISOR_APPOINTMENT}</option>
             <option value="PANEL_APPOINTMENT">{PURPOSE_CHIP.PANEL_APPOINTMENT}</option>
+            <option value="CO_SUPERVISOR_APPOINTMENT">{PURPOSE_CHIP.CO_SUPERVISOR_APPOINTMENT}</option>
           </PortalSelect>
         </label>
         <label className="form-label">

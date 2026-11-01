@@ -4,7 +4,7 @@ import tempfile
 import zipfile
 from datetime import date
 
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.http import FileResponse, HttpResponse
 from django.utils import timezone
 from rest_framework import status
@@ -32,14 +32,11 @@ from .access import (
     visible_documents,
 )
 from .history import SHOWS, history_rows
-from .models import Document, DocumentEvent, DocumentStudent, DocumentTag, DocumentType, Tag
+from .models import Document, DocumentEvent, DocumentStudent, DocumentType
 from .office_settings import (
     KIND_UPLOADERS,
     add_type,
     change_type,
-    merge_tag,
-    remove_tag,
-    rename_tag,
     type_settings_dict,
     types_with_counts,
 )
@@ -60,14 +57,12 @@ from .required import (
     remind,
     required_types,
 )
-from .serializers import detail_dict, document_dict, with_details
+from .serializers import SENDERS, detail_dict, document_dict, with_details
 from .services import (
-    TagProblem,
     add_version,
     archive_document,
     change_sharing,
     check_document,
-    clean_tags,
     create_document,
     delete_document,
     record_event,
@@ -84,6 +79,7 @@ MAX_TITLE = 200
 MAX_DESCRIPTION = 1000
 MAX_SEARCH = 100
 TRUE_VALUES = {"1", "true", "yes", "on"}
+SENDER_ROLES = {value: role for role, value in SENDERS.items()}
 
 
 class DocumentUploadThrottle(SettingsRateThrottle):
@@ -173,7 +169,25 @@ def options_view(request):
             ).order_by("-starts_on")
         ]
         payload["programmes"] = list(APPROVED_PROGRAMMES)
+        payload["intakes"] = sorted(
+            set(taggable_students(user, scope).exclude(intake_semester="").values_list("intake_semester", flat=True)),
+            reverse=True,
+        )
         payload["audiences"] = [{"value": value, "label": label} for value, label in Document.Audience.choices]
+    else:
+        student = Student.objects.filter(user=user).first()
+        if student is not None:
+            ids = {student.user_id}
+            names = dict(User.objects.filter(
+                pk__in={lecturer for _, lecturer in supervisors_of(ids)} | {member for _, member in panel_student_ids(student_ids=ids)}
+            ).values_list("pk", "full_name"))
+            payload["me"] = {
+                "programme": student.programme,
+                "intake": student.intake_semester,
+                "supervisors": [names[lecturer] for _, lecturer in supervisors_of(ids)],
+                "panel": [names[member] for _, member in panel_student_ids(student_ids=ids)],
+                "coordinators": [person.full_name for person in programme_coordinators(student.programme)] if student.programme else [],
+            }
     return Response(payload)
 
 
@@ -214,6 +228,7 @@ def student_search_view(request):
             "matric": student.matric_no,
             "name": student.user.full_name,
             "programme": student.programme,
+            "intake": student.intake_semester,
             "status": student.status,
             "relation": scope.relation_label(student),
             "roles": sorted(scope.relationships(student)),
@@ -276,18 +291,22 @@ def _filtered(request, scope):
         errors["view"] = ["Use all, check, staff or mine."]
     text = (params.get("q") or "").strip()[:MAX_SEARCH]
     if text:
-        tag_text = text.lstrip("#").strip() or text
+        groups = [value for value, label in DocumentType.Group.choices if text.casefold() in label.casefold()]
         documents = documents.filter(
             Q(reference__icontains=text)
             | Q(title__icontains=text)
             | Q(description__icontains=text)
             | Q(doc_type__label__icontains=text)
+            | Q(doc_type__group__in=groups)
             | Q(current_version__original_name__icontains=text)
             | Q(uploaded_by__full_name__icontains=text)
+            | Q(staff_programmes__icontains=text)
             | Q(pk__in=DocumentStudent.objects.filter(
-                Q(student__user__full_name__icontains=text) | Q(student__matric_no__icontains=text)
+                Q(student__user__full_name__icontains=text)
+                | Q(student__matric_no__icontains=text)
+                | Q(student__programme__icontains=text)
+                | Q(student__intake_semester__icontains=text)
             ).values("document_id"))
-            | Q(pk__in=DocumentTag.objects.filter(tag__key__icontains=tag_text.casefold()).values("document_id"))
         )
     if params.get("type"):
         documents = documents.filter(doc_type__code=params["type"])
@@ -309,8 +328,21 @@ def _filtered(request, scope):
     if params.get("programme") and not request.user.role == User.Role.STUDENT:
         programme = params["programme"].strip()
         documents = documents.filter(
-            pk__in=DocumentStudent.objects.filter(student__programme__trim__iexact=programme).values("document_id")
+            Q(pk__in=DocumentStudent.objects.filter(student__programme__trim__iexact=programme).values("document_id"))
+            | Q(is_staff_file=True, staff_programmes__contains=[normalise_programme(programme) or programme])
         )
+    if params.get("intake") and not request.user.role == User.Role.STUDENT:
+        documents = documents.filter(
+            pk__in=DocumentStudent.objects.filter(student__intake_semester__iexact=params["intake"].strip()).values("document_id")
+        )
+    if params.get("sender"):
+        role = SENDER_ROLES.get(params["sender"])
+        if role is None:
+            errors["sender"] = ["Use student, lecturer, coordinator or office."]
+        else:
+            documents = documents.filter(uploader_role=role)
+    if _flag(params.get("required")):
+        documents = documents.filter(doc_type__required=True)
     uploader = params.get("uploader")
     if uploader == "me":
         documents = documents.filter(uploaded_by=request.user)
@@ -327,10 +359,6 @@ def _filtered(request, scope):
             documents = documents.filter(check_status=params["status"])
     if params.get("kind"):
         documents = documents.filter(current_version__kind=params["kind"].upper())
-    if params.get("tag"):
-        documents = documents.filter(
-            pk__in=DocumentTag.objects.filter(tag__key=params["tag"].strip().lstrip("#").casefold()).values("document_id")
-        )
     for key, lookup in (("from", "created_at__date__gte"), ("to", "created_at__date__lte")):
         if params.get(key):
             day = _date(params[key])
@@ -444,11 +472,6 @@ def _upload(request, scope):
     description = str(data.get("description") or "").strip()
     if len(description) > MAX_DESCRIPTION:
         errors["description"] = [f"Keep the note to {MAX_DESCRIPTION} characters."]
-    try:
-        tags = clean_tags(_list(data, "tags"))
-    except TagProblem as problem:
-        errors["tags"] = [str(problem)]
-        tags = []
 
     try:
         checked = check_upload(request.FILES.get("file"), doc_type=doc_type, staff=not student_upload)
@@ -498,7 +521,6 @@ def _upload(request, scope):
         description=description,
         semester=semester,
         students=students,
-        tags=tags,
         is_staff_file=staff_file,
         share=share,
         follows_type=student_upload,
@@ -555,30 +577,14 @@ def summary_view(request):
         payload["toCheck"] = current.filter(check_status=Document.CheckStatus.WAITING).count()
         payload["returned"] = current.filter(check_status=Document.CheckStatus.RETURNED).count()
         payload["archived"] = visible.filter(archived_at__isnull=False).count()
+    if scope.office or scope.coordinated:
+        students, _ = _required_students(scope)
+        behind = set()
+        for doc_type in required_types():
+            rows, _ = progress(doc_type, students)
+            behind.update(student.pk for student, state, _ in rows if state in STILL_TO_HAND_IN)
+        payload["studentsStillToHandIn"] = len(behind)
     return Response(payload)
-
-
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def tags_view(request):
-    scope, refused = _scope_or_refuse(request)
-    if refused:
-        return refused
-    text = (request.query_params.get("search") or "").strip().lstrip("#").casefold()[:30]
-    if _flag(request.query_params.get("manage")):
-        if not scope.office:
-            return Response({"detail": "Only the PG office manages tags.", "code": "documents_office_only"}, status=status.HTTP_403_FORBIDDEN)
-        every = Tag.objects.annotate(uses=Count("document_links", distinct=True))
-        if text:
-            every = every.filter(key__icontains=text)
-        return Response([{"id": tag.pk, "name": tag.name, "uses": tag.uses} for tag in every.order_by("name")[:500]])
-    tags = Tag.objects.filter(
-        document_links__document__in=visible_documents(request.user, scope).values("pk")
-    )
-    if text:
-        tags = tags.filter(key__icontains=text)
-    tags = tags.annotate(uses=Count("document_links", distinct=True)).order_by("-uses", "name")[:10]
-    return Response([{"name": tag.name, "uses": tag.uses} for tag in tags])
 
 
 def _visible_or_none(request, scope, pk):
@@ -779,8 +785,8 @@ def download_zip_view(request):
 
 
 def _edit(request, scope, document):
-    """Title, note, tags and semester; staff uploaders and the office may also
-    change which students the file is about."""
+    """Title, note and semester; staff uploaders and the office may also change
+    which students the file is about. Tags are the system's, never typed."""
     user = request.user
     uploader = document.uploaded_by_id == user.pk
     if not (uploader or scope.office) or document.archived_at:
@@ -803,12 +809,6 @@ def _edit(request, scope, document):
         if raw not in ("", "none") and semester is None:
             errors["semester"] = ["Choose a semester from the list."]
         changes["semester"] = semester
-    tags = None
-    if "tags" in data:
-        try:
-            tags = clean_tags(data.get("tags") if isinstance(data.get("tags"), list) else _list(data, "tags"))
-        except TagProblem as problem:
-            errors["tags"] = [str(problem)]
     students = None
     if "students" in data and not document.is_staff_file and user.role != User.Role.STUDENT:
         matrics = list(dict.fromkeys(_list(data, "students") if not isinstance(data.get("students"), list) else data.get("students")))
@@ -825,7 +825,7 @@ def _edit(request, scope, document):
                 students = [found[m.casefold()] for m in matrics]
     if errors:
         return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-    update_details(document, actor=user, changes=changes, students=students, tags=tags)
+    update_details(document, actor=user, changes=changes, students=students)
     document = _visible_or_none(request, scope, document.pk)
     if document is None:
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1091,62 +1091,6 @@ def sharing_view(request, pk):
     change_sharing(document, actor=request.user, sharing=sharing)
     document = _visible_or_none(request, scope, document.pk)
     return Response(detail_dict(document, request.user, scope))
-
-
-def _tag_dict(tag):
-    return {"id": tag.pk, "name": tag.name, "uses": tag.document_links.count()}
-
-
-@api_view(["PATCH", "DELETE"])
-@permission_classes([IsAuthenticated])
-def tag_view(request, pk):
-    """Rename a tag everywhere, or remove it from every file."""
-    _, refused = _office_only(request)
-    if refused:
-        return refused
-    tag = Tag.objects.filter(pk=pk).first()
-    if tag is None:
-        return Response({"detail": "This tag no longer exists."}, status=status.HTTP_404_NOT_FOUND)
-    if request.method == "DELETE":
-        return Response({"files": remove_tag(tag, actor=request.user)})
-    try:
-        names = clean_tags([request.data.get("name")])
-    except TagProblem as problem:
-        return Response({"name": [str(problem)]}, status=status.HTTP_400_BAD_REQUEST)
-    if not names:
-        return Response({"name": ["Give the tag a name."]}, status=status.HTTP_400_BAD_REQUEST)
-    name = names[0]
-    twin = Tag.objects.filter(key=name.casefold()).exclude(pk=tag.pk).first()
-    if twin is not None:
-        return Response(
-            {
-                "detail": f"There is already a tag called {twin.name}. Merge them instead.",
-                "code": "tag_exists",
-                "existingId": twin.pk,
-                "existingName": twin.name,
-            },
-            status=status.HTTP_409_CONFLICT,
-        )
-    if name != tag.name:
-        rename_tag(tag, actor=request.user, name=name)
-    return Response(_tag_dict(tag))
-
-
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def tag_merge_view(request, pk):
-    _, refused = _office_only(request)
-    if refused:
-        return refused
-    tag = Tag.objects.filter(pk=pk).first()
-    if tag is None:
-        return Response({"detail": "This tag no longer exists."}, status=status.HTTP_404_NOT_FOUND)
-    raw = str(request.data.get("into") or "")
-    into = Tag.objects.filter(pk=raw).exclude(pk=tag.pk).first() if raw.isdigit() else None
-    if into is None:
-        return Response({"into": ["Choose another tag to merge into."]}, status=status.HTTP_400_BAD_REQUEST)
-    merge_tag(tag, into, actor=request.user)
-    return Response(_tag_dict(into))
 
 
 @api_view(["POST"])

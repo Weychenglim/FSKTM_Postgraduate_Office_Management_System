@@ -7,6 +7,7 @@
 // the lecturers it was sent to open it from their notice.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router';
 import { FileDown } from 'lucide-react';
 import { RecordPage } from './RecordPage';
 import { LetterPages } from './LetterPages';
@@ -35,6 +36,9 @@ export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = ({ le
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const from = typeof location.state?.from === 'string' ? location.state.from : '';
 
   const load = useCallback(() => {
     setLoading(true);
@@ -64,7 +68,9 @@ export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = ({ le
 
   const backLabel = isStudent
     ? 'Back to File Submission'
-    : letter?.studentName
+    : from
+      ? 'Back to Files'
+      : letter?.studentName
       ? `Back to ${letter.studentName}'s files`
       : 'Back to Files';
   const sentTo = recipientsLine(letter?.recipients);
@@ -74,7 +80,7 @@ export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = ({ le
       title={letter?.templateName ?? 'Letter'}
       subtitle={letter ? `${letter.studentName}${letter.matricNumber ? ` (${letter.matricNumber})` : ''}` : undefined}
       backLabel={backLabel}
-      onBack={() => onBack(letter?.matricNumber || undefined)}
+      onBack={() => (from ? navigate(from) : onBack(letter?.matricNumber || undefined))}
       pageKey={`file-letter:${letterId}`}
       actions={
         letter?.status === 'Issued' ? (
@@ -121,6 +127,7 @@ export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = ({ le
                 referenceText={letter.referenceNumber}
                 date={letter.date}
                 bodyHtml={renderLetterBodyHtml(letter.content)}
+                malayBodyHtml={letter.contentMs?.trim() ? renderLetterBodyHtml(letter.contentMs) : undefined}
                 closing={letterClosing(letter)}
               />
             </div>

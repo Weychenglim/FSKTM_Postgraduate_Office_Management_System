@@ -12,7 +12,7 @@ export function titleCase(text: string): string {
     .trim()
     .toLowerCase()
     .split(/\s+/)
-    .map((word, index) => (index > 0 && SMALL_WORDS.has(word) ? word : word.charAt(0).toUpperCase() + word.slice(1)))
+    .map((word, index) => (index > 0 && SMALL_WORDS.has(word) ? word : word.replace(/[a-z]/, letter => letter.toUpperCase())))
     .join(' ');
 }
 

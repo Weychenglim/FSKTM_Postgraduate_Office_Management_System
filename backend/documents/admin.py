@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Document, DocumentEvent, DocumentType, DocumentVersion, Tag
+from .models import Document, DocumentEvent, DocumentType, DocumentVersion
 
 
 class InspectOnly(admin.ModelAdmin):
@@ -42,8 +42,3 @@ class DocumentEventAdmin(InspectOnly):
     list_filter = ("action",)
     search_fields = ("reference", "title", "actor_name")
 
-
-@admin.register(Tag)
-class TagAdmin(InspectOnly):
-    list_display = ("name", "created_at")
-    search_fields = ("name",)

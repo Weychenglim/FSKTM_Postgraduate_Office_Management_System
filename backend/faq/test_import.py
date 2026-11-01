@@ -10,6 +10,7 @@ from openpyxl import load_workbook
 
 from .importer import CATEGORIES, ImportProblem, default_path, import_faq
 from .models import FaqCategory, FaqChange, FaqEntry
+from .proofreading import FIXES, apply_fixes
 from .review_export import review_workbook
 
 Status = FaqEntry.Status
@@ -65,10 +66,28 @@ class ImportFaqTests(TestCase):
         self.assertEqual(only.count(), 24)
         self.assertFalse(only.exclude(status=Status.NEEDS_CHECKING).exists())
         self.assertTrue(all(entry.source_note.startswith("Found only on the ALL sheet") for entry in only))
-        defer = only.get(question="Can i defer my offer to a later intake?")
+        defer = only.get(question="Can I defer my offer to a later intake?")
         self.assertEqual(defer.category.name, "Admission and offer letter")
         handbook = only.get(question__startswith="Where can I get an online copy of the postgraduate handbook")
         self.assertEqual(handbook.category.name, "Course registration")
+
+    def test_the_imported_wording_is_proofread(self):
+        import_faq()
+        fee = FaqEntry.objects.get(source_ref="course-registration-categorized-16")
+        self.assertEqual((fee.question, fee.answer), ("Can I pay the fees in instalments?", "No."))
+        self.assertIn("intallment", fee.source_text, "the PDF's own text stays beside the entry")
+
+    def test_proofreading_keeps_what_the_office_wrote(self):
+        import_faq()
+        office_ref, fixed_ref = list(FIXES)[:2]
+        for ref in (office_ref, fixed_ref):
+            FaqEntry.objects.filter(source_ref=ref).update(**{field: imported for field, (imported, _) in FIXES[ref].items()})
+        FaqEntry.objects.filter(source_ref=office_ref).update(question="The office's own question")
+        changed = {entry.source_ref: fields for entry, fields in apply_fixes(FaqEntry.objects.all())}
+        self.assertEqual(FaqEntry.objects.get(source_ref=office_ref).question, "The office's own question")
+        self.assertNotIn("question", changed.get(office_ref, []))
+        self.assertEqual(sorted(changed[fixed_ref]), sorted(FIXES[fixed_ref]))
+        self.assertEqual(apply_fixes(FaqEntry.objects.all()), [])
 
     def test_repeats_on_the_all_sheet_are_not_imported(self):
         import_faq()

@@ -26,7 +26,8 @@ MAYBANK = {
     "addressLine2": "Jalan Universiti",
     "postcode": "50603",
     "city": "Kuala Lumpur",
-    "state": "Wilayah Persekutuan",
+    "state": "Wilayah Persekutuan Kuala Lumpur",
+    "country": "Malaysia",
     "include": ["MIN_PERIOD", "MAX_PERIOD"],
 }
 KTMB = {
@@ -35,7 +36,8 @@ KTMB = {
     "addressLine1": "Stesen Sentral Kuala Lumpur",
     "postcode": "50470",
     "city": "Kuala Lumpur",
-    "state": "Wilayah Persekutuan",
+    "state": "Wilayah Persekutuan Kuala Lumpur",
+    "country": "Malaysia",
     "include": [],
 }
 
@@ -95,12 +97,30 @@ class AskingTests(ConfirmationLetterTestCase):
 
     def test_the_address_is_needed_except_its_second_line(self):
         user = self.student("SCL008")
-        no_address = self.ask_for(user, {**MAYBANK, "addressLine1": " ", "postcode": "", "city": "", "state": ""})
+        no_address = self.ask_for(user, {**MAYBANK, "addressLine1": " ", "postcode": "", "city": "", "state": "", "country": ""})
         self.assertEqual(no_address.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(set(no_address.data), {"addressLine1", "postcode", "city", "state"})
-        self.assertEqual(no_address.data["state"], "Enter the state or country.")
+        self.assertEqual(set(no_address.data), {"addressLine1", "postcode", "city", "state", "country"})
+        self.assertEqual((no_address.data["state"], no_address.data["country"]), ("Choose the state.", "Choose the country."))
         no_second_line = self.ask_for(user, {**MAYBANK, "addressLine2": ""})
         self.assertEqual(no_second_line.status_code, status.HTTP_201_CREATED, no_second_line.data)
+
+    def test_the_state_and_country_come_from_the_lists(self):
+        user = self.student("SCL011")
+        typed_state = self.ask_for(user, {**MAYBANK, "state": "WP"})
+        self.assertEqual(typed_state.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(typed_state.data["state"], "Choose a state from the list.")
+        typed_country = self.ask_for(user, {**MAYBANK, "country": "Malaya"})
+        self.assertEqual(typed_country.data["country"], "Choose a country from the list.")
+        abroad = self.ask_for(
+            user,
+            {**MAYBANK, "addressLine1": "1 Raffles Place", "postcode": "048616", "city": "Singapore", "state": "Selangor", "country": "Singapore"},
+        )
+        self.assertEqual(abroad.status_code, status.HTTP_201_CREATED, abroad.data)
+        self.assertEqual((abroad.data["requestDetails"]["state"], abroad.data["requestDetails"]["country"]), ("", "Singapore"))
+        self.assertEqual(
+            recipient_block(abroad.data["requestDetails"]),
+            "MALAYAN BANKING BERHAD (MAYBANK)\n1 RAFFLES PLACE\nJALAN UNIVERSITI\n048616 SINGAPORE\nSINGAPORE",
+        )
 
     def test_the_request_keeps_who_it_is_for(self):
         user = self.student("SCL003")
@@ -121,7 +141,7 @@ class AskingTests(ConfirmationLetterTestCase):
                 "addressLine1": "21 Lower Kent Ridge Road",
                 "postcode": "119077",
                 "city": "Singapore",
-                "state": "Singapore",
+                "country": "Singapore",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
@@ -179,7 +199,7 @@ class ReviewAndIssueTests(ConfirmationLetterTestCase):
         self.assertEqual(
             fields["RECIPIENT"]["value"],
             "MALAYAN BANKING BERHAD (MAYBANK)\nMAYBANK UNIVERSITI MALAYA BRANCH\nJALAN UNIVERSITI\n"
-            "50603 KUALA LUMPUR\nWILAYAH PERSEKUTUAN",
+            "50603 KUALA LUMPUR\nWILAYAH PERSEKUTUAN KUALA LUMPUR",
         )
         self.assertEqual(fields["BALANCE_SEMESTERS_MIN"]["value"], "1 SEMESTER(S)")
         self.assertEqual(fields["BALANCE_SEMESTERS_MAX"]["value"], "3 SEMESTER(S)")

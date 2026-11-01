@@ -4,6 +4,7 @@ the Malay wording of the dates and study details on the Malay page.
 """
 import calendar
 import re
+from datetime import datetime
 
 from .recipients import OPTIONAL_TAGS, recipient_block
 
@@ -25,6 +26,10 @@ TERMS = {"i": 1, "1": 1, "ii": 2, "2": 2, "iii": 2, "3": 2}
 SESSION_WORD_RE = re.compile(r"(\d{4}/\d{4})\s+Session\b", re.IGNORECASE)
 # A plain number above this is a year, not a count of semesters.
 MAX_COUNT = 30
+
+
+# Appointment letter dates, stored already worded in English ("08 October 2026").
+APPOINTMENT_DATES = ("appointmentDate", "approvedDate", "supervisorAcceptedDate", "panelAcceptedDate", "coSupervisorAcceptedDate")
 
 
 def english_date(day):
@@ -98,6 +103,11 @@ def malay_values(values):
     for key in ("balanceSemestersMin", "balanceSemestersMax"):
         if malay.get(key):
             malay[key] = malay[key].replace("SEMESTER(S)", "SEMESTER")
+    for key in APPOINTMENT_DATES:
+        try:
+            malay[key] = malay_date(datetime.strptime(malay.get(key) or "", "%d %B %Y").date())
+        except ValueError:
+            pass
     if values.get("_issuedOn"):
         malay["date"] = malay_date(values["_issuedOn"])
     if values.get("_validUntil"):

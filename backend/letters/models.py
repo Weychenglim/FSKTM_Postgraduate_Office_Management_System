@@ -28,9 +28,14 @@ class LetterPurpose(models.TextChoices):
     REQUEST = "REQUEST", "Student requests"
     SUPERVISOR_APPOINTMENT = "SUPERVISOR_APPOINTMENT", "Supervisor appointment letter"
     PANEL_APPOINTMENT = "PANEL_APPOINTMENT", "Panel appointment letter"
+    CO_SUPERVISOR_APPOINTMENT = "CO_SUPERVISOR_APPOINTMENT", "Supporting supervisor appointment letter"
 
 
-AUTOMATIC_PURPOSES = (LetterPurpose.SUPERVISOR_APPOINTMENT, LetterPurpose.PANEL_APPOINTMENT)
+AUTOMATIC_PURPOSES = (
+    LetterPurpose.SUPERVISOR_APPOINTMENT,
+    LetterPurpose.PANEL_APPOINTMENT,
+    LetterPurpose.CO_SUPERVISOR_APPOINTMENT,
+)
 
 
 class LetterTemplate(models.Model):
@@ -74,6 +79,9 @@ class LetterTemplate(models.Model):
     # Printed under the signature line; blank keeps the faculty default.
     signatory_name = models.CharField(max_length=120, blank=True, default="")
     signatory_title = models.CharField(max_length=120, blank=True, default="")
+    # The same lines on the Malay page; blank uses the English ones, then the Malay default.
+    signatory_name_ms = models.CharField(max_length=120, blank=True, default="")
+    signatory_title_ms = models.CharField(max_length=120, blank=True, default="")
     modified_by = models.CharField(max_length=255, blank=True, default="Office Staff")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -121,6 +129,8 @@ class LetterTemplate(models.Model):
             "referencePrefix": self.reference_prefix,
             "signatoryName": self.signatory_name,
             "signatoryTitle": self.signatory_title,
+            "signatoryNameMs": self.signatory_name_ms,
+            "signatoryTitleMs": self.signatory_title_ms,
             "asksRecipient": self.asks_recipient,
             "optionalDetails": self.optional_details(),
             "formQuestions": list(self.form_questions or []),
@@ -168,8 +178,9 @@ class GeneratedLetter(models.Model):
     Pending requests have no reference number, wording or date yet; those are
     set when the office approves. Issued letters are kept exactly as issued.
 
-    An appointment letter is linked to its supervisor or panel appointment and
-    lists its recipients, the lecturers who may open it besides the student.
+    An appointment letter is linked to its supervisor, panel or supporting
+    supervisor appointment and lists its recipients, the lecturers who may open
+    it besides the student.
     """
 
     class Status(models.TextChoices):
@@ -212,12 +223,21 @@ class GeneratedLetter(models.Model):
         on_delete=models.SET_NULL,
         related_name="letters",
     )
+    co_supervisor_appointment = models.ForeignKey(
+        "appointments.CoSupervisorAppointment",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="letters",
+    )
     recipients = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="received_letters")
     # The list items the student chose, so the office knows which ones are in use.
     choice_items = models.ManyToManyField("ChoiceItem", blank=True, related_name="letters")
     replaced_by = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     signatory_name = models.CharField(max_length=120, blank=True, default="")
     signatory_title = models.CharField(max_length=120, blank=True, default="")
+    signatory_name_ms = models.CharField(max_length=120, blank=True, default="")
+    signatory_title_ms = models.CharField(max_length=120, blank=True, default="")
     # Set on approval. Several pending requests may hold no number at once.
     reference_number = models.CharField(max_length=96, unique=True, null=True, blank=True)
     content = models.TextField(
@@ -287,8 +307,17 @@ class GeneratedLetter(models.Model):
                 condition=Q(panel_appointment__isnull=False, status__in=["Pending", "Issued"]),
                 name="one_live_letter_per_panel_appointment",
             ),
+            models.UniqueConstraint(
+                fields=["co_supervisor_appointment"],
+                condition=Q(co_supervisor_appointment__isnull=False, status__in=["Pending", "Issued"]),
+                name="one_live_letter_per_co_supervisor_appointment",
+            ),
             models.CheckConstraint(
-                condition=Q(supervisor_appointment__isnull=True) | Q(panel_appointment__isnull=True),
+                condition=(
+                    (Q(supervisor_appointment__isnull=True) & Q(panel_appointment__isnull=True))
+                    | (Q(supervisor_appointment__isnull=True) & Q(co_supervisor_appointment__isnull=True))
+                    | (Q(panel_appointment__isnull=True) & Q(co_supervisor_appointment__isnull=True))
+                ),
                 name="letter_links_one_appointment",
             ),
         ]
@@ -302,7 +331,7 @@ class GeneratedLetter(models.Model):
 
     @property
     def appointment(self):
-        return self.supervisor_appointment or self.panel_appointment
+        return self.supervisor_appointment or self.panel_appointment or self.co_supervisor_appointment
 
     def to_public_dict(self, *, include_content=True):
         snapshot = self.student_data or {}
@@ -317,6 +346,8 @@ class GeneratedLetter(models.Model):
             "replacedById": str(self.replaced_by_id) if self.replaced_by_id else None,
             "signatoryName": self.signatory_name,
             "signatoryTitle": self.signatory_title,
+            "signatoryNameMs": self.signatory_name_ms,
+            "signatoryTitleMs": self.signatory_title_ms,
             "status": self.status,
             "date": _day(self.issued_on),
             "requestedAt": _moment(self.created_at),
@@ -409,6 +440,7 @@ class ChoiceItem(models.Model):
     postcode = models.CharField(max_length=20, blank=True, default="")
     city = models.CharField(max_length=80, blank=True, default="")
     state = models.CharField(max_length=80, blank=True, default="")
+    country = models.CharField(max_length=80, blank=True, default="")
     order = models.PositiveIntegerField(default=0)
     hidden = models.BooleanField(default=False)
     modified_by = models.CharField(max_length=255, blank=True, default="")
@@ -432,4 +464,5 @@ class ChoiceItem(models.Model):
             "postcode": self.postcode,
             "city": self.city,
             "state": self.state,
+            "country": self.country,
         }

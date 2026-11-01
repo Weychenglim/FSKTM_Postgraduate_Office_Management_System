@@ -1,22 +1,27 @@
-import type { DocumentCheckStatus, DocumentFilters, DocumentKind, DocumentView } from '../types';
+import type { DocumentCheckStatus, DocumentFilters, DocumentKind, DocumentSender, DocumentView } from '../types';
 
 export const EMPTY_DOCUMENT_FILTERS: DocumentFilters = {
   view: 'all',
   q: '',
   type: '',
+  group: '',
   semester: '',
+  programme: '',
+  intake: '',
   student: '',
   uploader: '',
+  sender: '',
+  required: '',
   status: '',
   kind: '',
   from: '',
   to: '',
-  tag: '',
   archived: '',
 };
 
-const VIEWS: DocumentView[] = ['all', 'check', 'staff', 'mine', 'required'];
+const VIEWS: DocumentView[] = ['all', 'check', 'staff', 'mine', 'required', 'letters'];
 const UPLOADERS = ['me', 'students', 'staff'] as const;
+const SENDERS: DocumentSender[] = ['student', 'lecturer', 'coordinator', 'office'];
 const STATUSES: DocumentCheckStatus[] = ['NONE', 'WAITING', 'ACCEPTED', 'RETURNED'];
 const KINDS: DocumentKind[] = ['PDF', 'DOCX', 'IMAGE', 'XLSX', 'PPTX'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -34,14 +39,18 @@ export function filtersFromParams(params: URLSearchParams): DocumentFilters {
     view: pick(params.get('view'), VIEWS) || 'all',
     q: (params.get('q') ?? '').slice(0, 100),
     type: params.get('type') ?? '',
+    group: params.get('group') ?? '',
     semester: params.get('semester') ?? '',
+    programme: params.get('programme') ?? '',
+    intake: params.get('intake') ?? '',
     student: params.get('student') ?? '',
     uploader: pick(params.get('uploader'), UPLOADERS),
+    sender: pick(params.get('sender'), SENDERS),
+    required: pick(params.get('required'), ['1'] as const),
     status: pick(params.get('status'), STATUSES),
     kind: pick(params.get('kind'), KINDS),
     from: date('from'),
     to: date('to'),
-    tag: params.get('tag') ?? '',
     archived: pick(params.get('archived'), ['1'] as const),
   };
 }
@@ -60,5 +69,5 @@ export const documentQuery = filtersToParams;
 
 /** How many of the filters under "More filters" are in use. */
 export function moreFilterCount(filters: DocumentFilters): number {
-  return [filters.uploader, filters.status, filters.kind, filters.from, filters.to, filters.tag, filters.archived].filter(Boolean).length;
+  return [filters.intake, filters.sender, filters.uploader, filters.status, filters.kind, filters.from, filters.to, filters.archived].filter(Boolean).length;
 }

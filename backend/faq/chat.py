@@ -172,14 +172,21 @@ def give_feedback(question_id, token, helpful):
     return {"helpful": helpful, "contactText": "" if helpful else FaqSettings.load().contact_text}
 
 
+def same_wording(text):
+    return " ".join(str(text or "").split()).casefold()
+
+
 def start_screen():
     chatbot = FaqSettings.load()
     categories = {}
+    live = set()
     for entry in FaqEntry.objects.published().select_related("category").order_by("category__position", "position", "pk"):
+        live.add(same_wording(entry.question))
         group = categories.setdefault(entry.category_id, {"id": str(entry.category_id), "name": entry.category.name, "questions": []})
         if len(group["questions"]) < START_QUESTIONS_PER_CATEGORY and entry.question:
             group["questions"].append({"id": str(entry.pk), "question": entry.question})
-    common = [text for text in chatbot.common_questions if str(text).strip()][:4]
+    # A common question only shows while a live answer still has that question.
+    common = [text for text in chatbot.common_questions if same_wording(text) in live][:4]
     if not common:
         common = [group["questions"][0]["question"] for group in categories.values() if group["questions"]][:4]
     return {"categories": list(categories.values()), "commonQuestions": common, "contactText": chatbot.contact_text}

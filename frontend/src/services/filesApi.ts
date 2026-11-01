@@ -19,7 +19,6 @@ import type {
   DocumentUploadInput,
   HistoryPage,
   HistoryShow,
-  ManagedTag,
   MyRequiredDocument,
   RequiredOverview,
   RequiredShow,
@@ -27,7 +26,6 @@ import type {
   PortalDocument,
   StudentFileHeader,
   TaggableStudent,
-  TagSuggestion,
 } from '../types';
 import { documentQuery } from '../utils/documentFilters';
 import { blobToDataUrl, zipFileName } from '../utils/documentPreview';
@@ -68,12 +66,6 @@ export function getStudentFileHeader(matric: string): Promise<StudentFileHeader>
   return request<StudentFileHeader>(`${BASE}/students/${encodeURIComponent(matric)}/`);
 }
 
-export function getTagSuggestions(search: string): Promise<TagSuggestion[]> {
-  const query = new URLSearchParams();
-  if (search.trim()) query.set('search', search.trim());
-  return request<TagSuggestion[]>(`${BASE}/tags/?${query.toString()}`);
-}
-
 export function uploadDocument(input: DocumentUploadInput): Promise<DocumentDetail> {
   const form = new FormData();
   form.append('file', input.file);
@@ -82,7 +74,6 @@ export function uploadDocument(input: DocumentUploadInput): Promise<DocumentDeta
   if (input.description.trim()) form.append('description', input.description.trim());
   if (input.semester) form.append('semester', input.semester);
   input.students.forEach(matric => form.append('students', matric));
-  input.tags.forEach(tag => form.append('tags', tag));
   if (input.share) {
     form.append('shareSupervisors', String(input.share.supervisors));
     form.append('sharePanel', String(input.share.panel));
@@ -164,7 +155,7 @@ export function checkDocument(id: number, decision: 'ACCEPT' | 'RETURN', reason:
   });
 }
 
-export function updateDocument(id: number, changes: { title?: string; description?: string; tags?: string[] }): Promise<DocumentDetail> {
+export function updateDocument(id: number, changes: { title?: string; description?: string }): Promise<DocumentDetail> {
   return request<DocumentDetail>(`${BASE}/${id}/`, { method: 'PATCH', body: JSON.stringify(changes) });
 }
 
@@ -186,31 +177,6 @@ export function addDocumentType(input: DocumentTypeInput): Promise<DocumentTypeS
 
 export function updateDocumentType(id: number, input: Partial<DocumentTypeInput>): Promise<DocumentTypeSetting> {
   return request<DocumentTypeSetting>(`${BASE}/types/${id}/`, { method: 'PATCH', body: JSON.stringify(input) });
-}
-
-export function getManagedTags(search = ''): Promise<ManagedTag[]> {
-  const query = new URLSearchParams({ manage: '1' });
-  if (search.trim()) query.set('search', search.trim());
-  return request<ManagedTag[]>(`${BASE}/tags/?${query}`);
-}
-
-export function renameTag(id: number, name: string): Promise<ManagedTag> {
-  return request<ManagedTag>(`${BASE}/tags/${id}/`, { method: 'PATCH', body: JSON.stringify({ name }) });
-}
-
-export function mergeTag(id: number, into: number): Promise<ManagedTag> {
-  return request<ManagedTag>(`${BASE}/tags/${id}/merge/`, { method: 'POST', body: JSON.stringify({ into }) });
-}
-
-export function removeTag(id: number): Promise<{ files: number }> {
-  return request<{ files: number }>(`${BASE}/tags/${id}/`, { method: 'DELETE' });
-}
-
-/** The existing tag when a rename would clash with it. */
-export function tagClash(error: unknown): { id: number; name: string } | null {
-  if (!(error instanceof ApiError) || error.status !== 409) return null;
-  const body = error.body as { code?: string; existingId?: number; existingName?: string } | undefined;
-  return body?.code === 'tag_exists' && typeof body.existingId === 'number' ? { id: body.existingId, name: body.existingName ?? '' } : null;
 }
 
 export function archiveDocument(id: number, reason: string): Promise<DocumentDetail> {

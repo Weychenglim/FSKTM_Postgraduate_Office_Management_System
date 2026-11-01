@@ -5,13 +5,20 @@ from accounts.models import User
 
 from .access import people_reached, permissions
 from .history import file_history
-from .models import Document, DocumentStudent, DocumentTag
+from .models import Document, DocumentStudent
 
 ROLE_LABELS = {
     User.Role.OFFICE_ADMIN: "PG office",
     User.Role.COORDINATOR: "Programme coordinator",
     User.Role.LECTURER: "Lecturer",
     User.Role.STUDENT: "Student",
+}
+# The "From" tag's filter value for each role, as in ``?sender=``.
+SENDERS = {
+    User.Role.STUDENT: "student",
+    User.Role.LECTURER: "lecturer",
+    User.Role.COORDINATOR: "coordinator",
+    User.Role.OFFICE_ADMIN: "office",
 }
 
 
@@ -20,7 +27,6 @@ def with_details(queryset):
         "doc_type", "semester", "uploaded_by", "current_version", "checked_by", "archived_by"
     ).prefetch_related(
         Prefetch("student_links", queryset=DocumentStudent.objects.select_related("student__user")),
-        Prefetch("tag_links", queryset=DocumentTag.objects.select_related("tag")),
     )
 
 
@@ -39,6 +45,30 @@ def version_dict(version):
         "pageCount": version.page_count,
         "uploadedAt": version.uploaded_at.isoformat(),
     }
+
+
+def auto_tags(document, students):
+    """The tags the system gives a file, from its type, semester and uploader and
+    its students' records, each with the list filter it opens. They are worked
+    out every time, so they follow a student who changes programme."""
+    doc_type = document.doc_type
+    tags = [{"kind": "category", "label": doc_type.get_group_display(), "filter": {"group": doc_type.group}}]
+    if doc_type.required:
+        tags.append({"kind": "required", "label": "Required", "filter": {"required": "1"}})
+    if document.semester:
+        tags.append({"kind": "semester", "label": document.semester.label, "filter": {"semester": str(document.semester_id)}})
+    if document.uploader_role in SENDERS:
+        tags.append({
+            "kind": "from",
+            "label": ROLE_LABELS[document.uploader_role],
+            "filter": {"sender": SENDERS[document.uploader_role]},
+        })
+    programmes = [student.programme.strip() for student in students] if students else list(document.staff_programmes or [])
+    for programme in dict.fromkeys(name for name in programmes if name):
+        tags.append({"kind": "programme", "label": programme, "filter": {"programme": programme}})
+    for intake in dict.fromkeys(student.intake_semester.strip() for student in students if student.intake_semester.strip()):
+        tags.append({"kind": "intake", "label": f"Intake {intake}", "filter": {"intake": intake}})
+    return tags
 
 
 def document_dict(document, user, scope):
@@ -62,7 +92,7 @@ def document_dict(document, user, scope):
             "panel": document.share_panel,
             "coordinator": document.share_coordinator,
         },
-        "tags": [link.tag.name for link in document.tag_links.all()],
+        "autoTags": auto_tags(document, students),
         "semester": {"id": document.semester_id, "label": document.semester.label} if document.semester else None,
         "uploadedBy": {
             "name": document.uploaded_by.full_name,

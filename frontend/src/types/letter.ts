@@ -12,7 +12,7 @@ export type LetterTemplateStatus = 'Active' | 'Draft' | 'Archived';
  * appointment letters are made by themselves when a coordinator approves an
  * appointment (UC22).
  */
-export type LetterPurpose = 'REQUEST' | 'SUPERVISOR_APPOINTMENT' | 'PANEL_APPOINTMENT';
+export type LetterPurpose = 'REQUEST' | 'SUPERVISOR_APPOINTMENT' | 'PANEL_APPOINTMENT' | 'CO_SUPERVISOR_APPOINTMENT';
 
 /** One placeholder a template may use, from `GET /api/letter-templates/placeholders/`. */
 export interface LetterPlaceholder {
@@ -57,6 +57,9 @@ export interface LetterTemplate {
   /** Printed under the signature line; blank keeps the faculty default. */
   signatoryName?: string;
   signatoryTitle?: string;
+  /** The same lines on the Malay page; blank uses the English ones. */
+  signatoryNameMs?: string;
+  signatoryTitleMs?: string;
   /** The same letter in Malay, printed as a second page; only staff get it. */
   contentMs?: string;
   /** Students say who the letter is for (a bank, an agency...) when they ask. */
@@ -97,6 +100,7 @@ export interface LetterOrganisation {
   postcode: string;
   city: string;
   state: string;
+  country: string;
 }
 
 /** One purpose a letter can be for, with the organisations listed under it. */
@@ -174,6 +178,7 @@ export interface ChoiceItem {
   postcode: string;
   city: string;
   state: string;
+  country: string;
   hidden: boolean;
   /** Letters that used this entry; only unused entries can be deleted. */
   usedCount: number;
@@ -206,7 +211,9 @@ export interface LetterRequestDetails {
   addressLine2: string;
   postcode: string;
   city: string;
+  /** One of Malaysia's states; blank for an address abroad. */
   state: string;
+  country: string;
   /** The optional details to show, e.g. MIN_PERIOD. */
   include: string[];
   /** Answers to the office's own questions, by tag name. */
@@ -216,12 +223,14 @@ export interface LetterRequestDetails {
 /** Someone an appointment letter was sent to, besides the office. */
 export interface LetterRecipient {
   name: string;
-  relation: 'Student' | 'Supervisor' | 'Panel member';
+  relation: 'Student' | 'Supervisor' | 'Panel member' | 'Supporting supervisor';
 }
 
 /** An active appointment with no letter yet, and why it cannot be made now (or null). */
+export type AppointmentLetterKind = 'supervisor' | 'panel' | 'supporting';
+
 export interface MissingAppointmentLetter {
-  kind: 'supervisor' | 'panel';
+  kind: AppointmentLetterKind;
   appointmentId: string;
   studentName: string;
   matricNumber: string;
@@ -233,7 +242,7 @@ export interface MissingAppointmentLetter {
 export interface MadeAppointmentLetters {
   made: number;
   results: Array<{
-    kind: 'supervisor' | 'panel';
+    kind: AppointmentLetterKind;
     appointmentId: string;
     letterId: string | null;
     status: GeneratedLetterStatus | null;
@@ -288,6 +297,8 @@ export interface GeneratedLetter {
   replacedById?: string | null;
   signatoryName?: string;
   signatoryTitle?: string;
+  signatoryNameMs?: string;
+  signatoryTitleMs?: string;
   /** Appointment letters: who it was sent to. */
   recipients?: LetterRecipient[];
   status: GeneratedLetterStatus;

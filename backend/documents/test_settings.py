@@ -4,7 +4,7 @@ from rest_framework.test import APITestCase
 from announcements.models import Notification
 
 from .fixtures import TEST_MEDIA, DocumentPeople
-from .models import Document, DocumentEvent, DocumentType, SettingsChange, Tag
+from .models import Document, DocumentEvent, DocumentType, SettingsChange
 from .test_access import DocumentClient
 
 
@@ -171,54 +171,3 @@ class SharingTests(DocumentPeople, SettingsClient, APITestCase):
         response = self.sharing(self.supervisor, notes, {"audience": "ACADEMIC", "programmes": []})
         self.assertEqual(response.data["staffAudience"], "ACADEMIC")
         self.assertIn("Meeting notes", self.titles(self.outsider))
-
-
-@TEST_MEDIA
-class TagTidyingTests(DocumentPeople, SettingsClient, APITestCase):
-    @classmethod
-    def setUpTestData(cls):
-        cls.make_people()
-
-    def setUp(self):
-        cache.clear()
-        self.first = self.made(self.ali.user, "thesis", "Thesis", tags=["Draft"])
-        self.second = self.made(self.supervisor, "evaluation-form", "Evaluation", students=[self.ali.matric_no], tags=["draft", "Final"])
-        self.draft = Tag.objects.get(key="draft")
-        self.final = Tag.objects.get(key="final")
-
-    def tags_of(self, document):
-        return sorted(Document.objects.get(pk=document["id"]).tags.values_list("name", flat=True))
-
-    def test_the_office_lists_every_tag(self):
-        self.as_office()
-        rows = self.client.get("/api/documents/tags/?manage=1").data
-        self.assertEqual(rows, [{"id": self.draft.pk, "name": "Draft", "uses": 2}, {"id": self.final.pk, "name": "Final", "uses": 1}])
-        self.client.force_authenticate(self.supervisor)
-        self.assertEqual(self.client.get("/api/documents/tags/?manage=1").status_code, 403)
-        self.assertEqual(self.client.patch(f"/api/documents/tags/{self.draft.pk}/", {"name": "x"}, format="json").status_code, 403)
-
-    def test_renaming(self):
-        self.as_office()
-        response = self.client.patch(f"/api/documents/tags/{self.draft.pk}/", {"name": "First draft"}, format="json")
-        self.assertEqual((response.status_code, response.data["name"], response.data["uses"]), (200, "First draft", 2))
-        self.assertEqual(self.tags_of(self.second), ["Final", "First draft"])
-        self.assertTrue(SettingsChange.objects.filter(action=SettingsChange.Action.RENAMED, details__before="Draft").exists())
-        clash = self.client.patch(f"/api/documents/tags/{self.draft.pk}/", {"name": "FINAL"}, format="json")
-        self.assertEqual((clash.status_code, clash.data["code"], clash.data["existingId"]), (409, "tag_exists", self.final.pk))
-        self.assertIn("name", self.client.patch(f"/api/documents/tags/{self.draft.pk}/", {"name": "a,b"}, format="json").data)
-
-    def test_merging_keeps_one_tag_per_file(self):
-        self.as_office()
-        response = self.client.post(f"/api/documents/tags/{self.draft.pk}/merge/", {"into": self.final.pk}, format="json")
-        self.assertEqual((response.status_code, response.data["uses"]), (200, 2))
-        self.assertEqual((self.tags_of(self.first), self.tags_of(self.second)), (["Final"], ["Final"]))
-        self.assertFalse(Tag.objects.filter(pk=self.draft.pk).exists())
-        self.assertEqual(SettingsChange.objects.get(action=SettingsChange.Action.MERGED).details["files"], 1)
-        self.assertIn("into", self.client.post(f"/api/documents/tags/{self.final.pk}/merge/", {"into": self.final.pk}, format="json").data)
-
-    def test_removing_a_tag_from_every_file(self):
-        self.as_office()
-        response = self.client.delete(f"/api/documents/tags/{self.draft.pk}/")
-        self.assertEqual((response.status_code, response.data["files"]), (200, 2))
-        self.assertEqual((self.tags_of(self.first), self.tags_of(self.second)), ([], ["Final"]))
-        self.assertEqual(self.client.delete(f"/api/documents/tags/{self.draft.pk}/").status_code, 404)

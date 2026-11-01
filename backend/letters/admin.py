@@ -14,7 +14,7 @@ class LetterTemplateAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at", "updated_at")
     fieldsets = (
         (None, {"fields": ("name", "purpose", "letter_type", "status", "description")}),
-        ("Body", {"fields": ("content", "reference_prefix", "signatory_name", "signatory_title")}),
+        ("Body", {"fields": ("content", "reference_prefix", "signatory_name", "signatory_title", "signatory_name_ms", "signatory_title_ms")}),
         ("Audit", {"fields": ("modified_by", "created_at", "updated_at")}),
     )
 

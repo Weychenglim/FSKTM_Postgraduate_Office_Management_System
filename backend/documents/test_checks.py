@@ -118,7 +118,7 @@ class EditTests(DocumentPeople, DocumentClient, APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.thesis = self.made(self.ali.user, "thesis", "Thesis", tags=["Draft"])
+        self.thesis = self.made(self.ali.user, "thesis", "Thesis")
         self.evaluation = self.made(self.supervisor, "evaluation-form", "Evaluation", students=[self.ali.matric_no])
 
     def patch(self, user, document, body):
@@ -126,11 +126,11 @@ class EditTests(DocumentPeople, DocumentClient, APITestCase):
         return self.client.patch(f"/api/documents/{document['id']}/", body, format="json")
 
     def test_the_uploader_edits_details_and_the_change_is_logged(self):
-        response = self.patch(self.ali.user, self.thesis, {"title": "Thesis, chapter 1", "tags": ["final"], "description": "For my supervisor"})
-        self.assertEqual((response.status_code, response.data["title"], response.data["tags"]), (200, "Thesis, chapter 1", ["final"]))
+        response = self.patch(self.ali.user, self.thesis, {"title": "Thesis, chapter 1", "description": "For my supervisor"})
+        self.assertEqual((response.status_code, response.data["title"]), (200, "Thesis, chapter 1"))
         change = DocumentEvent.objects.get(action="DETAILS_CHANGED")
         self.assertEqual(change.details["title"], {"before": "Thesis", "after": "Thesis, chapter 1"})
-        self.assertEqual(change.details["tags"], {"before": ["Draft"], "after": ["final"]})
+        self.assertNotIn("tags", change.details)
 
     def test_who_may_edit_what(self):
         self.assertEqual(self.patch(self.supervisor, self.thesis, {"title": "Mine now"}).status_code, 403)

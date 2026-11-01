@@ -6,15 +6,17 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { Archive, Check, CheckCircle2, Download, Upload } from 'lucide-react';
-import type { DocumentDetail } from '../types';
+import type { DocumentAutoTag, DocumentDetail } from '../types';
 import { checkDocument, deleteDocument, downloadDocument, getDocument, restoreDocument } from '../services/filesApi';
 import { APP_ROUTES } from '../constants/routes';
-import { historyTime, shortDocumentDate, studentsLine } from '../utils/documentDisplay';
+import { checkSteps, historyTime, shortDocumentDate, studentsLine } from '../utils/documentDisplay';
+import { filtersToParams } from '../utils/documentFilters';
 import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
-import { OverflowMenu, type MenuAction } from './DocumentParts';
+import { AutoTagChips, OverflowMenu, type MenuAction } from './DocumentParts';
 import { DocumentPreview } from './DocumentPreview';
+import { ApprovalProcess } from './ApprovalProcess';
 import { ArchiveDialog, EditDetailsDialog, NewVersionDialog, ReturnDialog, SharingDialog } from './DocumentDialogs';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
@@ -136,6 +138,9 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
     ...(document?.permissions.canArchive ? [{ label: 'Archive', onSelect: () => setDialog('archive') }] : []),
     ...(document?.permissions.canDelete ? [{ label: 'Delete', danger: true, onSelect: () => setConfirmDelete(true) }] : []),
   ];
+  // Staff open the file list filtered by a tag; students see their tags only.
+  const openTag = isStudent ? undefined : (tag: DocumentAutoTag) => navigate(`${APP_ROUTES.files}?${filtersToParams(tag.filter).toString()}`);
+  const steps = document ? checkSteps(document) : [];
   const who = document ? studentsLine(document.students) : null;
   const subtitle = document
     ? [document.type.label, document.isStaffFile ? 'Staff file' : who?.main, `uploaded ${shortDocumentDate(document.uploadedAt)}`].filter(Boolean).join(' · ')
@@ -147,6 +152,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
       subtitle={subtitle}
       backLabel={`Back to ${listLabel}`}
       onBack={back}
+      metadata={document && document.autoTags.length ? <AutoTagChips tags={document.autoTags} onPick={openTag} /> : undefined}
       actions={document ? (
         <div className="flex items-center gap-2">
           <PortalButton icon={Download} isLoading={busy === 'download:current'} onClick={() => void download()}>Download</PortalButton>
@@ -208,17 +214,16 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
               )}
             </div>
           )}
-          {!document.archived && document.checkStatus === 'ACCEPTED' && (
-            <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-[14px] font-semibold text-emerald-900">
-              <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
-              Accepted by the PG office{document.checkedBy ? ` (${document.checkedBy}, ${shortDocumentDate(document.checkedAt)})` : ''}.
-            </div>
-          )}
 
           <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <DocumentPreview document={document} />
 
             <div className="space-y-5">
+              {steps.length > 0 && !document.archived && (
+                <div className="app-card p-5">
+                  <ApprovalProcess steps={steps} title="Office check" />
+                </div>
+              )}
               <section aria-label="Details" className="app-card space-y-4 p-5">
                 <h2 className="section-label">Details</h2>
                 <dl className="grid gap-4 sm:grid-cols-2">
@@ -239,7 +244,6 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
                   </div>
                   <Fact label="Type">{document.type.label}</Fact>
                   <Fact label="Semester">{document.semester?.label ?? 'Not linked'}</Fact>
-                  <Fact label="Tags">{document.tags.length ? document.tags.map(tag => `#${tag}`).join('  ') : 'None'}</Fact>
                   <Fact label="Reference">{document.reference}</Fact>
                   <Fact label="Uploaded by">{document.uploadedBy.isMe ? 'You' : `${document.uploadedBy.name} (${document.uploadedBy.roleLabel.toLowerCase()})`}</Fact>
                   {document.description && <div className="sm:col-span-2"><Fact label="Note">{document.description}</Fact></div>}

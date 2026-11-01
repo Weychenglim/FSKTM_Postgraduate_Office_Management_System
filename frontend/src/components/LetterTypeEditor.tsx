@@ -9,7 +9,7 @@
 // through the steps in order; an existing one can be opened at any step.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Check, FileSignature, Settings2, ShieldCheck, Trash2, UserCheck, UserRound, UsersRound, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, FileSignature, Settings2, ShieldCheck, Trash2, UserCheck, UserPlus, UserRound, UsersRound, type LucideIcon } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { SelectMenu } from './SelectMenu';
@@ -59,13 +59,15 @@ const FIELD_STEPS = {
   referencePrefix: 'finish',
   signatoryName: 'finish',
   signatoryTitle: 'finish',
+  signatoryNameMs: 'finish',
+  signatoryTitleMs: 'finish',
   validMonths: 'finish',
   status: 'finish',
 } as const satisfies Record<string, EditorStep>;
 type EditorField = keyof typeof FIELD_STEPS;
 
 const RECIPIENT_LINE_RE = /^[ \t]*\{\{RECIPIENT\}\}[ \t]*\n(?:[ \t]*\n)*/gm;
-const PURPOSE_ICONS: Record<LetterPurpose, LucideIcon> = { REQUEST: UserRound, SUPERVISOR_APPOINTMENT: UserCheck, PANEL_APPOINTMENT: UsersRound };
+const PURPOSE_ICONS: Record<LetterPurpose, LucideIcon> = { REQUEST: UserRound, SUPERVISOR_APPOINTMENT: UserCheck, PANEL_APPOINTMENT: UsersRound, CO_SUPERVISOR_APPOINTMENT: UserPlus };
 
 const statusChoices = (request: boolean, isNew: boolean): ReadonlyArray<{ value: LetterTemplateStatus; description: string }> => [
   { value: 'Draft', description: 'Not in use yet. Nobody can ask for it or receive it.' },
@@ -291,6 +293,8 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
       readyInDays: request && days ? Number(days) : null,
       signatoryName: submitted.signatoryName.trim(),
       signatoryTitle: submitted.signatoryTitle.trim(),
+      signatoryNameMs: submitted.signatoryNameMs.trim(),
+      signatoryTitleMs: submitted.signatoryTitleMs.trim(),
     };
     setSaving(true);
     try {
@@ -334,6 +338,8 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
   const elsewhere = problemList.filter(([field]) => stepOf(field) !== shownStep);
   const typeOptions = draft.type && !LETTER_TYPES.includes(draft.type) ? [...LETTER_TYPES, draft.type] : LETTER_TYPES;
   const referenceExample = `${(draft.referencePrefix.trim() || DEFAULT_REFERENCE_PREFIX).replace(/\/+$/, '')}/${new Date().getFullYear()}/0001`;
+  const malayNameFallback = draft.signatoryName.trim() || LETTERHEAD.malaySignatoryName;
+  const malayTitleFallback = draft.signatoryTitle.trim() || LETTERHEAD.malaySignatoryOffice;
   const last = stepIndex === steps.length - 1;
 
   return (
@@ -389,7 +395,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
           <AppointmentSection title="When is this letter used?" description="This decides who gets the letter, and whether students fill in a form for it." icon={Settings2}>
             <fieldset>
               <legend className="sr-only">When is this letter used?</legend>
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-2">
                 {PURPOSE_OPTIONS.map((option) => {
                   const chosen = editorPurpose === option.value;
                   const Icon = PURPOSE_ICONS[option.value];
@@ -510,6 +516,16 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
               <Field label="Signed by (title)" htmlFor="letter-template-signatory-title" hint={`Leave blank to use ${LETTERHEAD.signatoryOffice}.`} error={problems.signatoryTitle}>
                 <input id="letter-template-signatory-title" type="text" value={draft.signatoryTitle} maxLength={120} onChange={(event) => { set({ signatoryTitle: event.target.value }); clearProblem('signatoryTitle'); }} className="form-control form-control-md" placeholder={LETTERHEAD.signatoryOffice} />
               </Field>
+              {draft.contentMs.trim() && (
+                <>
+                  <Field label="Signed by on the Malay page (name)" htmlFor="letter-template-signatory-name-ms" hint={`Leave blank to use ${malayNameFallback}.`} error={problems.signatoryNameMs}>
+                    <input id="letter-template-signatory-name-ms" type="text" value={draft.signatoryNameMs} maxLength={120} onChange={(event) => { set({ signatoryNameMs: event.target.value }); clearProblem('signatoryNameMs'); }} className="form-control form-control-md" placeholder={malayNameFallback} />
+                  </Field>
+                  <Field label="Signed by on the Malay page (title)" htmlFor="letter-template-signatory-title-ms" hint={`Leave blank to use ${malayTitleFallback}.`} error={problems.signatoryTitleMs}>
+                    <input id="letter-template-signatory-title-ms" type="text" value={draft.signatoryTitleMs} maxLength={120} onChange={(event) => { set({ signatoryTitleMs: event.target.value }); clearProblem('signatoryTitleMs'); }} className="form-control form-control-md" placeholder={malayTitleFallback} />
+                  </Field>
+                </>
+              )}
               <Field label="Reference number starts with" htmlFor="letter-template-prefix" hint={`Letters are numbered ${referenceExample}, then 0002 and so on.`} error={problems.referencePrefix}>
                 <input id="letter-template-prefix" type="text" value={draft.referencePrefix} maxLength={64} onChange={(event) => { set({ referencePrefix: event.target.value }); clearProblem('referencePrefix'); }} className="form-control form-control-md" placeholder={DEFAULT_REFERENCE_PREFIX} />
               </Field>

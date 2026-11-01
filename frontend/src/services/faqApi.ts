@@ -54,6 +54,7 @@ export function faqEntryQuery(filters: FaqEntryFilters): string {
   if (filters.category) params.set('category', filters.category);
   if (filters.status) params.set('status', filters.status);
   if (filters.page > 1) params.set('page', String(filters.page));
+  if (filters.pageSize) params.set('pageSize', String(filters.pageSize));
   const query = params.toString();
   return query ? `?${query}` : '';
 }

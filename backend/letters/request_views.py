@@ -45,9 +45,9 @@ from .appointment_letters import (
     letter_values,
     missing_appointment_letters,
     notify_recipients,
-    notify_revoked,
     recipient_rows,
     reissue_letter,
+    revoke_appointment_letter,
 )
 from .details import letter_details
 from .eligibility import inactive_student_refusal
@@ -64,7 +64,6 @@ from .recipients import OPTIONAL_DETAILS, clean_request_details, same_recipient
 PDF_TYPE = "application/pdf"
 # Students' notifications point at their letter; office ones at the request.
 LETTER_RECORD = "GENERATED_LETTER"
-APPOINTMENT_LETTER_RECORD = "APPOINTMENT_LETTER"
 REQUEST_RECORD = "LETTER_REQUEST"
 MAX_NOTE_LENGTH = 500
 MAX_REASON_LENGTH = 500
@@ -424,6 +423,8 @@ def _review(letter):
         # Who will sign it: the letter takes the template's signatory when issued.
         "signatoryName": template.signatory_name if template else "",
         "signatoryTitle": template.signatory_title if template else "",
+        "signatoryNameMs": template.signatory_name_ms if template else "",
+        "signatoryTitleMs": template.signatory_title_ms if template else "",
         "fields": letter_fields(f"{content}\n{content_ms}", values, custom, student),
         "problem": problem,
         "replaces": [
@@ -681,6 +682,9 @@ def revoke_letter(request, pk):
             return _conflict("This letter is already revoked.")
         if letter.status != Status.ISSUED:
             return _conflict("Only an issued letter can be revoked.")
+        if letter.is_automatic:
+            revoke_appointment_letter(letter, actor=request.user, reason=reason)
+            return Response(letter.to_public_dict())
         letter.status = Status.REVOKED
         letter.revoked_at = timezone.now()
         letter.revoked_by = request.user
@@ -697,12 +701,10 @@ def revoke_letter(request, pk):
                     f"The postgraduate office revoked your {letter.template_name} "
                     f"({letter.reference_number}). Reason: {reason}"
                 ),
-                record_type=APPOINTMENT_LETTER_RECORD if letter.is_automatic else LETTER_RECORD,
+                record_type=LETTER_RECORD,
                 priority=Notification.Priority.HIGH,
             )
-        if letter.is_automatic:
-            notify_revoked(letter, reason)
-        elif letter.student is not None:
+        if letter.student is not None:
             # A student may already be using the letter, so the email goes out
             # like the approval and rejection emails do.
             _email_student(
@@ -731,7 +733,7 @@ def _selection(data):
         except (TypeError, ValueError):
             appointment_id = None
         if kind not in KINDS or appointment_id is None:
-            return None, {"appointments": "Each item needs a kind (supervisor or panel) and an id."}
+            return None, {"appointments": f"Each item needs a kind ({', '.join(KINDS)}) and an id."}
         selection.append((kind, appointment_id))
     return list(dict.fromkeys(selection)), None
 

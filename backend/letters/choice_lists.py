@@ -13,6 +13,7 @@ import re
 from django.db.models import Count
 
 from .models import ChoiceGroup, ChoiceItem, ChoiceList, GeneratedLetter, LetterTemplate
+from .places import COUNTRIES, MALAYSIA, MALAYSIAN_STATES
 
 MAX_NAME = 160
 MAX_LIST_NAME = 120
@@ -25,6 +26,7 @@ ADDRESS_FIELDS = {
     "postcode": "postcode",
     "city": "city",
     "state": "state",
+    "country": "country",
 }
 
 
@@ -139,6 +141,12 @@ def _address(data):
             if len(value) > MAX_ADDRESS:
                 raise ListProblem(f"Keep each address line under {MAX_ADDRESS} characters.", key)
             address[field] = value
+    if address.get("country") and address["country"] not in COUNTRIES:
+        raise ListProblem("Choose a country from the list.", "country")
+    if address.get("state") and address["state"] not in MALAYSIAN_STATES:
+        raise ListProblem("Choose a state from the list.", "state")
+    if address.get("country") not in (None, "", MALAYSIA):
+        address["state"] = ""
     return address
 
 

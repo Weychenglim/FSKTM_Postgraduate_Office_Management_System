@@ -52,8 +52,8 @@ Content Security Policy from report-only mode to enforcement.
 | Method | Path | Body | Returns |
 | ------ | ---- | ---- | ------- |
 | POST | `login/` | `{identifier, password}` | `{token, user}` plus refresh cookie |
-| POST | `refresh/` | `{}` plus refresh cookie | `{token}` plus rotated refresh cookie |
-| POST | `logout/` | `{}` plus refresh cookie | `{message}` and cookie deletion |
+| POST | `refresh/` | `{}` or `{resume: true}` plus refresh cookie | `{token}` plus rotated refresh cookie |
+| POST | `logout/` | `{openTabs?: [tab names]}` plus refresh cookie | `{message}` and cookie deletion |
 | GET | `me/` | - (`Authorization: Bearer <token>`) | `user` |
 | POST | `password-reset/` | `{email}` | `{message}` |
 | POST | `password-reset/confirm/` | `{uid, token, new_password}` | `{message}` / 400 |
@@ -64,6 +64,18 @@ Normal APIs remain bearer-authenticated. Frontend JavaScript keeps the access
 token in memory and cannot read the HttpOnly refresh cookie. Login, refresh, and
 logout use JSON requests; run `python manage.py migrate` after installation so
 SimpleJWT's outstanding-token and blacklist tables are available.
+
+Each browser tab keeps its own sign-in, so two tabs can hold two accounts. The
+portal names the tab in an `X-Portal-Tab` header (a random name kept in
+sessionStorage); the tab's refresh and session key cookies carry that name
+(`fsktm_refresh_token__<tab>`) and go when the browser closes. A sign-in also
+sets the unnamed cookies, which hold the latest sign-in in the browser (and
+"Remember me"): a tab with no sign-in of its own starts from them on its first
+refresh, but a tab that was already signed in (`resume: true`) never does, and
+the portal ends a session whose renewal comes back as another account. Signing
+out ends the account for new tabs and in closed tabs; other open tabs, listed in
+`openTabs`, keep theirs. At most six tab sessions are kept, the least recently
+used going first. Requests without the header behave as before.
 
 Technical Administrator accounts (created by `createsuperuser`) are for Django
 admin only. Portal login returns 403 with code `technical_account`, existing
@@ -196,22 +208,27 @@ The office's `GET requests/` also takes `madeBy=request|automatic`.
 - Migration `letters.0007` adds the Student Confirmation Letter and archives Confirmation of Enrolment where that template exists; a new database gets it from `seed_letters`.
 
 **Appointment letters (UC22).**
-- **Template purpose.** A template's `purpose` is `REQUEST` (students ask for it), `SUPERVISOR_APPOINTMENT` or `PANEL_APPOINTMENT`.
+- **Template purpose.** A template's `purpose` is `REQUEST` (students ask for it), `SUPERVISOR_APPOINTMENT`, `PANEL_APPOINTMENT` or `CO_SUPERVISOR_APPOINTMENT` (a supporting supervisor).
   - Only one Active template per appointment purpose is allowed (409 `appointment_template_already_active`).
   - Students never see appointment templates.
-  - Appointment templates may also use the appointment placeholders, each in the letter kinds listed in `letters/placeholders.py`. Examples: `{{RESEARCH_TITLE}}`, `{{COURSE_CODES}}`, `{{PANEL_NAME}}`, `{{COORDINATOR_NAME}}`, `{{SEMESTER}}`.
+  - Appointment templates may also use the appointment placeholders, each in the letter kinds listed in `letters/placeholders.py`. Examples: `{{RESEARCH_TITLE}}`, `{{COURSE_CODES}}`, `{{PANEL_NAME}}`, `{{CO_SUPERVISOR_NAME}}`, `{{COORDINATOR_NAME}}`, `{{SEMESTER}}`.
+  - **Sample templates.** Migrations `letters.0010` and `letters.0012` add an active sample template (English and Malay pages) for each appointment purpose that has none, marked "Sample wording set up by the system". They use only details the system always has, so each approval issues its letter at once. The office replaces the wording once the faculty's own letter is ready; the migrations never overwrite a template the office made.
+  - `letters.0014` gives the samples a placeholder wording in the faculty's letter style, modelled on the Maya Student Confirmation Letter: addressed to the lecturer appointed, "Dear ..." / "Tuan/Puan,", a details table, "Thank you." / "Sekian, terima kasih.", signed by the Dean of the faculty (Dekan on the Malay page). It changes a sample only while it still has the first wording; rolling it back restores that wording.
 - **When a letter is made.**
-  - `letters/signals.py` hears a new active `SupervisorAppointment` or `PanelAppointment`, which the coordinator's final approval creates. Once that approval commits, it makes the letter (`letters/appointment_letters.py`).
+  - `letters/signals.py` hears a new active `SupervisorAppointment`, `PanelAppointment` or `CoSupervisorAppointment`, which the coordinator's final approval creates. Once that approval commits, it makes the letter (`letters/appointment_letters.py`).
   - The appointment code is not changed, and a failed letter never undoes an approval.
 - **Recipients.**
   - The student and the supervisor.
   - For a panel letter, also the panel member, with the current primary supervisor in copy.
+  - For a supporting supervisor letter, the student and the supporting supervisor, with the main supervisor in copy.
   - Each gets an in-app notice (`APPOINTMENT_LETTER`, opening `/files/letters/<id>`) and an email when "Email alerts" is on.
 - **Waiting letters.** If a value is blank, or the template has office-filled fields, the letter waits as `Pending` in the office's requests. The office issues it there, and students do not see it until then.
 - **No usable template.** The office gets one notice per appointment (`APPOINTMENT_LETTERS_MISSING`). `appointment-letters/missing/` lists active appointments with no letter, and `create/` makes them.
 - **Limits.** One live letter per appointment is guarded by the database.
 - **Reissue.** It issues a new letter with the current details and revokes the old one as "Replaced by <ref>.".
-- **Signatory.** Each template's `signatoryName` and `signatoryTitle` are printed on its letters, and every letter keeps its own copy.
+- **Ended or replaced appointments.** When an appointment stops being active, its Issued letter is revoked with the reason ("Replaced on <date>: <name> is now the supervisor." or "The panel member appointment ended on <date>.") and everyone on it gets a notice; a Pending one is withdrawn. Revoked letters stay in history. The office's own revoke of an appointment letter tells the same people.
+- **Malay page.** Appointment, approval and acceptance dates print in Malay, the letterhead is in Malay, and the footer reads as issued by the postgraduate office.
+- **Signatory.** Each template's `signatoryName` and `signatoryTitle` are printed on its letters, and every letter keeps its own copy. The Malay page prints `signatoryNameMs` and `signatoryTitleMs`; a blank one falls back to the English line, then to the Malay default (Dekan Pengajian Pascasiswazah, Sekretariat Eksekutif Pejabat FSKTM).
 
 ## Staff account endpoints (`/api/registry/staff/`)
 
@@ -275,7 +292,7 @@ The chatbot's answers (UC28, UC29).
 
 | Method | Path | Body | Returns |
 | ------ | ---- | ---- | ------- |
-| GET | `start/` | | topics with their questions, four common questions, the contact text (the office may read it too) |
+| GET | `start/` | | topics with their questions, up to four common questions (only those a Published entry still has as its question), the contact text (the office may read it too) |
 | POST | `ask/` | `{question}`, or `{entryId, questionId, token}` for a picked choice or related question | `{outcome: ANSWERED, CHOICES or NO_MATCH, answer, choices, related, contactText, mode, questionId, token}` |
 | POST | `feedback/` | `{questionId, token, helpful}` | `{helpful, contactText}` (the contact text after "No") |
 
@@ -339,7 +356,7 @@ The chatbot's answers (UC28, UC29).
 - `python manage.py import_faq_corrections <filled review list.xlsx>` loads the "Correct answer" column, plus "Correct question" where filled.
 - Each corrected entry counts as checked and is published (`--draft` keeps it a draft).
 - Blank rows are skipped, so the list can come back in parts.
-| GET | `entries/` | `search`, `category` (id), `status` (PUBLISHED, DRAFT, NEEDS_CHECKING, ARCHIVED), `page`, `pageSize` | `{count, page, pageSize, statusCounts, results}` |
+| GET | `entries/` | `search`, `category` (id), `status` (PUBLISHED, DRAFT, NEEDS_CHECKING, ARCHIVED), `page`, `pageSize` | `{count, page, pageSize, statusCounts, results}`; each entry carries `askedThisMonth` and `notHelpfulThisMonth` |
 | POST | `entries/` | `{question, answer, category, portalLink, altQuestions, publish}` | the entry (a draft unless `publish`) |
 | GET, PATCH, DELETE | `entries/<id>/` | `{question, answer, category, portalLink, altQuestions}` | the entry with its other ways of asking, PDF text and history |
 | POST | `entries/<id>/publish/`, `checked/`, `archive/`, `restore/` | | the entry |
@@ -370,10 +387,10 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 
 | Method | Path | Actor |
 | ------ | ---- | ----- |
-| GET | `options/` | Everyone: the types they may choose, semesters, programmes |
+| GET | `options/` | Everyone: the types they may choose, semesters, programmes and intakes; a student also gets `me` (their programme, intake, supervisors, panel and coordinators) for the upload summary |
 | GET | `students/?search=`, `students/<matric>/` | Staff: students they may tag, and one student's header |
-| GET, POST | `/` (list with `view`, `q`, `type`, `semester`, `student`, `uploader`, `status`, `kind`, `from`, `to`, `tag`, `archived`; multipart upload) | Everyone, by the access rules below |
-| GET | `summary/`, `tags/?search=` | Everyone (tab counts, tag suggestions) |
+| GET, POST | `/` (list with `view`, `q`, `type`, `group`, `semester`, `programme`, `intake`, `student`, `uploader`, `sender`, `required`, `status`, `kind`, `from`, `to`, `archived`; multipart upload) | Everyone, by the access rules below |
+| GET | `summary/` | Everyone (tab counts; the office and coordinators also get `studentsStillToHandIn`) |
 | GET, PATCH, DELETE | `<id>/` | View right; edit by the uploader or the office; delete by the uploader |
 | GET | `<id>/download/?version=`, `<id>/preview/`, `<id>/preview/pages/<n>/` | View right |
 | POST | `download-zip/` (`{ids}`) | View right on every file |
@@ -382,7 +399,6 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 | GET, PUT | `<id>/sharing/` | The office, or the staff member who uploaded it |
 | POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | Office Staff/Admin |
 | GET, POST | `types/`, PATCH `types/<id>/` | Office Staff/Admin |
-| GET | `tags/?manage=1`; PATCH, DELETE `tags/<id>/`; POST `tags/<id>/merge/` (`{into}`) | Office Staff/Admin |
 | GET | `history/?show=&q=` | Office Staff/Admin |
 | GET | `required/`, `required/<typeId>/students/?show=todo,waiting,done` | Office Staff/Admin, and programme coordinators for their programmes |
 | POST | `required/<typeId>/remind/` | Office Staff/Admin, once a day per type |
@@ -403,7 +419,9 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 
 **Checking and versions.** For types the office checks, uploads wait in "To check". Returning needs a reason; the uploader is told in the app, and by email when "Email alerts" is on. A new version waits again.
 
-**Settings and history.** The office edits types (who uploads, who sees, checks, required, switched on), renames, merges and removes tags, and reads the history, which keeps deleted files as text. New sharing on a type reaches files students uploaded; what staff chose when uploading stays.
+**Automatic tags (2026-10-26).** Nobody types tags. Each file's `autoTags` are worked out when it is shown: Category (the type's group), Required, Semester, From (`sender`: student, lecturer, coordinator or office), and each student's Programme and Intake (a staff file's chosen programmes). Each tag carries the list filter it opens. They follow a student who changes programme. Search also matches programme, intake and category words. Typed tags and their endpoints were removed in `documents.0005`.
+
+**Settings and history.** The office edits types (who uploads, who sees, checks, required, switched on) and reads the history, which keeps deleted files as text. New sharing on a type reaches files students uploaded; what staff chose when uploading stays.
 
 **Required documents.** A type can be required of every Active student, or of chosen programmes only. A returned file still counts as owed. Remind sends a notice, and an email to students with "Deadline reminders" on.
 

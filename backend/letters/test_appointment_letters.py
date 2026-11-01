@@ -38,7 +38,7 @@ from .appointment_letters import (
     create_appointment_letter,
     make_letter_after_approval,
 )
-from .models import GeneratedLetter, LetterPurpose, LetterTemplate
+from .models import AUTOMATIC_PURPOSES, GeneratedLetter, LetterPurpose, LetterTemplate
 
 DS = APPROVED_PROGRAMMES[0]
 PASSWORD = "Appointment-letters-8803!"
@@ -65,8 +65,18 @@ PANEL_CONTENT = (
 )
 
 
+def clear_sample_templates():
+    """Remove the sample appointment templates the migration adds, for tests
+    that make their own or expect no template at all."""
+    LetterTemplate.objects.filter(purpose__in=AUTOMATIC_PURPOSES).delete()
+
+
 class AppointmentLetterFixtures(APITestCase):
+    keep_samples = False
+
     def setUp(self):
+        if not self.keep_samples:
+            clear_sample_templates()
         self.office = self.user("letters-office@example.test", "Siti Office", User.Role.OFFICE_ADMIN)
         self.coordinator = self.lecturer("letters-coord@example.test", "LTR-C1", "Prof Coordinator", User.Role.COORDINATOR)
         Coordinator.objects.create(lecturer=self.coordinator.lecturer, programme_managed=DS)
@@ -603,6 +613,7 @@ class ApprovalFlowLetterTests(APITestCase):
         self.media_settings.enable()
         self.addCleanup(shutil.rmtree, media_root, True)
         self.addCleanup(self.media_settings.disable)
+        clear_sample_templates()
         LetterTemplate.objects.create(
             name="Supervisor appointment", purpose=SUPERVISOR_LETTER, status=LetterTemplate.Status.ACTIVE,
             content="{{STUDENT_NAME}}: {{RESEARCH_TITLE}} ({{COURSE_CODES}}) with {{SUPERVISOR_NAME}}",

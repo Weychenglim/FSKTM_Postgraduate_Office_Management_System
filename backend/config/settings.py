@@ -9,6 +9,7 @@ user accounts.
 from datetime import timedelta
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
 from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 import os
@@ -57,6 +58,7 @@ CORS_EXPOSE_HEADERS = (
     "X-Limit",
     "X-Offset",
 )
+CORS_ALLOW_HEADERS = (*default_headers, "x-portal-tab")
 
 if not DEBUG:
     validate_production_environment(

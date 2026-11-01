@@ -27,6 +27,8 @@ class LetterTemplateSerializer(serializers.Serializer):
     referencePrefix = serializers.CharField(max_length=64, required=False, allow_blank=True)
     signatoryName = serializers.CharField(max_length=120, required=False, allow_blank=True)
     signatoryTitle = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    signatoryNameMs = serializers.CharField(max_length=120, required=False, allow_blank=True)
+    signatoryTitleMs = serializers.CharField(max_length=120, required=False, allow_blank=True)
     customFields = serializers.JSONField(required=False)
 
     # Frontend name -> model field name.
@@ -36,6 +38,8 @@ class LetterTemplateSerializer(serializers.Serializer):
         "customFields": "custom_fields",
         "signatoryName": "signatory_name",
         "signatoryTitle": "signatory_title",
+        "signatoryNameMs": "signatory_name_ms",
+        "signatoryTitleMs": "signatory_title_ms",
         "contentMs": "content_ms",
         "asksRecipient": "asks_recipient",
         "validMonths": "valid_months",
@@ -52,6 +56,12 @@ class LetterTemplateSerializer(serializers.Serializer):
         return value.strip()
 
     def validate_signatoryTitle(self, value):
+        return value.strip()
+
+    def validate_signatoryNameMs(self, value):
+        return value.strip()
+
+    def validate_signatoryTitleMs(self, value):
         return value.strip()
 
     def validate_customFields(self, value):

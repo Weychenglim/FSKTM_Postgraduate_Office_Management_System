@@ -11,6 +11,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { SelectMenu } from './SelectMenu';
 import type { LetterFormQuestion, LetterRecipientPurpose, LetterRequestDetails } from '../types';
+import { COUNTRIES, MALAYSIA, MALAYSIAN_STATES, asksState } from '../utils/addressPlaces';
 
 export const FORM_ROW = 'grid gap-1.5 sm:grid-cols-[10rem_minmax(0,1fr)] lg:grid-cols-[11rem_minmax(0,30rem)_minmax(0,1fr)] sm:gap-x-6 sm:items-start';
 // The office's preview sits in half a page, so its hints go under the field.
@@ -24,8 +25,9 @@ const ADDRESS_ROWS: ReadonlyArray<{ field: keyof LetterRequestDetails; label: st
   { field: 'addressLine2', label: 'Address Line 2', hint: 'Enter recipient address' },
   { field: 'postcode', label: 'Postcode', hint: 'Enter recipient postcode', missing: 'Enter the postcode.', narrow: true },
   { field: 'city', label: 'City', hint: 'Enter recipient city', missing: 'Enter the city.' },
-  { field: 'state', label: 'State/Country', hint: 'Enter recipient state or country', missing: 'Enter the state or country.' },
 ];
+const STATE_OPTIONS = MALAYSIAN_STATES.map((state) => ({ value: state, label: state }));
+const COUNTRY_OPTIONS = COUNTRIES.map((country) => ({ value: country, label: country }));
 
 export const FormRow: React.FC<{
   label: string;
@@ -107,13 +109,13 @@ export const LetterFormFields: React.FC<LetterFormFieldsProps> = ({
       }
       const entry = listed.find((item) => item.id === id);
       if (!entry) return;
-      const saved = [entry.addressLine1, entry.addressLine2, entry.postcode, entry.city, entry.state].some(Boolean);
+      const saved = [entry.addressLine1, entry.addressLine2, entry.postcode, entry.city, entry.state, entry.country].some(Boolean);
       change({
         organisation: entry.name,
         organisationId: entry.id,
         typedIn: false,
         ...(saved && question.askAddress !== false
-          ? { addressLine1: entry.addressLine1, addressLine2: entry.addressLine2, postcode: entry.postcode, city: entry.city, state: entry.state }
+          ? { addressLine1: entry.addressLine1, addressLine2: entry.addressLine2, postcode: entry.postcode, city: entry.city, state: entry.state, country: entry.country || MALAYSIA }
           : {}),
       });
     };
@@ -199,6 +201,37 @@ export const LetterFormFields: React.FC<LetterFormFieldsProps> = ({
               />
             </FormRow>
           ))}
+        {question.askAddress !== false && asksState(details.country) && (
+          <FormRow label="State" htmlFor="letter-form-state" required hint="Choose recipient state" error={errors.state}>
+            <SelectMenu
+              id="letter-form-state"
+              value={MALAYSIAN_STATES.includes(details.state) ? details.state : ''}
+              placeholder="Choose a state"
+              options={STATE_OPTIONS}
+              disabled={off}
+              aria-required
+              aria-invalid={errors.state ? true : undefined}
+              aria-describedby="letter-form-state-hint"
+              onChange={(state) => change({ state })}
+            />
+          </FormRow>
+        )}
+        {question.askAddress !== false && (
+          <FormRow label="Country" htmlFor="letter-form-country" required hint="Choose recipient country" error={errors.country}>
+            <SelectMenu
+              id="letter-form-country"
+              value={COUNTRIES.includes(details.country) ? details.country : ''}
+              placeholder="Choose a country"
+              searchPlaceholder="Search"
+              options={COUNTRY_OPTIONS}
+              disabled={off}
+              aria-required
+              aria-invalid={errors.country ? true : undefined}
+              aria-describedby="letter-form-country-hint"
+              onChange={(country) => change({ country, state: asksState(country) ? details.state : '' })}
+            />
+          </FormRow>
+        )}
       </React.Fragment>
     );
   };
@@ -334,6 +367,8 @@ export function missingAnswers(questions: readonly LetterFormQuestion[], details
         for (const row of ADDRESS_ROWS) {
           if (row.missing && !String(details[row.field] ?? '').trim()) problems[row.field] = row.missing;
         }
+        if (asksState(details.country) && !MALAYSIAN_STATES.includes(details.state)) problems.state = 'Choose the state.';
+        if (!COUNTRIES.includes(details.country)) problems.country = 'Choose the country.';
       }
     } else if (question.kind !== 'extras' && question.kind !== 'yesno' && question.required && question.name) {
       const value = answers[question.name];

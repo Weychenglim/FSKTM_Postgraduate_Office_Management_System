@@ -66,7 +66,7 @@ assert.equal(passageSource({ title: 'Postgraduate Handbook 2026', page: 12 }), '
 assert.equal(passageSource({ title: 'Thesis guide', page: null }), 'From Thesis guide');
 assert.equal(groupLine(group({ lastOutcome: 'DOCUMENT' }), 'today'), 'Asked 3 times · last on today · the chatbot showed a passage from a document');
 assert.equal(sidebarItemForPath(APP_ROUTES.faqDocuments), SIDEBAR_ITEMS.FAQ_CHATBOT);
-const chat = readFileSync(resolve('src/components/StudentFAQChatbot.tsx'), 'utf8');
+const chat = readFileSync(resolve('src/components/FaqChatParts.tsx'), 'utf8');
 assert.match(chat, /not a reviewed FAQ answer/);
 
 console.log('faqOffice.test.ts passed');

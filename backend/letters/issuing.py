@@ -59,6 +59,8 @@ def issue_letter(letter, template, values, typed, actor):
     letter.letter_type = template.letter_type
     letter.signatory_name = template.signatory_name
     letter.signatory_title = template.signatory_title
+    letter.signatory_name_ms = template.signatory_name_ms
+    letter.signatory_title_ms = template.signatory_title_ms
     letter.reference_number = reference
     letter.issued_on = issued_on
     letter.status = GeneratedLetter.Status.ISSUED

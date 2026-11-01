@@ -3,24 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { ArrowLeft, ChevronRight, Plus, Search } from 'lucide-react';
-import type { DocumentTypeInput, DocumentTypeKind, DocumentTypeSettings, HistoryEntry, HistoryShow, ManagedTag } from '../types';
+import type { DocumentTypeInput, DocumentTypeKind, DocumentTypeSettings, HistoryEntry, HistoryShow } from '../types';
 import {
   addDocumentType,
   getDocumentHistory,
   getDocumentTypeSettings,
-  getManagedTags,
-  mergeTag,
-  removeTag,
-  renameTag,
-  tagClash,
   updateDocumentType,
 } from '../services/filesApi';
 import { ApiError, fieldErrors } from '../services/apiClient';
 import { APP_ROUTES, routeForDocument } from '../constants/routes';
 import { historyTime } from '../utils/documentDisplay';
+import { titleCase } from '../utils/programmeLabel';
 import {
   draftFromType,
   NEW_TYPE,
@@ -35,19 +31,15 @@ import {
 import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { SelectMenu } from './SelectMenu';
-import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { ErrorState, LoadingState } from './StateViews';
 import { ToggleSwitch } from './ToggleSwitch';
-import { OverflowMenu } from './DocumentParts';
-import { DialogShell } from './DocumentDialogs';
-import { useModalTitle } from './PortalModal';
 
-type Tab = 'types' | 'tags' | 'history';
+type Tab = 'types' | 'history';
 
-const TAB_LABELS: Record<Tab, string> = { types: 'Document types', tags: 'Tags', history: 'History' };
+const TAB_LABELS: Record<Tab, string> = { types: 'Document types', history: 'History' };
 type Toast = { message: string; tone: 'success' | 'danger' } | null;
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
-const files = (count: number) => (count === 1 ? '1 file' : `${count} files`);
 
 const SHARE_TICKS = [
   { key: 'shareSupervisors', label: 'Supervisors' },
@@ -86,7 +78,7 @@ const Section: React.FC<{ title?: string; id?: string; children: React.ReactNode
 
 export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [params] = useSearchParams();
-  const [tab, setTab] = useState<Tab>(() => (params.get('tab') === 'history' ? 'history' : params.get('tab') === 'tags' ? 'tags' : 'types'));
+  const [tab, setTab] = useState<Tab>(() => (params.get('tab') === 'history' ? 'history' : 'types'));
   const [settings, setSettings] = useState<DocumentTypeSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +179,16 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         <input id="type-name" className="form-control form-control-md text-[14px]" maxLength={120} value={draft.label} placeholder="For example: AI Use Declaration" onChange={event => change({ label: event.target.value })} />
         {errors.label && <p className="text-[13px] font-semibold text-rose-700">{errors.label}</p>}
         {!isNew && <p className="text-[12px] text-slate-500">For {draft.kind === 'STAFF' ? 'staff files' : draft.kind === 'BOTH' ? 'files about students, or staff files' : 'files about students'}.</p>}
+        <div className="space-y-1.5 pt-3">
+          <span id="type-group-label" className="block text-[15px] font-extrabold text-brand-navy">Category</span>
+          <SelectMenu<string>
+            aria-label="Category"
+            value={draft.group}
+            options={(settings?.groups ?? []).map(group => ({ value: group.value, label: group.label }))}
+            onChange={group => change({ group })}
+          />
+          <p className="text-[12px] text-slate-500">Every file of this type is tagged with its category, so people can find them together.</p>
+        </div>
       </div>
 
       {isNew && (
@@ -253,7 +255,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 <div role="group" aria-labelledby="type-required-programmes" className="flex flex-wrap gap-2">
                   {(settings?.programmes ?? []).map(programme => (
                     <Pill key={programme} checked={draft.requiredProgrammes.includes(programme)} onChange={() => change({ requiredProgrammes: toggled(draft.requiredProgrammes, programme, settings?.programmes ?? []) })}>
-                      {programme}
+                      {titleCase(programme)}
                     </Pill>
                   ))}
                 </div>
@@ -280,15 +282,6 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             <input className="form-control form-control-md text-[14px]" maxLength={300} value={draft.description} placeholder="Shown under the name when choosing a type" onChange={event => change({ description: event.target.value })} />
             {errors.description && <span className="block text-[13px] font-semibold text-rose-700">{errors.description}</span>}
           </label>
-          <div className="space-y-1.5">
-            <span id="type-group-label" className="text-[13px] font-bold text-slate-700">Group</span>
-            <SelectMenu<string>
-              aria-label="Group"
-              value={draft.group}
-              options={(settings?.groups ?? []).map(group => ({ value: group.value, label: group.label }))}
-              onChange={group => change({ group })}
-            />
-          </div>
           {!staffKind && draft.uploaders.includes('STUDENT') && (
             <SwitchRow id="type-one" title="One file per student" hint="A student's next upload becomes a new version of their file." checked={draft.onePerStudent} onChange={onePerStudent => change({ onePerStudent })} />
           )}
@@ -312,7 +305,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
     <RecordPage
       title="File settings"
-      subtitle="Who can upload and see each type of file, tags, and the history of every file."
+      subtitle="Who can upload and see each type of file, and the history of every file. Files are tagged automatically from each type's category."
       backLabel="Back to Files"
       onBack={onBack}
       dirty={dirty}
@@ -320,7 +313,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       actions={tab === 'types' && settings ? <PortalButton variant="primary" icon={Plus} onClick={() => open('new')}>Add a type</PortalButton> : undefined}
     >
       <div role="tablist" aria-label="Settings" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        {(['types', 'tags', 'history'] as const).map(value => (
+        {(['types', 'history'] as const).map(value => (
           <button
             key={value}
             type="button"
@@ -337,9 +330,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         ))}
       </div>
 
-      {tab === 'tags' ? (
-        <TagsPane onToast={setToast} />
-      ) : tab === 'history' ? (
+      {tab === 'history' ? (
         <HistoryPane />
       ) : loading && !settings ? (
         <LoadingState message="Loading document types..." />
@@ -397,223 +388,6 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   );
 };
 
-const TagsPane: React.FC<{ onToast: (toast: Toast) => void }> = ({ onToast }) => {
-  const [tags, setTags] = useState<ManagedTag[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
-  const [search, setSearch] = useState('');
-  const [renaming, setRenaming] = useState<ManagedTag | null>(null);
-  const [merging, setMerging] = useState<ManagedTag | null>(null);
-  const [removing, setRemoving] = useState<ManagedTag | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    setError(null);
-    getManagedTags()
-      .then(found => !cancelled && setTags(found))
-      .catch(err => !cancelled && setError(errorText(err, 'Could not load the tags.')));
-    return () => {
-      cancelled = true;
-    };
-  }, [reload]);
-
-  const shown = useMemo(() => {
-    const text = search.trim().toLocaleLowerCase();
-    return (tags ?? []).filter(tag => tag.name.toLocaleLowerCase().includes(text));
-  }, [tags, search]);
-
-  const done = (message: string) => {
-    setRenaming(null);
-    setMerging(null);
-    setRemoving(null);
-    onToast({ message, tone: 'success' });
-    setReload(value => value + 1);
-  };
-
-  const remove = async () => {
-    if (!removing) return;
-    setBusy(true);
-    try {
-      const result = await removeTag(removing.id);
-      done(`Removed "${removing.name}" from ${files(result.files)}.`);
-    } catch (err) {
-      setRemoving(null);
-      onToast({ message: errorText(err, 'Could not remove this tag.'), tone: 'danger' });
-      setReload(value => value + 1);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (error) return <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />;
-  if (!tags) return <LoadingState message="Loading tags..." />;
-
-  return (
-    <section aria-label="Tags" className="app-card">
-      <div className="px-5 pb-4 pt-5 sm:px-6">
-        <p className="pb-3 text-[13px] text-slate-600">Tags come from uploads. Rename a misspelt tag, merge two that mean the same, or remove one nobody needs. The files themselves never change.</p>
-        <div className="relative max-w-md">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-          <input type="search" aria-label="Find a tag" className="form-control form-control-md pl-10 text-[14px]" placeholder="Find a tag" value={search} onChange={event => setSearch(event.target.value)} />
-        </div>
-      </div>
-      {!tags.length ? (
-        <EmptyState title="No tags yet." description="Tags appear here once files use them." />
-      ) : !shown.length ? (
-        <p className="border-t border-slate-100 px-5 py-6 text-[13px] text-slate-600 sm:px-6">No matching tags found.</p>
-      ) : (
-        <ul>
-          {shown.map(tag => (
-            <li key={tag.id} className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3 sm:px-6">
-              <div className="min-w-0">
-                <p className="truncate text-[14px] font-bold text-brand-navy">{tag.name}</p>
-                <p className="text-[12px] text-slate-500">Used on {files(tag.uses)}</p>
-              </div>
-              <OverflowMenu
-                label={`Actions for ${tag.name}`}
-                actions={[
-                  { label: 'Rename', onSelect: () => setRenaming(tag) },
-                  ...(tags.length > 1 ? [{ label: 'Merge into another tag', onSelect: () => setMerging(tag) }] : []),
-                  { label: 'Remove', danger: true, onSelect: () => setRemoving(tag) },
-                ]}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {renaming && <RenameTagDialog tag={renaming} onClose={() => setRenaming(null)} onDone={done} />}
-      {merging && <MergeTagDialog tag={merging} tags={tags} onClose={() => setMerging(null)} onDone={done} />}
-      <PortalConfirmModal
-        isOpen={removing !== null}
-        title={`Remove "${removing?.name ?? ''}"?`}
-        message={`It is taken off ${files(removing?.uses ?? 0)}. The files stay.`}
-        confirmLabel="Remove tag"
-        cancelLabel="Keep it"
-        tone="danger"
-        isLoading={busy}
-        onConfirm={() => void remove()}
-        onCancel={() => setRemoving(null)}
-      />
-    </section>
-  );
-};
-
-const RenameTagDialog: React.FC<{ tag: ManagedTag; onClose: () => void; onDone: (message: string) => void }> = ({ tag, onClose, onDone }) => {
-  const titleId = useModalTitle();
-  const [name, setName] = useState(tag.name);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [clash, setClash] = useState<{ id: number; name: string } | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const save = async () => {
-    setBusy(true);
-    setProblem(null);
-    setClash(null);
-    try {
-      const saved = await renameTag(tag.id, name);
-      onDone(`Renamed to "${saved.name}".`);
-    } catch (err) {
-      const twin = tagClash(err);
-      if (twin) setClash(twin);
-      else setProblem(fieldErrors(err).name || errorText(err, 'Could not rename this tag.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const merge = async () => {
-    if (!clash) return;
-    setBusy(true);
-    try {
-      await mergeTag(tag.id, clash.id);
-      onDone(`Merged "${tag.name}" into "${clash.name}".`);
-    } catch (err) {
-      setProblem(errorText(err, 'Could not merge these tags.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <DialogShell
-      title={`Rename "${tag.name}"`}
-      titleId={titleId}
-      isOpen
-      busy={busy}
-      onClose={onClose}
-      footer={<>
-        <PortalButton onClick={onClose} disabled={busy}>Cancel</PortalButton>
-        <PortalButton variant="primary" isLoading={busy && !clash} disabled={!name.trim() || name.trim() === tag.name} onClick={() => void save()}>Rename</PortalButton>
-      </>}
-    >
-      <label className="block space-y-1.5">
-        <span className="text-[13px] font-bold text-slate-700">New name</span>
-        <input autoFocus className="form-control form-control-md text-[14px]" maxLength={30} value={name} onChange={event => { setName(event.target.value); setClash(null); }} />
-      </label>
-      <p className="text-[12px] text-slate-500">Changes it on {files(tag.uses)}.</p>
-      {clash && (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-900">
-          <span>There is already a tag called "{clash.name}".</span>
-          <PortalButton size="sm" variant="primary" isLoading={busy} onClick={() => void merge()}>Merge into "{clash.name}"</PortalButton>
-        </div>
-      )}
-      {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
-    </DialogShell>
-  );
-};
-
-const MergeTagDialog: React.FC<{ tag: ManagedTag; tags: ManagedTag[]; onClose: () => void; onDone: (message: string) => void }> = ({ tag, tags, onClose, onDone }) => {
-  const titleId = useModalTitle();
-  const [into, setInto] = useState('');
-  const [problem, setProblem] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const target = tags.find(item => String(item.id) === into);
-
-  const merge = async () => {
-    if (!target) return;
-    setBusy(true);
-    try {
-      await mergeTag(tag.id, target.id);
-      onDone(`Merged "${tag.name}" into "${target.name}".`);
-    } catch (err) {
-      setProblem(errorText(err, 'Could not merge these tags.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <DialogShell
-      title={`Merge "${tag.name}"`}
-      titleId={titleId}
-      isOpen
-      busy={busy}
-      onClose={onClose}
-      footer={<>
-        <PortalButton onClick={onClose} disabled={busy}>Cancel</PortalButton>
-        <PortalButton variant="primary" isLoading={busy} disabled={!target} onClick={() => void merge()}>Merge</PortalButton>
-      </>}
-    >
-      <div className="space-y-1.5">
-        <span className="text-[13px] font-bold text-slate-700">Merge into</span>
-        <SelectMenu<string>
-          aria-label="Merge into"
-          value={into}
-          placeholder="Choose a tag"
-          options={tags.filter(item => item.id !== tag.id).map(item => ({ value: String(item.id), label: item.name, description: `Used on ${files(item.uses)}` }))}
-          onChange={setInto}
-        />
-      </div>
-      <p className="text-[13px] text-slate-600">
-        {target ? `The ${files(tag.uses)} tagged "${tag.name}" will be tagged "${target.name}" instead, and "${tag.name}" is removed.` : `"${tag.name}" is removed and its files get the tag you choose.`}
-      </p>
-      {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
-    </DialogShell>
-  );
-};
-
 const SHOW_OPTIONS: Array<{ value: HistoryShow; label: string }> = [
   { value: 'all', label: 'All changes' },
   { value: 'uploads', label: 'Uploads' },
@@ -622,7 +396,7 @@ const SHOW_OPTIONS: Array<{ value: HistoryShow; label: string }> = [
   { value: 'archive', label: 'Archived and restored' },
   { value: 'deleted', label: 'Deleted files' },
   { value: 'opened', label: 'Opened and downloaded' },
-  { value: 'settings', label: 'Document types and tags' },
+  { value: 'settings', label: 'Settings changes' },
 ];
 const HISTORY_FROM = `${APP_ROUTES.filesSettings}?tab=history`;
 

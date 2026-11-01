@@ -21,6 +21,7 @@ from django.db import transaction
 
 from .entries import record
 from .models import FaqCategory, FaqChange, FaqEntry
+from .proofreading import proofread
 
 # The sheet names in the PDF, with their spelling slips fixed, in PDF order.
 CATEGORIES = {
@@ -75,8 +76,8 @@ def import_faq(path=None, *, actor=None):
             counts["alreadyThere"] += 1
             return
         entry = FaqEntry.objects.create(
-            question=" ".join(row["question"].split())[:500],
-            answer=row["answer"].strip(),
+            question=proofread(row["id"], "question", " ".join(row["question"].split())[:500]),
+            answer=proofread(row["id"], "answer", row["answer"].strip()),
             category=categories[category],
             status=status,
             position=position,

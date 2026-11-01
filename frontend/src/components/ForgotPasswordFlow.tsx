@@ -29,7 +29,7 @@ interface BackLinkProps {
 }
 
 export const BackLink: React.FC<BackLinkProps> = ({ onClick, label = 'Back to Sign In' }) => (
-  <button type="button" onClick={onClick} className="back-link group self-start">
+  <button type="button" onClick={onClick} className="back-link group self-start py-2 -my-2">
     <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
     <span>{label}</span>
   </button>
@@ -59,7 +59,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
     animate={{ opacity: 1, scale: 1 }}
     transition={{ duration: 0.45 }}
     id={id}
-    className="w-full bg-white rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.08)] border border-slate-100 p-8 md:p-10 text-center relative flex flex-col items-center"
+    className={`w-full bg-white rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.08)] border border-slate-100 px-5 pt-8 pb-7 sm:p-8 md:p-10 text-center relative flex flex-col items-center ${BadgeIcon && !badgeCircle ? 'mt-8' : ''}`}
   >
     {BadgeIcon && (
       <div
@@ -73,7 +73,7 @@ export const AuthCard: React.FC<AuthCardProps> = ({
       </div>
     )}
     <div className="w-full flex flex-col">
-      <h2 className="text-[28px] font-extrabold text-[#0c1424] tracking-tight">{title}</h2>
+      <h2 className="text-2xl sm:text-[28px] font-extrabold text-[#0c1424] tracking-tight">{title}</h2>
       {subtitle && <div className="text-slate-500 text-sm mt-1 mb-6 font-medium leading-relaxed">{subtitle}</div>}
       {children}
     </div>
