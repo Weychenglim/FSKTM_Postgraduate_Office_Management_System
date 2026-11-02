@@ -113,7 +113,7 @@ class RecordEditingTests(RegistryHardeningBase):
             "/api/registry/students/WGT270010/", {"programme": CS, "phone": "012-1110000"}, format="json"
         )
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("programme-transfer amendment", response.data["error"])
+        self.assertIn("Request programme transfer", response.data["error"])
         self.student.refresh_from_db()
         self.student.user.refresh_from_db()
         self.assertEqual(self.student.programme, DS)

@@ -38,49 +38,58 @@ class ArchiveTests(DocumentPeople, ArchiveClient, APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.make_people()
+        cls.make_checker()
 
     def setUp(self):
         cache.clear()
         self.thesis = self.made(self.ali.user, "thesis", "Ali thesis")
 
-    def test_an_archived_file_is_seen_by_the_office_only(self):
-        response = self.archive(self.office, self.thesis, "Replaced by a newer file.")
+    def test_an_archived_file_is_seen_by_the_office_and_the_coordinator_only(self):
+        response = self.archive(self.checker, self.thesis, "Replaced by a newer file.")
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(
             (response.data["archived"], response.data["archivedBy"], response.data["archiveReason"]),
-            (True, "Siti Office", "Replaced by a newer file."),
+            (True, "Prof Checker", "Replaced by a newer file."),
         )
         self.assertTrue(response.data["permissions"]["canRestore"])
         self.assertFalse(response.data["permissions"]["canEdit"])
-        for user in (self.ali.user, self.supervisor, self.panel):
+        for user in (self.ali.user, self.supervisor, self.panel, self.coordinator):
             self.assertEqual(self.detail(user, self.thesis).status_code, 404)
             self.assertNotIn("Ali thesis", self.titles(user))
-        self.assertNotIn("Ali thesis", self.titles(self.office))
-        self.assertIn("Ali thesis", self.titles(self.office, "?archived=1"))
+            self.assertNotIn("Ali thesis", self.titles(user, "?archived=1"))
+        for user in (self.office, self.checker):
+            self.assertNotIn("Ali thesis", self.titles(user))
+            self.assertIn("Ali thesis", self.titles(user, "?archived=1"))
+        self.assertFalse(self.detail(self.office, self.thesis).data["permissions"]["canRestore"])
         self.assertEqual(DocumentEvent.objects.get(action="ARCHIVED").reason, "Replaced by a newer file.")
 
     def test_archive_rules(self):
-        self.assertIn("reason", self.archive(self.office, self.thesis, "  ").data)
+        self.assertIn("reason", self.archive(self.checker, self.thesis, "  ").data)
+        self.assertEqual(self.archive(self.office, self.thesis).data["code"], "documents_not_coordinator")
         self.assertEqual(self.archive(self.supervisor, self.thesis).status_code, 403)
         self.assertEqual(self.archive(self.ali.user, self.thesis).status_code, 403)
-        self.archive(self.office, self.thesis)
-        self.assertEqual(self.archive(self.office, self.thesis).data["code"], "already_archived")
-        self.client.force_authenticate(self.office)
+        self.assertEqual(self.archive(self.coordinator, self.thesis).status_code, 404)
+        notes = self.made(self.supervisor, "staff-document", "Meeting notes")
+        self.assertEqual(self.archive(self.checker, notes).status_code, 403)
+        self.archive(self.checker, self.thesis)
+        self.assertEqual(self.archive(self.checker, self.thesis).data["code"], "already_archived")
+        self.client.force_authenticate(self.ali.user)
         added = self.client.post(
             f"/api/documents/{self.thesis['id']}/versions/",
             {"file": upload("again.pdf", pdf_bytes(2))},
             format="multipart",
         )
-        self.assertEqual(added.status_code, 403)
+        self.assertEqual(added.status_code, 404)
 
     def test_restoring_brings_it_back(self):
-        self.archive(self.office, self.thesis)
-        self.assertEqual(self.restore(self.supervisor, self.thesis).status_code, 403)
-        response = self.restore(self.office, self.thesis)
+        self.archive(self.checker, self.thesis)
+        self.assertEqual(self.restore(self.supervisor, self.thesis).status_code, 404)
+        self.assertEqual(self.restore(self.office, self.thesis).status_code, 403)
+        response = self.restore(self.checker, self.thesis)
         self.assertEqual((response.status_code, response.data["archived"], response.data["archiveReason"]), (200, False, ""))
         self.assertEqual(self.detail(self.ali.user, self.thesis).status_code, 200)
         self.assertEqual(DocumentEvent.objects.get(action="RESTORED").details["archiveReason"], "Uploaded by mistake.")
-        self.assertEqual(self.restore(self.office, self.thesis).data["code"], "not_archived")
+        self.assertEqual(self.restore(self.checker, self.thesis).data["code"], "not_archived")
 
 
 @TEST_MEDIA
@@ -116,7 +125,7 @@ class HistoryTests(DocumentPeople, ArchiveClient, APITestCase):
         self.client.put(f"/api/documents/{self.evaluation['id']}/sharing/", {"supervisors": True, "panel": False, "coordinator": False}, format="json")
         sharing = self.history("?show=changes").data["results"][0]
         self.assertEqual(sharing["detail"], "Now shared with supervisors")
-        self.client.force_authenticate(self.office)
+        self.client.force_authenticate(self.coordinator)
         thesis_type = Document.objects.get(pk=self.thesis["id"]).doc_type
         self.client.patch(f"/api/documents/types/{thesis_type.pk}/", {"sharePanel": False}, format="json")
         settings = self.history("?show=settings").data["results"][0]

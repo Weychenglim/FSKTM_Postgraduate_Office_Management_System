@@ -26,6 +26,7 @@ class UploadRuleTests(DocumentPeople, DocumentClient, APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.make_people()
+        cls.make_checker()
 
     def setUp(self):
         cache.clear()
@@ -83,11 +84,14 @@ class UploadRuleTests(DocumentPeople, DocumentClient, APITestCase):
         self.assertFalse(Document.objects.get(pk=made["id"]).follows_type)
         self.assertIn("semester", self.send(self.supervisor, "evaluation-form", students=[self.ali.matric_no], semester="99999").data)
 
-    def test_office_checks_only_uploads_from_others(self):
+    def test_the_coordinator_checks_every_upload_except_their_own(self):
         waiting = self.made(self.ali.user, "supervisor-appointment-form", "Signed form")
         self.assertEqual(waiting["checkStatus"], "WAITING")
         office = self.made(self.office, "supervisor-appointment-form", "Office copy", students=[self.ali.matric_no])
-        self.assertEqual(office["checkStatus"], "NONE")
+        self.assertEqual(office["checkStatus"], "WAITING")
+        DocumentType.objects.filter(code="supervisor-appointment-form").update(uploaders=["STUDENT", "COORDINATOR"])
+        own = self.made(self.checker, "supervisor-appointment-form", "Coordinator copy", students=[self.ali.matric_no])
+        self.assertEqual(own["checkStatus"], "NONE")
         self.assertEqual(self.made(self.ali.user, "thesis", "No check")["checkStatus"], "NONE")
 
     def test_duplicates_need_a_confirmation(self):
@@ -154,6 +158,7 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
     @classmethod
     def setUpTestData(cls):
         cls.make_people()
+        cls.make_checker()
 
     def setUp(self):
         cache.clear()
@@ -165,7 +170,8 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
 
     def test_filters_and_search(self):
         office = self.office
-        self.assertEqual(self.titles(office, "?view=check"), {"Ali form"})
+        self.assertEqual(self.titles(office, "?view=check"), set())
+        self.assertEqual(self.titles(self.checker, "?view=check"), {"Ali form"})
         self.assertEqual(self.titles(office, "?view=staff"), {"Rubric"})
         self.assertEqual(self.titles(office, "?view=mine"), {"Rubric"})
         self.assertEqual(self.titles(office, "?type=thesis"), {"Ali thesis"})
@@ -210,8 +216,13 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
         self.client.force_authenticate(self.office)
         self.assertEqual(
             self.client.get("/api/documents/summary/").data,
-            {"all": 4, "staffFiles": 1, "mine": 1, "toCheck": 1, "returned": 0, "archived": 0, "studentsStillToHandIn": 0},
+            {"all": 4, "staffFiles": 1, "mine": 1, "archived": 0},
         )
+        self.assertFalse(self.client.get("/api/documents/options/").data["canCheck"])
+        self.client.force_authenticate(self.checker)
+        summary = self.client.get("/api/documents/summary/").data
+        self.assertEqual((summary["toCheck"], summary["returned"], summary["studentsStillToHandIn"]), (1, 0, 0))
+        self.assertTrue(self.client.get("/api/documents/options/").data["canCheck"])
         self.client.force_authenticate(self.ali.user)
         options = self.client.get("/api/documents/options/").data
         codes = {t["code"] for t in options["types"]}

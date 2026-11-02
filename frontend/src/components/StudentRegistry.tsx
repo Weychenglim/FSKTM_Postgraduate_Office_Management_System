@@ -38,7 +38,9 @@ import {
   Info,
   RefreshCw,
   HelpCircle,
-  FileDown
+  FileDown,
+  ArrowRightLeft,
+  Lock
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -51,8 +53,9 @@ import { StatCard } from './StatCard';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { historyTime } from '../utils/documentDisplay';
-import { Link } from 'react-router';
-import { APP_ROUTES } from '../constants/routes';
+import { Link, useNavigate, useSearchParams } from 'react-router';
+import { APP_ROUTES, routeForNewProgrammeTransfer, routeForProgrammeTransfer } from '../constants/routes';
+import { getStudentTransfer, type StudentTransferSummary } from '../services/programmeTransfersApi';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
 import {
@@ -78,6 +81,7 @@ import {
   fieldErrors,
   getParticipant,
   getRecentImports,
+  getStudentById,
   getStudents,
   inspectStudentImport,
   previewStudentImport,
@@ -248,11 +252,14 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
 
 interface StudentRegistryProps {
   readOnly?: boolean;
+  /** Office staff and programme coordinators follow programme transfers. */
+  canSeeTransfers?: boolean;
   onOpenParticipantLifecycle?: () => void;
 }
 
 export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   readOnly = false,
+  canSeeTransfers = false,
   onOpenParticipantLifecycle,
 }) => {
   // Master Student Registry State: loaded from studentsApi (mock-backed today).
@@ -294,6 +301,50 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   
   // Modals Dialog States
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
+  const [transfer, setTransfer] = useState<StudentTransferSummary | null>(null);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openStudent = searchParams.get('student');
+
+  // ?student=<matric> opens that Student Record, for example on the way back from a transfer.
+  useEffect(() => {
+    if (!openStudent || viewingStudent || loading) return;
+    const found = students.find((row) => row.id.toLowerCase() === openStudent.toLowerCase());
+    if (found) {
+      setViewingStudent(found);
+      return;
+    }
+    let cancelled = false;
+    getStudentById(openStudent).then((row) => {
+      if (!cancelled && row) setViewingStudent(row);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [openStudent, students, loading]);
+
+  useEffect(() => {
+    setTransfer(null);
+    if (!viewingStudent) return;
+    let cancelled = false;
+    getStudentTransfer(viewingStudent.id)
+      .then((found) => !cancelled && setTransfer(found))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [viewingStudent?.id]);
+
+  const closeRecord = () => {
+    setViewingStudent(null);
+    if (searchParams.has('student')) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete('student');
+        return next;
+      }, { replace: true });
+    }
+  };
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useListState('StudentRegistry', 'currentPage', 1);
   const itemsPerPage = 10;
@@ -1108,7 +1159,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             }
           />
 
-          {!readOnly && <RegistryModuleTabs active="students" />}
+          {(!readOnly || canSeeTransfers) && <RegistryModuleTabs active="students" office={!readOnly} />}
 
           {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
           <div id="student-summary-cards" className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
@@ -2419,7 +2470,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      {viewingStudent ? <RecordPage title="Student Record" subtitle="Registry details, edits and sign-in access." backLabel="Back to Student Registry" onBack={() => setViewingStudent(null)} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={statusSaving || saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
+      {viewingStudent ? <RecordPage title="Student Record" subtitle="Registry details, edits and sign-in access." backLabel="Back to Student Registry" onBack={closeRecord} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={statusSaving || saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
 
               {/* Core student details body; only this part scrolls */}
               <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 mr-1 mb-3 ${THIN_SCROLLBAR}`}>
@@ -2447,6 +2498,32 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       Programme Mapped
                     </span>
                     <ProgrammeChip label={viewingStudent.programme} />
+                    {transfer?.pending ? (
+                      <div className="mt-2 space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] font-semibold text-amber-900">
+                        <p>
+                          Transfer to {transfer.pending.destination} waiting for{' '}
+                          {transfer.pending.waitingFor.length ? transfer.pending.waitingFor.join(' or ') : 'a programme coordinator'}.
+                        </p>
+                        {canSeeTransfers && (
+                          <button
+                            type="button"
+                            className="font-bold text-blue-700 hover:text-blue-900"
+                            onClick={() => navigate(routeForProgrammeTransfer(transfer.pending!.id), { state: { recordReturn: { path: `${APP_ROUTES.registry}?student=${encodeURIComponent(viewingStudent.id)}`, label: 'Student Record' } } })}
+                          >
+                            View transfer
+                          </button>
+                        )}
+                      </div>
+                    ) : !readOnly && transfer?.hasResearchProfile ? (
+                      <PortalButton
+                        size="sm"
+                        icon={ArrowRightLeft}
+                        className="mt-2"
+                        onClick={() => navigate(routeForNewProgrammeTransfer(viewingStudent.id), { state: { recordReturn: { path: `${APP_ROUTES.registry}?student=${encodeURIComponent(viewingStudent.id)}`, label: 'Student Record' } } })}
+                      >
+                        Request programme transfer
+                      </PortalButton>
+                    ) : null}
                   </div>
 
                   {/* Academic Status checks */}
@@ -2549,6 +2626,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         className="form-control form-control-sm normal-case tracking-normal"
                       />
                     </label>
+                    {transfer?.hasResearchProfile ? (
+                      <div className="flex flex-col gap-1 form-label">
+                        Programme
+                        <span className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-bold normal-case tracking-normal text-slate-700">
+                          <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
+                          {viewingStudent.programme}
+                        </span>
+                        <span className="text-[10.5px] font-semibold normal-case tracking-normal text-slate-500">
+                          Has a research profile, so the programme changes through Request programme transfer.
+                        </span>
+                      </div>
+                    ) : (
                     <label className="flex flex-col gap-1 form-label">
                       Programme
                       <SelectMenu
@@ -2565,6 +2654,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         disabled={detailsSaving}
                       />
                     </label>
+                    )}
                     <label className="flex flex-col gap-1 form-label">
                       Intake
                       <input

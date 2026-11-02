@@ -69,6 +69,9 @@ export const SESSION_EXPIRED_EVENT = 'fsktm:session-expired';
 /** Fired when the backend holds the account until its password is changed. */
 export const PASSWORD_CHANGE_REQUIRED_EVENT = 'fsktm:password-change-required';
 
+/** Fired when the portal is under maintenance and this account cannot use it. */
+export const MAINTENANCE_EVENT = 'fsktm:portal-maintenance';
+
 /**
  * Whether a failed request may fall back to mock data.
  *
@@ -235,6 +238,9 @@ async function raiseForStatus(res: Response): Promise<never> {
       clearAuthToken();
       window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, { detail: { message } }));
     }
+  }
+  if (res.status === 503 && code === 'portal_maintenance' && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(MAINTENANCE_EVENT, { detail: (body as { maintenance?: unknown }).maintenance }));
   }
   throw new ApiError(message, res.status, body);
 }

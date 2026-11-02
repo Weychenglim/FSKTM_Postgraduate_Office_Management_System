@@ -148,6 +148,7 @@ def to_record(student) -> dict:
     supervisor_profile = supervisor._related_or_none("lecturer") if supervisor else None
     return {
         "id": student.matric_no,
+        "userId": student.pk,
         "name": user.full_name,
         "avatarText": _initials(user.full_name),
         "avatarBg": _avatar_bg(student.matric_no),
@@ -830,8 +831,8 @@ def student_record_detail_view(request, matric_no):
                 return Response(
                     {
                         "error": (
-                            "This student has a research profile. Change the programme "
-                            "with a programme-transfer amendment so both records stay in step."
+                            "This student has a research profile. Use Request programme transfer "
+                            "on the Student Record, so the record and the research profile change together."
                         )
                     },
                     status=status.HTTP_409_CONFLICT,

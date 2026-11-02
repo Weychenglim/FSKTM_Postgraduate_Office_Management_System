@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Bell, HelpCircle, LogOut, User, Settings, Menu } from 'lucide-react';
+import { Bell, LogOut, User, Settings, Menu } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router';
 import { useNotifications } from '../context/NotificationsContext';
@@ -18,18 +18,18 @@ interface TopHeaderProps {
   userName: string;
   userRole: string;
   onLogout: () => void;
-  onHelpdeskTrigger: () => void;
   onNotificationsTrigger: () => void;
   onToggleSidebar: () => void;
+  menuAlert?: string;
 }
 
 export const TopHeader: React.FC<TopHeaderProps> = ({
   userName,
   userRole,
   onLogout,
-  onHelpdeskTrigger,
   onNotificationsTrigger,
-  onToggleSidebar
+  onToggleSidebar,
+  menuAlert
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
@@ -76,11 +76,12 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         <button
           type="button"
           onClick={onToggleSidebar}
-          className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-all cursor-pointer shrink-0"
+          className="relative w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-all cursor-pointer shrink-0"
           title="Toggle sidebar"
-          aria-label="Toggle sidebar"
+          aria-label={menuAlert ? `Toggle sidebar. ${menuAlert}` : 'Toggle sidebar'}
         >
           <Menu className="w-4.5 h-4.5" />
+          {menuAlert && <span aria-hidden="true" className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-rose-600 ring-2 ring-white" />}
         </button>
         <div id="header-greeting-block" className="flex flex-col text-left min-w-0">
           <h4 id="header-greeting" className="text-slate-900 font-extrabold text-xs md:text-sm tracking-tight select-none truncate">
@@ -179,16 +180,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             )}
           </AnimatePresence>
         </div>
-
-        {/* Global Manual Assistance Help Trigger */}
-        <button
-          type="button"
-          onClick={onHelpdeskTrigger}
-          className="hidden sm:flex w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200/60 items-center justify-center text-slate-600 hover:text-slate-900 transition-all cursor-pointer"
-          title="Administrative Manual Guide"
-        >
-          <HelpCircle className="w-4.5 h-4.5" />
-        </button>
 
         {/* Divider separator */}
         <div className="hidden sm:block w-[1px] h-6 bg-slate-200" />

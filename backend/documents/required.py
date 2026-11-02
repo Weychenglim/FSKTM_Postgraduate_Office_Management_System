@@ -75,8 +75,8 @@ def mine(student):
     return items
 
 
-def reminded_today(doc_type):
-    return doc_type.reminders.filter(sent_at__date=timezone.localdate()).first()
+def reminded_today(doc_type, actor):
+    return doc_type.reminders.filter(sent_by=actor, sent_at__date=timezone.localdate()).first()
 
 
 class AlreadyReminded(Exception):
@@ -88,10 +88,10 @@ class NobodyToRemind(Exception):
 
 
 def remind(doc_type, *, actor, students):
-    """Tell every student still to hand it in, once a day at most."""
+    """Tell the coordinator's students still to hand it in, once a day at most."""
     with transaction.atomic():
         doc_type = DocumentType.objects.select_for_update().get(pk=doc_type.pk)
-        if reminded_today(doc_type):
+        if reminded_today(doc_type, actor):
             raise AlreadyReminded
         rows, _ = progress(doc_type, students)
         recipients = [student.user for student, state, _ in rows if state in STILL_TO_HAND_IN and student.user.is_active]
@@ -110,7 +110,7 @@ def remind(doc_type, *, actor, students):
 def send_reminders(doc_type, recipients):
     due = f" {doc_type.required_due_note}." if doc_type.required_due_note else ""
     title = f"Reminder: hand in your {doc_type.label}"
-    message = f"The PG office asks you to hand in your {doc_type.label}.{due} If it was returned, upload a corrected file."
+    message = f"Your programme coordinator asks you to hand in your {doc_type.label}.{due} If it was returned, upload a corrected file."
     Notification.objects.bulk_create(
         [
             Notification(
@@ -118,7 +118,7 @@ def send_reminders(doc_type, recipients):
                 event_key=f"documents:required:{doc_type.pk}:{timezone.localdate().isoformat()}",
                 title=title[:255],
                 service="Postgraduate Office",
-                summary=(doc_type.required_due_note or "Required by the PG office")[:255],
+                summary=(doc_type.required_due_note or "Required by your programme coordinator")[:255],
                 message=message,
                 is_announcement=False,
                 module_label="File Management",

@@ -1,4 +1,4 @@
-"""The office's settings for File Management: document types (UC26)."""
+"""Programme coordinators' settings for File Management: document types (UC26)."""
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.utils.text import slugify
@@ -97,7 +97,7 @@ def add_type(*, actor, values):
 
 
 def change_type(doc_type, *, actor, values):
-    """Save the office's changes. Student uploads follow their type's sharing,
+    """Save a coordinator's changes. Student uploads follow their type's sharing,
     so new ticks reach them too; what staff chose when uploading stays."""
     with transaction.atomic():
         doc_type = DocumentType.objects.select_for_update().get(pk=doc_type.pk)

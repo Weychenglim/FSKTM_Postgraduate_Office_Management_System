@@ -16,6 +16,7 @@ export type StudentAccountStatus = 'Verified' | 'Suspended';
 
 export interface StudentRecord {
   id: string; // e.g. "WGA210045"
+  userId?: number;
   name: string;
   avatarText: string;
   avatarBg: string;
