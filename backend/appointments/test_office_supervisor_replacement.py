@@ -92,7 +92,7 @@ class OfficeSupervisorReplacementTests(APITestCase):
 
     def test_student_cannot_submit_replacement_or_new_application_with_incumbent(self):
         self.client.force_authenticate(self.student_user)
-        payload = {"proposedSupervisorId": "NEW-001", "researchTitle": "Forged topic",
+        payload = {"proposedSupervisorId": "NEW-001", "projectCourseCodes": "WQD7002", "researchTitle": "Forged topic",
                    "researchArea": "Computing", "researchAbstract": "Forged abstract", "researchIntent": valid_research_intent_json()}
         for extra in [{}, {"replacesAppointmentId": self.supervisor_appointment.pk,
                               "replacementReason": "Student request"}]:
@@ -130,7 +130,7 @@ class OfficeSupervisorReplacementTests(APITestCase):
         self.supervisor_appointment.status = "ENDED"
         self.supervisor_appointment.save(update_fields=["status"])
         serializer = SupervisorApplicationCreateSerializer(data={
-            "proposedSupervisorId": "NEW-001", "researchTitle": "First request",
+            "proposedSupervisorId": "NEW-001", "projectCourseCodes": "WQD7002", "researchTitle": "First request",
             "researchArea": "Computing", "researchAbstract": "Synthetic abstract",
             "researchIntent": valid_research_intent_json(),
         }, context={"request": SimpleNamespace(user=self.student_user)})
@@ -316,7 +316,7 @@ class OfficeSupervisorReplacementTests(APITestCase):
         self.supervisor_appointment.save()
         from .test_supervisor_documents import valid_pdf
         self.client.force_authenticate(self.student_user)
-        payload = {"proposedSupervisorId": "NEW-001", "researchTitle": "New topic",
+        payload = {"proposedSupervisorId": "NEW-001", "projectCourseCodes": "WQD7002", "researchTitle": "New topic",
                    "researchArea": "Computing", "researchAbstract": "New abstract", "researchIntent": valid_research_intent_json()}
         forged = self.client.post("/api/appointments/supervisor/applications/", {
             **payload, "replacesAppointmentId": self.supervisor_appointment.pk, "replacementReason": "Forged",

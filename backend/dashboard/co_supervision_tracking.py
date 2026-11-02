@@ -103,7 +103,7 @@ def co_supervisor_reconciliation_issues():
     )
     panel_pairs.update(
         PanelRecommendation.objects.filter(
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+            status__in=PanelRecommendation.PENDING_STATUSES
         ).values_list("profile__matric_no", "recommended_member_id")
     )
     panel_pairs = {(str(matric).casefold(), user_id) for matric, user_id in panel_pairs}

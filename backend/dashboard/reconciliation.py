@@ -31,8 +31,6 @@ from appointments.models import (
     StudentResearchProfile,
     SupervisorApplication,
     SupervisorAppointment,
-    count_panel_workload,
-    panel_workload_limit,
 )
 from appointments.appointment_lifecycle import (
     AppointmentLifecycleConflict,
@@ -440,9 +438,9 @@ def _capacity_reconciliation_issues():
     return issues
 
 
-def _supervisor_capacity_available(application):
+def _request_capacity_available(row):
     try:
-        assert_request_capacity(application)
+        assert_request_capacity(row)
     except CapacityConflict:
         return False
     return True
@@ -761,7 +759,7 @@ def detect_reconciliation_issues(*, include_accepted=False):
             )
             and student_is_workflow_eligible(application.student)
             and user_is_assignable_lecturer(application.proposed_supervisor)
-            and _supervisor_capacity_available(application)
+            and _request_capacity_available(application)
             and not SupervisorAppointment.objects.filter(
                 student=application.student,
                 status=SupervisorAppointment.Status.ACTIVE,
@@ -824,8 +822,7 @@ def detect_reconciliation_issues(*, include_accepted=False):
                 status=SupervisorAppointment.Status.ACTIVE,
             ).exists()
             and user_is_assignable_lecturer(recommendation.recommended_member)
-            and count_panel_workload(recommendation.recommended_member)
-            < panel_workload_limit(recommendation.recommended_member)
+            and _request_capacity_available(recommendation)
             and (
                 recommendation.replaces_appointment_id is not None
                 or not PanelAppointment.objects.filter(
@@ -1530,7 +1527,7 @@ def _apply_supervisor_handoff(issue, actor):
     if not user_is_assignable_lecturer(application.proposed_supervisor):
         raise ReconciliationConflict("The proposed Supervisor is no longer assignable.")
     Lecturer.objects.select_for_update().get(pk=application.proposed_supervisor_id)
-    if not _supervisor_capacity_available(application):
+    if not _request_capacity_available(application):
         raise ReconciliationConflict(
             "The proposed Supervisor has reached the workload limit."
         )
@@ -1629,12 +1626,11 @@ def _apply_panel_handoff(issue, actor):
         raise ReconciliationConflict(
             "The selected Panel lecturer is no longer assignable."
         )
-    if count_panel_workload(recommendation.recommended_member) >= panel_workload_limit(
-        recommendation.recommended_member
-    ):
-        raise ReconciliationConflict(
-            "The selected Panel lecturer has reached the workload limit."
-        )
+    Lecturer.objects.select_for_update().get(pk=recommendation.recommended_member_id)
+    try:
+        assert_request_capacity(recommendation)
+    except CapacityConflict as exc:
+        raise ReconciliationConflict(str(exc)) from exc
     try:
         appointment = activate_replacement(
             model=PanelAppointment,
@@ -1653,6 +1649,8 @@ def _apply_panel_handoff(issue, actor):
         )
     except AppointmentLifecycleConflict as exc:
         raise ReconciliationConflict(str(exc)) from exc
+    from appointments.capacity_closure import close_capacity_full_panel_requests
+    close_capacity_full_panel_requests(panel_member=recommendation.recommended_member, actor=actor)
     return (
         {"appointmentId": None},
         {"appointmentId": appointment.pk},

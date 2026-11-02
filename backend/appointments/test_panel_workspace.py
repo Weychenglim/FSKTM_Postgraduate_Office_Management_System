@@ -189,7 +189,7 @@ class PanelWorkspaceTests(APITestCase):
     def test_workload_counts_all_active_and_reserved_rows_against_current_published_limit(self):
         self.appointment()
         for number in range(1, 4):
-            self.recommendation(self.student_profile(number))
+            self.recommendation(self.student_profile(number), status='PENDING_COORDINATOR')
         missing = self._lecturer('unconfigured-panel@example.test', 'MISSING', panel=True)
         # A persisted old profile limit must not replace the published semester policy.
         Panel.objects.filter(pk=self.panel.pk).update(max_appointments=99)
@@ -207,7 +207,7 @@ class PanelWorkspaceTests(APITestCase):
 
     def test_workload_full_over_and_temporary_unavailability_match_authoritative_resolver(self):
         for number in range(1, 7):
-            self.recommendation(self.student_profile(number))
+            self.recommendation(self.student_profile(number), status='PENDING_COORDINATOR')
             if number in (5, 6):
                 row = next(row for row in self.page('workload')['results'] if row['id'] == self.panel.pk)
                 self.assertEqual((row['reason'], row['currentStudents']), ('full' if number == 5 else 'over_capacity', number))
@@ -223,8 +223,15 @@ class PanelWorkspaceTests(APITestCase):
                 (expected.state, expected.active_load, expected.reserved_load))
         self.assertEqual(self.summary()['workloadConcerns'], 2)
 
+    def test_unanswered_nominations_remain_in_waiting_queue_without_using_capacity(self):
+        for number in range(1, 7):
+            self.recommendation(self.student_profile(number))
+        self.assertEqual(self.page('waiting')['total'], 6)
+        self.assertEqual(self.summary()['waitingRequests'], 6)
+        self.assertEqual(self.page('workload')['total'], 0)
+
     def test_workload_uses_current_semester_and_all_semester_reservations(self):
-        self.recommendation()
+        self.recommendation(status='PENDING_COORDINATOR')
         self.semester.lifecycle_status = 'CLOSED'
         self.semester.save(update_fields=['lifecycle_status'])
         semester = AcademicSemester.objects.create(code='PANEL-CURRENT', academic_session='2100/2101', term='SEMESTER_I',

@@ -17,7 +17,7 @@ export function PanelSuperviseesWorkspace({students, recommendations, onOpenStud
   return <section aria-label="Panels for my supervisees" className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
     <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
       <h2 className="section-label leading-6">My supervisees</h2>
-      <PortalButton size="sm" icon={ClipboardList} className="min-h-11 shrink-0 [&]:normal-case [&]:tracking-normal [&]:text-xs" onClick={onOpenRecords}>Nomination records</PortalButton>
+      <PortalButton size="sm" icon={ClipboardList} className="shrink-0" onClick={onOpenRecords}>Nomination records</PortalButton>
     </header>
     <PanelSuperviseeRoster embedded students={students} recommendations={recommendations} onOpen={onOpenStudent}/>
   </section>;

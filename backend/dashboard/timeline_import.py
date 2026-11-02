@@ -1,4 +1,4 @@
-"""Signed, non-mutating workbook review and safe period-link resolution."""
+"""Signed, non-mutating calendar workbook review and existing-link preservation."""
 import hashlib
 import json
 from zoneinfo import ZoneInfo
@@ -44,8 +44,6 @@ def digest(upload):
 
 
 def prepare_rows(upload, semester):
-    from academics.models import OperationalPeriod
-    from marks.models import EvaluationPeriod
     errors = validate_timeline_upload(upload)
     if errors:
         raise ValidationError(errors)
@@ -61,35 +59,15 @@ def prepare_rows(upload, semester):
     for row in rows:
         code = row.pop('activity_code')
         period_id = row.pop('period_id')
-        if bool(code) != bool(period_id):
-            raise ValidationError('Activity Code and Period ID must be supplied together.')
-        if code:
-            model = EvaluationPeriod if code == 'MARKS' else OperationalPeriod
-            if code not in {'MARKS', 'SUPERVISOR_APPLICATION', 'PANEL_RECOMMENDATION'}:
-                raise ValidationError('Unknown Activity Code. Select an existing operational period explicitly.')
-            try:
-                period = model.objects.get(pk=int(period_id), academic_semester=semester)
-            except (ValueError, model.DoesNotExist):
-                raise ValidationError('Period ID must identify an existing period in this semester.')
-            if model == OperationalPeriod and period.activity != code:
-                raise ValidationError('Activity Code does not match the selected period.')
-            if not period.opens_at or not period.closes_at:
-                raise ValidationError('Linked periods require configured opening and closing dates.')
-            start = period.opens_at.astimezone(MALAYSIA).date()
-            end = period.closes_at.astimezone(MALAYSIA).date()
-            if row['deadline_start'] != start or row['deadline_end'] != end:
-                raise ValidationError('Linked calendar dates must match the owning period; update that period through its module.')
-            if start < semester.starts_on or end > semester.ends_on:
-                raise ValidationError('Operational mappings must be within the selected semester.')
-            row['marks_period' if code == 'MARKS' else 'operational_period'] = period
+        if code or period_id:
+            raise ValidationError('Link events in Periods & deadlines, not through Excel import. Clear Activity Code and Period ID or download a fresh template.')
         for old in current_links:
             # Workbook order and exact facts make preservation explicit and deterministic.
             same = all(row[key] == getattr(old, key) for key in (
-                'level', 'step', 'title', 'detail', 'action_owner', 'week_label', 'target_roles'))
+                'level', 'step', 'title', 'detail', 'action_owner', 'target_roles'))
             same = same and (row['deadline_start'], row['deadline_end']) == old.projected_dates
             if same:
-                if code and (row.get('operational_period') != old.operational_period or row.get('marks_period') != old.marks_period):
-                    raise ValidationError('Replacement changes an existing period link. Resolve the existing link before importing.')
+                row['week_label'] = old.week_label
                 row['operational_period'] = old.operational_period
                 row['marks_period'] = old.marks_period
                 preserved.add(old.pk)
@@ -108,9 +86,7 @@ def display_rows(rows):
         'detail': row['detail'], 'action': row['action_owner'],
         'deadlineStart': row['deadline_start'].isoformat(),
         'deadlineEnd': row['deadline_end'].isoformat(), 'targetRoles': row['target_roles'],
-        'operationalPeriodId': getattr(row.get('operational_period'), 'pk', None),
-        'marksPeriodId': getattr(row.get('marks_period'), 'pk', None),
-    } for row in rows]
+            } for row in rows]
 
 
 @transaction.atomic

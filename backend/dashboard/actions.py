@@ -136,7 +136,7 @@ def _supervisor_actions(user, now):
 
 
 def _panel_actions(user, now):
-    pending_statuses = list(PanelRecommendation.WORKLOAD_RESERVED_STATUSES)
+    pending_statuses = list(PanelRecommendation.PENDING_STATUSES)
     recommendations = PanelRecommendation.objects.filter(
         status__in=pending_statuses,
     )

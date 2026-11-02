@@ -128,9 +128,9 @@ export function getLecturerCapacityAudits(
 
 export type CapacityCollection = 'capacity-plans' | 'availability' | 'capacity-audits';
 export interface CapacityBrowseQuery extends CapacityHistoryQuery {
-  q?: string; status?: string; role?: string; lecturerId?: number;
+  q?: string; status?: string; role?: string; lecturerId?: number; version?: number;
 }
-export interface CapacityPage<T> { rows: T[]; total: number; limit: number; offset: number }
+export interface CapacityPage<T> { rows: T[]; total: number; limit: number; offset: number; versions?: number[] }
 export function getCapacityPage<T>(semesterId: number, collection: CapacityCollection, query: CapacityBrowseQuery): Promise<CapacityPage<T>> {
   const params = new URLSearchParams({pageResult: 'true'});
   Object.entries(query).forEach(([key, value]) => { if (value !== undefined && value !== '') params.set(key, String(value)); });

@@ -6,6 +6,13 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const module = await import('./PortalSelect').catch(() => null);
+test('Hidden options stay in the native form contract but are not menu choices',()=>{
+  assert.ok(module);
+  const html=renderToStaticMarkup(<module.PortalSelect><option value="" hidden>Hidden placeholder</option><option value="1">Computing</option></module.PortalSelect>);
+  assert.match(html,/>Computing<\/span>/);
+  assert.match(html,/<option value="" hidden="">Hidden placeholder/);
+  assert.doesNotMatch(html,/>Hidden placeholder<\/span>/);
+});
 test('Existing form selectors expose the shared combobox without losing native form constraints', () => {
   assert.ok(module, 'A shared select adapter is required for existing form and filter controls');
   const { PortalSelect } = module;

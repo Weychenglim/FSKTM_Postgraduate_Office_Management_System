@@ -1,3 +1,4 @@
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 import { PortalSelect } from './PortalSelect';
 import { DecisionDialog } from './DecisionDialog';
 import { LinkedPeriodStatus } from './LinkedPeriodStatus';
@@ -8,10 +9,10 @@ import { completeDecision } from '../utils/decisionSubmission';
  */
 
 import {
-  Plus, CalendarDays, ListChecks, History
+  Plus, CalendarDays, ListChecks, History, Trash2
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
 import { useListState } from './ListState';
 import {
@@ -25,16 +26,15 @@ import {
 } from '../services';
 import { AcademicSemester, ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 import { TimelineAddEventsModal } from './TimelineAddEventsModal';
 import {OfficeToolHeading, OfficeToolViews} from './OfficeToolPrimitives';
 import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
 import { WorkspaceFilterCard, WorkspacePagination } from './RequestWorkspacePrimitives';
 import { SemesterTimeline } from './SemesterTimeline';
 import { ErrorState, LoadingState } from './StateViews';
-import { InformationalEventExtension } from './InformationalEventExtension';
 import { clampPage, paginate, paginationRange } from '../utils/pagination';
-import { formatSemesterLifecycle } from '../utils/academicSemesters';
+import {OfficeAcademicSemesterSelect} from './OfficeAcademicSemesterSelect';
 import { canManagePeriodSemester, canEditTimelineSemester, loadPeriodTimeline } from '../utils/operationalPeriodAccess';
 
 // TimelineEntry now lives in src/types.
@@ -100,30 +100,17 @@ const initials = (name: string) =>
     .map((part) => part[0]?.toUpperCase())
     .join('') || 'OS';
 
-export const TimelineManagement: React.FC<TimelineManagementProps> = ({
+const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
   onBack,
-  backLabel = 'Back to Office Dashboard',
+  backLabel = 'Back to Dashboard',
   onManageSemesters,
 }) => {
   const [searchParams,setSearchParams] = useSearchParams();
   const [view,setView] = useListState<'calendar'|'entries'|'history'>('OfficeCalendar','view','calendar');
-  const [extensionId,setExtensionId] = useState<number|null>(null);
-  // Toast overlay
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [toastTone, setToastTone] = useState<'info' | 'success' | 'danger'>('info');
-
-  // Upload Timeline Drawer Slide-in state
-
+  const feedback = useDecisionFeedback();
   const [savingEntry, setSavingEntry] = useState(false);
+  const [completion, setCompletion] = useState<{message: string; tone: 'success' | 'warning'} | null>(null);
   const savingEntryRef = useRef(false);
-
-  const triggerToast = (msg: string, tone: 'info' | 'success' | 'danger' = 'info') => {
-    setToastTone(tone);
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
-  };
 
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [timeline, setTimeline] = useState<ActiveSemesterTimeline | null>(null);
@@ -263,6 +250,7 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
   const handleOpenAddModal = () => {
     setEntrySaveError(null);
+    setCompletion(null);
     setAddDrawerOpen(true);
   };
 
@@ -272,37 +260,33 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
     setEditDrawerOpen(true);
   };
 
-  const handleAddEntry = (newEntryVal: Omit<TimelineEntry, 'id' | 'status'>) => {
-    if (savingEntryRef.current) return;
-    setEntrySaveError(null);
-    savingEntryRef.current = true; setSavingEntry(true);
-    createTimelineEntry(newEntryVal, selectedSemesterId ?? undefined)
-      .then((savedEntry) => {
-        const normalizedEntry = timelineEntryToLegacy(savedEntry);
-        triggerToast(`Successfully created timeline entry: "${normalizedEntry.event}"`, 'success');
-        setAddDrawerOpen(false);
-        loadEntries();
-      })
-      .catch((e) => {
-        setEntrySaveError(e instanceof Error ? e.message : 'Failed to create timeline entry.');
-      }).finally(() => { savingEntryRef.current = false; setSavingEntry(false); });
+  const refreshCommitted = async (message: string) => {
+    try {await loadEntries(true); feedback?.(message, 'success');}
+    catch {const warning = `${message} The latest calendar could not be loaded. Retry loading it before another action.`; setCompletion({message: warning, tone: 'warning'}); feedback?.(warning, 'warning');}
   };
-
-  const handleEditEntry = (updated: Omit<TimelineEntry, 'status'>) => {
+  const handleAddEntry = async (newEntryVal: Omit<TimelineEntry, 'id' | 'status'>) => {
+    if (savingEntryRef.current) return false;
+    setEntrySaveError(null);
+    savingEntryRef.current = true; setSavingEntry(true);
+    try {
+      const saved = await createTimelineEntry(newEntryVal, selectedSemesterId ?? undefined);
+      const message = `Timeline entry created: "${timelineEntryToLegacy(saved).event}".`;
+      setCompletion({message, tone: 'success'});
+      void refreshCommitted(message);
+      return true;
+    } catch (e) {setEntrySaveError(e instanceof Error ? e.message : 'Failed to create timeline entry.'); return false;}
+    finally {savingEntryRef.current = false; setSavingEntry(false);}
+  };
+  const handleEditEntry = async (updated: Omit<TimelineEntry, 'status'> & { extensionReason?: string; expectedDeadlineEnd?: string }) => {
     if (savingEntryRef.current) return;
     setEntrySaveError(null);
     savingEntryRef.current = true; setSavingEntry(true);
-    updateTimelineEntry(updated.id, updated)
-      .then((savedEntry) => {
-        const normalizedEntry = timelineEntryToLegacy(savedEntry);
-
-        triggerToast(`Successfully modified entry: "${normalizedEntry.event}"`, 'success');
-        setEditDrawerOpen(false);
-        loadEntries();
-      })
-      .catch((e) => {
-        setEntrySaveError(e instanceof Error ? e.message : 'Failed to update timeline entry.');
-      }).finally(() => { savingEntryRef.current = false; setSavingEntry(false); });
+    try {
+      const saved = await updateTimelineEntry(updated.id, updated, !!(editingEntry?.operationalPeriodId || editingEntry?.marksPeriodId));
+      setEditDrawerOpen(false);
+      void refreshCommitted(`Timeline entry updated: "${timelineEntryToLegacy(saved).event}".`);
+    } catch (e) {setEntrySaveError(e instanceof Error ? e.message : 'Failed to update timeline entry.');}
+    finally {savingEntryRef.current = false; setSavingEntry(false);}
   };
 
   const handleDeleteEntry = (id: string, name: string) => {
@@ -319,8 +303,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
   const handleImportSuccess = (importedEvents: TimelineEntry[], importedCount?: number) => {
     setEntries(importedEvents);
-    triggerToast(`Import completed! ${importedCount ?? importedEvents.length} entries committed.`, 'success');
-    loadEntries();
+    const message = `Import completed! ${importedCount ?? importedEvents.length} entries committed.`;
+    setCompletion({message, tone: 'success'});
+    return refreshCommitted(message);
   };
 
   const getStatusTone = (status: TimelineEntry['status']) => {
@@ -339,9 +324,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
   };
 
   return (
-    <div id="timeline-management-universe" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
+    <div id="timeline-management-universe" className="space-y-6 animate-fade-in text-left font-sans text-xs pb-12">
 
-      <PortalToast message={toastMessage} tone={toastTone} />
+
 
       {/* Head section title with actions buttons Row */}
       <PageHeader
@@ -353,21 +338,9 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
 
       />
 
-      <div className="capacity-semester-selection" role="region" aria-label="Semester context">
-        <div className="capacity-semester-control">
-          <label htmlFor="timeline-academic-semester" className="capacity-field-label">Academic semester</label>
-          <PortalSelect id="timeline-academic-semester" className="form-control form-control-md"
-            aria-describedby={selectedSemester ? 'timeline-semester-dates' : undefined}
-            disabled={extensionId!==null || savingEntry || deletingEntry || addDrawerOpen || editDrawerOpen}
-            value={selectedSemesterId ?? ''}
-            onChange={event => { const id=Number(event.target.value); setSelectedSemesterId(id); setSearchParams({semester:String(id)},{replace:true}); }}>
-            {!semesters.length && <option value="">No available semesters</option>}
-            {semesters.map(semester => <option key={semester.id} value={semester.id}>{semester.label}</option>)}
-          </PortalSelect>
-          {selectedSemester && <p id="timeline-semester-dates" className="capacity-semester-dates">{formatDisplayDate(selectedSemester.startsOn)} – {formatDisplayDate(selectedSemester.endsOn)}</p>}
-        </div>
-        {selectedSemester && <div className="capacity-semester-status"><StatusBadge tone={selectedSemester.effectiveStatus==='ACTIVE'?'success':selectedSemester.effectiveStatus==='DRAFT'?'warning':'neutral'}>{formatSemesterLifecycle(selectedSemester.effectiveStatus)}</StatusBadge></div>}
-      </div>
+      <OfficeAcademicSemesterSelect id="timeline-academic-semester" dateId="timeline-semester-dates" semesters={semesters} selectedId={selectedSemesterId}
+        disabled={savingEntry || deletingEntry || addDrawerOpen || editDrawerOpen}
+        onChange={id=>{setSelectedSemesterId(id);setSearchParams({semester:String(id)},{replace:true});}}/>
       <OfficeToolViews<typeof view> appearance="workspace" label="Calendar views" value={view} onChange={setView} options={[{value:'calendar',label:'Calendar',icon:CalendarDays},{value:'entries',label:'Entries',icon:ListChecks},{value:'history',label:'History',icon:History}]}/>
       {view==='calendar' && <SemesterTimeline timeline={timeline} loading={loading} error={error} onRetry={handleRetry} actions={<PortalButton variant="primary" size="sm" icon={Plus} disabled={!calendarEditable} onClick={handleOpenAddModal}>Add events</PortalButton>} />}
       <section hidden={view!=='entries'} id="timeline-records-box" className="timeline-workspace-table rounded-xl border border-slate-200 bg-white p-4 sm:p-5 space-y-5">
@@ -383,15 +356,10 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
           <CoordinatorDataTable label="Timeline entries" columns={['Event','Category','Starts on','Ends on','Audience','Status','Action']} rows={shownEntries.map(ent => ({key:ent.id, cells:[
             ent.event, ent.category, ent.startDate, ent.endDate,
             <div className="flex flex-wrap gap-1.5">{ent.targetRole.map(role => <StatusBadge key={role} tone="neutral">{role === 'STUDENT' ? 'Student' : role === 'LECTURER' ? 'Lecturer' : role}</StatusBadge>)}</div>,
-            ent.linkedPeriodStatus ? <LinkedPeriodStatus status={ent.linkedPeriodStatus}/> : <StatusBadge tone={getStatusTone(ent.status)} dot pulse={ent.status==='Deadline'}>{ent.status}</StatusBadge>,
-            <div className="flex flex-wrap items-center gap-2">
-              {ent.operationalPeriodId || ent.marksPeriodId ? <Link
-                to={`${APP_ROUTES.dashboardPeriods}?semester=${selectedSemesterId}${ent.operationalPeriodId ? `#operational-period-${ent.operationalPeriodId}` : `#marks-period-${ent.marksPeriodId}`}`}
-                className="inline-flex rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/20"
-              >Manage period</Link> : <>
-                <PortalButton size="sm" disabled={!calendarEditable} onClick={() => handleOpenEditModal(ent)}>Edit event</PortalButton>
-              </>}
-              <PortalButton size="sm" variant="ghost" className="text-rose-700 hover:bg-rose-50 hover:text-rose-800" aria-label={`Delete ${ent.event}`} disabled={!calendarEditable} onClick={() => handleDeleteEntry(ent.id, ent.event)}>Delete</PortalButton>
+            ent.linkedPeriodStatus ? <LinkedPeriodStatus status={ent.linkedPeriodStatus} compact/> : <StatusBadge tone={getStatusTone(ent.status)} dot pulse={ent.status==='Deadline'}>{ent.status}</StatusBadge>,
+            <div className="timeline-entry-actions flex items-center gap-2">
+              <PortalButton size="sm" disabled={!calendarEditable} onClick={() => handleOpenEditModal(ent)}>Edit event</PortalButton>
+              <PortalButton size="sm" variant="dangerSolid" icon={Trash2} title={`Delete ${ent.event}`} className="timeline-delete-button" aria-label={`Delete ${ent.event}`} disabled={!calendarEditable} onClick={() => handleDeleteEntry(ent.id, ent.event)} />
             </div>
 
           ]}))} />
@@ -410,9 +378,10 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
         </>}
       </section>
 
-      {addDrawerOpen && selectedSemester && <TimelineAddEventsModal
+      {selectedSemester && <TimelineAddEventsModal isOpen={addDrawerOpen}
+        completion={completion}
         error={entrySaveError} busy={savingEntry}
-        onClose={() => setAddDrawerOpen(false)} onSave={handleAddEntry}
+        onClose={() => {setAddDrawerOpen(false); setCompletion(null);}} onSave={handleAddEntry}
         onImportSuccess={handleImportSuccess}
         semesterId={selectedSemester.id} semesterLabel={selectedSemester.label}
       />}
@@ -428,14 +397,15 @@ export const TimelineManagement: React.FC<TimelineManagementProps> = ({
         }}
         entry={editingEntry}
         onSave={handleEditEntry}
-        onExtendDeadline={calendarEditable && editingEntry ? () => setExtensionId(Number(editingEntry.id)) : undefined}
+        managePeriodUrl={editingEntry && (editingEntry.operationalPeriodId || editingEntry.marksPeriodId) ? `${APP_ROUTES.dashboardPeriods}?semester=${selectedSemesterId}&manage=window${editingEntry.operationalPeriodId ? `#operational-period-${editingEntry.operationalPeriodId}` : `#marks-period-${editingEntry.marksPeriodId}`}` : undefined}
         timelineLabel={selectedSemester?.label ?? 'the active timeline'}
       />
 
       {/* Delete Confirmation Modal */}
-      <InformationalEventExtension entry={timeline?.levels.flatMap(group=>group.entries).find(entry=>entry.id===extensionId)??null} onClose={()=>setExtensionId(null)} onReload={async()=>{await loadEntries(true); setEditDrawerOpen(false); setEditingEntry(null);}}/>
       <DecisionDialog kind="confirmation" tone="danger" decisionKey={entryToDelete?.id} successMessage="Timeline entry deleted." onReload={async () => { await loadEntries(true); }} isOpen={!!entryToDelete} title="Delete Timeline Entry?" message={<>Permanently remove <strong>{entryToDelete?.name}</strong> from the postgraduate timeline? This action cannot be undone.</>} confirmLabel="Delete Entry" busy={deletingEntry} onConfirm={confirmDeleteEntry} onClose={() => { if (!deletingEntryRef.current) setEntryToDelete(null); }} />
 
     </div>
   );
 };
+
+export const TimelineManagement: React.FC<TimelineManagementProps> = props => <DecisionFeedbackProvider scopeKey="calendar"><TimelineManagementContent {...props}/></DecisionFeedbackProvider>;

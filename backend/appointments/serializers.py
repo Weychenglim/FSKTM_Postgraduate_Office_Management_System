@@ -219,7 +219,7 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
 
     def get_canRecommend(self, obj):
         return not obj.panel_recommendations.filter(
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+            status__in=PanelRecommendation.PENDING_STATUSES
         ).exists()
 
     def _active_panel_appointment(self, obj):
@@ -260,6 +260,8 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
 
 
 class PanelCandidateSerializer(serializers.ModelSerializer):
+    activeLoad = serializers.SerializerMethodField()
+    reservedLoad = serializers.SerializerMethodField()
     staffId = serializers.SerializerMethodField()
     name = serializers.CharField(source="full_name")
     department = serializers.SerializerMethodField()
@@ -279,6 +281,8 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
+            "activeLoad",
+            "reservedLoad",
             "staffId",
             "name",
             "department",
@@ -303,6 +307,12 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
         resolution = self._capacity(obj)
         return resolution.active_load + resolution.reserved_load
 
+    def get_activeLoad(self, obj):
+        return self._capacity(obj).active_load
+
+    def get_reservedLoad(self, obj):
+        return self._capacity(obj).reserved_load
+
     def get_staffId(self, obj):
         return staff_no_for_user(obj)
 
@@ -323,7 +333,7 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
         )
 
     def get_workloadHelpText(self, obj):
-        return "Workload includes confirmed active panel appointments and submitted nominations."
+        return "Workload includes active Panel appointments and accepted nominations awaiting Coordinator approval."
 
     def get_semesterId(self, obj):
         return self._capacity(obj).semester_id
@@ -349,6 +359,14 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
 
 
 class PanelRecommendationSerializer(serializers.ModelSerializer):
+    acceptanceCapacity = serializers.SerializerMethodField()
+
+    def get_acceptanceCapacity(self, obj):
+        from .capacity_closure import panel_acceptance_capacity
+        cache = getattr(self, "_panel_capacity_cache", {})
+        self._panel_capacity_cache = cache
+        return panel_acceptance_capacity(obj, cache=cache)
+
     studentEmail = serializers.SerializerMethodField()
     supervisorEmail = serializers.EmailField(source="supervisor.email", read_only=True)
     panelMemberEmail = serializers.EmailField(source="recommended_member.email", read_only=True)
@@ -451,6 +469,7 @@ class PanelRecommendationSerializer(serializers.ModelSerializer):
     class Meta:
         model = PanelRecommendation
         fields = [
+            "acceptanceCapacity",
             "studentEmail", "supervisorEmail", "panelMemberEmail", "panelMemberDepartment",
             "replacedPanelMember", "replacedAppointmentStatus", "canReview", "appointmentDate", "canEndAppointment",
             "id",
@@ -656,7 +675,7 @@ class PanelRecommendationCreateSerializer(serializers.Serializer):
         )
 
         if profile.panel_recommendations.filter(
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+            status__in=PanelRecommendation.PENDING_STATUSES
         ).exists():
             raise serializers.ValidationError(
                 "An active panel recommendation already exists for this student."
@@ -1008,6 +1027,17 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
     def get_initiatedByOffice(self, obj):
         return is_office_replacement(obj)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request is None or request.user.role == User.Role.STUDENT:
+            lifecycle_action = "OFFICE_CANCEL_PARTICIPANT_LIFECYCLE"
+            if any(event["action"] == lifecycle_action for event in data["workflow"]):
+                data["cancellationReason"] = None
+                data["workflow"] = [event for event in data["workflow"]
+                                    if event["action"] != lifecycle_action]
+        return data
+
     def get_acceptanceCapacity(self, obj):
         from .capacity_closure import acceptance_capacity
         if not hasattr(self, "_acceptance_capacity_cache"):
@@ -1078,6 +1108,24 @@ class SupervisorApplicationSerializer(serializers.ModelSerializer):
             appointment = obj.appointment
         except SupervisorAppointment.DoesNotExist:
             return None
+        request = self.context.get("request")
+        if request is None or request.user.role == User.Role.STUDENT:
+            # Staff closure explanations may contain private participant reasons.
+            # A missing actor must not silently select the internal projection.
+            return {
+                "appointmentId": appointment.pk,
+                "status": appointment.status,
+                "endOutcome": appointment.end_outcome or None,
+                "endReason": None,
+                "endedAt": appointment.ended_at,
+                "endedBy": None,
+                "supersedesAppointmentId": appointment.supersedes_id,
+                "replacementAppointmentId": (
+                    appointment.replacement_appointment.pk
+                    if getattr(appointment, "replacement_appointment", None) else None
+                ),
+                "lifecycle": [],
+            }
         return appointment_lifecycle_serializer_payload(appointment)
 
 
@@ -1086,13 +1134,18 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
     researchIntent = ResearchIntentField(required=True)
     proposedSupervisorId = serializers.CharField()
     projectCourseCodes = serializers.CharField(
-        max_length=255, required=False, allow_blank=True, trim_whitespace=True, default="",
+        max_length=255, required=True, allow_blank=False, trim_whitespace=True,
     )
     researchTitle = serializers.CharField(max_length=500)
     researchArea = serializers.CharField(max_length=255, allow_blank=False)
     researchAbstract = serializers.CharField()
     replacesAppointmentId = serializers.IntegerField(required=False, allow_null=True)
     replacementReason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_projectCourseCodes(self, value):
+        if any(separator in value for separator in (",", ";", "\r", "\n")):
+            raise serializers.ValidationError("Enter only one project course code.")
+        return value
 
     def validate(self, attrs):
         request = self.context["request"]

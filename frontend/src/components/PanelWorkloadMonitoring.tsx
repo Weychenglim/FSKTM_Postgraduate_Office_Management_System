@@ -4,7 +4,8 @@ import { OfficeMonitoringNotice, useOfficeMonitoring } from './OfficeMonitoringC
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Eye, Gauge, ClipboardList } from 'lucide-react';
 import { RecordPage } from './RecordPage';
-import { PortalButton, PortalToast, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
+import { PortalButton, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { ErrorState, LoadingState, EmptyState } from './StateViews';
 import { getPanelWorkloads } from '../services';
 import type { PanelWorkloadRecord } from '../types';
@@ -51,7 +52,7 @@ export function PanelWorkloadDetails({ record }: { record: PanelWorkloadRecord }
     </WorkloadLecturerOverview>
     <WorkloadCapacityUsage configured={hasConfiguration} used={record.currentStudents} limit={record.workloadLimit} available={record.availableSlots}
       utilization={getPanelWorkloadUtilization(record)} tone={getStatusBadgeTone(stateOf(record))} usedLabel="Active + reserved" capacityLabel="Panel capacity"
-      breakdown={<><WorkloadFact label="Active appointments">{record.confirmedAppointments}</WorkloadFact><WorkloadFact label="Pending reservations">{record.pendingNominations}</WorkloadFact></>} hint="Active appointments and pending nominations count across semesters. Approval converts a reservation into an appointment without using another slot."/>
+      breakdown={<><WorkloadFact label="Active appointments">{record.confirmedAppointments}</WorkloadFact><WorkloadFact label="Pending reservations">{record.pendingNominations}</WorkloadFact></>} hint="Active appointments and accepted nominations awaiting Coordinator approval count across semesters. Approval converts a reservation into an appointment without using another slot."/>
     <WorkloadDetailSection title="Workload items" icon={ClipboardList} count={record.workloadItems.length}>
       {record.workloadItems.length ? <div className="[&_td:nth-child(2)]:col-span-2"><CoordinatorDataTable label="Lecturer Panel workload items" columns={['Student', 'Research title', 'Workload type', 'Recorded date']} rows={record.workloadItems.map((item, index) => ({ key: `${item.type}:${item.studentId}:${index}`, cells: [<><p className={workloadBody}>{item.studentName}</p><p className="text-xs leading-5 text-slate-500">{item.studentId}</p></>, <p className={`${workloadBody} whitespace-pre-wrap [overflow-wrap:anywhere]`}>{item.researchTitle || 'Not recorded'}</p>, <StatusBadge tone={item.type === 'Confirmed Appointment' ? 'success' : 'warning'}>{item.type === 'Confirmed Appointment' ? 'Active appointment' : 'Pending reservation'}</StatusBadge>, <p className="text-xs leading-5 text-slate-500">{item.date || 'Not recorded'}</p>] }))} /></div>
         : <p className="rounded-xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">No active appointments or pending nominations for this lecturer.</p>}
@@ -59,9 +60,9 @@ export function PanelWorkloadDetails({ record }: { record: PanelWorkloadRecord }
   </div>;
 }
 
-export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = ({ onBack, onOpenCapacity, initialLecturerId, backLabel = 'Back to Panel Appointments' }) => {
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = props => <DecisionFeedbackProvider scopeKey="panel-workload"><PanelWorkloadMonitoringContent {...props}/></DecisionFeedbackProvider>;
+
+const PanelWorkloadMonitoringContent: React.FC<PanelWorkloadMonitoringProps> = ({ onBack, onOpenCapacity, initialLecturerId, backLabel = 'Back to Panel Appointments' }) => {
   const [allRecords, setRecords] = useState<PanelWorkloadRecord[]>([]);
   const monitoring = useOfficeMonitoring();
   const records = useMemo(() => monitoring?.view === 'panel-capacity' ? allRecords.filter(row => row.capacityState === 'FULL' || row.capacityState === 'OVER_CAPACITY') : allRecords, [allRecords, monitoring?.view]);
@@ -75,11 +76,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
   const [page, setPage] = useListState('PanelWorkloadMonitoring', 'page', 1);
   const [pageSize, setPageSize] = useListState('PanelWorkloadMonitoring', 'size', 10);
   const generation = useRef(0);
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastMessage(null), 2500);
-  };
+  const publishFeedback = useDecisionFeedback()!;
   const loadWorkloads = useCallback(async () => {
     const token = ++generation.current;
     setLoading(true); setError(null);
@@ -87,7 +84,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
     catch (reason) { if (token === generation.current) setError(reason instanceof Error ? reason.message : 'Failed to load panel workload records.'); }
     finally { if (token === generation.current) setLoading(false); }
   }, []);
-  useEffect(() => { void loadWorkloads(); return () => { generation.current += 1; if (toastTimer.current) clearTimeout(toastTimer.current); }; }, [loadWorkloads]);
+  useEffect(() => { void loadWorkloads(); return () => { generation.current += 1; }; }, [loadWorkloads]);
   useEffect(() => { if (initialLecturerId || queryLecturer) setSelectedId(initialLecturerId || queryLecturer); }, [initialLecturerId, queryLecturer]);
   useReturnToFocusReload(() => { void loadWorkloads(); }, !loading);
   const browse = useMemo(() => getPanelWorkloadPage(records, { search, department, status }, page, pageSize), [records, search, department, status, page, pageSize]);
@@ -99,7 +96,7 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
   const excel = useExcelExport();
   const handleExportExcel = async () => {
     if (browse.filtered.length === 0) {
-      showToast('No panel workload records match the current filters.');
+      publishFeedback('No panel workload records match the current filters.', 'info');
       return;
     }
 
@@ -127,8 +124,8 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
           .join(' | '),
       },
     ]);
-    if (!exported) { showToast('Excel export could not be completed. Try again.'); return; }
-    showToast(`Downloaded panel_workload_monitoring_report.xlsx with ${browse.filtered.length} lecturers.`);
+    if (!exported) return;
+    publishFeedback(`panel_workload_monitoring_report.xlsx prepared with ${browse.filtered.length} lecturers. Check your browser downloads.`, 'info');
   };
 
   if (selectedId) return <RecordPage title="Panel workload details" backLabel={initialLecturerId || queryLecturer ? backLabel : 'Back to Panel Workload Monitoring'} onBack={() => { setSelectedId(''); if (initialLecturerId || queryLecturer) onBack(); }} pageKey={initialLecturerId || queryLecturer ? undefined : `panel-workload:${selectedId}`} actions={actions}>
@@ -136,7 +133,6 @@ export const PanelWorkloadMonitoring: React.FC<PanelWorkloadMonitoringProps> = (
   </RecordPage>;
 
   return <RecordPage title="Panel Workload Monitoring" subtitle="Current effective semester capacity, active appointments and pending reservations." backLabel={backLabel} onBack={onBack} actions={actions}>
-    <PortalToast message={toastMessage} />
     <OfficeMonitoringNotice />
     {!loading && !error ? <WorkloadMonitoringSummary kind="panel" records={browse.filtered} /> : null}
     <section aria-label="Panel workload workspace" className="office-workload-records min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">

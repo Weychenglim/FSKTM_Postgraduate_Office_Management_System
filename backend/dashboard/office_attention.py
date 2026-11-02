@@ -9,8 +9,9 @@ from rest_framework.response import Response
 
 from accounts.models import User
 from appointments.models import CoSupervisorNomination, PanelRecommendation, ResearchAmendment, SupervisorApplication
+from appointments.supervisor_documents import document_setup_status
 from marks.models import EvaluationTask
-from .actions import build_dashboard_tasks
+from .actions import _task, build_dashboard_tasks
 
 
 CATEGORIES = {
@@ -18,6 +19,7 @@ CATEGORIES = {
     'capacity': 'Review capacity settings',
     'evaluations': 'Review evaluations',
     'calendar': 'Set up semester timeline',
+    'documents': 'Configure supervisor document requirements',
     'supervision': 'Supervision requests',
     'panel': 'Panel appointment requests',
 }
@@ -35,6 +37,16 @@ def build_office_attention_tasks(user):
     if user.role != User.Role.OFFICE_ADMIN:
         raise PermissionDenied('Only Office Staff/Admin can read Office attention records.')
     tasks = build_dashboard_tasks(user, limit=None)
+    if not document_setup_status()["configured"]:
+        tasks.append(_task(
+            id='supervisor_document_setup',
+            name='Configure supervisor document requirements',
+            status='critical',
+            statusText='Applications cannot be submitted until document requirements are configured.',
+            target='Supervisor document requirements',
+            targetModule='SUPERVISOR_APPOINTMENTS',
+            recordType='SUPERVISOR_DOCUMENT_REQUIREMENTS',
+        ))
     # Batch programme lookup; capacity and calendar setup are faculty-wide, not a programme.
     specifications = (
         ('SUPERVISOR_APPLICATION', SupervisorApplication, 'student__programme'),
@@ -53,6 +65,8 @@ def build_office_attention_tasks(user):
 
 def category_for(task):
     kind = task.get('recordType')
+    if kind == 'SUPERVISOR_DOCUMENT_REQUIREMENTS':
+        return 'documents'
     if kind == 'RECONCILIATION_ISSUE':
         return 'reconciliation'
     if kind == 'LECTURER_CAPACITY':
@@ -77,7 +91,7 @@ def attention_rows(tasks):
         seen.add(task['id'])
         responsibility = 'waiting' if task.get('waitingOn') and task['waitingOn'] != 'FACULTY_PROCESSING' else 'review'
         urgency = {'OVERDUE': 'overdue', 'DUE_TODAY': 'due'}.get(task.get('deadlineState'), 'normal')
-        if category == 'reconciliation' and task['status'] == 'critical':
+        if category in {'reconciliation', 'documents'} and task['status'] == 'critical':
             urgency = 'blocking'
         rows.append({**task, 'category': category, 'responsibility': responsibility, 'urgency': urgency,
                      'programme': task.get('programme') or 'Faculty-wide'})
@@ -94,7 +108,9 @@ def summaries(rows):
         count = len(entries)
         urgency = min((row['urgency'] for row in entries), key=URGENCY.get)
         detail = f'{count} {"record" if count == 1 else "records"}'
-        if category == 'capacity':
+        if category == 'documents':
+            detail = 'Required before students can submit applications.'
+        elif category == 'capacity':
             roles = Counter('Supervisor' if row['id'].startswith('capacity_supervisor_') else 'Panel' if row['id'].startswith('capacity_panel_') else 'Other' for row in entries)
             detail = ' · '.join(f'{amount} {role}' for role, amount in sorted(roles.items())) + ' role entries'
         elif category == 'reconciliation':

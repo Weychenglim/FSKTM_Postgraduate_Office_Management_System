@@ -1,30 +1,7 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
-import { UNSAFE_DataRouterContext, useBlocker } from 'react-router';
+import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { PortalConfirmModal } from './PortalPrimitives';
-
-function CapacityRouteNavigationGuard({ dirty, busy }: { dirty: boolean; busy: boolean }) {
-  const blocker = useBlocker(dirty || busy);
-  return <PortalConfirmModal isOpen={blocker.state === 'blocked'}
-    title={busy ? 'Saving changes' : 'Discard unsaved changes?'}
-    message={busy ? 'Please wait for the current operation to finish.' : 'Your changes have not been saved. Leave this page and discard them?'}
-    confirmLabel="Discard changes" cancelLabel="Keep editing" isLoading={busy}
-    onCancel={() => { if (!busy && blocker.state === 'blocked') blocker.reset(); }}
-    onConfirm={() => { if (!busy && blocker.state === 'blocked') blocker.proceed(); }} />;
-}
-
-/** Standalone capacity dialogs protect browser navigation as well as local closure. */
-export function CapacityDialogNavigationGuard({ dirty, busy }: { dirty: boolean; busy: boolean }) {
-  const dataRouter = useContext(UNSAFE_DataRouterContext);
-  useEffect(() => {
-    if (!dirty && !busy) return;
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty, busy]);
-  return dataRouter ? <CapacityRouteNavigationGuard dirty={dirty} busy={busy} /> : null;
-}
 
 /** Capacity row tasks keep their table mounted and use the portal's shared dialogs. */
 export function CapacityLecturerDialog({ title, lecturerName, staffNo, dirty = false, busy = false, onClose, children, footer }: {
@@ -57,7 +34,6 @@ export function CapacityLecturerDialog({ title, lecturerName, staffNo, dirty = f
         <footer className="flex flex-wrap justify-end gap-3 border-t border-slate-200 p-5 sm:px-6">{footer(requestClose)}</footer>
       </div>
     </PortalModal>
-    <CapacityDialogNavigationGuard dirty={dirty} busy={busy} />
     <PortalConfirmModal isOpen={confirmLeave} title="Discard unsaved changes?" message="Your changes have not been saved. Close this dialog and discard them?"
       confirmLabel="Discard changes" cancelLabel="Keep editing" isLoading={busy} onConfirm={() => { if (!busy) onClose(); }} onCancel={() => setConfirmLeave(false)} />
   </>;

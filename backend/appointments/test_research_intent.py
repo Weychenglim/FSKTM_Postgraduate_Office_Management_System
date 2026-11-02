@@ -36,6 +36,7 @@ class SupervisorResearchIntentTests(APITestCase):
     def payload(self, **overrides):
         return {
             "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+            "projectCourseCodes": "WQD7002",
             "researchTitle": "Synthetic intent research", "researchArea": "Software Engineering",
             "researchAbstract": "Synthetic short abstract.", "researchIntent": valid_research_intent(),
             **overrides,

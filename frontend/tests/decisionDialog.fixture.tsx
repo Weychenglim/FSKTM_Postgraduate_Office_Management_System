@@ -34,7 +34,7 @@ function Harness(props: Partial<DecisionDialogProps>) {
   </>;
 }
 const dialog = () => document.querySelector<HTMLDialogElement>('dialog')!;
-const button = (text: string) => [...dialog().querySelectorAll('button')].find(node => node.textContent === text)!;
+const button = (text: string) => [...document.querySelectorAll<HTMLButtonElement>('dialog[open] button')].find(node => node.textContent === text)!;
 const closeButton = () => {
   const node = dialog().querySelector<HTMLButtonElement>('button[aria-label="Close dialog"]');
   check(node, 'Missing accessible header X button'); return node!;
@@ -72,7 +72,7 @@ await scenario('X and Cancel close clean dialogs and return focus without submit
 await scenario('all dismissal paths protect a typed reason with the existing discard prompt', async () => {
   for (const method of ['X', 'Cancel', 'Escape', 'backdrop'] as const) {
     await mount(); await typeReason(); dismiss(method);
-    await until(() => dialog().textContent?.includes('Discard the information'));
+    await until(() => document.body.textContent?.includes('Discard unsaved changes?'));
     button('Keep editing').click(); await until(() => !!button('Reject recommendation'));
     check(reason().value.includes('nominated expertise'), `${method}: reason was lost`);
     dismiss(method); await until(() => !!button('Discard changes'));

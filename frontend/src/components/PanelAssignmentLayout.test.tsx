@@ -65,3 +65,10 @@ test('An active Office overview does not claim absence of requests its payload c
   assert.match(html,/Active Panel appointment/);
   assert.doesNotMatch(html,/No ongoing request/);
 });
+
+test('Panel assignment academic team separates primary and supporting supervisors consistently',()=>{
+  const html=render(<PanelAssignmentDetail assignment={{...assignment,academicTeam:{primary:{name:'Dr Primary',email:'primary@example.test',department:'Computing',appointmentDate:'2026-10-20'},supporting:[{name:'Dr Supporting',email:'support@example.test',department:'Data Science',appointmentDate:'2026-10-21'}]}}} onBack={()=>{}}/>);
+  assert.match(html,/aria-label="Supporting supervisors" class="min-w-0 space-y-5 border-t border-slate-200 pt-6"/);
+  assert.ok(html.indexOf('Dr Primary')<html.indexOf('Supporting supervisors'));
+  assert.ok(html.indexOf('Supporting supervisors')<html.indexOf('Dr Supporting'));
+});

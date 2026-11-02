@@ -1,5 +1,5 @@
 import { IconHeading } from './IconHeading';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -179,12 +179,12 @@ const SupervisorRecord: React.FC<{
         {record.rejectionReason || record.cancellationReason}
       </p>
     )}
-    {record.appointment?.endReason && (
+    {internal && record.appointment?.endReason && (
       <p className="card-description mt-4 border-l-2 border-slate-300 pl-3">
         {formatProgressStatus(record.appointment.endOutcome || 'ENDED')}: {record.appointment.endReason}
       </p>
     )}
-    <AuditTrail events={record.workflow} collapsible={office} />
+    {internal && <AuditTrail events={record.workflow} collapsible={office} />}
     {internal && <AuditTrail events={record.appointment?.lifecycle} collapsible={office} label={office ? 'Appointment history' : undefined} />}
   </PortalCard>
 );
@@ -223,12 +223,12 @@ const PanelRecord: React.FC<{
         {record.rejectionReason || record.cancellationReason}
       </p>
     )}
-    {record.appointment?.endReason && (
+    {internal && record.appointment?.endReason && (
       <p className="card-description mt-4 border-l-2 border-slate-300 pl-3">
         {formatProgressStatus(record.appointment.endOutcome || 'ENDED')}: {record.appointment.endReason}
       </p>
     )}
-    <AuditTrail events={record.workflow} collapsible={office} />
+    {internal && <AuditTrail events={record.workflow} collapsible={office} />}
     {internal && <AuditTrail events={record.appointment?.lifecycle} collapsible={office} label={office ? 'Appointment history' : undefined} />}
   </PortalCard>
 );
@@ -278,12 +278,17 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const requestGeneration = useRef(0);
+  const [loadedStudentId, setLoadedStudentId] = useState<string | undefined>();
   const pageTitle = currentUserRole === 'Student' ? 'My Academic Record' : 'Student Progress Dossier';
 
   const loadDossier = useCallback(() => {
+    const generation = ++requestGeneration.current;
+    setDossier(null);
     if (!studentId) {
       setLoading(false);
       setNotFound(true);
+      setLoadedStudentId(studentId);
       return;
     }
     setLoading(true);
@@ -291,21 +296,28 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
     setNotFound(false);
     getStudentProgressDossier(studentId)
       .then((result) => {
+        if (generation !== requestGeneration.current) return;
         setDossier(result);
         setActiveTab(visibleProgressTabs(result.visibleSections, result.visibility)[0] ?? 'OVERVIEW');
       })
       .catch((reason) => {
+        if (generation !== requestGeneration.current) return;
         if (reason instanceof ApiError && reason.status === 404) {
           setNotFound(true);
           return;
         }
         setError(reason instanceof Error ? reason.message : 'Unable to load student progress.');
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (generation !== requestGeneration.current) return;
+        setLoadedStudentId(studentId);
+        setLoading(false);
+      });
   }, [studentId]);
 
   useEffect(() => {
     loadDossier();
+    return () => { requestGeneration.current++; };
   }, [loadDossier]);
 
   const tabs = useMemo(
@@ -313,7 +325,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
     [dossier],
   );
 
-  if (loading) return <div className="space-y-5"><PageHeader title={pageTitle} backLabel={backLabel} onBack={onBack} /><LoadingState message={currentUserRole === 'Student' ? 'Loading your academic record…' : 'Loading student progress dossier…'} /></div>;
+  if (loading || loadedStudentId !== studentId) return <div className="space-y-5"><PageHeader title={pageTitle} backLabel={backLabel} onBack={onBack} /><LoadingState message={currentUserRole === 'Student' ? 'Loading your academic record…' : 'Loading student progress dossier…'} /></div>;
   if (notFound) {
     return (
       <div className="space-y-5">
@@ -474,7 +486,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
             <p className="card-description mt-2"><span className="card-label">Primary:</span> <span className="card-value">{dossier.supervisoryTeam.primarySupervisor?.name ?? 'Awaiting primary appointment'}</span></p>
             <div className="mt-3 space-y-2">{dossier.supervisoryTeam.appointments.map(appointment => <DossierRecordDisclosure key={appointment.id} office={office} current={appointment.status === 'ACTIVE'} title={`Co-supervisor · ${appointment.supervisor.name} · ${formatProgressStatus(appointment.status)}`}><div className="card-description rounded-lg border border-slate-200 p-3">
               <span className="card-value">{appointment.supervisor.name}</span> · Co-supervisor · {formatProgressStatus(appointment.status)}
-              <p className="card-description mt-1">Since {dateText(appointment.appointmentDate)}{appointment.endedAt ? ` · Ended ${dateText(appointment.endedAt)} · ${appointment.endReason}` : ''}</p>
+              <p className="card-description mt-1">Since {dateText(appointment.appointmentDate)}{appointment.endedAt ? ` · Ended ${dateText(appointment.endedAt)}${internal && appointment.endReason ? ` · ${appointment.endReason}` : ''}` : ''}</p>
             </div></DossierRecordDisclosure>)}</div>
             {dossier.supervisoryTeam.nominations.length ? <p className="card-description mt-3">{dossier.supervisoryTeam.nominations.filter(nomination => ['SUBMITTED_TO_CO_SUPERVISOR', 'PENDING_COORDINATOR'].includes(nomination.status)).length} pending supporting nominations</p> : null}
             <PortalButton size="sm" className="mt-3" onClick={() => onNavigateToRoute(APP_ROUTES.supervisorAppointments)}>View team and history</PortalButton>

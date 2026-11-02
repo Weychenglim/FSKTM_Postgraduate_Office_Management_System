@@ -84,7 +84,7 @@ def _no_pending(student_id):
 def _no_nominations(student_id):
     if (SupervisorApplication.objects.filter(student_id=student_id, status__in=['SUBMITTED_TO_SUPERVISOR', 'PENDING_COORDINATOR']).exists()
         or CoSupervisorNomination.objects.filter(student_id=student_id, status__in=CoSupervisorNomination.PENDING_STATUSES).exists()
-        or PanelRecommendation.objects.filter(profile__student_id=student_id, status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES).exists()):
+        or PanelRecommendation.objects.filter(profile__student_id=student_id, status__in=PanelRecommendation.PENDING_STATUSES).exists()):
         raise AmendmentConflict('Resolve pending Supervisor, co-supervisor and Panel nominations before transferring.')
 
 

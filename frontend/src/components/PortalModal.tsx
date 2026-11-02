@@ -2,8 +2,8 @@ import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
-export function PortalModal({ isOpen, onClose, busy = false, labelledBy, children, className = 'max-w-lg p-6' }: {
-  isOpen: boolean; onClose: () => void; busy?: boolean; labelledBy?: string; children: React.ReactNode; className?: string;
+export function PortalModal({ isOpen, onClose, busy = false, labelledBy, describedBy, children, className = 'max-w-lg p-6' }: {
+  isOpen: boolean; onClose: () => void; busy?: boolean; labelledBy?: string; describedBy?: string; children: React.ReactNode; className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const close = useRef(onClose); close.current = onClose;
@@ -15,7 +15,7 @@ export function PortalModal({ isOpen, onClose, busy = false, labelledBy, childre
     return () => { element?.close(); if (previous?.isConnected) previous.focus(); };
   }, [isOpen]);
   if (!isOpen) return null;
-  const node = <dialog ref={dialog} aria-labelledby={labelledBy} aria-modal="true"
+  const node = <dialog ref={dialog} aria-labelledby={labelledBy} aria-describedby={describedBy} aria-modal="true"
     onCancel={event => { event.preventDefault(); if (!busy) close.current(); }}
     onClick={event => {
       if (busy || event.target !== event.currentTarget) return;

@@ -8,12 +8,16 @@ import { completeDecision } from '../utils/decisionSubmission';
 import { RecordPage } from './RecordPage';
 import { PortalModal } from './PortalModal';
 import { MarksCompletionWindows } from './MarksCompletionWindows';
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
+import {DraftNavigationGuard} from './DraftNavigationGuard';
+import {RecordDraft} from './RecordDraft';
+import {ApiError} from '../services/apiClient';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
   AlertCircle,
@@ -26,7 +30,7 @@ import {
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalToast, PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalConfirmModal, PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import {
   EvaluationPeriodOption,
@@ -39,6 +43,7 @@ import {
   createBackupEvaluationTask,
   generateEvaluationTasks,
   getEvaluationPeriods,
+  getEvaluationPeriod,
   getEvaluationPreviewTasks,
   getMarksAssignmentOptions,
 } from '../services';
@@ -134,7 +139,23 @@ export function MarksTaskDeadlineEntryPoint({tasks,onChanged,onManageTimeline,co
   return <PortalCard className="space-y-3"><h2 className="section-label">Deadlines and extra time</h2><p className="card-description">Manage common deadlines, selected task completion windows and their history in Periods &amp; deadlines.</p><PortalButton onClick={onManageTimeline}>Manage deadlines in Periods &amp; deadlines</PortalButton></PortalCard>;
 }
 
-export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> = ({ onBack, onManageTimeline }) => {
+const selectablePeriod = (period: EvaluationPeriodOption) => period.lifecycleStatus === 'PUBLISHED'
+  && ['SCHEDULED', 'OPEN'].includes(period.effectiveStatus);
+
+const generationReady = (period: EvaluationPeriodOption) => period.lifecycleStatus === 'PUBLISHED'
+  && ['SCHEDULED', 'OPEN'].includes(period.effectiveStatus) && Boolean(period.rubricId && period.rubricName)
+  && period.rubric?.isReady !== false;
+const generationScope = (period: EvaluationPeriodOption) => JSON.stringify([
+  period.id, period.name, period.semesterId, period.semester, period.rubricId, period.rubricName,
+  period.programmeScope, [...period.programmes].sort(), [...period.evaluatorRoles].sort(),
+  period.opensAt, period.closesAt, period.lifecycleStatus, period.effectiveStatus, period.rubric,
+]);
+
+export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> = props =>
+  <DecisionFeedbackProvider scopeKey="marks-assignment"><EvaluationTaskAssignmentContent {...props}/></DecisionFeedbackProvider>;
+
+const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> = ({ onBack, onManageTimeline }) => {
+  const publish = useDecisionFeedback();
   const [tasks, setTasks] = useState<EvaluationPreviewTask[]>([]);
   const [periods, setPeriods] = useState<EvaluationPeriodOption[]>([]);
   const [options, setOptions] = useState<MarksAssignmentOptions>({
@@ -143,17 +164,31 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
     tasks: [],
   });
   const [loading, setLoading] = useState(true);
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [roleFilter, setRoleFilter] = useState<typeof ALL_ROLES | EvaluationTaskRole>(ALL_ROLES);
   const [statusFilter, setStatusFilter] = useState<typeof ALL_STATUSES | EvaluationPreviewStatus>(ALL_STATUSES);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [confirmBackup, setConfirmBackup] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<EvaluationPreviewTask | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [submittingBackup, setSubmittingBackup] = useState(false);
+  const backupCommitted = useRef(false);
   const [generating, setGenerating] = useState(false);
+  const generationBusy = useRef(false);
+  const [generationReview, setGenerationReview] = useState<EvaluationPeriodOption | null>(null);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [generationBlocked, setGenerationBlocked] = useState(false);
+  const [generationCommitted, setGenerationCommitted] = useState<string | null>(null);
+  const [fallbackDrafts, setFallbackDrafts] = useState(new Map<symbol, {dirty:boolean;busy:boolean}>());
+  const reportFallback = useCallback((key:symbol,state:{dirty:boolean;busy:boolean}|null) => setFallbackDrafts(current => {
+    const previous=current.get(key);
+    if(state ? previous?.dirty===state.dirty && previous?.busy===state.busy : !previous)return current;
+    const next=new Map(current);if(state)next.set(key,state);else next.delete(key);return next;
+  }),[]);
+  const fallbackDirty=[...fallbackDrafts.values()].some(draft=>draft.dirty);
+  const fallbackBusy=[...fallbackDrafts.values()].some(draft=>draft.busy);
   const [formError, setFormError] = useState<string | null>(null);
   const [backupForm, setBackupForm] = useState<BackupFormState>({
     periodId: '',
@@ -163,11 +198,6 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
     reason: '',
     confirmed: false,
   });
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    window.setTimeout(() => setToastMessage(null), 3500);
-  };
 
   const loadWorkspace = useCallback(async (propagateError = false) => {
     setLoading(true);
@@ -181,7 +211,11 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
       setTasks(loadedTasks);
       setPeriods(loadedPeriods);
       setOptions(loadedOptions);
-      setSelectedPeriodId((current) => current || (loadedPeriods[0] ? String(loadedPeriods[0].id) : ''));
+      setWorkspaceLoaded(true);
+      setSelectedPeriodId(current => {
+        const available = loadedPeriods.filter(selectablePeriod);
+        return available.some(period => String(period.id) === current) ? current : String(available[0]?.id ?? '');
+      });
       setBackupForm((current) => ({
         ...current,
         periodId: current.periodId || (loadedPeriods[0] ? String(loadedPeriods[0].id) : ''),
@@ -198,14 +232,15 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
     loadWorkspace();
   }, [loadWorkspace]);
 
+  const availablePeriods = periods.filter(selectablePeriod);
+  const periodHasTasks = tasks.some(task => taskMatchesPeriod(task, selectedPeriodId));
+
   const selectedPeriod = useMemo(
     () => periods.find((period) => String(period.id) === selectedPeriodId),
     [periods, selectedPeriodId],
   );
   const selectedPeriodAllowsGeneration = Boolean(
-    selectedPeriod
-    && selectedPeriod.lifecycleStatus === 'PUBLISHED'
-    && ['SCHEDULED', 'OPEN'].includes(selectedPeriod.effectiveStatus),
+    selectedPeriod && generationReady(selectedPeriod),
   );
 
   const filteredTasks = useMemo(() => tasks.filter((task) => {
@@ -239,23 +274,40 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
   const selectedBackupStudent = options.students.find((student) => student.studentId === backupForm.studentId);
   const selectedBackupLecturer = options.lecturers.find((lecturer) => String(lecturer.userId) === backupForm.evaluatorId);
 
+  const installPeriod = (period:EvaluationPeriodOption) => setPeriods(current=>current.map(item=>item.id===period.id?period:item));
+  const recoverGeneration = async () => {
+    if(generationBusy.current)return;
+    generationBusy.current=true;setGenerating(true);
+    try {await loadWorkspace(true);setGenerationBlocked(false);setGenerationCommitted(null);setGenerationError(null);}
+    catch(e){setGenerationError(`Couldn’t reload assignment workspace. ${marksMutationErrorMessage(e)}`);}
+    finally {generationBusy.current=false;setGenerating(false);}
+  };
   const handleGenerateTasks = async () => {
-    if (!selectedPeriodId) {
-      showToast('Select an evaluation period before generating tasks.');
-      return;
-    }
-    if (!selectedPeriodAllowsGeneration) {
-      showToast(
-        'Tasks can only be generated for a published period that has not ended.',
-      );
-      return;
-    }
+    if(generationBusy.current || generationBlocked || generationCommitted || !selectedPeriod || fallbackDirty || fallbackBusy || drawerOpen)return;
+    generationBusy.current=true;
     setGenerating(true);
+    setGenerationError(null);
     try {
-      const result = await generateEvaluationTasks(Number(selectedPeriodId));
-      showToast(
-        `Generated ${result.createdCount} missing task(s): ${result.supervisorCreatedCount} supervisor, ${result.panelCreatedCount} panel.`,
-      );
+      const latest=await getEvaluationPeriod(selectedPeriod.id);installPeriod(latest);
+      if(!generationReady(latest)){setGenerationError('Tasks can only be generated for a ready published period that has not ended.');return;}
+      setGenerationReview(latest);
+    } catch(e){setGenerationError(`Couldn’t review generation. ${marksMutationErrorMessage(e)}`);}
+    finally{generationBusy.current=false;setGenerating(false);}
+  };
+  const commitGeneration = async () => {
+    if(generationBusy.current || !generationReview || generationBlocked || generationCommitted)return;
+    generationBusy.current=true;setGenerating(true);setGenerationError(null);
+    const reviewed=generationReview;
+    let outcome:string|null=null;
+    try {
+      const latest=await getEvaluationPeriod(reviewed.id);installPeriod(latest);
+      if(generationScope(latest)!==generationScope(reviewed) || !generationReady(latest)){
+        setGenerationReview(null);setGenerationError('The saved period changed. Review its current scope and readiness before generating tasks.');return;
+      }
+      const result = await generateEvaluationTasks(reviewed.id);
+      outcome=result.createdCount===0 ? `No missing tasks were created. ${result.totalCount} total task(s) for ${reviewed.name}.`
+        : `Generated ${result.createdCount} missing task(s) for ${reviewed.name}: ${result.supervisorCreatedCount} supervisor, ${result.panelCreatedCount} panel; ${result.totalCount} total.`;
+      setGenerationCommitted(outcome);setGenerationReview(null);
       setActivities(prev => [{
         id: String(Date.now()),
         date: 'Today',
@@ -263,15 +315,22 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         details: `${result.createdCount} created, ${result.totalCount} total for selected period`,
         performedBy: 'Office Staff/Admin',
       }, ...prev]);
-      await loadWorkspace();
+      await loadWorkspace(true);
+      setGenerationCommitted(null);
+      publish?.(outcome, result.createdCount===0?'info':'success');
     } catch (e) {
-      showToast(marksMutationErrorMessage(e));
+      setGenerationReview(null);
+      if(outcome){publish?.(`${outcome} The workspace could not be refreshed. Reload the workspace to review the saved result.`, 'warning');}
+      else {setGenerationError(`Couldn’t generate tasks. ${e instanceof Error ? e.message : marksMutationErrorMessage(e)}`);if(e instanceof ApiError && [403,409].includes(e.status??0))setGenerationBlocked(true);}
     } finally {
+      generationBusy.current=false;
       setGenerating(false);
     }
   };
 
   const openBackupDrawer = () => {
+    if(generationBusy.current || generationReview || fallbackDirty || fallbackBusy)return;
+    backupCommitted.current = false;
     setFormError(null);
     setBackupForm({
       periodId: selectedPeriodId,
@@ -306,6 +365,7 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
         reason: backupForm.reason.trim(),
         originalTaskId: backupForm.originalTaskId ? Number(backupForm.originalTaskId) : undefined,
       });
+        backupCommitted.current = true;
         setActivities(prev => [{id: String(Date.now()), date: 'Today', action: 'Backup evaluator assigned',
           details: `${task.studentId} assigned as ${task.evaluatorRoleLabel || 'Backup / Manual Override'}`,
           performedBy: 'Office Staff/Admin'}, ...prev]);
@@ -315,29 +375,41 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
 
   return (
     <div id="eval-assignment-workspace" className="marks-workspace space-y-6 relative text-left">
-      <PortalToast message={toastMessage} />
+      {!drawerOpen ? <DraftNavigationGuard dirty={fallbackDirty} busy={generating || fallbackBusy}/> : null}
+      <PortalConfirmModal isOpen={!!generationReview} title="Generate evaluation tasks?" tone="warning"
+        message={generationReview ? <div className="space-y-3"><p>{generationReview.name} · {generationReview.semester}</p><p>Saved scope: {formatPeriodTargeting(generationReview)}. Roles: {generationReview.evaluatorRoles.join(', ')}.</p><p>Rubric: {generationReview.rubricName}. Readiness: {formatPeriodStatus(generationReview.effectiveStatus)}.</p><p>Saved window: {formatDate(generationReview.opensAt)} – {formatDate(generationReview.closesAt)}.</p><p>Currently loaded tasks: {generationReview.taskTotals.total}. This is not an exact missing-task preview. The server determines final created and total counts. Existing assignments and marks are preserved.</p></div> : null}
+        confirmLabel="Generate tasks" isLoading={generating} onConfirm={commitGeneration} onCancel={()=>{if(!generationBusy.current)setGenerationReview(null);}}/>
+      {generationCommitted ? <div role="status" className="space-y-2"><p>{generationCommitted} Workspace refresh required.</p><PortalButton disabled={generating} onClick={recoverGeneration}>Reload workspace</PortalButton></div> : null}
+      {generationError ? <div role="alert" className="text-red-700"><p>{generationError}</p>{generationBlocked ? <PortalButton disabled={generating} onClick={recoverGeneration}>Review latest workspace</PortalButton> : null}</div> : null}
       <DecisionDialog isOpen={confirmBackup} kind="confirmation" decisionKey={`${backupForm.studentId}:${backupForm.evaluatorId}`}
         title="Assign this backup evaluator?" context={<p>{selectedBackupStudent?.studentName} · {backupForm.studentId} · {selectedBackupLecturer?.fullName} · {selectedBackupPeriod?.name}</p>}
         message={<><p>This creates an exception evaluation task and leaves official Supervisor and Panel appointments unchanged.</p><p>Reason: {backupForm.reason}</p></>}
         confirmLabel="Assign backup evaluator" successMessage="Backup evaluator task created."
-        busy={submittingBackup} canConfirm={!validateBackupForm()} onConfirm={handleBackupSubmit}
-        onClose={() => setConfirmBackup(false)} onReload={() => loadWorkspace(true)} />
+        busy={submittingBackup} canConfirm={!backupCommitted.current && !validateBackupForm()} onConfirm={handleBackupSubmit}
+        onClose={() => {
+          setConfirmBackup(false);
+          if (backupCommitted.current) {
+            setDrawerOpen(false);
+            setBackupForm(current => ({ ...current, studentId: '', evaluatorId: '', originalTaskId: '', reason: '', confirmed: false }));
+          }
+        }} onReload={() => loadWorkspace(true)} />
 
       <PageHeader
         title="Evaluation Task Assignment"
         subtitle="Create assignments and review evaluation tasks."
         backLabel="Back to Marks overview"
-        onBack={onBack}
-        actions={onManageTimeline ? <MarksTaskDeadlineEntryPoint compact tasks={filteredTasks} onChanged={() => loadWorkspace(true)} onManageTimeline={() => onManageTimeline(selectedPeriod)} /> : undefined}
+        onBack={()=>{if(!generationBusy.current && !generationReview && !fallbackBusy)onBack();}}
+        backDisabled={generating || !!generationReview || fallbackBusy}
         subtitleClassName="leading-relaxed"
       />
 
-      {loading ? (
+      {loading && !workspaceLoaded ? (
         <LoadingState message="Loading evaluation assignment workspace…" />
-      ) : error ? (
-        <ErrorState message={error} onRetry={loadWorkspace} />
+      ) : error && !workspaceLoaded ? (
+        <ErrorState message={error} onRetry={generationCommitted || generationBlocked ? recoverGeneration : loadWorkspace} />
       ) : (
         <>
+          {error ? <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900"><p>Couldn’t refresh the assignment workspace. The loaded data remains visible.</p><PortalButton onClick={generationCommitted || generationBlocked ? recoverGeneration : () => loadWorkspace()} disabled={generating}>Reload workspace</PortalButton></div> : null}
           <PortalCard id="assignment-period-card" className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <MarksHeading icon={Calendar}>Evaluation period</MarksHeading>
@@ -347,20 +419,20 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
               <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="min-w-0 flex-1">
                   <label className="sr-only" htmlFor="assignment-period">Select evaluation period</label>
-                  <PortalSelect id="assignment-period" aria-label="Evaluation period" className="form-control form-control-md w-full" value={selectedPeriodId}
+                  <PortalSelect id="assignment-period" disabled={generating || !!generationReview || fallbackDirty || fallbackBusy} aria-label="Evaluation period" className="form-control form-control-md w-full" value={selectedPeriodId}
                     onChange={event => {
                       setSelectedPeriodId(event.target.value);
                       setBackupForm(current => ({ ...current, periodId: event.target.value }));
                     }}>
-                    <option value="">Select period</option>
-                    {periods.map(period => <option key={period.id} value={period.id}>{period.name} · {period.semester} · {formatPeriodTargeting(period)}</option>)}
+                    <option value="" disabled hidden={availablePeriods.length > 0}>No open or scheduled periods</option>
+                    {availablePeriods.map(period => <option key={period.id} value={period.id}>{period.name} — {period.evaluatorRoles.map(role => roleLabel(role)).join(" / ")}</option>)}
                   </PortalSelect>
                 </div>
-                <PortalButton className="min-h-11 shrink-0" variant="primary" icon={Check} disabled={!selectedPeriodAllowsGeneration || generating} isLoading={generating} aria-describedby="generation-help" onClick={handleGenerateTasks}>
-                  {generating ? 'Generating…' : 'Generate missing tasks'}
+                <PortalButton className="min-h-11 shrink-0" variant="primary" icon={Check} disabled={!selectedPeriodAllowsGeneration || generating || generationBlocked || !!generationCommitted || fallbackDirty || fallbackBusy} isLoading={generating} onClick={handleGenerateTasks}>
+                  {generating ? 'Generating…' : 'Generate evaluation tasks'}
                 </PortalButton>
               </div>
-              <p id="generation-help" className="card-description">{periods.length === 0 ? <>No evaluation periods configured. <Link to={APP_ROUTES.marksConfig} className="inline-flex min-h-11 items-center rounded font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">Configure evaluation period</Link></> : !selectedPeriod ? 'Select a period to generate tasks; the list currently covers all loaded periods.' : !selectedPeriodAllowsGeneration ? 'Generation requires a published period that is scheduled or open.' : 'Creates missing Supervisor and Panel tasks. Existing assignments and marks are preserved.'}</p>
+              {!selectedPeriodAllowsGeneration ? <p id="generation-help" className="card-description">{availablePeriods.length === 0 ? <>No open or scheduled evaluation periods. <Link to={APP_ROUTES.marksConfig} className="inline-flex min-h-11 items-center rounded font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">Configure evaluation period</Link></> : !selectedPeriod ? 'Select a published period to generate evaluation tasks.' : 'Generation requires a ready rubric and a published period that is scheduled or open.'}</p> : null}
               <details className="border-t border-slate-100 pt-3">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded text-sm font-semibold text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden">
                   <span>Period details and readiness</span>
@@ -368,9 +440,9 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 </summary>
                 <div className="grid min-w-0 gap-5 pt-3 lg:grid-cols-2">
                   {selectedPeriod ? <dl className="min-w-0 space-y-3">
-                    <div><dt className="card-label">Marking rubric</dt><dd className="card-description mt-1 break-words">{selectedPeriod.rubricName || 'Not configured'}</dd></div>
-                    <div><dt className="card-label">Entry window</dt><dd className="card-description mt-1">{formatDate(selectedPeriod.opensAt || null)} – {formatDate(selectedPeriod.closesAt || null)}</dd></div>
-                    <div><dt className="card-label">Evaluation scope</dt><dd className="card-description mt-1 break-words">{formatPeriodTargeting(selectedPeriod)}</dd></div>
+                    <div><dt className="text-xs font-semibold text-slate-700">Marking rubric</dt><dd className="mt-1 text-xs font-normal leading-5 text-slate-600 break-words">{selectedPeriod.rubricName || 'Not configured'}</dd></div>
+                    <div><dt className="text-xs font-semibold text-slate-700">Entry window</dt><dd className="mt-1 text-xs font-normal leading-5 text-slate-600">{formatDate(selectedPeriod.opensAt || null)} – {formatDate(selectedPeriod.closesAt || null)}</dd></div>
+                    <div><dt className="text-xs font-semibold text-slate-700">Evaluation scope</dt><dd className="mt-1 text-xs font-normal leading-5 text-slate-600 break-words">{formatPeriodTargeting(selectedPeriod)}</dd></div>
                   </dl> : <p className="card-description">Select a period to view its rubric, dates and evaluation scope.</p>}
                   <section aria-label="Generation readiness" className="min-w-0">
                     <h3 className="text-sm font-semibold text-brand-navy">Readiness checks</h3>
@@ -398,11 +470,10 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="min-w-0">
                 <MarksHeading icon={ClipboardList}>Evaluation tasks</MarksHeading>
-                <p className="card-description mt-2">{selectedPeriod ? 'Selected period' : 'All loaded periods'}</p>
               </div>
-              <PortalButton icon={ShieldAlert} onClick={openBackupDrawer}>Assign backup evaluator</PortalButton>
+              <PortalButton icon={ShieldAlert} disabled={generating || !!generationReview || fallbackDirty || fallbackBusy} onClick={openBackupDrawer}>Assign backup evaluator</PortalButton>
             </div>
-            <WorkspaceFilterCard onReset={() => { setRoleFilter(ALL_ROLES); setStatusFilter(ALL_STATUSES); }}
+            {periodHasTasks ? <WorkspaceFilterCard onReset={() => { setRoleFilter(ALL_ROLES); setStatusFilter(ALL_STATUSES); }}
               fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
               <label className="form-label min-w-0">Evaluator role
                 <PortalSelect aria-label="Evaluator role" className="form-control form-control-sm mt-1" value={roleFilter}
@@ -418,18 +489,18 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                   <option value={ALL_STATUSES}>All statuses</option><option value="NOT_STARTED">Not started</option><option value="DRAFT">Draft</option><option value="SUBMITTED">Submitted</option>
                 </PortalSelect>
               </label>
-            </WorkspaceFilterCard>
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            </WorkspaceFilterCard> : null}
+            {periodHasTasks ? <div className="flex flex-wrap items-center justify-between gap-3">
               <dl aria-label="Submission counts" className="flex flex-wrap gap-x-5 gap-y-2">
                 {[
                   ['Submitted', totals.submitted], ['Incomplete', totals.incomplete], ['Overdue', totals.overdue],
                 ].map(([label, value]) => <div key={String(label)} className="flex items-baseline gap-1.5"><dt className="card-description">{label}</dt><dd className="text-sm font-semibold tabular-nums text-brand-navy">{value}</dd></div>)}
               </dl>
               <p role="status" className="card-description">{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'} shown</p>
-            </div>
+            </div> : null}
             {filteredTasks.length === 0 ? <div className="rounded-xl bg-slate-50 px-4 py-6">
               <h3 className="text-sm font-semibold text-brand-navy">{tasks.some(task => taskMatchesPeriod(task, selectedPeriodId)) ? 'No tasks match these filters' : 'No evaluation tasks yet'}</h3>
-              <p className="card-description mt-2 max-w-prose">{tasks.some(task => taskMatchesPeriod(task, selectedPeriodId)) ? 'Change the role or status, or clear the filters to see all tasks in this period scope.' : !selectedPeriod ? 'Configure and select an evaluation period, then generate its assignments above.' : 'Generate missing tasks above when the period is ready. Existing submissions will be preserved.'}</p>
+              <p className="card-description mt-2 max-w-prose">{tasks.some(task => taskMatchesPeriod(task, selectedPeriodId)) ? 'Change the role or status, or clear the filters to see all tasks in this period scope.' : !selectedPeriod ? 'Configure and select an evaluation period, then generate its assignments above.' : 'Generate evaluation tasks for this period using the button above.'}</p>
             </div> : <div role="region" aria-label="Evaluation task results" tabIndex={0} className="overflow-x-auto rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
               <table className="data-table min-w-[760px]">
                 <caption className="sr-only">Evaluation assignments for the current period scope and filters</caption>
@@ -448,29 +519,31 @@ export const EvaluationTaskAssignment: React.FC<EvaluationTaskAssignmentProps> =
                 </tbody>
               </table>
             </div>}
-            {!onManageTimeline ? <MarksTaskDeadlineEntryPoint tasks={filteredTasks} onChanged={async () => {
+            {!onManageTimeline ? <RecordDraft.Provider value={reportFallback}><fieldset disabled={generating || !!generationReview}><MarksTaskDeadlineEntryPoint tasks={tasks} onChanged={async () => {
               const [taskRows, periodRows] = await Promise.all([getEvaluationPreviewTasks(), getEvaluationPeriods()]);
               setTasks(taskRows); setPeriods(periodRows);
-            }} /> : null}
+            }} /></fieldset></RecordDraft.Provider> : null}
 
-          <details id="recent-assignment-activity-panel" className="border-t border-slate-100">
+          </PortalCard>
+          {activities.length > 0 ? <PortalCard className="mt-6">
+          <details id="recent-assignment-activity-panel">
             <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3 py-3 focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden">
-              <span className="text-sm font-semibold text-slate-600">Activity this session</span>
+              <span className="text-sm font-semibold text-slate-600">Recent assignment actions</span>
               <span className="inline-flex items-center gap-2 text-xs text-slate-500">{activities.length} {activities.length === 1 ? 'action' : 'actions'}<ChevronDown aria-hidden="true" className="h-4 w-4" /></span>
             </summary>
             <div className="pt-2">
-              <p className="card-description">Assignment actions taken in this session appear here.</p>
+              <p className="card-description">Actions from this visit only. This list resets when you reload the page.</p>
               {activities.length ? <div className="mt-4 overflow-x-auto"><table className="data-table min-w-[650px]">
                 <thead><tr className="data-thead"><th scope="col" className="data-th">Date</th><th scope="col" className="data-th">Action</th><th scope="col" className="data-th">Details</th><th scope="col" className="data-th">Performed by</th></tr></thead>
                 <tbody className="divide-y divide-slate-100">{activities.map(act => <tr key={act.id}><td className="data-td">{act.date}</td><td className="data-td">{act.action}</td><td className="data-td">{act.details}</td><td className="data-td">{act.performedBy}</td></tr>)}</tbody>
               </table></div> : null}
             </div>
           </details>
-          </PortalCard>
+          </PortalCard> : null}
         </>
       )}
 
-      {drawerOpen ? <RecordPage title="Assign Backup Evaluator" subtitle="Exception-only assignment with audit reason" backLabel="Back to Evaluation Task Assignment" onBack={() => setDrawerOpen(false)} pageKey="marks-backup-evaluator" dirty={!!backupForm.studentId || !!backupForm.evaluatorId || !!backupForm.originalTaskId || !!backupForm.reason.trim() || backupForm.confirmed} busy={submittingBackup}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
+      {drawerOpen ? <RecordPage title="Assign Backup Evaluator" subtitle="Exception-only assignment with audit reason" backLabel="Back to Evaluation Task Assignment" onBack={() => setDrawerOpen(false)} pageKey="marks-backup-evaluator" navigationComplete={backupCommitted} dirty={!backupCommitted.current && (!!backupForm.studentId || !!backupForm.evaluatorId || !!backupForm.originalTaskId || !!backupForm.reason.trim() || backupForm.confirmed)} busy={submittingBackup}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white">
 
                 <div className="drawer-body">
                   {formError && (

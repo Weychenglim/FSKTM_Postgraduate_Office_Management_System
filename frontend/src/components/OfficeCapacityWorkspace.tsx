@@ -8,7 +8,7 @@ import type { AcademicSemester, CapacityRole, SemesterCapacityPlan } from '../ty
 import { canMutateSemesterCapacity, capacityConflictMessage, capacityStateLabel, validateCapacityDraftEntry } from '../utils/lecturerCapacity';
 import { capacityRowIssues, capacityWorkspaceRows, capacityComparisonRows, capacityHasRole, committedCapacityLoad } from '../utils/capacityWorkspace';
 import { findEligiblePriorCapacitySource, publishedOperationalPolicy, readCompleteCapacityHistory } from './officeCapacityManagement';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
 import { PortalSelect } from './PortalSelect';
 import { OverflowMenu } from './DocumentParts';
 import { OfficeToolSection } from './OfficeToolPrimitives';
@@ -21,12 +21,14 @@ import {canBulkConfigure} from '../utils/capacityBulk';
 import type {CapacityBulkCommand} from '../types/lecturerCapacity';
 import { CapacityCollectionPage } from './CapacityCollectionPage';
 import { CapacityPreparationForm } from './CapacityPreparationForm';
-import { CapacityDialogNavigationGuard, CapacityLecturerDialog } from './CapacityLecturerDialog';
-import {DecisionFeedbackProvider} from './DecisionFeedback';
+import { CapacityLecturerDialog } from './CapacityLecturerDialog';
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
+import {DraftNavigationGuard} from './DraftNavigationGuard';
 import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
 import { RightDrawer } from './RightDrawer';
 import { useReturnToFocusReload } from '../utils/returnToFocus';
+import {OfficeAcademicSemesterSelect} from './OfficeAcademicSemesterSelect';
 
 type View = 'overview' | 'editor' | 'version' | 'history' | 'availability' | 'activity';
 type Drawer = 'prepare' | 'entry' | 'details' | 'compare' | 'publish' | 'bulk' | null;
@@ -35,9 +37,14 @@ const stamp = (value: string) => new Date(value).toLocaleString('en-MY');
 const display = (value: number | null | undefined) => value == null ? 'Unavailable' : value;
 
 export function OfficeCapacityWorkspace({ onBack, backLabel = 'Back to Dashboard' }: { onBack: () => void; backLabel?: string }) {
+  return <DecisionFeedbackProvider scopeKey="office-capacity-workspace"><OfficeCapacityWorkspaceContent onBack={onBack} backLabel={backLabel}/></DecisionFeedbackProvider>;
+}
+
+function OfficeCapacityWorkspaceContent({ onBack, backLabel }: { onBack: () => void; backLabel: string }) {
   const [semesters, setSemesters] = useState<AcademicSemester[]>([]), [semesterId, setSemesterId] = useState<number | null>(null);
   const [plans, setPlans] = useState<SemesterCapacityPlan[]>([]), [workspace, setWorkspace] = useState<CapacityWorkspace | null>(null);
   const [revision, setRevision] = useState(0);
+  const [activityVersion, setActivityVersion] = useState<number | undefined>();
   const [availabilityLecturer, setAvailabilityLecturer] = useState<{id:number;name:string} | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null), [view, setView] = useState<View>('overview');
   const [drawer, setDrawer] = useState<Drawer>(null), [entry, setEntry] = useState<CapacityWorkspaceLecturer | null>(null);
@@ -52,8 +59,14 @@ export function OfficeCapacityWorkspace({ onBack, backLabel = 'Back to Dashboard
   const [copySource, setCopySource] = useState<SemesterCapacityPlan | null>(null), [copyLoading, setCopyLoading] = useState(false), [comparePlanId, setComparePlanId] = useState<number | null>(null);
   const [discardPlan, setDiscardPlan] = useState<SemesterCapacityPlan | null>(null), [discardReason, setDiscardReason] = useState('');
   const [loading, setLoading] = useState(true), [ready, setReady] = useState(false), [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null), [drawerError, setDrawerError] = useState<string | null>(null), [toast, setToast] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null), [drawerError, setDrawerError] = useState<string | null>(null);
+  const [bulkDirty, setBulkDirty] = useState(false), [committedRefreshFailed, setCommittedRefreshFailed] = useState(false);
+  const [pendingPreparationClose, setPendingPreparationClose] = useState(false);
+  const feedback = useDecisionFeedback();
   const generation = useRef(0), copyGeneration = useRef(0), writing = useRef(false);
+  const semesterGeneration = useRef(0), selectedSemesterId = useRef(semesterId);
+  selectedSemesterId.current = semesterId;
+  const availableSemesters = semesters.filter(row => row.lifecycleStatus !== 'ARCHIVED');
   const semester = semesters.find(row => row.id === semesterId) ?? null;
   const published = publishedOperationalPolicy(plans), selected = plans.find(row => row.id === selectedPlanId) ?? null;
   const editing = view === 'editor' && selected?.lifecycleStatus === 'DRAFT';
@@ -79,7 +92,7 @@ export function OfficeCapacityWorkspace({ onBack, backLabel = 'Back to Dashboard
     heading?.setAttribute('tabindex','-1'); heading?.focus({preventScroll:true});
     window.scrollTo({top:view === 'overview' ? overviewTop.current : 0, behavior:'instant'});
   }, [view]);
-  const notify = (message: string) => setToast(message);
+  const notify = (message: string, tone: 'success' | 'warning' = 'success') => feedback?.(message, tone);
   const load = useCallback(async (id: number) => {
     const token = ++generation.current; setLoading(true); setReady(false); setError(null);
     try {
@@ -87,33 +100,49 @@ export function OfficeCapacityWorkspace({ onBack, backLabel = 'Back to Dashboard
         readCompleteCapacityHistory(query => getWorkingCapacityPlans(id, query)), getCapacityWorkspace(id),
       ]);
       if (token !== generation.current) return;
-      setPlans(current => [...nextPlans, ...current.filter(plan => plan.semesterId === id && !nextPlans.some(next => next.id === plan.id) && !['DRAFT', 'PUBLISHED'].includes(plan.lifecycleStatus))]); setWorkspace(nextRoster); setRevision(value => value + 1); setReady(true); return true;
+      setPlans(current => [...nextPlans, ...current.filter(plan => plan.semesterId === id && !nextPlans.some(next => next.id === plan.id) && !['DRAFT', 'PUBLISHED'].includes(plan.lifecycleStatus))]); setWorkspace(nextRoster); setRevision(value => value + 1); setReady(true); setCommittedRefreshFailed(false); return true;
     } catch (reason) { if (token === generation.current) setError(capacityConflictMessage(reason)); return false; }
     finally { if (token === generation.current) setLoading(false); }
   }, []);
   const loadSemesters = useCallback(async () => {
-    setLoading(true); setError(null);
+    const token = ++semesterGeneration.current;
+    setLoading(true); setReady(false); setError(null);
     try {
-const next = await readSemesters(true); setSemesters(next); const requested = new URLSearchParams(window.location.search).get('semester');
-      if (requested && !next.some(row => String(row.id) === requested)) { setError('The requested semester is unavailable. Choose an available semester.'); setLoading(false); return; }
-      setSemesterId(current => current ?? (requested ? Number(requested) : next.find(row => row.lifecycleStatus === 'ACTIVE')?.id ?? next.find(row => row.lifecycleStatus === 'DRAFT')?.id ?? next[0]?.id ?? null));
-      if (!next.length) setLoading(false);
-    } catch (reason) { setError(capacityConflictMessage(reason)); setLoading(false); }
+      // Keep archived semesters as copy sources, never as working destinations.
+      const next = await readSemesters(true);
+      if (token !== semesterGeneration.current) return;
+      setSemesters(next);
+      const available = next.filter(row => row.lifecycleStatus !== 'ARCHIVED');
+      const current = selectedSemesterId.current;
+      const requested = current === null ? new URLSearchParams(window.location.search).get('semester') : String(current);
+      if (requested && !available.some(row => String(row.id) === requested)) {
+        generation.current++; setSemesterId(null); setSelectedPlanId(null); setPlans([]); setWorkspace(null);
+        setError(next.some(row => String(row.id) === requested && row.lifecycleStatus === 'ARCHIVED')
+          ? 'This semester has been archived. Choose an available semester.'
+          : 'The requested semester is unavailable. Choose an available semester.');
+        setLoading(false); return null;
+      }
+      const id = requested ? Number(requested) : available.find(row => row.lifecycleStatus === 'ACTIVE')?.id ?? available.find(row => row.lifecycleStatus === 'DRAFT')?.id ?? available[0]?.id ?? null;
+      setSemesterId(id);
+      if (id === null) setLoading(false);
+      return id;
+    } catch (reason) { if (token === semesterGeneration.current) {setError(capacityConflictMessage(reason)); setLoading(false);} }
   }, []);
-  useEffect(() => { void loadSemesters(); }, [loadSemesters]);
+  useEffect(() => { void loadSemesters(); return () => {semesterGeneration.current++;}; }, [loadSemesters]);
   useEffect(() => { if (semesterId !== null) void load(semesterId); return () => { generation.current++; copyGeneration.current++; }; }, [load, semesterId]);
-  useReturnToFocusReload(() => { if (semesterId !== null) void load(semesterId); }, !loading && !saving && drawer === null && discardPlan === null && (view === 'overview' || inspecting));
+  useReturnToFocusReload(() => { void loadSemesters().then(id => {if (id != null && id === semesterId) void load(id);}); }, !loading && !saving && drawer === null && discardPlan === null && (view === 'overview' || inspecting));
   useEffect(() => { setPage(1); }, [search, role, needsSetup, semesterId]);
-  const close = () => { copyGeneration.current++; setDrawer(null); setDrawerError(null); setEntry(null); setPublishReason(''); setPublishConfirmed(false); };
-  const openPlan = (plan: SemesterCapacityPlan, nextView: View) => { setPlans(current => [plan, ...current.filter(item => item.id !== plan.id)]); setSelectedPlanId(plan.id); changeView(nextView); setNeedsSetup(false); setPage(1); close(); };
+  const close = () => { copyGeneration.current++; setDrawer(null); setDrawerError(null); setEntry(null); setPublishReason(''); setPublishConfirmed(false); setBulkDirty(false); };
+  const openPlan = (plan: SemesterCapacityPlan, nextView: View, closePreparation = true) => { setPlans(current => [plan, ...current.filter(item => item.id !== plan.id)]); setSelectedPlanId(plan.id); changeView(nextView); setNeedsSetup(false); setPage(1); if (closePreparation) close(); else setPendingPreparationClose(true); };
+  const settlePreparation = () => {setPendingPreparationClose(false); close();};
   const create = async (source: SemesterCapacityPlan | null = null) => {
     if (!ready || !mutable || semesterId === null || writing.current) return; writing.current = true; setSaving(true); setDrawerError(null);
-    try { const created = await createSemesterCapacityPlan(semesterId, source?.id ?? null); await load(semesterId); openPlan(created, 'editor'); notify(`Draft v${created.version} created. You are now editing it.`); }
+    try { const created = await createSemesterCapacityPlan(semesterId, source?.id ?? null); const refreshed = await load(semesterId); openPlan(created, 'editor', false); if (!refreshed) {setError(null); setCommittedRefreshFailed(true);} notify(refreshed ? `Draft v${created.version} created. You are now editing it.` : `Draft v${created.version} was created, but the latest limits could not be loaded. Reload before another action.`, refreshed ? 'success' : 'warning'); }
     catch (reason) { setDrawerError(capacityConflictMessage(reason)); } finally { writing.current = false; setSaving(false); }
   };
   const revise = async (source: SemesterCapacityPlan) => {
     if (!ready || !mutable || writing.current) return; writing.current = true; setSaving(true); setDrawerError(null);
-    try { const created = await cloneSemesterCapacityPlan(source.id); if (semesterId !== null) await load(semesterId); openPlan(created, 'editor'); notify(`Draft v${created.version} created from version ${source.version}.`); }
+    try { const created = await cloneSemesterCapacityPlan(source.id); const refreshed = semesterId !== null && await load(semesterId); openPlan(created, 'editor', false); if (!refreshed) {setError(null); setCommittedRefreshFailed(true);} notify(refreshed ? `Draft v${created.version} created from version ${source.version}.` : `Draft v${created.version} was created from version ${source.version}, but the latest limits could not be loaded. Reload before another action.`, refreshed ? 'success' : 'warning'); }
     catch (reason) { setDrawerError(capacityConflictMessage(reason)); } finally { writing.current = false; setSaving(false); }
   };
   const openPreparation = () => { copyGeneration.current++; setCopySource(null); setCopyLoading(false); setDrawerError(null); setDrawer('prepare'); };
@@ -180,17 +209,16 @@ const next = await readSemesters(true); setSemesters(next); const requested = ne
       : [];
   }) : [];
   const footer = (total: number, current: number, onPage: (value: number) => void, noun: string) => <WorkspacePagination total={total} page={Math.min(current, Math.max(1, Math.ceil(total / size)))} pageCount={Math.max(1, Math.ceil(total / size))} pageSize={size} onPage={onPage} onPageSize={value => { setSize(value); setPage(1); }} noun={noun} />;
+  const entryDirty = drawer === 'entry' && !!entry && (supervisorLimit !== String(entry.supervisorLimit ?? '') || panelLimit !== String(entry.panelLimit ?? ''));
+  const workspaceDirty = entryDirty || drawer === 'bulk' && bulkDirty || drawer === 'publish' && (!!publishReason.trim() || publishConfirmed) || discardPlan !== null && !!discardReason.trim();
+  const workspaceBusy = saving && drawer !== 'prepare' && drawer !== 'compare';
   return <div data-capacity-view={view} className="office-tool-page capacity-workspace space-y-6 pb-12">
-    <PortalToast message={toast} onClose={() => setToast(null)} />
+    <DraftNavigationGuard dirty={workspaceDirty} busy={workspaceBusy} onDiscard={() => {close(); setDiscardPlan(null); setDiscardReason('');}}/>
+    {committedRefreshFailed && <AlertMessage type="warning" title="Draft created; refresh needed" message="The draft was saved, but current limits could not be loaded. Reload before another action." actions={semesterId !== null ? <PortalButton onClick={() => void load(semesterId)}>Reload limits</PortalButton> : undefined}/>}
     <PageHeader title={view === 'history' ? 'Capacity versions' : view === 'availability' ? 'Lecturer availability' : view === 'activity' ? 'Capacity activity log' : 'Lecturer capacity'} subtitle={view === 'overview' ? 'Review workload and manage semester limits.' : undefined} backLabel={view === 'overview' ? backLabel : 'Back to Lecturer capacity'} onBack={view === 'overview' ? onBack : () => { changeView('overview'); setNeedsSetup(false); }} />
-    <div className="capacity-semester-selection" role="region" aria-label="Semester context">
-      <div className="capacity-semester-control">
-        <label htmlFor="capacity-academic-semester" className="capacity-field-label">Academic semester</label>
-        <PortalSelect id="capacity-academic-semester" aria-describedby={semester ? 'capacity-semester-dates' : undefined} className="form-control form-control-md" value={semesterId ?? ''} disabled={saving || drawer !== null || discardPlan !== null} onChange={event => { setReady(false); setSemesterId(Number(event.target.value)); setAvailabilityLecturer(null); changeView('overview'); setSelectedPlanId(null); }}><option value="" disabled>Select semester</option>{semesters.map(row => <option key={row.id} value={row.id}>{row.label}</option>)}</PortalSelect>
-        {semester && <p id="capacity-semester-dates" className="capacity-semester-dates">{date(semester.startsOn)}–{date(semester.endsOn)}</p>}
-      </div>
-      {semester && <div className="capacity-semester-status"><StatusBadge tone={semester.lifecycleStatus === 'ACTIVE' ? 'success' : semester.lifecycleStatus === 'DRAFT' ? 'warning' : 'neutral'}>{semester.lifecycleStatus}</StatusBadge></div>}
-    </div>
+    <OfficeAcademicSemesterSelect id="capacity-academic-semester" dateId="capacity-semester-dates" semesters={availableSemesters} selectedId={semesterId}
+      disabled={loading || saving || drawer !== null || discardPlan !== null}
+      onChange={id => {setReady(false);setSemesterId(id);setAvailabilityLecturer(null);changeView('overview');setSelectedPlanId(null);}}/>
     {loading ? <LoadingState message="Loading Lecturer capacity…" /> : error ? <ErrorState compact title="Couldn’t load lecturer capacity" message={error} onRetry={() => semesterId === null ? void loadSemesters() : void load(semesterId)} /> : !semester ? <EmptyState title="No academic semesters" description="Create a semester before preparing capacity limits." /> : workspace && <>
       {view === 'overview' ? <CapacityPolicySummary published={published} drafts={drafts} mutable={mutable} disabled={!ready || saving}
         onVersions={(onlyDrafts = false) => {setDraftsOnly(onlyDrafts);changeView('history');}} onContinue={plan => openPlan(plan, 'editor')} onPrepare={openPreparation}>
@@ -198,6 +226,7 @@ const next = await readSemesters(true); setSemesters(next); const requested = ne
       </CapacityPolicySummary> : null}
       {inspecting && !editing && selected && <OfficeToolSection title={`Viewing version ${selected.version}`} icon={History} description="Published limits remain in force." actions={<>
         <StatusBadge tone={selected.lifecycleStatus === 'PUBLISHED' ? 'success' : selected.lifecycleStatus === 'DRAFT' ? 'warning' : 'neutral'}>{selected.lifecycleStatus}</StatusBadge>
+        <PortalButton size="sm" disabled={saving} onClick={()=>{setActivityVersion(selected.version);changeView('activity');}}>View activity</PortalButton>
         <PortalButton size="sm" variant="primary" icon={Eye} disabled={!ready || saving} onClick={() => void openCompare()}>Compare versions</PortalButton>
         {!editing && ['PUBLISHED', 'SUPERSEDED'].includes(selected.lifecycleStatus) && mutable && <PortalButton size="sm" onClick={openPreparation}>Prepare a revision</PortalButton>}
       </>}>
@@ -234,19 +263,19 @@ key: row.lecturerId, cells: [
           <PortalButton size="sm" variant="primary" icon={ShieldCheck} disabled={!ready || saving || !mutable || !selected.isComplete || selected.readinessErrors.length > 0} onClick={() => { setPublishSession(value => value + 1); setPublishReason(''); setPublishConfirmed(false); setDrawerError(null); setDrawer('publish'); }}>Review and publish</PortalButton>
         </footer>}
       </OfficeToolSection>}
-      {(view === 'history' || view === 'availability' || view === 'activity') && <CapacityCollectionPage key={`${semesterId}-${view}`} collection={view === 'history' ? 'capacity-plans' : view === 'availability' ? 'availability' : 'capacity-audits'} semesterId={semesterId!} revision={revision} initialStatus={view === 'history' && draftsOnly ? 'DRAFT' : undefined} mutable={mutable} busy={!ready || saving} lecturer={availabilityLecturer} onClearLecturer={() => setAvailabilityLecturer(null)}
-        onPlan={plan => openPlan(plan, plan.lifecycleStatus === 'DRAFT' && mutable ? 'editor' : 'version')} onDiscard={plan => {setDiscardReason('');setDiscardPlan(plan);}} onPrepare={openPreparation} onActivity={() => changeView('activity')} />}
+        {(view === 'history' || view === 'availability' || view === 'activity') && <CapacityCollectionPage key={`${semesterId}-${view}`} collection={view === 'history' ? 'capacity-plans' : view === 'availability' ? 'availability' : 'capacity-audits'} semesterId={semesterId!} revision={revision} initialStatus={view === 'history' && draftsOnly ? 'DRAFT' : undefined} initialVersion={view==='activity'?activityVersion:undefined} mutable={mutable} busy={!ready || saving} lecturer={availabilityLecturer} onClearLecturer={() => setAvailabilityLecturer(null)}
+          onPlan={plan => openPlan(plan, plan.lifecycleStatus === 'DRAFT' && mutable ? 'editor' : 'version')} onDiscard={plan => {setDiscardReason('');setDiscardPlan(plan);}} onPrepare={openPreparation} onActivity={version => {setActivityVersion(version);changeView('activity');}} />}
 
     </>}
-    <RightDrawer isOpen={drawer === 'prepare' || drawer === 'compare'} onClose={close} title={drawer === 'prepare' ? 'Prepare capacity limits' : 'Compare versions'} backLabel="Back to lecturer capacity" pageKey="capacity-workspace-record" busy={saving}>
+    <RightDrawer isOpen={drawer === 'prepare' || drawer === 'compare'} onClose={close} title={drawer === 'prepare' ? 'Prepare capacity limits' : 'Compare versions'} backLabel="Back to lecturer capacity" pageKey="capacity-workspace-record" busy={saving} onNavigationSettled={pendingPreparationClose ? settlePreparation : undefined}>
       {drawerError && <AlertMessage type="error" className="mb-5" title="Capacity action wasn’t completed" message={drawerError}/>}
       {drawer === 'prepare' && <CapacityPreparationForm baseline={workspace?.baseline} drafts={drafts} published={published} previous={copySource} checkingPrevious={copyLoading} disabled={!ready || !mutable || saving} busy={saving} onCheckPrevious={() => void beginCopy()} onContinue={plan => openPlan(plan, 'editor')} onCurrent={() => { if (published) void revise(published); }} onCreate={source => void create(source)} />}
       {drawer === 'compare' && compareLoading && <LoadingState message="Loading comparison versions…" />}
       {drawer === 'compare' && !compareLoading && selected && <div className="space-y-5"><label className="form-label block">Compare version {selected.version} with<PortalSelect className="form-control form-control-md mt-1" value={comparePlanId ?? ''} onChange={event => setComparePlanId(Number(event.target.value))}>{plans.filter(plan => plan.id !== selected.id).map(plan => <option key={plan.id} value={plan.id}>Version {plan.version} · {plan.lifecycleStatus}</option>)}</PortalSelect></label>{compare ? <CoordinatorDataTable label="Capacity version comparison" columns={['Lecturer', `Version ${selected.version}`, `Version ${compare.version}`]} rows={capacityComparisonRows(workspace?.lecturers ?? [], selected, compare).map(row => { const other = compare.entries.find(item => item.lecturerId === row.lecturerId); return { key: row.lecturerId, cells: [row.lecturerName, <p>Supervisor: {row.supervisorLimit ?? 'Not set'}<br />Panel: {row.panelLimit ?? 'Not set'}</p>, <p>Supervisor: {other?.supervisorLimit ?? 'Not set'}<br />Panel: {other?.panelLimit ?? 'Not set'}</p>] }; })} /> : <EmptyState title="No comparison version" />}</div>}
 
     </RightDrawer>
-    <DecisionFeedbackProvider scopeKey={`capacity-bulk-${semesterId}`}>{drawer === 'bulk' && selected && <CapacityBulkDialog plan={selected} matching={eligibleMatching} selected={selectedRows} busy={saving} onClose={close} onSave={saveBulk}
-      onReload={async () => {if (semesterId === null || !await load(semesterId)) throw new Error('Could not reload capacity limits. Try again.');}} />}</DecisionFeedbackProvider>
+    {drawer === 'bulk' && selected && <CapacityBulkDialog plan={selected} matching={eligibleMatching} selected={selectedRows} busy={saving} onClose={close} onSave={saveBulk} onDraftChange={setBulkDirty}
+      onReload={async () => {if (semesterId === null || !await load(semesterId)) throw new Error('Could not reload capacity limits. Try again.');}} />}
     <DecisionDialog isOpen={drawer === 'publish' && selected !== null} decisionKey={`publish-${selected?.id}-${publishSession}`} title="Review and publish" kind="confirmation"
       context={selected ? <><p>{selected.semesterLabel}</p><p className="mt-1 text-xs font-normal text-slate-600">Draft v{selected.version}</p></> : undefined}
       message={<p>These limits take effect immediately{published ? `, replacing version ${published.version}` : ''}. This version becomes read-only. Existing appointments stay active.</p>}
@@ -257,9 +286,8 @@ key: row.lecturerId, cells: [
       <label className="form-label block">Publication reason<textarea autoFocus className="form-control form-control-md mt-2 min-h-24" value={publishReason} onChange={event => setPublishReason(event.target.value)} /></label>
       <label className="flex items-start gap-3 text-xs leading-relaxed text-slate-700"><input className="mt-0.5 shrink-0" type="checkbox" checked={publishConfirmed} onChange={event => setPublishConfirmed(event.target.checked)} /><span>I have reviewed the Supervisor and Panel limits.</span></label>
     </DecisionDialog>
-    {drawer === 'publish' && <CapacityDialogNavigationGuard dirty={!!publishReason.trim() || publishConfirmed} busy={saving} />}
     {(drawer === 'entry' || drawer === 'details') && entry && <CapacityLecturerDialog title={drawer === 'entry' ? 'Edit lecturer limits' : 'Lecturer details'} lecturerName={entry.lecturerName} staffNo={entry.staffNo} busy={saving}
-      dirty={drawer === 'entry' && (supervisorLimit !== String(entry.supervisorLimit ?? '') || panelLimit !== String(entry.panelLimit ?? ''))} onClose={close}
+      dirty={entryDirty} onClose={close}
       footer={requestClose => <><PortalButton disabled={saving} onClick={requestClose}>{drawer === 'entry' ? 'Cancel' : 'Close'}</PortalButton>{drawer === 'entry' && <PortalButton type="submit" form="capacity-entry-form" variant="primary" icon={Save} disabled={!ready || !editing || !mutable || entry.canConfigure === false || saving} isLoading={saving}>Save limits</PortalButton>}</>}>
       {drawerError && <AlertMessage type="error" title="Changes weren’t saved" message={drawerError}/>}
       {drawer === 'entry' ? <form id="capacity-entry-form" className="space-y-5" onSubmit={event => { event.preventDefault(); void saveEntry(); }}>

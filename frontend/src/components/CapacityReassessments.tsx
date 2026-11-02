@@ -1,4 +1,5 @@
 import { DecisionDialog } from './DecisionDialog';
+import {DecisionFeedbackProvider} from './DecisionFeedback';
 import { completeDecision } from '../utils/decisionSubmission';
 import { useReturnToFocusReload } from '../utils/returnToFocus';
 import {officeSupervisorApi} from '../services/staffSupervisorWorkspaceApi';
@@ -42,7 +43,7 @@ export function CapacityReassessmentCard({ row, activeSemester, office, busy, on
 export function CapacityReassessments({ role, onChanged, showRefresh = true, refreshVersion = 0, onBusyChange, target }: { target?:{kind:CapacityRequestKind;id:number};role?: UserRole; onChanged?: () => void; showRefresh?: boolean; refreshVersion?: number; onBusyChange?: (busy: boolean) => void }) {
   // Do not mount the data-loading workspace for roles outside the staff scope.
   if (role !== 'Office Staff/Admin' && role !== 'Programme Coordinator') return null;
-  return <CapacityReassessmentWorkspaceView office={role === 'Office Staff/Admin'} onChanged={onChanged} showRefresh={showRefresh} refreshVersion={refreshVersion} onBusyChange={onBusyChange} target={target}/>;
+  return <DecisionFeedbackProvider scopeKey="capacity-reassessments"><CapacityReassessmentWorkspaceView office={role === 'Office Staff/Admin'} onChanged={onChanged} showRefresh={showRefresh} refreshVersion={refreshVersion} onBusyChange={onBusyChange} target={target}/></DecisionFeedbackProvider>;
 }
 
 function CapacityReassessmentWorkspaceView({ office, onChanged, showRefresh, refreshVersion, onBusyChange, target }: { target?:{kind:CapacityRequestKind;id:number};office: boolean; onChanged?: () => void; showRefresh: boolean; refreshVersion: number; onBusyChange?: (busy: boolean) => void }) {
@@ -75,7 +76,7 @@ function CapacityReassessmentWorkspaceView({ office, onChanged, showRefresh, ref
       : revokeCapacityReassessment(row.kind, row.id, { reason: reason.trim(), expectedStatus: row.status, expectedAuthorizationId: row.authorization!.id, expectedEventId: row.latestEventId })); if (updated) setWorkspace(current => current ? {...current, requests:current.requests.map(request => request.kind === row.kind && request.id === row.id ? updated : request)} : current); }, async () => { await load(true, true); onChanged?.(); }); }
     finally { mutating.current = false; setBusy(false); }
   };
-  useEffect(() => { onBusyChange?.(loading || busy || (!!edit && !!reason.trim())); }, [onBusyChange, loading, busy, edit, reason]);
+  useEffect(() => { onBusyChange?.(loading || busy); }, [onBusyChange, loading, busy]);
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   const query = search.trim().toLowerCase();
   const rows = workspace?.requests.filter(row => `${row.student.name} ${row.student.matricNo} ${row.student.programme} ${row.candidate.name}`.toLowerCase().includes(query)) ?? [];
@@ -85,7 +86,7 @@ function CapacityReassessmentWorkspaceView({ office, onChanged, showRefresh, ref
     <div className="flex flex-wrap items-start justify-between gap-3"><h3 className="section-label">Carryover capacity reassessment</h3></div>
     <p className="card-description">Office may authorize pending requests from closed semesters to use the current active semester’s capacity policy. This does not approve an appointment or add capacity. The original semester and approval stage remain unchanged; eligibility and workload limits are checked again at approval.</p>
     {!office ? <p className="card-description">Read-only history for students in your authorized programme scope.</p> : null}
-    <DecisionDialog isOpen={!!edit} decisionKey={`${edit?.row.kind}:${edit?.row.id}`} title={edit?.action === 'authorize' ? 'Authorize capacity reassessment' : 'Revoke capacity authorization'} confirmLabel={edit?.action === 'authorize' ? 'Authorize reassessment' : 'Revoke authorization'} kind="confirmation" tone={edit?.action === 'revoke' ? 'danger' : 'warning'}
+    <DecisionDialog isOpen={!!edit} standaloneGuard decisionKey={`${edit?.row.kind}:${edit?.row.id}`} title={edit?.action === 'authorize' ? 'Authorize capacity reassessment' : 'Revoke capacity authorization'} confirmLabel={edit?.action === 'authorize' ? 'Authorize reassessment' : 'Revoke authorization'} kind="confirmation" tone={edit?.action === 'revoke' ? 'danger' : 'warning'}
       context={<p>{edit?.row.student.name} &middot; {edit?.row.student.matricNo} &middot; {edit?.row.student.programme}<br/>{edit ? kinds[edit.row.kind] : ''}: {edit?.row.candidate.name}<br/>Original semester: {edit?.row.originalSemester?.label ?? 'Not recorded'}. Current active semester: {workspace?.activeSemester?.label ?? 'No active semester'}.</p>}
       message={edit?.action === 'authorize' ? `This pending carryover request will use ${edit.semester?.label ?? 'the active semester'} capacity policy at its existing approval stage. This does not approve the appointment or add capacity.` : `Authorization to use ${edit?.row.authorization?.targetSemester.label ?? 'the recorded semester'} capacity policy will be revoked.`}
       busy={busy} dirty={!!reason.trim()} canConfirm={office&&!!edit&&!!reason.trim()&&!loading&&!error&&(edit.action === 'authorize' ? edit.row.canAuthorize&&!!edit.semester&&workspace?.activeSemester?.id === edit.semester.id : edit.row.canRevoke&&!!edit.row.authorization)}

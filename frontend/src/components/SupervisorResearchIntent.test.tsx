@@ -13,6 +13,8 @@ test('nine labelled fields are grouped and empty, with bounds and explicit requi
     assert.ok(html.includes(`id="research-intent-${field.key}"`));
   }
   assert.equal((html.match(/<textarea/g) ?? []).length, 9);
+  assert.equal((html.match(/required=""/g) ?? []).length, 9);
+  assert.equal((html.match(/aria-hidden="true">\*/g) ?? []).length, 9);
   assert.equal((html.match(/maxLength="10000"/g) ?? []).length, 9);
 });
 

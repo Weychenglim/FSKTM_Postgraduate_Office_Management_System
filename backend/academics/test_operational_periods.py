@@ -276,7 +276,7 @@ class AppointmentIntakeGuardTests(TestCase):
     def supervisor_serializer(self):
         from appointments.serializers import SupervisorApplicationCreateSerializer
         from types import SimpleNamespace
-        return SupervisorApplicationCreateSerializer(data={'proposedSupervisorId':self.supervisor_user.lecturer.staff_no,'researchTitle':'Research','researchArea':'Area','researchAbstract':'Abstract','researchIntent':valid_research_intent_json()},context={'request':SimpleNamespace(user=self.student_user)})
+        return SupervisorApplicationCreateSerializer(data={'proposedSupervisorId':self.supervisor_user.lecturer.staff_no,'projectCourseCodes':'WQD7002','researchTitle':'Research','researchArea':'Area','researchAbstract':'Abstract','researchIntent':valid_research_intent_json()},context={'request':SimpleNamespace(user=self.student_user)})
 
     def panel_context(self):
         from appointments.models import SupervisorApplication, SupervisorAppointment, StudentResearchProfile
@@ -350,7 +350,7 @@ class AppointmentIntakeGuardTests(TestCase):
     def test_direct_api_rejects_closed_intake_before_upload_side_effects(self):
         self.configure(closes=timezone.now()-timedelta(hours=1))
         self.client.force_authenticate(self.student_user)
-        response=self.client.post('/api/appointments/supervisor/applications/',{'proposedSupervisorId':self.supervisor_user.lecturer.staff_no,'researchTitle':'Research','researchArea':'Area','researchAbstract':'Abstract','researchIntent':valid_research_intent_json()},format='json')
+        response=self.client.post('/api/appointments/supervisor/applications/',{'proposedSupervisorId':self.supervisor_user.lecturer.staff_no,'projectCourseCodes':'WQD7002','researchTitle':'Research','researchArea':'Area','researchAbstract':'Abstract','researchIntent':valid_research_intent_json()},format='json')
         self.assertEqual(response.status_code,409,response.data)
         self.assertFalse(self.student_user.student.supervisor_applications.exists())
 

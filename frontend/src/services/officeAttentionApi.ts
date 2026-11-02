@@ -1,7 +1,7 @@
 import {request} from './apiClient';
 import type {DashboardTask} from '../types/dashboard';
 
-export type AttentionCategory='reconciliation'|'capacity'|'evaluations'|'calendar'|'supervision'|'panel';
+export type AttentionCategory='reconciliation'|'capacity'|'evaluations'|'calendar'|'documents'|'supervision'|'panel';
 export type AttentionResponsibility='review'|'waiting';
 export type AttentionUrgency='overdue'|'due'|'blocking'|'normal';
 export interface OfficeAttentionRecord extends DashboardTask {

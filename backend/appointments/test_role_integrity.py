@@ -33,6 +33,7 @@ class AppointmentRoleIntegrityTests(APITestCase):
     def supervisor_payload(self):
         return {
             "proposedSupervisorId": self.new_supervisor.lecturer.staff_no,
+            "projectCourseCodes": "WQD7002",
             "researchTitle": self.profile.proposed_topic,
             "researchArea": self.profile.research_area,
             "researchAbstract": self.profile.abstract,

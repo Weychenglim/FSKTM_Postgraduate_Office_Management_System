@@ -1,3 +1,4 @@
+import { AppointmentWorkloadDetails } from './AppointmentPrimitives';
 import {DashboardHeader} from './DashboardHeader';
 /**
  * @license
@@ -184,9 +185,9 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="section-heading">Your capacity and availability</h2><PortalButton size="sm" onClick={()=>onNavigateToRoute?.(APP_ROUTES.dashboardMyAvailability)}>Manage availability</PortalButton></div>
       <section className="grid gap-3 md:grid-cols-2" aria-label="Your semester capacity">
         {[
-          { label: 'Supervisor capacity', value: supervisorCapacity },
-          { label: 'Panel capacity', value: panelCapacity },
-        ].map(({ label, value }) => (
+          { label: 'Supervisor capacity', value: supervisorCapacity, active: supervisorCapacity?.activeLoad ?? supervisorCapacity?.currentStudents ?? 0, reserved: supervisorCapacity?.reservedLoad ?? 0 },
+          { label: 'Panel capacity', value: panelCapacity, active: panelCapacity?.confirmedAppointments ?? 0, reserved: panelCapacity?.pendingNominations ?? 0 },
+        ].map(({ label, value, active, reserved }) => (
           <div key={label} className="border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -202,10 +203,9 @@ export const LecturerDashboard: React.FC<LecturerDashboardProps> = ({
                 <div className="mt-3 h-2 overflow-hidden bg-slate-100">
                   <div className="h-full bg-brand-navy" style={{ width: `${capacityUtilization(value.workloadCount ?? value.currentStudents, value.workloadLimit)}%` }} />
                 </div>
-                <p className="card-description mt-2">
-                  {value.semesterCode ?? 'No active semester'} · {value.capacityPlanVersion ? `Plan v${value.capacityPlanVersion}` : 'Plan not configured'}
-                  {value.unavailableUntil ? ` · Unavailable until ${value.unavailableUntil}` : ''}
-                </p>
+                <div className="mt-2"><AppointmentWorkloadDetails active={active} reserved={reserved}
+                  available={value.capacityState==='NOT_CONFIGURED'?undefined:value.availableSlots}
+                  unavailable={value.capacityState==='TEMPORARILY_UNAVAILABLE'?'Temporarily unavailable':undefined} /></div>
               </>
             )}
           </div>

@@ -17,7 +17,7 @@ assert.match(waiting,/Awaiting Panel review|View recommendation/);
 assert.doesNotMatch(waiting,/Recommend Panel|Replace Panel|Confirmed Panel/);
 const replacement=show({...base,current,canRecommend:false,pending:{id:10,status:'PENDING_COORDINATOR',replacement:true,canView:true}});
 assert.match(replacement,/Confirmed Panel|Replacement pending|Awaiting Coordinator approval/);
-assert.doesNotMatch(replacement,/>Replace Panel<|>Recommend Panel</);
+assert.doesNotMatch(replacement,/aria-label="Replace Panel"|>Recommend Panel</);
 const unknown=show();
 assert.match(unknown,/Panel information unavailable/);
 assert.doesNotMatch(unknown,/Recommend Panel|Replace Panel/);
@@ -28,5 +28,17 @@ assert.ok(lecturer.indexOf('View student record')<lecturer.indexOf('>Programme<'
 assert.match(lecturer,/Student email<\/dt>[\s\S]*mailto:student@example.test/);
 assert.doesNotMatch(lecturer,/Contact details/,'A single email is visible without a collapsed disclosure');
 assert.match(lecturer,/Replace Panel/);
-for(const role of ['Office Staff/Admin','Programme Coordinator'] as const){assert.match(detail(role),/Confirmed Panel|View Panel details/);assert.doesNotMatch(detail(role),/>Replace Panel<|>Recommend Panel</,'Passing a callback cannot grant staff nomination permission');}
+for(const role of ['Office Staff/Admin','Programme Coordinator'] as const){assert.match(detail(role),/Confirmed Panel|View Panel details/);assert.doesNotMatch(detail(role),/aria-label="Replace Panel"|>Recommend Panel</,'Passing a callback cannot grant staff nomination permission');}
 console.log('Panel summary follows confirmed, pending, replacement and unavailable states');
+
+for (const plain of [true,false]) {
+  const pendingHtml=render(<SupervisionPanelSummary plain={plain} panel={{...base,canRecommend:false,pending:{id:10,status:'SUBMITTED_TO_PANEL',replacement:false,canView:true,member:{id:21,name:'Proposed Panel'}}}} busy={false} onViewRequest={()=>{}}/>);
+  assert.match(pendingHtml,/Proposed Panel/);
+  assert.match(pendingHtml,/Awaiting Panel/);
+  assert.match(pendingHtml,/View recommendation/);
+  assert.doesNotMatch(pendingHtml,/Panel not appointed|No Panel assigned|Not appointed/);
+  const emptyHtml=render(<SupervisionPanelSummary plain={plain} panel={base} busy={false}/>);
+  assert.equal((emptyHtml.match(/Panel not appointed/g)||[]).length,1);
+  assert.doesNotMatch(emptyHtml,/No Panel assigned/);
+}
+console.log('Pending Panel nomination occupies the member section without contradictory empty states');

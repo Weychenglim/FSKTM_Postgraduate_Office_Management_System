@@ -23,7 +23,11 @@ export function validateSupervisorDocumentFile(file: File): string | null {
 export function validateSupervisorDocumentSelection(
   requirements: SupervisorDocumentRequirement[],
   files: Map<string, File>,
+  noDocumentsRequired = false,
 ): string | null {
+  if (noDocumentsRequired && requirements.length === 0) {
+    return files.size ? "Remove previously selected files; no supporting documents are required." : null;
+  }
   if (requirements.length === 0) {
     return 'Document requirements are not configured. Contact the Postgraduate Office.';
   }

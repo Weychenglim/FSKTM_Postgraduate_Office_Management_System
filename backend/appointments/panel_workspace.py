@@ -19,7 +19,7 @@ from .models import (AppointmentWorkflowEvent, PanelAppointment, PanelRecommenda
                      ResearchAmendment, StudentResearchProfile, SupervisorAppointment)
 
 
-WAITING_STATUSES = PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+WAITING_STATUSES = PanelRecommendation.PENDING_STATUSES
 CONCERN_REASONS = ('near_limit', 'full', 'over_capacity', 'not_configured', 'temporarily_unavailable')
 
 
@@ -174,7 +174,7 @@ def workload_rows(semester):
         return Coalesce(Subquery(model.objects.filter(**{f'{field}_id': OuterRef('pk'), 'status__in': statuses})
             .order_by().values(field).annotate(total=Count('pk')).values('total')[:1]), 0)
     rows = rows.annotate(activeLoad=count(PanelAppointment, 'panel_member', ('ACTIVE',)),
-        reservedLoad=count(PanelRecommendation, 'recommended_member', WAITING_STATUSES))
+        reservedLoad=count(PanelRecommendation, 'recommended_member', PanelRecommendation.WORKLOAD_RESERVED_STATUSES))
     plan = SemesterCapacityPlan.objects.filter(academic_semester=semester, lifecycle_status='PUBLISHED').only('pk', 'version').first() if semester else None
     limit = Subquery(LecturerCapacityEntry.objects.filter(plan=plan, lecturer_id=OuterRef('pk')).values('panel_limit')[:1]) if plan else Value(None, output_field=IntegerField())
     today = timezone.localdate()

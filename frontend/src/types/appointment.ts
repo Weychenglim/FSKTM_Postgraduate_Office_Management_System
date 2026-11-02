@@ -273,10 +273,12 @@ export type PanelRecommendationStatus =
   | 'REJECTED_BY_COORDINATOR'
   | 'APPROVED'
   | 'CANCELLED_BY_SUPERVISOR'
+  | 'CANCELLED_CAPACITY_FULL'
   | 'CANCELLED_BY_OFFICE';
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
 export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
+  acceptanceCapacity?: SupervisorAcceptanceCapacity | null;
   studentEmail?: string;
   supervisorEmail?: string;
   panelMemberEmail?: string;
@@ -588,12 +590,12 @@ export interface SupervisorApplicationDocument {
 
 export interface SupervisorDocumentRequirementAudit {
   id: number;
-  requirementId: number;
+  requirementId: number | null;
   requirementCode: string;
   requirementLabel: string;
   actorName: string;
   actorRole: string;
-  action: 'CREATE' | 'UPDATE';
+  action: 'CREATE' | 'UPDATE' | 'SETUP';
   reason: string;
   beforeValues: Record<string, unknown>;
   afterValues: Record<string, unknown>;

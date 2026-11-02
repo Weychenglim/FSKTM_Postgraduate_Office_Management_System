@@ -22,6 +22,7 @@ interface AppLayoutProps {
   onNotificationsTrigger: () => void;
   userName: string;
   userRole: string;
+  feedbackScopeKey?: string;
   sidebarBadges?: SidebarBadges;
   
   // Handlers for modal interactions
@@ -37,6 +38,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onNotificationsTrigger,
   userName,
   userRole,
+  feedbackScopeKey,
   sidebarBadges,
   activeModal,
   setActiveModal
@@ -50,7 +52,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const hiddenBadges = sidebarOpen ? [] : Object.values(sidebarBadges ?? {}).filter((badge) => badge && badge.count > 0);
 
   return (
-    <DecisionFeedbackProvider scopeKey={`${userName}:${userRole}`}>
+    <DecisionFeedbackProvider scopeKey={feedbackScopeKey ?? `${userName}:${userRole}`}>
     <div id="master-portal-viewport" className="min-h-screen w-full flex bg-[#f1f5f9] text-left">
       {/* 1. Left navigation sidebar (collapsible drawer) */}
       <Sidebar

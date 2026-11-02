@@ -9,23 +9,23 @@ import { getSupervisorApplication, getSupervisorRequestHistory, acceptSupervisor
 import { getSupervisoryWorkspace, decideCoSupervisor } from '../services/coSupervisionApi';
 import type { SupervisorRequest, SupervisorRequestHistoryRow, SupervisorApplicationRecord, SupervisorWorkloadSummary } from '../types';
 import type { SupervisoryWorkspace, CoSupervisorAction } from '../types/coSupervision';
-import { appointmentRequestRows, requestCalendarDay, requestGroup, requestStatusLabel, type LecturerAppointmentRow, type RequestGroup } from '../utils/lecturerRequests';
+import { appointmentRequestRows, requestCalendarDay, requestGroup, requestStatusLabel, type LecturerAppointmentRow } from '../utils/lecturerRequests';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { PortalButton } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
-import { RequestViewSwitch, RequestFilters, RequestGroupSection, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspacePagination, workspacePageSize, type RequestListView } from './RequestWorkspacePrimitives';
+import { RequestViewSwitch, RequestFilters, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspacePagination, workspacePageSize, type RequestListView } from './RequestWorkspacePrimitives';
 import { RecordPage } from './RecordPage';
 import { SupervisorRequestDetail, supervisorRequestMetadata, toSupervisorRequestPresentation } from './SupervisorRequestDetail';
 import { PrimaryRequestDecisionButtons, RequestMetadata, ViewStudentRecordAction } from './RequestDetailPrimitives';
 import { CoSupervisorAppointmentCard, CoSupervisorNominationCard, supportingRequestMetadata } from './SupervisoryTeamManagement';
-import { AppointmentSummaryCard } from './AppointmentPrimitives';
+import { AppointmentSummaryCard, AppointmentWorkloadDetails } from './AppointmentPrimitives';
 import { capacityStateLabel } from '../utils/lecturerCapacity';
 
-const groups: RequestGroup[] = ['review', 'coordinator', 'other'];
 const EMPTY_WORKSPACE: SupervisoryWorkspace = { teams: [], nominations: [], appointments: [] };
 
 export function lecturerRequestViewRows(rows: LecturerAppointmentRow[], view: RequestListView): LecturerAppointmentRow[] {
-  return rows.filter(row => (requestGroup(row.status, row.canDecide) === 'history') === (view === 'history'));
+  return rows.filter(row => (requestGroup(row.status, row.canDecide) === 'history') === (view === 'history'))
+    .sort((a, b) => view === 'requests' ? Number(b.canDecide) - Number(a.canDecide) : 0);
 }
 
 export function lecturerRequestViewParams(current: URLSearchParams, view: RequestListView, rows: LecturerAppointmentRow[]): URLSearchParams {
@@ -53,15 +53,14 @@ export function LecturerPrimaryRequestActions({ record, blocked = false, busy, o
 }
 
 export function LecturerAppointmentRequestList({ rows, history, onOpen }: { rows: LecturerAppointmentRow[]; history: boolean; onOpen: (row: LecturerAppointmentRow) => void }) {
-  return <div className="space-y-6">{(history ? ['history'] as const : groups).map(group => {
-    const selected = rows.filter(row => requestGroup(row.status, row.canDecide) === group);
-    return selected.length ? <RequestGroupSection key={group} group={group} count={selected.length}><WorkspaceRecordTable label="Appointment request records" rows={selected.map(row => ({
+  const selected = lecturerRequestViewRows(rows, history ? 'history' : 'requests');
+  if (!selected.length) return null;
+  return <WorkspaceRecordTable history={history} label="Appointment request records" rows={selected.map(row => ({
       key: row.key, studentName: row.studentName, matricNo: row.matricNo,
       kind: row.kind === 'primary' ? 'Primary supervisor' : 'Supporting supervisor', submittedAt: row.submittedAt,
-      status: requestStatusLabel(row.status, row.canDecide), workflowStatus: row.status, waitingDays: row.waitingDays, waitingApplicable: group !== 'history',
-      actionLabel: group === 'review' ? 'Review request' : 'View request', onOpen: () => onOpen(row),
-    }))} /></RequestGroupSection> : null;
-  })}</div>;
+      status: requestStatusLabel(row.status, row.canDecide), workflowStatus: row.status, waitingDays: row.waitingDays, waitingApplicable: !history,
+      actionLabel: !history && row.canDecide ? 'Review request' : 'View request', onOpen: () => onOpen(row),
+    }))} />;
 }
 
 export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, primaryError, refreshVersion, historyRoute = false, onChanged, initialApplicationId, initialSupportingId, onCloseRoute, onNavigateToRequest, backLabel = 'Back to Appointment requests', workload = null, onNavigateToDossier, onBusyChange }: {
@@ -213,7 +212,7 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
   </RecordPage></>;
   return <>{decisionDialog}<div className="space-y-5">
     {!loading && !primaryLoading && !loadError && workload ? <div className="grid gap-4 md:grid-cols-3">
-      <AppointmentSummaryCard icon={UsersRound} title="Supervisory load" value="" description={`${workload.activeLoad ?? workload.currentStudents} active · ${workload.reservedLoad ?? 0} reserved · ${workload.availableSlots ?? '—'} available. ${workload.semesterCode ?? 'No active semester'}${workload.capacityPlanVersion ? ` · Plan v${workload.capacityPlanVersion}` : ' · Plan not configured'}${workload.capacityState === 'TEMPORARILY_UNAVAILABLE' && workload.unavailableUntil ? ` · Unavailable until ${formatMalaysiaDate(workload.unavailableUntil)}` : ''}`} badge={workload.capacityState === 'AVAILABLE' && workload.availableSlots === 1 ? '1 place remaining' : workload.capacityState ? capacityStateLabel(workload.capacityState) : 'Not configured'} tone={workload.selectable && workload.availableSlots !== 1 ? 'success' : 'warning'} progress={{ current: workload.workloadCount ?? (workload.activeLoad ?? workload.currentStudents) + (workload.reservedLoad ?? 0), max: workload.workloadLimit }} />
+      <AppointmentSummaryCard icon={UsersRound} title="Supervisory load" value="" supportingContent={<AppointmentWorkloadDetails active={workload.activeLoad ?? workload.currentStudents} reserved={workload.reservedLoad ?? 0} available={workload.capacityState==='NOT_CONFIGURED'?undefined:workload.availableSlots} unavailable={workload.capacityState === 'TEMPORARILY_UNAVAILABLE' && workload.unavailableUntil ? `Unavailable until ${formatMalaysiaDate(workload.unavailableUntil)}` : undefined}/>} badge={workload.capacityState === 'AVAILABLE' && workload.availableSlots === 1 ? '1 place remaining' : workload.capacityState ? capacityStateLabel(workload.capacityState) : 'Not configured'} tone={workload.selectable && workload.availableSlots !== 1 ? 'success' : 'warning'} progress={{ current: workload.workloadCount ?? (workload.activeLoad ?? workload.currentStudents) + (workload.reservedLoad ?? 0), max: workload.workloadLimit }} />
       <AppointmentSummaryCard icon={ClipboardCheck} title="Needs your review" value={String(reviewCount)} description="Primary and supporting requests needing your decision." tone={reviewCount ? 'warning' : 'success'} />
       <AppointmentSummaryCard icon={Clock3} title="Awaiting Coordinator" value={String(coordinatorCount)} description="Ongoing requests you can follow while final approval is pending." tone="info" />
     </div> : null}

@@ -11,6 +11,7 @@ import { AuthLayout } from './components/AuthLayout';
 import { LoginCard } from './components/LoginCard';
 import { ForgotPasswordFlow } from './components/ForgotPasswordFlow';
 import { AppLayout } from './components/AppLayout';
+import {SessionExitProvider} from './components/SessionExit';
 import { MarksOverview } from './components/MarksOverview';
 import { PortalToast } from './components/PortalPrimitives';
 import { OfficeDashboardLayout, isOfficeDashboardPresentation } from './components/OfficeDashboardLayout';
@@ -373,9 +374,13 @@ export default function App() {
       Boolean(panelAssignmentStudentId)
     );
 
-  const openMarkRecords = (statusTab: MarkRecordStatusTab = 'All Records') => {
+  const openMarkRecords = (statusTab: MarkRecordStatusTab = 'All Records', periodId?: number, semester?: string) => {
     setMarksRecordStatusTab(statusTab);
-    navigate(APP_ROUTES.marksRecords);
+    const query = new URLSearchParams();
+    if (periodId) query.set('period', String(periodId));
+    if (semester) query.set('semester', semester);
+    query.set('status', statusTab);
+    navigate(`${APP_ROUTES.marksRecords}?${query}`);
   };
 
   const handleSuccessfulLogin = (user: DemoUser) => {
@@ -522,6 +527,7 @@ export default function App() {
   }
 
   return (
+    <SessionExitProvider scopeKey={`${currentUser.id}:${currentUser.role}`}>{requestExit =>
     <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
       {/* ==================== FRONTEND: PORTAL DASHBOARD WORKSPACE ==================== */}
       <NotificationsProvider>
@@ -532,12 +538,13 @@ export default function App() {
             setMarksRecordStatusTab('All Records');
             navigate(routeForSidebarItem(target));
           }}
-          onLogout={handleLogout}
+          onLogout={() => requestExit(handleLogout)}
           onNotificationsTrigger={() => {
             navigate(APP_ROUTES.notifications);
           }}
           userName={currentUser.fullName}
           userRole={currentUser.role}
+          feedbackScopeKey={`${currentUser.id}:${currentUser.role}`}
           sidebarBadges={fileToDo ? { [SIDEBAR_ITEMS.FILE_MANAGEMENT]: { count: fileToDo, label: toDoLabel(fileToDo) } } : undefined}
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
@@ -974,7 +981,7 @@ export default function App() {
                 }}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.SETTINGS ? (
-              <SettingsView currentUser={currentUser} onLogout={handleLogout} onUserUpdated={(updated) => setCurrentUser((existing) => existing?.id === updated.id ? updated : existing)} onPasswordChanged={() => {
+              <SettingsView currentUser={currentUser} onLogout={() => requestExit(handleLogout)} onUserUpdated={(updated) => setCurrentUser((existing) => existing?.id === updated.id ? updated : existing)} onPasswordChanged={() => {
                 signedOutOnPurpose.current = true;
                 setCurrentUser(null);
                 navigate(APP_ROUTES.login, { replace: true });
@@ -1005,5 +1012,6 @@ export default function App() {
         </AppLayout>
       </NotificationsProvider>
     </div>
+    }</SessionExitProvider>
   );
 }

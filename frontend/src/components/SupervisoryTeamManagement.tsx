@@ -1,13 +1,17 @@
+import { Link } from 'react-router';
+import { routeForSupportingSupervisorRequest } from '../constants/routes';
 import {AppointmentHistoryCard} from './AppointmentSidebar';
 import {AppointmentMarkingAction} from './AppointmentMarkingAction';
 import type {AppointmentMarkingTarget} from '../utils/appointmentMarking';
 import { IconHeading } from './IconHeading';
 import { AppointmentIcon } from './AppointmentPrimitives';
-import { UsersRound, History, FileText, UserPlus, ArrowRightLeft, Send, X } from 'lucide-react';
+import { UsersRound, History, FileText, UserPlus, ArrowRightLeft, Send, X, Search, ChevronDown, CheckCircle } from 'lucide-react';
 import {SupervisionDetailSection, SupervisionOverview, SupervisionMember, SupervisionContactDetails, SupervisionPerson, supervisionDetailLabel, supervisionDetailBody} from './SupervisionDetailLayout';
 import {SupervisorRequestDisclosure} from './SupervisorRequestFields';
 import { PortalSelect } from './PortalSelect';
+import { CandidateCapacity } from './CandidateCapacity';
 import { DecisionDialog } from './DecisionDialog';
+import { PortalModal, useModalTitle } from './PortalModal';
 import { AlertMessage } from './AlertMessage';
 import { StudentResearchProfileSection } from './StudentResearchProfileSection';
 import {StudentAppointmentLayout,StudentAppointmentCard} from './StudentAppointmentLayout';
@@ -24,7 +28,7 @@ import { Users } from 'lucide-react';
 import { decideCoSupervisor, endCoSupervisor, getCoSupervisorCandidates, getSupervisoryWorkspace, getSupervisoryTeam, nominateCoSupervisor } from '../services/coSupervisionApi';
 import { ApiError } from '../services/apiClient';
 import type { CoSupervisorAction, CoSupervisorAppointment, CoSupervisorCandidate, CoSupervisorNomination, CoSupervisorOutcome, SupervisoryTeam, SupervisoryWorkspace, SupervisionPanel, TeamAudit } from '../types/coSupervision';
-import { PortalButton, StatusBadge } from './PortalPrimitives';
+import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { ResearchAmendments } from './ResearchAmendments';
 import { CapacityReassessments } from './CapacityReassessments';
@@ -89,7 +93,7 @@ export function supportingRequestMetadata(row: CoSupervisorNomination): React.Co
 export function CoSupervisorNominationCard({ nomination: row, busy, onAction, actions, hideMetadata=false, compact=false }: {
   nomination: CoSupervisorNomination; busy: boolean; onAction: (row: CoSupervisorNomination, action: CoSupervisorAction) => void; actions?:React.ReactNode; hideMetadata?:boolean; compact?:boolean;
 }) {
-  if(compact)return <article data-pending-supporting-summary className="min-w-0 space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><p className={supervisionDetailBody}>{row.candidate.name}</p><StatusBadge tone="warning">{statusLabels[row.status]}</StatusBadge></div><SupervisorRequestDisclosure title="View nomination details"><CoSupervisorNominationCard nomination={row} busy={busy} onAction={onAction} actions={actions} hideMetadata/></SupervisorRequestDisclosure></article>;
+  if(compact)return <article data-pending-supporting-summary className="min-w-0 space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><p className={supervisionDetailBody}>{row.candidate.name}</p><StatusBadge tone="warning">{statusLabels[row.status]}</StatusBadge></div><div className="flex justify-end"><Link to={routeForSupportingSupervisorRequest(String(row.id))} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 shadow-3xs transition-all duration-200 hover:bg-slate-50 hover:text-brand-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/20"><FileText className="h-4 w-4 shrink-0" aria-hidden="true"/>View nomination request</Link></div></article>;
   const events=supportingAuditEvents(row.history);
   const actionSlot=<>{row.allowedActions.length?<div className="flex flex-wrap gap-2">{row.allowedActions.map(action=>
     <PortalButton key={action} size="sm" disabled={busy} variant={action==='accept'||action==='approve'?'primary':'secondary'} onClick={()=>onAction(row,action)}>{labels[action]}</PortalButton>)}</div>:null}{actions}</>;
@@ -158,6 +162,11 @@ export function CoSupervisorNominationForm({ team, replacement, busy, onSubmit, 
   const [attempt, setAttempt] = useState(0);
   const [candidateId, setCandidateId] = useState('');
   const [justification, setJustification] = useState('');
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const titleId = useModalTitle();
+  const [candidateSearch, setCandidateSearch] = useState('');
+  const [candidateOpen, setCandidateOpen] = useState(false);
+  const [activeCandidateId, setActiveCandidateId] = useState<number | null>(null);
   useEffect(() => {
     let current = true;
     setLoading(true); setError(null);
@@ -166,26 +175,98 @@ export function CoSupervisorNominationForm({ team, replacement, busy, onSubmit, 
       .finally(() => { if (current) setLoading(false); });
     return () => { current = false; };
   }, [team.studentId, attempt, refreshVersion]);
-  useRecordDraft(!!candidateId || !!justification.trim(), busy);
-  const selected = candidates.find(row => String(row.id) === candidateId);
-  return <form aria-label="Co-supervisor nomination" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-7 md:p-8" onSubmit={event => { event.preventDefault(); if (selected?.selectable && justification.trim() && !busy && !needsRefresh && team.canNominate) onSubmit(selected.id, justification.trim()); }}>
-    <div className="space-y-3"><IconHeading title={replacement ? 'Replace co-supervisor' : 'Nominate a co-supervisor'} titleClassName="text-base font-semibold text-brand-navy" icon={<AppointmentIcon icon={UserPlus} tone="info"/>}/>
-    <p className="text-sm leading-6 text-slate-600">{replacement ? `The appointment for ${replacement.supervisor.name} continues until the replacement is approved.` : 'Select a lecturer and explain how they will support this research.'}</p></div>
-    <dl className="grid gap-5 border-y border-slate-100 py-5 sm:grid-cols-2"><div className="space-y-2"><dt className={supervisionDetailLabel}>Student</dt><dd className={supervisionDetailBody}>{team.studentName}</dd><dd className="text-xs text-slate-500">{team.matricNo}</dd></div><div className="space-y-2"><dt className={supervisionDetailLabel}>Primary supervisor</dt><dd className={supervisionDetailBody}>{team.primarySupervisor?.name || 'Not recorded'}</dd></div></dl>
+  const dirty = !!candidateId || !!justification.trim();
+  useRecordDraft(dirty, busy);
+  const requestCancel = () => {
+    if (busy) return;
+    if (dirty) setDiscardOpen(true); else onCancel();
+  };
+  const visibleCandidates = candidates.filter(candidate => candidate.selectable && candidate.id !== team.primarySupervisor?.id);
+  const selected = visibleCandidates.find(row => String(row.id) === candidateId);
+  const matches = visibleCandidates.filter(candidate =>
+    [candidate.name, candidate.staffId, candidate.department].filter(Boolean).join(' ').toLowerCase().includes(candidateSearch.trim().toLowerCase()));
+  const enabledCandidates = matches.filter(candidate => candidate.selectable);
+  const chooseCandidate = (candidate: CoSupervisorCandidate) => {
+    if (busy || !candidate.selectable) return;
+    setCandidateId(String(candidate.id)); setCandidateSearch(''); setCandidateOpen(false); setActiveCandidateId(null);
+  };
+  const onCandidateKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape' && candidateOpen) {
+      event.preventDefault(); event.stopPropagation(); setCandidateOpen(false); return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const active = enabledCandidates.find(candidate => candidate.id === activeCandidateId);
+      if (candidateOpen && active) chooseCandidate(active);
+      else setCandidateOpen(true);
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault(); setCandidateOpen(true);
+    const current = enabledCandidates.findIndex(candidate => candidate.id === activeCandidateId);
+    const next = event.key === 'ArrowDown' ? (current + 1) % enabledCandidates.length
+      : current < 0 ? enabledCandidates.length - 1 : (current - 1 + enabledCandidates.length) % enabledCandidates.length;
+    setActiveCandidateId(enabledCandidates[next]?.id ?? null);
+  };
+  useEffect(() => {
+    if (candidateOpen && activeCandidateId != null) document.getElementById(`${titleId}-candidate-${activeCandidateId}`)?.scrollIntoView({block:'nearest'});
+  }, [candidateOpen, activeCandidateId, titleId]);
+  return <>
+    <PortalModal isOpen onClose={requestCancel} busy={busy} labelledBy={titleId} className="max-w-2xl overflow-hidden p-0">
+    <form aria-label="Co-supervisor nomination" className="flex max-h-[85dvh] flex-col" onSubmit={event => { event.preventDefault(); if (selected?.selectable && justification.trim() && !busy && !needsRefresh && team.canNominate) onSubmit(selected.id, justification.trim()); }}>
+      <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-6 py-5">
+        <div><h2 id={titleId} className="section-heading">{replacement ? 'Replace co-supervisor' : 'Nominate co-supervisor'}</h2>
+          <p className="card-description mt-1">{team.studentName} · {team.matricNo}</p></div>
+        <button type="button" className="icon-button h-9 w-9 shrink-0" aria-label="Close co-supervisor nomination" disabled={busy} onClick={requestCancel}><X className="h-4 w-4" aria-hidden="true" /></button>
+      </header>
+      <div className="min-h-0 space-y-6 overflow-y-auto px-6 py-6">
+        {replacement ? <p className="card-description">{replacement.supervisor.name} remains appointed until the replacement is approved.</p> : null}
 
-    {loading ? <LoadingState message="Loading eligible lecturers…" /> : error ? <ErrorState message={error} onRetry={() => setAttempt(value => value + 1)} /> : <label className="block text-xs font-medium text-slate-600">Lecturer
-      <PortalSelect className="form-control mt-2 font-normal" required value={candidateId} disabled={busy} onChange={event => setCandidateId(event.target.value)}>
-        <option value="">Select a lecturer</option>
-        {candidates.map(candidate => <option key={candidate.id} value={candidate.id} disabled={!candidate.selectable}>{candidate.name} · {candidate.activeLoad}/{candidate.limit ?? 'Unconfigured'} · {candidate.reason || candidate.capacityState.replaceAll('_', ' ').toLowerCase()}{candidate.unavailableUntil ? ` until ${candidate.unavailableUntil}` : ''}</option>)}
-      </PortalSelect>
-    </label>}
-    {!loading && !error && candidates.length === 0 ? <p className="card-description">No eligible lecturers are available.</p> : null}
-    <label className="block text-xs font-medium text-slate-600">Justification<textarea className="form-control mt-2 min-h-36 font-normal" required rows={5} value={justification} disabled={busy} onChange={event => setJustification(event.target.value)} /></label>
+    {loading ? <LoadingState message="Loading eligible lecturers…" /> : error ? <ErrorState message={error} onRetry={() => setAttempt(value => value + 1)} /> : <div className="space-y-2" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setCandidateOpen(false); }}>
+      <label htmlFor={`${titleId}-lecturer`} className="block text-xs font-medium text-slate-600">Lecturer</label>
+      <div className="relative">
+        <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
+        <input id={`${titleId}-lecturer`} type="search" role="combobox" autoComplete="off" aria-required="true"
+          aria-expanded={candidateOpen} aria-controls={`${titleId}-candidates`} aria-autocomplete="list"
+          aria-activedescendant={candidateOpen && activeCandidateId != null ? `${titleId}-candidate-${activeCandidateId}` : undefined}
+          placeholder="Name, staff number or department" disabled={busy}
+          value={candidateOpen ? candidateSearch : selected?.name ?? candidateSearch}
+          onFocus={() => setCandidateOpen(true)} onClick={() => setCandidateOpen(true)}
+          onChange={event => {setCandidateSearch(event.target.value); setCandidateId(''); setActiveCandidateId(null); setCandidateOpen(true);}}
+          onKeyDown={onCandidateKey}
+          className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-10 text-sm font-normal text-slate-900 outline-none focus:border-brand-navy focus:ring-1 focus:ring-brand-navy disabled:opacity-60" />
+        <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3.5 top-3.5 h-4 w-4 text-slate-400" />
+        {candidateOpen ? <div id={`${titleId}-candidates`} role="listbox" aria-label="Co-supervisor candidates" className="absolute left-0 right-0 z-20 mt-2 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+          {matches.length ? matches.map(candidate => <button key={candidate.id} id={`${titleId}-candidate-${candidate.id}`} type="button" role="option" tabIndex={-1}
+            aria-selected={candidateId === String(candidate.id)} disabled={busy || !candidate.selectable} aria-disabled={busy || !candidate.selectable}
+            onMouseDown={event => event.preventDefault()} onClick={() => chooseCandidate(candidate)}
+            onMouseEnter={() => {if(candidate.selectable)setActiveCandidateId(candidate.id);}}
+            className={`flex min-h-11 w-full flex-wrap items-start justify-between gap-2 border-b border-slate-100 p-3 text-left last:border-0 disabled:cursor-not-allowed disabled:opacity-60 ${activeCandidateId === candidate.id ? 'bg-blue-50' : 'enabled:hover:bg-slate-50'}`}>
+            <span className="min-w-0 flex-1 basis-40 space-y-1"><span className="block text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{candidate.name}</span>
+              <span className="block text-xs font-normal leading-5 text-slate-500 [overflow-wrap:anywhere]">{[candidate.staffId, candidate.department].filter(Boolean).join(' · ')}</span>
+              {!candidate.selectable && candidate.reason ? <span className="block text-xs leading-5 text-slate-500">{candidate.reason}</span> : null}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              {candidateId === String(candidate.id) ? <span className="flex items-center gap-1.5 text-xs text-indigo-700"><CheckCircle aria-hidden="true" className="h-4 w-4" />Selected</span> : null}
+              <CandidateCapacity role="Supervisor" capacityState={candidate.capacityState} availableSlots={candidate.availableSlots ?? undefined} selectable={candidate.selectable} limit={candidate.limit ?? undefined} load={candidate.activeLoad + (candidate.reservedLoad ?? 0)} />
+            </span>
+          </button>) : <p role="status" className="p-4 text-sm leading-6 text-slate-500">No matching lecturers found.</p>}
+        </div> : null}
+      </div>
+    </div>}
+
+    {!loading && !error && visibleCandidates.length === 0 ? <p className="card-description">No eligible lecturers are available.</p> : null}
+    <label className="block text-xs font-medium text-slate-600">Justification<textarea className="mt-2 min-h-36 w-full rounded-xl border border-slate-200 p-3.5 text-sm font-normal leading-6 text-slate-900 outline-none focus:border-brand-navy focus:ring-1 focus:ring-brand-navy disabled:opacity-60" required rows={5} value={justification} disabled={busy} onChange={event => setJustification(event.target.value)} /></label>
     {submitError ? <AlertMessage type="error" title="Nomination could not be submitted" message={submitError}/> : null}
     {needsRefresh ? <AlertMessage type="warning" title="Check current nomination availability" message={recoveryError || 'Reload the current supervision record before submitting again.'} actions={<PortalButton type="button" disabled={busy} onClick={onReload}>Reload nomination availability</PortalButton>}/> : !team.canNominate ? <AlertMessage type="warning" message="This supervisory team is no longer eligible for a nomination. Your input has been kept for review."/> : null}
-    <p className="text-xs leading-6 text-slate-600">The lecturer reviews first, followed by the Programme Coordinator. Each approved appointment uses one supervision slot.</p>
-    <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-5"><PortalButton icon={X} className="min-h-11 [&]:normal-case [&]:tracking-normal [&]:text-xs" type="button" disabled={busy} onClick={onCancel}>Cancel</PortalButton><PortalButton icon={Send} className="min-h-11 [&]:normal-case [&]:tracking-normal [&]:text-xs" type="submit" variant="primary" isLoading={busy} disabled={loading || !!error || !selected?.selectable || !justification.trim() || needsRefresh || !team.canNominate}>Submit nomination</PortalButton></div>
-  </form>;
+      </div>
+    <footer className="flex shrink-0 flex-wrap items-center justify-end gap-3 border-t border-slate-200 px-6 py-4"><PortalButton icon={X} type="button" disabled={busy} onClick={requestCancel}>Cancel</PortalButton><PortalButton icon={Send} type="submit" variant="primary" isLoading={busy} disabled={loading || !!error || !selected?.selectable || !justification.trim() || needsRefresh || !team.canNominate}>Submit nomination</PortalButton></footer>
+    </form>
+    </PortalModal>
+    <PortalConfirmModal isOpen={discardOpen} title="Discard nomination changes?"
+      message="Your selected lecturer and unsaved justification will be discarded."
+      confirmLabel="Discard changes" cancelLabel="Keep editing" isLoading={busy} onCancel={() => setDiscardOpen(false)}
+      onConfirm={() => { if (!busy) { setDiscardOpen(false); onCancel(); } }} />
+  </>;
 }
 
 type EditAction = { kind: 'nominate'; team: SupervisoryTeam; replacement: CoSupervisorAppointment | null }
@@ -203,7 +284,7 @@ export function StudentSupervisorsOverview({ workspace, actions, content }: { wo
     <StudentAppointmentCard title="My supervisors" memberLabel="Primary supervisor" name={team?.primarySupervisor?.name ?? 'Supervisor not appointed'} status={team?.primarySupervisor ? 'Active' : 'Not appointed'} tone={team?.primarySupervisor ? 'success' : 'neutral'}
       actions={team?.primarySupervisor ? actions : undefined} programme={team?.programme} semester={team?.primaryAppointmentDetails?.semester}
       email={team?.primaryAppointmentDetails?.email} department={team?.primaryAppointmentDetails?.department} appointmentDate={team?.primaryAppointmentDetails?.appointmentDate ? displayDate(team.primaryAppointmentDetails.appointmentDate) : null}>
-        <section aria-label="Supporting supervisors" className="space-y-4 border-t border-slate-100 pt-6"><h3 className={supervisionDetailLabel}>Supporting supervisors</h3>
+        <section aria-label="Supporting supervisors" className="min-w-0 space-y-5 border-t border-slate-200 pt-6"><h3 className={supervisionDetailLabel}>Supporting supervisors</h3>
           {supporting.length ? supporting.map(row=><SupervisionPerson key={row.id} role="Co-supervisor" name={row.supervisor.name} department={row.supervisor.department} email={row.supervisor.email} appointedOn={displayDate(row.appointmentDate)}/>) : <p className={supervisionDetailBody}>No supporting supervisors assigned.</p>}
         </section>
     </StudentAppointmentCard>
@@ -225,27 +306,27 @@ export function SupervisionPanelSummary({panel,busy,onRecommend,onViewRequest,pl
   const canOpenPending = Boolean(pending?.canView && onViewRequest);
   const canStartRecommendation = Boolean(!pending && onRecommend && (panel?.canRecommend || panel?.canReplace));
   const actions=<>
-    {current?.canView&&onViewRequest?<PortalButton icon={UsersRound} className="min-h-11 [&]:normal-case [&]:tracking-normal [&]:text-xs" disabled={busy} onClick={()=>onViewRequest(current.requestId,current.recordKey)}>View Panel details</PortalButton>:null}
-    {pending?.canView&&onViewRequest?<PortalButton icon={FileText} className="min-h-11 [&]:normal-case [&]:tracking-normal [&]:text-xs" disabled={busy} onClick={()=>onViewRequest(pending.id,pending.recordKey)}>View recommendation</PortalButton>:null}
-    {!pending&&onRecommend&&(panel?.canRecommend||panel?.canReplace)?<PortalButton icon={current?ArrowRightLeft:UserPlus} className="min-h-11 [&]:normal-case [&]:tracking-normal [&]:text-xs" variant={current?'secondary':'primary'} disabled={busy} onClick={onRecommend}>{current?'Replace Panel':'Recommend Panel'}</PortalButton>:null}
+    {current?.canView&&onViewRequest?<PortalButton icon={UsersRound} disabled={busy} onClick={()=>onViewRequest(current.requestId,current.recordKey)}>View Panel details</PortalButton>:null}
+    {pending?.canView&&onViewRequest?<PortalButton icon={FileText} disabled={busy} onClick={()=>onViewRequest(pending.id,pending.recordKey)}>View recommendation</PortalButton>:null}
+    {!pending&&onRecommend&&(panel?.canRecommend||panel?.canReplace)?<PortalButton icon={current?ArrowRightLeft:UserPlus} aria-label={current?'Replace Panel':undefined} variant={current?'secondary':'primary'} disabled={busy} onClick={onRecommend}>{current?'Replace':'Recommend Panel'}</PortalButton>:null}
   </>;
   if (plain) return <section aria-label="Panel member" className="min-w-0 space-y-4">
     <h3 className="text-sm font-semibold leading-6 text-brand-navy">Panel evaluation</h3>
-    <div className="flex items-start justify-between gap-4"><p className="text-sm font-semibold leading-6 text-slate-900 [overflow-wrap:anywhere]">{current?.member.name ?? (panel ? 'Panel not appointed' : 'Panel information unavailable')}</p><StatusBadge tone={current?'success':pending?'warning':'neutral'}>{current?'Active':pending?'Appointment pending':'Not appointed'}</StatusBadge></div>
-    {current ? <SupervisionContactDetails department={current.department} email={current.email} appointedOn={current.appointmentDate ? displayDate(current.appointmentDate) : null}/> : panel&&!pending ? <p className={bodyClass}>No Panel assigned.</p> : !panel ? <p className={bodyClass}>Panel information unavailable.</p> : null}
-    {pending ? <p className="text-xs leading-6 text-amber-800">{pending.replacement?'Replacement pending · ':''}{pending.status==='PENDING_COORDINATOR'?'Awaiting Coordinator approval':'Awaiting Panel review'}</p> : null}
+    <div className="flex items-start justify-between gap-4"><p className="text-sm font-semibold leading-6 text-slate-900 [overflow-wrap:anywhere]">{current?.member.name ?? pending?.member?.name ?? (pending ? 'Panel nomination' : panel ? 'Panel not appointed' : 'Panel information unavailable')}</p><StatusBadge tone={current?'success':pending?'warning':'neutral'}>{current?'Active':pending?(pending.status==='PENDING_COORDINATOR'?'Awaiting Coordinator':'Awaiting Panel'):'Not appointed'}</StatusBadge></div>
+    {current ? <SupervisionContactDetails department={current.department} email={current.email} appointedOn={current.appointmentDate ? displayDate(current.appointmentDate) : null}/> : !panel ? <p className={bodyClass}>Panel information unavailable.</p> : null}
+    {pending && current ? <p className="text-xs leading-6 text-amber-800">{pending.replacement?'Replacement pending · ':''}{pending.status==='PENDING_COORDINATOR'?'Awaiting Coordinator approval':'Awaiting Panel review'}</p> : null}
     {canOpenCurrent || canOpenPending || canStartRecommendation ? <div data-panel-actions className="flex flex-wrap justify-end gap-3">{actions}</div> : null}
   </section>;
   const Member = plain ? SupervisionMember : AppointmentMemberCard;
-  return <Member {...(!plain ? {detail:true,icon:UsersRound} : {})} label="Panel member" name={current?.member.name ?? (panel?'Panel not appointed':'Panel information unavailable')}
-    status={current?'Active':pending?'Appointment pending':'Not appointed'} tone={current?'success':pending?'warning':'neutral'}
+  return <Member {...(!plain ? {detail:true,icon:UsersRound} : {})} label="Panel member" name={current?.member.name ?? pending?.member?.name ?? (pending?'Panel nomination':panel?'Panel not appointed':'Panel information unavailable')}
+    status={current?'Active':pending?(pending.status==='PENDING_COORDINATOR'?'Awaiting Coordinator':'Awaiting Panel'):'Not appointed'} tone={current?'success':pending?'warning':'neutral'}
     actions={canOpenCurrent || canOpenPending || canStartRecommendation ? actions : undefined}>
     {current?<dl className={`grid gap-x-8 sm:grid-cols-2 ${plain ? 'gap-y-5' : 'gap-y-6 lg:grid-cols-3'}`}>
       <div><dt className={labelClass}>Department</dt><dd className={`${bodyClass} mt-2`}>{current.department||'Not recorded'}</dd></div>
       <div><dt className={labelClass}>Email</dt><dd className={`${bodyClass} mt-2 break-words`}>{current.email?<a href={`mailto:${current.email}`} className="hover:underline">{current.email}</a>:'Not recorded'}</dd></div>
       <div><dt className={labelClass}>Appointed on</dt><dd className={`${bodyClass} mt-2`}>{displayDate(current.appointmentDate)}</dd></div>
-    </dl>:panel&&!pending?<p className={bodyClass}>No Panel assigned.</p>:!panel?<p className={bodyClass}>Panel information unavailable.</p>:null}
-    {pending?<p className="text-xs font-normal leading-relaxed text-amber-800">{pending.replacement?'Replacement pending · ':''}{pending.status==='PENDING_COORDINATOR'?'Awaiting Coordinator approval':'Awaiting Panel review'}</p>:null}
+    </dl>:!panel?<p className={bodyClass}>Panel information unavailable.</p>:null}
+    {pending&&current?<p className="text-xs font-normal leading-relaxed text-amber-800">{pending.replacement?'Replacement pending · ':''}{pending.status==='PENDING_COORDINATOR'?'Awaiting Coordinator approval':'Awaiting Panel review'}</p>:null}
   </Member>;
 }
 
@@ -257,15 +338,14 @@ export function SupervisoryStudentDetailCard({ team, busy, initiallyOpen = false
   onReplace: (row: CoSupervisorAppointment) => void;
   onNominationAction: (row: CoSupervisorNomination, action: CoSupervisorAction) => void;
 }) {
+  const canStartNomination = team.canNominate && !team.nominations.some(row => ['SUBMITTED_TO_CO_SUPERVISOR', 'PENDING_COORDINATOR'].includes(row.status));
   const supporting = team.appointments.filter(row => row.status === 'ACTIVE');
   const previous = team.appointments.filter(row => row.status !== 'ACTIVE');
   const activity = (team.timeline ?? []).filter(entry => !String(entry.id).startsWith('timeline-'));
   const dates = (team.timeline ?? []).filter(entry => String(entry.id).startsWith('timeline-'));
   if (!collapsible) {
     const pending=team.nominations.filter(row=>['SUBMITTED_TO_CO_SUPERVISOR','PENDING_COORDINATOR'].includes(row.status));
-    const pastNominations=team.nominations.filter(row=>!pending.includes(row));
     const changes=(appointmentEvents??[]).filter(event=>event.action!=='ACTIVATED');
-    const hasHistory=!!(previous.length || pastNominations.length || changes.length);
     return <div data-supervision-layout className="space-y-7">
       <SupervisionOverview team={team} context={context} actions={actions}/>
       <div data-supervision-columns className={management ? 'grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]' : 'min-w-0'}>
@@ -273,18 +353,18 @@ export function SupervisoryStudentDetailCard({ team, busy, initiallyOpen = false
           <SupervisionDetailSection title="Supervisory team" icon={UsersRound} contentClassName="mt-4 min-w-0">
             <div className="space-y-6" data-supervision-members>
               {team.primarySupervisor ? <SupervisionPerson name={team.primarySupervisor.name} role="Primary supervisor" department={team.primaryAppointmentDetails?.department} email={team.primaryAppointmentDetails?.email} appointedOn={team.primaryAppointmentDetails?.appointmentDate ? displayDate(team.primaryAppointmentDetails.appointmentDate) : null}/> : <p className={supervisionDetailBody}>Primary supervisor not appointed.</p>}
-              <section aria-label="Supporting supervisors" className="min-w-0 space-y-4">
+              <section aria-label="Supporting supervisors" className="min-w-0 space-y-5 border-t border-slate-200 pt-6">
                 <div className="flex flex-wrap items-center justify-between gap-4"><h3 className="text-sm font-semibold leading-6 text-brand-navy">Supporting supervisors{supporting.length ? ` (${supporting.length}/2)` : ''}</h3>
-                  {team.canNominate ? <div data-supporting-heading-actions><PortalButton icon={UserPlus} className="min-h-11 [&]:normal-case [&]:tracking-normal [&]:text-xs" disabled={busy} onClick={onNominate}>Nominate co-supervisor</PortalButton></div> : null}
+                  {canStartNomination ? <div data-supporting-heading-actions><PortalButton icon={UserPlus} disabled={busy} onClick={onNominate}>Nominate co-supervisor</PortalButton></div> : null}
                 </div>
                 {supporting.length ? <div className="space-y-6">{supporting.map(row=><SupervisionPerson key={row.id} name={row.supervisor.name} role="Supporting supervisor" department={row.supervisor.department} email={row.supervisor.email} appointedOn={row.appointmentDate ? displayDate(row.appointmentDate) : null}>
-                  {row.canEnd || team.canNominate && !team.nominations.some(nomination=>nomination.replacesAppointmentId===row.id && ['SUBMITTED_TO_CO_SUPERVISOR','PENDING_COORDINATOR'].includes(nomination.status)) ? <div className="flex flex-wrap justify-end gap-3">
-                    {team.canNominate && !team.nominations.some(nomination=>nomination.replacesAppointmentId===row.id && ['SUBMITTED_TO_CO_SUPERVISOR','PENDING_COORDINATOR'].includes(nomination.status)) ? <PortalButton icon={ArrowRightLeft} className="min-h-11 [&]:normal-case [&]:tracking-normal [&]:text-xs" disabled={busy} onClick={()=>onReplace(row)}>Replace</PortalButton> : null}
-                    {row.canEnd ? <PortalButton variant="danger" className="min-h-11 [&]:normal-case [&]:tracking-normal [&]:text-xs" disabled={busy} onClick={()=>onEnd(row)}>End appointment</PortalButton> : null}
-                  </div> : null}
-                  <TeamHistory events={row.history}/>
-                </SupervisionPerson>)}</div> : <p className="text-sm leading-6 text-slate-600">No supporting supervisors assigned.</p>}
-                {pending.length?<div className="space-y-5 border-t border-slate-100 pt-5"><h4 className="text-sm font-semibold">Pending nominations</h4>{pending.map(row=><CoSupervisorNominationCard compact key={row.id} nomination={row} busy={busy} onAction={onNominationAction}/>)}</div>:null}
+                  {row.canEnd || canStartNomination && !team.nominations.some(nomination=>nomination.replacesAppointmentId===row.id && ['SUBMITTED_TO_CO_SUPERVISOR','PENDING_COORDINATOR'].includes(nomination.status)) ? <footer data-supporting-appointment-actions className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4">
+                    {canStartNomination && !team.nominations.some(nomination=>nomination.replacesAppointmentId===row.id && ['SUBMITTED_TO_CO_SUPERVISOR','PENDING_COORDINATOR'].includes(nomination.status)) ? <PortalButton icon={ArrowRightLeft} disabled={busy} onClick={()=>onReplace(row)}>Replace</PortalButton> : null}
+                    {row.canEnd ? <PortalButton variant="danger" disabled={busy} onClick={()=>onEnd(row)}>End appointment</PortalButton> : null}
+                  </footer> : null}
+                  <RequestAuditHistory title="Appointment changes" events={supportingAuditEvents(row.history.filter(event=>event.action!=='ACTIVATED'))}/>
+                </SupervisionPerson>)}</div> : !pending.length ? <p className="text-sm leading-6 text-slate-600">No supporting supervisors assigned.</p> : null}
+                {pending.length?<div className={supporting.length ? "space-y-4 border-t border-slate-100 pt-4" : "space-y-4"}>{pending.map(row=><CoSupervisorNominationCard compact key={row.id} nomination={row} busy={busy} onAction={onNominationAction}/>)}</div>:null}
               </section>
             </div>
             <div className="mt-6 border-t border-slate-200 pt-6"><SupervisionPanelSummary plain panel={team.panel} busy={busy} onRecommend={onRecommendPanel} onViewRequest={onViewPanelRequest}/></div>
@@ -293,13 +373,8 @@ export function SupervisoryStudentDetailCard({ team, busy, initiallyOpen = false
         </div>
         {management ? <aside aria-label="Appointment information" className="min-w-0">{management}</aside> : null}
       </div>
-      {hasHistory?<AppointmentHistoryCard>
-        {changes.length?<RequestAuditHistory sidebar title="View changes" events={changes}/>:null}
-        {previous.length || pastNominations.length ? <SupervisorRequestDisclosure title={`Supporting appointment history (${previous.length+pastNominations.length})`}>
-          {previous.map(row=><CoSupervisorAppointmentCard key={row.id} compact appointment={row} busy={busy} canReplace={false} onEnd={onEnd} onReplace={onReplace}/>)}
-          {pastNominations.map(row=><CoSupervisorNominationCard key={row.id} nomination={row} busy={busy} onAction={onNominationAction}/>)}
-        </SupervisorRequestDisclosure>:null}
-      </AppointmentHistoryCard>:null}
+      {changes.length?<AppointmentHistoryCard><RequestAuditHistory sidebar title="View changes" events={changes}/></AppointmentHistoryCard>:null}
+
     </div>;
   }
   const Wrapper = collapsible ? 'details' : 'article';
@@ -315,9 +390,9 @@ export function SupervisoryStudentDetailCard({ team, busy, initiallyOpen = false
         <div className="space-y-6 rounded-xl border border-slate-200 p-6">
           <div className="flex items-center gap-3"><AppointmentIcon icon={UsersRound} tone="info"/><p className={supervisionLabelClass}>Supporting supervisors ({supporting.length}/2)</p></div>
           {supporting.length ? supporting.map(row => <CoSupervisorAppointmentCard key={row.id} appointment={row} busy={busy}
-            compact relaxed canReplace={team.canNominate && !team.nominations.some(nomination => nomination.replacesAppointmentId === row.id && ['SUBMITTED_TO_CO_SUPERVISOR','PENDING_COORDINATOR'].includes(nomination.status))}
+            compact relaxed canReplace={canStartNomination && !team.nominations.some(nomination => nomination.replacesAppointmentId === row.id && ['SUBMITTED_TO_CO_SUPERVISOR','PENDING_COORDINATOR'].includes(nomination.status))}
             onEnd={onEnd} onReplace={onReplace} />) : <p className={supervisionBodyClass}>No supporting supervisors assigned.</p>}
-          {team.canNominate ? <div className="flex flex-wrap gap-3"><PortalButton size="sm" disabled={busy} onClick={onNominate}>Nominate co-supervisor</PortalButton></div> : null}
+          {canStartNomination ? <div className="flex flex-wrap gap-3"><PortalButton size="sm" disabled={busy} onClick={onNominate}>Nominate co-supervisor</PortalButton></div> : null}
         </div>
       </div>
       {!collapsible?<SupervisionPanelSummary panel={team.panel} busy={busy} onRecommend={onRecommendPanel} onViewRequest={onViewPanelRequest}/>:null}
@@ -452,13 +527,7 @@ export function SupervisoryTeamManagement({ headerActions, onChanged, role, refr
   const setPageSize = rosterState?.onPageSize ?? setLocalPageSize;
   const version = useRef(0);
   const mutating = useRef(false);
-  const editPanel = useRef<HTMLDivElement>(null);
   useEffect(() => { setEdit(null); setReason(''); setOutcome('COMPLETED'); setNotice(null); }, [view, routeStudentId]);
-  useEffect(() => {
-    if (!edit) return;
-    editPanel.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    editPanel.current?.querySelector<HTMLElement>('input, select, textarea, button')?.focus({ preventScroll: true });
-  }, [edit]);
   const load = useCallback(async (strict = false, background = false) => {
     const token = ++version.current;
     if (!background) { setLoading(true); setError(null); }
@@ -500,7 +569,7 @@ export function SupervisoryTeamManagement({ headerActions, onChanged, role, refr
       try {await operation();}
       catch(failure) {
         setNominationError(failure instanceof Error ? failure.message : 'The nomination could not be saved.');
-        if (failure instanceof ApiError && failure.status === 409) await refreshNomination();
+        if (failure instanceof ApiError && (failure.status === 403 || failure.status === 409)) await refreshNomination();
         return;
       }
       setEdit(null);setReason('');setNoticeType('success');setNotice('Supervisory team updated.');
@@ -534,7 +603,7 @@ export function SupervisoryTeamManagement({ headerActions, onChanged, role, refr
        actions={headerActions}/>:null}
     {view!=='detail'&&role !== 'Lecturer' ? <p className="card-description">The primary supervisor manages Panel nominations and supervisor Marks. Supporting appointments provide research and progress access.</p> : null}
     {nominationNeedsRefresh&&!edit?<AlertMessage type="warning" title="Refresh supervisory team before continuing" message={notice??nominationRecoveryError??'Nomination eligibility could not be verified. Reload the current team before another action.'} actions={<PortalButton disabled={busy} onClick={reloadNominationAvailability}>Reload supervisory team</PortalButton>}/>:notice?<AlertMessage type={noticeType} message={notice}/>:null}
-    <div ref={editPanel}>
+    <div>
     {edit?.kind === 'nominate' ? <CoSupervisorNominationForm key={`${edit.team.studentId}-${edit.replacement?.id ?? 'new'}`} team={edit.team} replacement={edit.replacement} busy={busy} submitError={nominationError} recoveryError={nominationRecoveryError} needsRefresh={nominationNeedsRefresh} refreshVersion={nominationRefreshVersion} onReload={reloadNominationAvailability} onCancel={() => setEdit(null)} onSubmit={(candidateId, justification) => void run(() => nominateCoSupervisor({ studentId: edit.team.studentId, candidateId, justification, ...(edit.replacement ? { replacesAppointmentId: edit.replacement.id } : {}) }))} /> : null}
     <DecisionDialog isOpen={!!edit && edit.kind !== 'nominate'} decisionKey={edit?.kind === 'end' ? `end:${edit.appointment.id}` : edit?.kind === 'decision' ? `supporting:${edit.nomination.id}` : undefined}
       tone={edit?.kind==='decision'&&['accept','approve'].includes(edit.action)?'info':'danger'} title={edit?.kind === 'end' ? 'End supporting appointment' : edit?.kind === 'decision' ? `${labels[edit.action]} supporting request` : 'Supporting request'}

@@ -23,7 +23,8 @@ for (const label of ['All managed programmes','Semester','Sort by','Clear filter
 const outcomeHistory = renderToStaticMarkup(<CoordinatorRequestTable rows={[{key:'primary-9',id:9,kind:'primary',studentName:'Historical student',matricNo:'PG009',programme:'Computing',candidateName:'Dr Proposed',status:'REJECTED_BY_COORDINATOR',submittedAt:'2026-09-01',decidedAt:'2026-10-12',waitingDays:null,canDecide:false,carryover:false}]} history onOpen={noop} onCarryover={noop}/>);
 assert.match(outcomeHistory,/Outcome recorded|12 Oct 2026/);
 assert.doesNotMatch(outcomeHistory,/01 Sep 2026/);
-assert.match(outcomeHistory,/Waiting at this stage<\/span>Rejected<\/td>/, 'Paged staff history explains its final waiting state');
+assert.match(outcomeHistory,/<th[^>]*>Outcome<\/th>/);
+assert.doesNotMatch(outcomeHistory,/Waiting at this stage/);
 assert.doesNotMatch(outcomeHistory,/Not applicable|>—<\/td>/);
 
 assert.doesNotMatch(advancedFilters,/More filters|Needs your decision|All ongoing/);

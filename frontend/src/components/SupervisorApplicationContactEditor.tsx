@@ -3,7 +3,7 @@ import { Pencil } from 'lucide-react';
 import type { SupervisorStudentParticularsData } from '../types/supervisorSectionA';
 import { updateSupervisorApplicationContact } from '../services/supervisorSectionAApi';
 import { fieldErrors } from '../services/apiClient';
-import { PortalButton } from './PortalPrimitives';
+import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
 import { useRecordDraft } from './RecordDraft';
 
 export function SupervisorApplicationContactEditor({ particulars, onSaved, onEditingChange, disabled = false }: {
@@ -19,8 +19,19 @@ export function SupervisorApplicationContactEditor({ particulars, onSaved, onEdi
   const [error, setError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
-  useRecordDraft(editing && (phone !== particulars.phone || address !== particulars.address), saving);
+  const [discardOpen, setDiscardOpen] = useState(false);
+  const dirty = phone !== particulars.phone || address !== particulars.address;
+  useRecordDraft(editing && dirty, saving);
   const close = () => { setEditing(false); onEditingChange(false); };
+  const discard = () => {
+    if (saving || disabled) return;
+    setPhone(particulars.phone); setAddress(particulars.address);
+    setError(''); setErrors({}); setDiscardOpen(false); close();
+  };
+  const requestClose = () => {
+    if (saving || disabled) return;
+    if (dirty) setDiscardOpen(true); else discard();
+  };
   const save = async () => {
     if (saving || disabled) return;
     setSaving(true); setError(''); setErrors({});
@@ -43,6 +54,9 @@ export function SupervisorApplicationContactEditor({ particulars, onSaved, onEdi
   </div>;
   return <fieldset disabled={saving || disabled} className="space-y-4 border-t border-slate-200 pt-5">
     <legend className="sr-only">Edit contact details</legend>
+    <PortalConfirmModal isOpen={discardOpen} title="Discard contact changes?"
+      message="Your unsaved phone and address changes will be discarded. Other application writing will be kept."
+      confirmLabel="Discard changes" cancelLabel="Keep editing" onConfirm={discard} onCancel={() => setDiscardOpen(false)} />
     <p className="text-xs text-slate-500">Changes are saved to your student profile.</p>
     <div className="grid gap-4 sm:grid-cols-2">
       <div className="space-y-2">
@@ -62,7 +76,7 @@ export function SupervisorApplicationContactEditor({ particulars, onSaved, onEdi
     {error ? <p role="alert" className="text-xs text-rose-700">{error}</p> : null}
     <div className="flex flex-wrap gap-2">
       <PortalButton variant="primary" isLoading={saving} onClick={() => void save()}>Save contact details</PortalButton>
-      <PortalButton onClick={close}>Cancel</PortalButton>
+      <PortalButton onClick={requestClose}>Cancel</PortalButton>
     </div>
   </fieldset>;
 }

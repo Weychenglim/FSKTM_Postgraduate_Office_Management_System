@@ -76,13 +76,14 @@ export function CoordinatorAppointmentRequestList({ queue, history, nominations,
   const partition = all.filter(row => (requestGroup(row.status, row.canDecide) === 'history') === (view === 'history'));
   const visible = partition.filter(row => (type === 'all' || row.kind === type) && (!status || row.status === status) && row.searchText.toLowerCase().includes(search.trim().toLowerCase()));
   if (view === 'history') visible.reverse();
+  else visible.sort((a, b) => Number(b.canDecide) - Number(a.canDecide));
   const size = workspacePageSize(requestedSize), pageCount = Math.max(1, Math.ceil(visible.length / size));
   const currentPage = Math.max(1, Math.min(page, pageCount));
   return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white">
     <WorkspaceSectionHeader title="Appointment requests" description="Review primary and supporting requests in your managed programmes, or view their final outcomes."
       actions={<RequestViewSwitch view={view} reviewCount={all.filter(row => row.canDecide).length} onChange={onView} />} />
     <RequestFilters search={search} onSearch={onSearch} type={type} onType={onType} status={status} onStatus={onStatus} statuses={[...new Set(partition.map(row => row.status))]} />
-    {visible.length ? <WorkspaceRecordTable label="Coordinator appointment request records" rows={visible.slice((currentPage - 1) * size, currentPage * size).map(row => ({
+    {visible.length ? <WorkspaceRecordTable history={view === 'history'} label="Coordinator appointment request records" rows={visible.slice((currentPage - 1) * size, currentPage * size).map(row => ({
       key: row.key, studentName: row.studentName, matricNo: row.matricNo, kind: row.kind === 'primary' ? 'Primary supervisor' : 'Supporting supervisor',
       submittedAt: row.submittedAt, status: requestStatusLabel(row.status, row.canDecide), workflowStatus: row.status, waitingDays: row.waitingDays, waitingApplicable: view !== 'history',
       actionLabel: row.canDecide ? 'Review request' : 'View request', onOpen: () => onOpen(row.id, row.kind), disabled,

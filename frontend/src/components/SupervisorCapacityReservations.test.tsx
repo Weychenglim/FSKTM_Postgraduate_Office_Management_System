@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import React from 'react';
 import {renderToStaticMarkup as render} from 'react-dom/server';
 import {LecturerPrimaryRequestActions} from './LecturerAppointmentRequests';
-import {SupervisorCandidateOption} from './SupervisorAppointmentApplicationPage';
+import {SupervisorCandidateOption,SupervisorSelectionSummary} from './SupervisorAppointmentApplicationPage';
 import {toStudentSupervisorApplication} from '../services/appointmentsApi';
 import {SupervisorRequestDetail,toStudentSupervisorRequestPresentation, toSupervisorRequestPresentation} from './SupervisorRequestDetail';
 import {SupervisorWorkloadDetails} from './SupervisorWorkloadMonitoring';
@@ -26,15 +26,14 @@ test('full authoritative request capacity blocks acceptance while preserving rej
   assert.match(html,/<button(?![^>]* disabled=)[^>]*>[\s\S]*?Reject request/);
   assert.match(html,/No places available/);
 });
-test('request detail does not invent availability under missing or restricted policy',()=>{
-  for(const state of ['NOT_CONFIGURED','TEMPORARILY_UNAVAILABLE','INELIGIBLE'] as const){
-    const request={...record,acceptanceCapacity:{...capacity,state,limit:state==='NOT_CONFIGURED'?null:5}} as unknown as SupervisorApplicationRecord;
+test('request detail omits capacity summaries for every policy state',()=>{
+  for(const state of ['AVAILABLE','FULL','NOT_CONFIGURED','TEMPORARILY_UNAVAILABLE','INELIGIBLE'] as const){
+    const request={...record,acceptanceCapacity:{...capacity,state}} as unknown as SupervisorApplicationRecord;
     const html=render(<SupervisorRequestDetail request={toSupervisorRequestPresentation(request)}/>);
-    assert.match(html,state==='NOT_CONFIGURED'?/Availability not configured/:/Unavailable for new requests/);
-    assert.doesNotMatch(html,/0 available/);
-    assert.match(html,/4 active/);assert.match(html,/1 reserved/);
+    assert.doesNotMatch(html,/Current request capacity|supervision places available|held pending approval|4 active|1 reserved|Limit 5/);
   }
 });
+
 test('capacity fields survive Student and shared presentation adapters',()=>{
   const student=toStudentSupervisorApplication(record);
   assert.deepEqual((student as any).acceptanceCapacity,capacity);
@@ -56,15 +55,23 @@ test('system closure keeps its recorded date and system attribution without reje
   assert.match(steps.at(-1)?.description??'',/automatically.*capacity/i);
   assert.ok(steps.every(step=>step.state!=='rejected'&&!step.label.includes('rejected')));
 });
-test('candidate availability distinguishes active students and reserved places',()=>{
+test('candidate options show remaining Supervisor places without a workload breakdown',()=>{
   const html=render(<SupervisorCandidateOption candidate={{id:'L1',name:'Synthetic Supervisor',initials:'SS',domain:'Computing',filled:5,total:6,selectable:true,activeLoad:4,reservedLoad:1,availableSlots:1} as any} selected={false} onToggle={()=>{}}/>);
-  assert.match(html,/4 active/);assert.match(html,/1 reserved/);assert.match(html,/1 available/);
+  assert.match(html,/1 Supervisor place remaining/);assert.doesNotMatch(html,/4 active|1 reserved/);
 });
-test('shared request detail places authoritative capacity beside review actions',()=>{
+test('Supervisor remaining-place fallback includes accepted reservations in both selection views',()=>{
+  const candidate={id:'L1',name:'Synthetic Supervisor',initials:'SS',domain:'Computing',filled:4,total:6,activeLoad:4,reservedLoad:1,selectable:true};
+  for(const html of [render(<SupervisorCandidateOption candidate={candidate} selected={false} onToggle={()=>{}}/>),render(<SupervisorSelectionSummary candidate={candidate} onClear={()=>{}}/>)]){
+    assert.match(html,/1 Supervisor place remaining/);
+    assert.doesNotMatch(html,/2 Supervisor places remaining/);
+  }
+});
+test('shared request detail preserves supplied review actions without a capacity summary',()=>{
   const html=render(<SupervisorRequestDetail request={{...toSupervisorRequestPresentation(record),applicationId:undefined}} actions={<button>Review fixture</button>}/>);
-  assert.match(html,/4 active/);assert.match(html,/1 reserved/);assert.match(html,/0 available/);
-  assert.ok(html.indexOf('0 available')<html.indexOf('Review fixture'));
+  assert.match(html,/Review fixture/);
+  assert.doesNotMatch(html,/Current request capacity/);
 });
+
 test('workload utilization includes reservations without inflating active students',()=>{
   const html=render(<SupervisorWorkloadDetails record={{lecturerName:'Synthetic Supervisor',lecturerId:'L1',department:'Computing',currentStudents:4,activeLoad:4,reservedLoad:1,workloadCount:5,workloadLimit:5,availableSlots:0,capacityState:'FULL',capacityPlanVersion:1,semesterCode:'S1',supervisees:[]} as any}/>);
   assert.match(html,/Capacity utilization: 100%/);assert.match(html,/Reserved places/);assert.match(html,/Active appointments/);
@@ -99,6 +106,6 @@ test('Office workload concerns show reservations behind full capacity',()=>{
 test('unconfigured candidate capacity does not invent zero available places',()=>{
  for(const state of ['NOT_CONFIGURED','TEMPORARILY_UNAVAILABLE','INELIGIBLE'] as const){
   const html=render(<SupervisorCandidateOption candidate={{id:'L1',name:'Synthetic Supervisor',initials:'SS',domain:'Computing',filled:4,total:0,activeLoad:4,reservedLoad:0,availableSlots:0,capacityState:state,selectable:false}} selected={false} onToggle={()=>{}}/>);
-  assert.match(html,state==='NOT_CONFIGURED'?/Availability not configured/:/Unavailable for new requests/);assert.doesNotMatch(html,/0 available/);
+  assert.match(html,state==='NOT_CONFIGURED'?/Availability not configured/:state==='TEMPORARILY_UNAVAILABLE'?/Temporarily unavailable/:/Unavailable for new requests/);assert.doesNotMatch(html,/0 available/);
  }
 });

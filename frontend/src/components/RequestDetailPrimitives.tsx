@@ -57,7 +57,7 @@ export const requestBodyTextClass = 'font-sans text-xs font-normal leading-relax
 
 /** Readable, equal-width actions for narrow detail sidebars; caller owns capabilities. */
 export function RequestDetailActions({ children }: { children: React.ReactNode }) {
-  return <div data-detail-actions className="space-y-3 [&_.flex]:flex-col [&_.flex]:items-stretch [&_.flex]:gap-3 [&_button]:min-h-11 [&_button]:w-full [&_button]:rounded-xl [&_button]:text-xs [&_button]:font-semibold [&_button]:normal-case [&_button]:tracking-normal">{children}</div>;
+  return <div data-detail-actions className="space-y-3 [&_.flex]:flex-col [&_.flex]:items-stretch [&_.flex]:gap-3 [&_button]:w-full">{children}</div>;
 }
 
 export function PrimaryRequestDecisionButtons({ positiveLabel, disabled, positiveDisabled = false, onPositive, onReject }: {

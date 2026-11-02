@@ -1,5 +1,4 @@
 from .request_visibility import can_view_supervisor_application, routine_supervisor_requests
-from .section_a import validate_section_a_proposal
 from .supervisor_replacement import is_office_replacement, assert_current_predecessor
 from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
 from .capacity_closure import acceptance_capacity, supervisor_workload_summary
@@ -172,6 +171,7 @@ def panel_record_from_recommendation(recommendation):
     elif recommendation.status in [
         PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR,
         PanelRecommendation.Status.CANCELLED_BY_OFFICE,
+        PanelRecommendation.Status.CANCELLED_CAPACITY_FULL,
     ]:
         display_status = "Cancelled"
     else:
@@ -992,6 +992,7 @@ def review_history_view(request):
             | Q(status__in=[
                 PanelRecommendation.Status.CANCELLED_BY_SUPERVISOR,
                 PanelRecommendation.Status.CANCELLED_BY_OFFICE,
+                PanelRecommendation.Status.CANCELLED_CAPACITY_FULL,
             ])
         )
         .select_related(
@@ -1109,6 +1110,12 @@ def panel_accept_view(request, pk):
             return error_response("The approval stage changed; refresh before retrying.", status.HTTP_409_CONFLICT)
         if not profile_student_is_workflow_eligible(recommendation.profile):
             return participant_ineligible_response()
+        Lecturer.objects.select_for_update().get(pk=recommendation.recommended_member_id)
+        from .capacity_reassessment import assert_request_capacity
+        try:
+            assert_request_capacity(recommendation)
+        except CapacityConflict as exc:
+            return error_response(str(exc), status.HTTP_409_CONFLICT)
         previous_status = recommendation.status
         recommendation.status = PanelRecommendation.Status.PENDING_COORDINATOR
         recommendation.panel_decided_at = timezone.now()
@@ -1316,6 +1323,8 @@ def coordinator_approve_view(request, pk):
             transaction.set_rollback(True)
             return error_response(str(exc), status.HTTP_409_CONFLICT)
         consume(recommendation, request.user, capacity_result)
+        from .capacity_closure import close_capacity_full_panel_requests
+        close_capacity_full_panel_requests(panel_member=recommendation.recommended_member, actor=request.user)
         record_workflow_event(
             actor=request.user,
             action="COORDINATOR_APPROVE",
@@ -1470,6 +1479,29 @@ def _office_requirement_access(request):
     )
 
 
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def supervisor_document_setup_view(request):
+    from .supervisor_documents import document_setup_status, set_document_setup
+    if request.method == "GET":
+        return Response(document_setup_status())
+    denied = _office_requirement_access(request)
+    if denied:
+        return denied
+    from rest_framework import serializers
+    class SetupSerializer(serializers.Serializer):
+        noDocumentsRequired = serializers.BooleanField()
+        reason = serializers.CharField(max_length=2000)
+    serializer = SetupSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        return Response(set_document_setup(actor=request.user,
+            no_documents_required=serializer.validated_data["noDocumentsRequired"],
+            reason=serializer.validated_data["reason"]))
+    except DjangoValidationError as exc:
+        return _django_validation_error_response(exc)
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def active_supervisor_document_requirements_view(_request):
@@ -1547,8 +1579,8 @@ def supervisor_document_requirement_audits_view(request):
             {
                 "id": audit.pk,
                 "requirementId": audit.requirement_id,
-                "requirementCode": audit.requirement.code,
-                "requirementLabel": audit.requirement.label,
+                "requirementCode": audit.requirement.code if audit.requirement_id else "",
+                "requirementLabel": audit.requirement.label if audit.requirement_id else "Document setup",
                 "actorName": audit.actor.full_name,
                 "actorRole": audit.actor.role,
                 "action": audit.action,
@@ -1658,7 +1690,7 @@ def supervisor_applications_view(request):
             )
             .prefetch_related("documents", "workflow_events__actor")
         )
-        return Response(SupervisorApplicationSerializer(applications, many=True).data)
+        return Response(SupervisorApplicationSerializer(applications, many=True, context={"request": request}).data)
 
     serializer = SupervisorApplicationCreateSerializer(
         data=request.data,
@@ -1677,10 +1709,7 @@ def supervisor_applications_view(request):
             files,
             requirement_codes,
         )
-        validate_section_a_proposal(serializer.validated_data.get("sectionA"), validated_documents)
     except DocumentRequirementsNotConfigured as exc:
-        # Keep the conditional proposal configuration failure actionable for Section A.
-        validate_section_a_proposal(serializer.validated_data.get("sectionA"), [])
         return error_response(str(exc), status.HTTP_409_CONFLICT)
     except DjangoValidationError as exc:
         return _django_validation_error_response(exc)
@@ -1714,7 +1743,7 @@ def supervisor_applications_view(request):
         raise
     application = get_supervisor_application(application.pk)
     return Response(
-        SupervisorApplicationSerializer(application).data,
+        SupervisorApplicationSerializer(application, context={"request": request}).data,
         status=status.HTTP_201_CREATED,
     )
 
@@ -1733,7 +1762,7 @@ def supervisor_application_detail_view(request, pk):
             "You do not have permission to view this supervisor application.",
             status.HTTP_403_FORBIDDEN,
         )
-    return Response(SupervisorApplicationSerializer(application).data)
+    return Response(SupervisorApplicationSerializer(application, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -1817,7 +1846,7 @@ def cancel_supervisor_application_view(request, pk):
             record_id=application.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(SupervisorApplicationSerializer(application).data)
+    return Response(SupervisorApplicationSerializer(application, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -1921,7 +1950,7 @@ def supervisor_accept_view(request, pk):
             record_id=application.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(SupervisorApplicationSerializer(application).data)
+    return Response(SupervisorApplicationSerializer(application, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -1989,7 +2018,7 @@ def supervisor_reject_view(request, pk):
             record_id=application.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(SupervisorApplicationSerializer(application).data)
+    return Response(SupervisorApplicationSerializer(application, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -2004,7 +2033,7 @@ def supervisor_coordinator_queue_view(request):
         coordinator_scope_q(request.user, "student__programme"),
         status=SupervisorApplication.Status.PENDING_COORDINATOR,
     ).select_related("student", "student__user", "proposed_supervisor")
-    return Response(SupervisorApplicationSerializer(applications, many=True).data)
+    return Response(SupervisorApplicationSerializer(applications, many=True, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -2037,7 +2066,7 @@ def supervisor_coordinator_history_view(request):
         .order_by("-updated_at", "-pk")
     )
     applications = routine_supervisor_requests(applications, request.user)
-    return Response(SupervisorApplicationSerializer(applications, many=True).data)
+    return Response(SupervisorApplicationSerializer(applications, many=True, context={"request": request}).data)
 
 
 @api_view(["GET"])
@@ -2068,7 +2097,7 @@ def supervisor_coordinator_records_view(request):
         )
         .order_by("-coordinator_decided_at", "-pk")
     )
-    return Response(SupervisorApplicationSerializer(applications, many=True).data)
+    return Response(SupervisorApplicationSerializer(applications, many=True, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -2105,7 +2134,7 @@ def supervisor_coordinator_approve_view(request, pk):
                 record_id=application.pk,
             )
     application = get_supervisor_application(application.pk)
-    return Response(SupervisorApplicationSerializer(application).data)
+    return Response(SupervisorApplicationSerializer(application, context={"request": request}).data)
 
 
 @api_view(["POST"])
@@ -2185,7 +2214,7 @@ def supervisor_coordinator_reject_view(request, pk):
             record_id=application.pk,
             priority=Notification.Priority.MEDIUM,
         )
-    return Response(SupervisorApplicationSerializer(application).data)
+    return Response(SupervisorApplicationSerializer(application, context={"request": request}).data)
 
 
 def _active_supervisee_research(appointment):
@@ -2435,7 +2464,7 @@ def panel_record_detail_view(request, record_id):
         row = StudentResearchProfile.objects.select_related("supervisor").filter(pk=identity).first()
         if row:
             current = row.panel_appointments.filter(status=PanelAppointment.Status.ACTIVE).first()
-            pending = row.panel_recommendations.filter(status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES).order_by("-submitted_at", "-pk").first()
+            pending = row.panel_recommendations.filter(status__in=PanelRecommendation.PENDING_STATUSES).order_by("-submitted_at", "-pk").first()
             payload = panel_record_from_appointment(current) if current else panel_record_from_recommendation(pending) if pending else panel_record_from_profile(row)
         else:
             payload = None

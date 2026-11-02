@@ -27,13 +27,13 @@ test('Courses use labelled repeatable rows with bounded inputs and an explicit n
   assert.doesNotMatch(none, /Course name 1/);
 });
 
-test('Origin choice is explicit and student choice explains unavailable proposal configuration', () => {
-  const html = renderToStaticMarkup(<sections.ResearchTitleOriginFields value="" onChange={() => {}} proposalRequirementCode="research-proposal" />);
+test('Origin choice is explicit and does not impose document requirements', () => {
+  const html = renderToStaticMarkup(<sections.ResearchTitleOriginFields value="" onChange={() => {}} />);
   assert.match(html, /type="radio"/);
   assert.doesNotMatch(html, /checked/);
-  const missing = renderToStaticMarkup(<sections.ResearchTitleOriginFields value="STUDENT" onChange={() => {}} proposalRequirementCode={null} />);
-  assert.match(missing, /Postgraduate Office/);
-  assert.match(missing, /not configured/i);
+  const missing = renderToStaticMarkup(<sections.ResearchTitleOriginFields value="STUDENT" onChange={() => {}} />);
+  assert.doesNotMatch(missing, /Postgraduate Office/);
+  assert.doesNotMatch(missing, /not configured|role="alert"/i);
 });
 
 test('Review includes draft research, supervisor, results, filenames and required declaration', () => {
@@ -63,4 +63,18 @@ test('Whole student form exposes four sequential steps and blocks hidden native 
   assert.match(html, /aria-current="step"/);
   assert.match(html, />Continue</);
   assert.match(html, /Save draft/);
+});
+
+
+test('Review distinguishes an explicit no-documents policy from missing selections', () => {
+  const html = renderToStaticMarkup(<sections.SupervisorApplicationReviewSection researchTitle="Study" projectCourseCodes="PRJ001" researchArea="Computing" researchAbstract="Study abstract" supervisorName="Dr One" titleOrigin="STUDENT" rows={[]} noCoursesTaken filenames={[]} noDocumentsRequired declarationText="I confirm." declarationAccepted={false} onDeclarationAcceptedChange={() => {}} />);
+  assert.match(html, /No supporting documents required/);
+  assert.doesNotMatch(html, /No files selected/);
+});
+
+test('Student next-step guidance reflects the explicit no-documents setup', async () => {
+  const {SupervisorAppointmentGuidanceView} = await import('./StudentAppointmentGuidance');
+  const html = renderToStaticMarkup(<SupervisorAppointmentGuidanceView requirements={[]} noDocumentsRequired loading={false} error={null} onRetry={() => {}} hasSupervisor={false} />);
+  assert.match(html, /No supporting documents required/);
+  assert.doesNotMatch(html, /not configured|PDF or DOCX/);
 });

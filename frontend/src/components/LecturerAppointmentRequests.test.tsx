@@ -33,8 +33,9 @@ assert.doesNotMatch(current, /SV-REQ-000|Computing| · Waiting/, 'Request refere
 for (const value of [undefined, null, '', 'invalid', 0, -10, 100]) assert.equal(workspacePageSize(value), 10, 'Invalid row-size state falls back to ten');
 assert.equal(workspacePageSize('25'), 25);
 assert.equal(workspacePageSize('50'), 50);
-assert.match(render(true), /Waiting at this stage<\/span>Rejected<\/td>/, 'Final records explain why waiting ended');
-for (const text of ['Primary applicant', 'Supporting applicant', 'Waiting primary applicant', 'Waiting supporting applicant', 'Cancel-only nomination', 'Awaiting Coordinator approval', 'Other ongoing requests']) assert.ok(current.includes(text), `Ongoing view retains ${text}`);
+assert.match(render(true), /<th[^>]*>Outcome<\/th>/);
+assert.doesNotMatch(render(true), /Waiting at this stage|Final request outcomes/);
+for (const text of ['Primary applicant', 'Supporting applicant', 'Waiting primary applicant', 'Waiting supporting applicant', 'Cancel-only nomination', 'Awaiting Coordinator approval']) assert.ok(current.includes(text), `Ongoing view retains ${text}`);
 assert.equal((current.match(/>Review request</g) ?? []).length, 2);
 assert.doesNotMatch(current, /Resolved applicant/);
 assert.match(render(true), /Resolved applicant|Rejected by Coordinator/);
@@ -57,3 +58,9 @@ assert.deepEqual([...new Set(historyRows.map(row => row.status))], ['REJECTED_BY
 assert.equal(lecturerRequestViewParams(new URLSearchParams('status=REJECTED_BY_COORDINATOR&page=2'), 'history', rows).toString(), 'status=REJECTED_BY_COORDINATOR&view=history', 'Compatible statuses remain selected');
 assert.equal(lecturerRequestViewParams(new URLSearchParams('status=REJECTED_BY_COORDINATOR&page=2'), 'requests', rows).toString(), 'view=requests');
 assert.ok(lecturerRequestViewRows(rows, 'requests').some(row => row.status === 'PENDING_COORDINATOR'), 'Accepted requests awaiting Coordinator remain ongoing');
+
+assert.equal((current.match(/<table/g)||[]).length,1,'Mixed review stages share one table');
+assert.equal((render(true).match(/<table/g)||[]).length,1);
+assert.doesNotMatch(current, /Other ongoing requests|<h3/);
+const firstTracking=current.indexOf('Waiting primary applicant');
+assert.ok(current.indexOf('Supporting applicant')<firstTracking,'Reviewable rows appear before tracking rows');

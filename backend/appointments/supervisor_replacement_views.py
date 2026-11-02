@@ -27,4 +27,4 @@ def replacement_view(request, pk):
         proposed_supervisor_id=serializer.validated_data["proposedSupervisorId"],
         reason=serializer.validated_data["reason"],
     )
-    return Response(SupervisorApplicationSerializer(application).data, status=201)
+    return Response(SupervisorApplicationSerializer(application, context={"request": request}).data, status=201)

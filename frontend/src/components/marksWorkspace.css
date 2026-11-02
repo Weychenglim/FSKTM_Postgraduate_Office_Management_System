@@ -22,3 +22,68 @@
   .marks-workspace [data-workspace-filter-card] > :last-child { margin-top: 1.25rem; padding-top: 1rem; }
 }
 .marks-workspace .marks-state { font-size: .75rem; font-weight: 600; line-height: 1.5; text-transform: none; letter-spacing: normal; }
+
+/* Rubric criteria need readable headers and stable, labelled row actions. */
+.marks-workspace [data-assessment-components] .data-th { font-size: .75rem; text-align: left; }
+.marks-workspace [data-assessment-components] :is(.data-td, .data-td-strong, .card-value) { font-size: .875rem; line-height: 1.5; }
+.marks-workspace [data-assessment-components] :is(th, td) { vertical-align: middle; }
+
+/* Keep the family entrance and version-history tables as readable as criteria. */
+#rubric-version-management .data-th { font-size: .75rem; text-align: left; }
+#rubric-version-management :is(.data-td, .data-td-strong) { font-size: .875rem; line-height: 1.5; vertical-align: middle; }
+
+/* Match the rubric-family entrance table. */
+.marks-workspace [data-period-list] .data-th { font-size: .75rem; text-align: left; }
+.marks-workspace [data-period-list] .data-td { font-size: .875rem; line-height: 1.5; vertical-align: middle; }
+
+/* Period editing uses separate sections and the shared field dimensions. */
+.marks-workspace .period-config-editor { padding: 2rem; }
+.period-config-sections { display: flex; flex-direction: column; gap: 2rem; }
+.period-config-section + .period-config-section { border-top: 1px solid #e2e8f0; padding-top: 2rem; }
+.period-config-editor :is(.period-config-identity, .period-config-targets, .period-config-dates) { gap: 1.5rem; }
+.period-config-editor .portal-select-trigger { min-height: 44px; padding: .625rem .875rem; border-radius: .625rem; font-weight: 500; }
+.period-config-targets > fieldset { padding: 1.25rem; }
+@media (max-width: 639px) { .marks-workspace .period-config-editor { padding: 1.25rem; } }
+
+/* Keep history separate from editing and make preview distinct from write actions. */
+.period-config-workspace { display: flex; flex-direction: column; gap: 1.75rem; }
+.period-config-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; }
+.period-config-write-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-left: auto; }
+.period-config-history-list { margin-top: 1.5rem; max-height: 26rem; overflow-y: auto; list-style: none; padding: 0; }
+.period-config-history-entry { padding: 1.25rem 0; }
+.period-config-history-entry:first-child { padding-top: 0; }
+.period-config-history-entry + .period-config-history-entry { border-top: 1px solid #e2e8f0; }
+.period-config-history-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem 1.5rem; }
+.period-config-history-reason { margin-top: .75rem; color: #475569; font-size: .875rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 639px) {
+  .period-config-footer { align-items: stretch; flex-direction: column; }
+  .period-config-write-actions { margin-left: 0; }
+  .period-config-history-heading { flex-direction: column; }
+}
+
+/* Stable columns keep student identity separate from the research reading area. */
+.marks-workspace .mark-record-results { width: 100%; min-width: 1140px; table-layout: fixed; }
+.marks-workspace [data-mark-record-table] .data-th { font-size: 14px; padding: 18px 20px; white-space: nowrap; text-align: left; }
+.marks-workspace [data-mark-record-table] .data-td { padding: 24px 20px; font-size: 14px; line-height: 1.6; vertical-align: top; }
+ .marks-workspace [data-mark-record-table] th:nth-child(1) { width: 20%; }
+.marks-workspace [data-mark-record-table] th:nth-child(2) { width: 29%; }
+.marks-workspace [data-mark-record-table] th:nth-child(3) { width: 14%; }
+.marks-workspace [data-mark-record-table] th:nth-child(4) { width: 12%; }
+.marks-workspace [data-mark-record-table] th:nth-child(5) { width: 13%; }
+.marks-workspace [data-mark-record-table] th:nth-child(6) { width: 12%; }
+.marks-workspace [data-mark-record-table] :is(th, td):nth-child(5) { text-align: left; }
+.marks-workspace [data-mark-record-table] :is(th, td):last-child { text-align: left; }
+.mark-record-actions { display: flex; align-items: center; justify-content: flex-start; gap: 10px; }
+.mark-record-student { display: block; font-weight: 600; color: #0f172a; overflow-wrap: anywhere; }
+.mark-record-secondary { display: block; margin-top: 4px; color: #64748b; font-size: 12px; }
+.mark-record-research { margin: 0; color: #334155; line-height: 1.65; overflow-wrap: anywhere; }
+.mark-record-score { display: block; margin-bottom: 8px; font-weight: 600; color: #0f172a; }
+
+.mark-record-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 20px 24px; border-top: 1px solid #e2e8f0; }
+.mark-record-pagination-count { margin: 0; font-size: 13px; color: #64748b; }
+.mark-record-pagination-controls { display: flex; align-items: center; gap: 16px; }
+.mark-record-page-count { white-space: nowrap; font-size: 13px; font-weight: 500; color: #475569; }
+@media (max-width: 479px) { .mark-record-pagination { justify-content: center; } .mark-record-pagination-count { width: 100%; text-align: center; } .mark-record-pagination-controls { gap: 12px; } }
+
+.marks-workspace [data-mark-record-table] .mark-record-main-line { display: block; font-size: 14px; font-weight: 500; line-height: 1.6; color: inherit; }
+.marks-workspace [data-mark-record-table] .mark-record-sub-line { display: block; margin-top: 4px; font-size: 12px; font-weight: 400; line-height: 1.5; color: #64748b; }

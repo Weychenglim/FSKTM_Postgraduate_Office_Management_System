@@ -176,6 +176,11 @@ def _supervisor_records(student, user, visibility, now):
             "appointment": None,
             **_semester_metadata(application.academic_semester),
         }
+        if visibility == "PUBLIC" and any(
+            event.action == "OFFICE_CANCEL_PARTICIPANT_LIFECYCLE"
+            for event in application.workflow_events.all()
+        ):
+            record["cancellationReason"] = None
         try:
             appointment = application.appointment
         except SupervisorAppointment.DoesNotExist:
@@ -186,7 +191,6 @@ def _supervisor_records(student, user, visibility, now):
                 "status": appointment.status,
                 "supervisor": appointment.supervisor.full_name,
                 "endOutcome": appointment.end_outcome or None,
-                "endReason": appointment.end_reason or None,
                 "endedAt": _iso(appointment.ended_at),
             }
         if visibility == "INTERNAL":
@@ -195,6 +199,7 @@ def _supervisor_records(student, user, visibility, now):
                 record["appointment"].update(
                     {
                         "appointmentId": appointment.pk,
+                        "endReason": appointment.end_reason or None,
                         "endedBy": (
                             appointment.ended_by.full_name
                             if appointment.ended_by_id

@@ -37,3 +37,18 @@ test('assignment history shows ending date and outcome while active assignments 
   assert.match(html, /These assignments have ended/);
   assert.equal(filterPanelBrowse([active, ended], { view: 'requests', appointments: true }).length, 1);
 });
+
+test('final Panel request history has one outcome table without a waiting column',()=>{
+  const html=render(<PanelBrowse scope="final-outcomes" title="Panel requests" records={[active]} view="history" onOpen={()=>{}}/>);
+  assert.equal((html.match(/<table/g)||[]).length,1);
+  assert.match(html,/<th[^>]*>Outcome<\/th>/);
+  assert.doesNotMatch(html,/Waiting at this stage|Current stage|Final request outcomes/);
+});
+test('Panel requests keep reviewable rows first within the default waiting sort',()=>{
+  const tracking:PanelPresentation={...active,id:6,studentName:'Tracking request',status:'PENDING_COORDINATOR',waitingDays:20};
+  const review:PanelPresentation={...active,id:7,studentName:'Reviewable request',status:'SUBMITTED_TO_PANEL',waitingDays:1};
+  const html=render(<PanelBrowse scope="priority-requests" title="Panel requests" records={[tracking,review]} canReview={row=>row.status==='SUBMITTED_TO_PANEL'} onOpen={()=>{}}/>);
+  assert.equal((html.match(/<table/g)||[]).length,1);
+  assert.ok(html.indexOf('Reviewable request')<html.indexOf('Tracking request'));
+  assert.match(html,/Review request/);
+});

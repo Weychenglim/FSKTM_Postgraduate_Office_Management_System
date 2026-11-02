@@ -28,6 +28,7 @@ urlpatterns = [
         views.own_supervisor_workload_view,
     ),
     path("supervisor/candidates/", views.supervisor_candidates_view),
+    path("supervisor/document-requirements/setup/", views.supervisor_document_setup_view),
     path("supervisor/appointments/<int:pk>/replacement/", supervisor_replacement_views.replacement_view),
     path(
         "supervisor/document-requirements/active/",

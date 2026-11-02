@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronLeft, Info, Loader2, LucideIcon, X } from 'lucide-react';
 import { PortalModal, useModalTitle } from './PortalModal';
@@ -193,7 +193,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
 
 export const getStatusBadgeTone = (status: string): BadgeTone => {
   const normalized = status.trim().toLowerCase();
-  if (['approved', 'active', 'available', 'submitted', 'completed', 'done', 'ready'].includes(normalized)) {
+  if (['approved', 'active', 'available', 'submitted', 'completed', 'done', 'ready', 'published', 'open'].includes(normalized)) {
     return 'success';
   }
   if (['pending', 'pending review', 'pending approval', 'draft', 'draft saved', 'near limit', 'returned'].includes(normalized)) {
@@ -202,7 +202,7 @@ export const getStatusBadgeTone = (status: string): BadgeTone => {
   if (['no supervisor', 'no panel', 'rejected', 'overdue', 'urgent', 'critical', 'full load', 'full', 'suspended'].includes(normalized)) {
     return 'danger';
   }
-  if (['info', 'generated', 'scheduled', 'recommendation', 'workload alert', 'in progress'].includes(normalized)) {
+  if (['info', 'generated', 'scheduled', 'upcoming', 'recommendation', 'workload alert', 'in progress'].includes(normalized)) {
     return 'info';
   }
   return 'neutral';
@@ -395,6 +395,7 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
   onCancel,
 }) => {
   const titleId = useModalTitle();
+  const messageId = useModalTitle();
   if (!isOpen) return null;
 
   const toneClass: Record<ConfirmTone, {
@@ -427,7 +428,7 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
   const Icon = icon || AlertTriangle;
 
   return (
-    <PortalModal isOpen={isOpen} onClose={onCancel} busy={isLoading} labelledBy={titleId} className="max-w-md p-6">
+    <PortalModal isOpen={isOpen} onClose={onCancel} busy={isLoading} labelledBy={titleId} describedBy={messageId} className="max-w-md p-6">
       <div
         className="text-left"
       >
@@ -442,7 +443,7 @@ export const PortalConfirmModal: React.FC<PortalConfirmModalProps> = ({
             <h2 id={titleId} className="section-heading mt-1 leading-tight">
               {title}
             </h2>
-            <div className="card-description mt-3 text-slate-600">
+            <div id={messageId} className="card-description mt-3 text-slate-600">
               {message}
             </div>
           </div>
@@ -476,10 +477,35 @@ interface PortalToastProps {
   tone?: ToastTone;
   className?: string;
   onClose?: () => void;
+  /** Identifies a new delivery even when its message is unchanged. */
+  eventId?: string | number;
+  /** Explicit opt-in; legacy standalone feedback keeps its current lifetime. */
+  durationMs?: number;
 }
 
-const PortalToastNotification: React.FC<PortalToastProps & { message: string }> = ({ message, tone = 'info', className = '', onClose }) => {
+const PortalToastNotification: React.FC<PortalToastProps & { message: string }> = ({ message, tone = 'info', className = '', onClose, durationMs }) => {
   const [dismissed, setDismissed] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const remaining = useRef(durationMs);
+  const close = useRef(onClose); close.current = onClose;
+
+  useEffect(() => { remaining.current = durationMs; }, [durationMs]);
+  useEffect(() => {
+    if (dismissed || hovered || focused || remaining.current === undefined) return;
+    const started = performance.now();
+    let active = true;
+    const timer = window.setTimeout(() => {
+      if (!active) return;
+      setDismissed(true);
+      close.current?.();
+    }, remaining.current);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      remaining.current = Math.max(0, (remaining.current ?? 0) - (performance.now() - started));
+    };
+  }, [durationMs, dismissed, hovered, focused]);
 
   if (dismissed) return null;
 
@@ -530,6 +556,10 @@ const PortalToastNotification: React.FC<PortalToastProps & { message: string }> 
     <div
       role={tone === 'danger' ? 'alert' : 'status'}
       aria-atomic="true"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}
       className={joinClasses(
         'fixed top-20 right-4 z-[9999] w-[360px] max-w-[calc(100vw-2rem)] rounded-xl border bg-white p-3 shadow-[0_4px_16px_rgba(15,23,42,0.10)] flex items-start gap-3 font-sans',
         currentTone.border,
@@ -556,7 +586,7 @@ const PortalToastNotification: React.FC<PortalToastProps & { message: string }> 
   return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 };
 
-// A new message or a cleared notification starts a fresh dismissal lifecycle.
+// Explicit event identity lets repeated text start a new dismissal/timer lifecycle.
 export const PortalToast: React.FC<PortalToastProps> = (props) => props.message ? (
-  <PortalToastNotification key={`${props.tone ?? 'info'}:${props.message}`} {...props} message={props.message} />
+  <PortalToastNotification key={props.eventId ?? `${props.tone ?? 'info'}:${props.message}`} {...props} message={props.message} />
 ) : null;

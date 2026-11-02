@@ -81,3 +81,9 @@ assert.equal(courseBody.get('projectCourseCodes'), 'ABC1234, XYZ9000');
 assert.equal(body.get('projectCourseCodes'), '');
 
 console.log('supervisor document utility tests passed');
+
+// Explicit setup permits zero uploads; an untouched configuration still blocks.
+assert.equal(validateSupervisorDocumentSelection([], new Map(), true), null);
+assert.match(validateSupervisorDocumentSelection([], new Map())!, /not configured/);
+assert.match(validateSupervisorDocumentSelection([], new Map([['old', proposal]]), true)!, /Remove previously selected/);
+assert.match(validateSupervisorDocumentSelection(requirements, new Map(), true)!, /Research Proposal/);

@@ -17,7 +17,8 @@ import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
 import { LecturerMarkingNavigation } from './LecturerMarkingNavigation';
 import { SubmittedMarkDetail } from './SubmittedMarkDetail';
-import { PageHeader, PortalButton, PortalCard, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
+import {useDecisionFeedback} from './DecisionFeedback';
 import { LoadingState, ErrorState, EmptyState } from './StateViews';
 import { formatDeadlineText } from '../utils/workflowAgeing';
 import { replaceEvaluationTask } from '../utils/marksProductionManagement';
@@ -117,12 +118,11 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   },[target,loading,error,tasks,linkedSubmitted]);
 
   // Submit Feedback notification
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const publishFeedback = useDecisionFeedback();
 
   // Helper trigger action message
   const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 4000);
+    publishFeedback?.(msg, 'success');
   };
 
   // 3. Filter actions
@@ -151,7 +151,6 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   return (
     <div id="lecturer-marks-entry-container" className="marks-workspace space-y-6">
       
-      <PortalToast message={toastMessage} tone="success" />
       {target?<PortalCard padding="md"><div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-slate-700">{target.taskId&&!loading&&!error&&!roleTasks.some(task=>task.id===target.taskId)?'The selected marking task is no longer available.':`Marking tasks for ${roleTasks[0]?.studentName??target.studentId} · ${target.role==='SUPERVISOR'?'Supervisor':'Panel'}`}</p><PortalButton size="sm" onClick={()=>{setTarget(null);setActiveFormTask(null);clearFilters();setCurrentView('dashboard');}}>Show all tasks</PortalButton></div></PortalCard>:null}
 
       <>

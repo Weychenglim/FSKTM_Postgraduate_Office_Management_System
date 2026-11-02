@@ -4,6 +4,7 @@ import { UNSAFE_DataRouterContext, useBlocker, useInRouterContext, useLocation, 
 import { PageHeader, PortalConfirmModal } from './PortalPrimitives';
 import { shouldBlockRecordNavigation } from '../utils/recordNavigation';
 import { RecordDraft, RecordHost } from './RecordDraft';
+import {useSessionExitDraft} from './SessionExit';
 /** Keep list state alive while its record/form occupies the main page. */
 export function RecordPageProvider({ children }: { children: React.ReactNode }) {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
@@ -19,10 +20,16 @@ export type RecordPageProps = {
   actions?: React.ReactNode; metadata?: React.ReactNode; pageKey?: string; dirty?: boolean; busy?: boolean;
   /** Set synchronously only after a successful mutation, before its redirect. */
   navigationComplete?: React.RefObject<boolean>;
+  /** After a completed write, close the local page only when no blocked route remains. */
+  onNavigationSettled?: () => void;
 };
 
-function NavigationGuard({ dirty, busy, allow, pageKey }: { dirty: boolean; busy: boolean; allow: React.RefObject<boolean>; pageKey?: string }) {
+function NavigationGuard({ dirty, busy, allow, pageKey, onNavigationSettled }: { dirty: boolean; busy: boolean; allow: React.RefObject<boolean>; pageKey?: string; onNavigationSettled?: () => void }) {
   const blocker = useBlocker(({ nextLocation }) => shouldBlockRecordNavigation(dirty, busy, allow.current, pageKey, nextLocation.state?.portalRecordPage));
+  useEffect(() => {
+    if (blocker.state === 'blocked' && !busy && (!dirty || allow.current)) blocker.proceed();
+    else if (blocker.state === 'unblocked' && !dirty && !busy) onNavigationSettled?.();
+  }, [blocker, busy, dirty, allow, onNavigationSettled]);
   return <PortalConfirmModal isOpen={blocker.state === 'blocked'} title={busy ? 'Saving changes' : 'Discard unsaved changes?'}
     message={busy ? 'Please wait for the current operation to finish.' : 'Your changes have not been saved. Leave this page and discard them?'}
     confirmLabel="Discard changes" cancelLabel="Stay on this page" isLoading={busy}
@@ -30,7 +37,7 @@ function NavigationGuard({ dirty, busy, allow, pageKey }: { dirty: boolean; busy
     onConfirm={() => { if (!busy && blocker.state === 'blocked') blocker.proceed(); }} />;
 }
 
-function RecordPageContent({ title, subtitle, backLabel, onBack, children, actions, metadata, pageKey, navigationComplete, dirty: ownDirty = false, busy: ownBusy = false }: RecordPageProps) {
+function RecordPageContent({ title, subtitle, backLabel, onBack, children, actions, metadata, pageKey, navigationComplete, onNavigationSettled, dirty: ownDirty = false, busy: ownBusy = false }: RecordPageProps) {
   const host = useContext(RecordHost);
   const page = useRef<HTMLDivElement>(null);
   const origin = useRef<{ focused: HTMLElement | null; top: number } | null>(null);
@@ -49,6 +56,16 @@ function RecordPageContent({ title, subtitle, backLabel, onBack, children, actio
   }), []);
   const dirty = ownDirty || [...drafts.values()].some(draft => draft.dirty);
   const busy = ownBusy || [...drafts.values()].some(draft => draft.busy);
+  const previouslyDirty = useRef(false);
+  useLayoutEffect(() => {
+    // Permission for a completed transition does not cover later edits.
+    if (dirty && !previouslyDirty.current) allow.current = false;
+    previouslyDirty.current = dirty;
+  }, [dirty, allow]);
+  useEffect(() => {
+    if (!dataRouter && !dirty && !busy) onNavigationSettled?.();
+  }, [dataRouter, dirty, busy, onNavigationSettled]);
+  useSessionExitDraft(dirty, busy, allow);
   useLayoutEffect(() => { host?.activate(key.current); return () => host?.activate(null); }, [host?.activate]);
   useEffect(() => {
     const generation = ++focusLifecycle.current;
@@ -70,7 +87,7 @@ function RecordPageContent({ title, subtitle, backLabel, onBack, children, actio
     <PageHeader title={title} subtitle={subtitle} backLabel={backLabel} onBack={requestBack} backDisabled={busy} actions={actions ? <fieldset disabled={dirty || busy} className="contents">{actions}</fieldset> : undefined} />
     {metadata ? <div data-record-metadata>{metadata}</div> : null}
     <RecordDraft.Provider value={reportDraft}><div className="space-y-5">{typeof children === 'function' ? children(requestBack) : children}</div></RecordDraft.Provider>
-    {dataRouter ? <NavigationGuard dirty={dirty} busy={busy} allow={allow} pageKey={pageKey} /> : null}
+    {dataRouter ? <NavigationGuard dirty={dirty} busy={busy} allow={allow} pageKey={pageKey} onNavigationSettled={onNavigationSettled} /> : null}
     <PortalConfirmModal isOpen={confirmLeave} title="Discard unsaved changes?" message="Your changes have not been saved. Return to the list and discard them?"
       confirmLabel="Discard changes" cancelLabel="Keep editing" onConfirm={leave} onCancel={() => setConfirmLeave(false)} />
   </div>;

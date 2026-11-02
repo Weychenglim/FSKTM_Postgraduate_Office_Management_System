@@ -195,6 +195,7 @@ npm run test:production-security
 
 ## Further Documentation
 
+- [Five-module testing: start here](docs/FIVE_MODULE_TESTING_START_HERE.md) — sequential manual testing, prepared local accounts, expected results, and the full case list.
 - [Project Requirements](PROJECT_REQUIREMENTS.md) — detailed scope, features, and business rules.
 - [Architecture and Coding Design](ARCHITECTURE_AND_CODING_DESIGN.md) — system structure, permissions, data models, and implementation conventions.
 - [Project Status](PROJECT_STATUS.md) — completed work, verification evidence, known issues, and next steps.

@@ -9,4 +9,7 @@ assert.match(render(task), /disabled=""/);
 assert.match(render({...task, canEdit:true,canSubmit:true}), /Save draft/);
 console.log('Task permission rendering passed');
 
-assert.match(render({...task, periodEffectiveStatus: 'CLOSED', completionWindow: { status:'ACTIVE', deadline:'2026-10-01T04:00:00Z' }}), /Period: CLOSED/);
+const closed = render({...task, periodEffectiveStatus: 'CLOSED', completionWindow: { status:'ACTIVE', deadline:'2026-10-01T04:00:00Z' }});
+assert.match(closed, /Marking closed/);
+assert.match(closed, /This task is read only\. Marks cannot be saved or submitted\./);
+assert.doesNotMatch(closed, />Save draft</);

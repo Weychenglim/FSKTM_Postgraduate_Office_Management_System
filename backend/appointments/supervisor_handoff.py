@@ -228,7 +228,7 @@ def approve_supervisor_application(*, application_id, actor):
             PanelRecommendation.objects.select_for_update().filter(
                 profile__student=application.student.user,
                 supervisor=application.replaces_appointment.supervisor,
-                status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+                status__in=PanelRecommendation.PENDING_STATUSES,
             )
         )
         for recommendation in pending_recommendations:

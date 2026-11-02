@@ -41,6 +41,7 @@ from .serializers import (
 from .services import (
     MarksStateConflict,
     archive_evaluation_period,
+    set_rubric_family_archived,
     clone_rubric_version,
     close_evaluation_period,
     create_evaluation_period,
@@ -199,6 +200,10 @@ def rubric_payload(rubric, *, include_audit=False):
         "isReady": rubric.is_ready,
         "isLocked": rubric.is_locked,
         "isActive": rubric.is_active,
+        "isArchived": rubric.is_archived,
+        "usage": [{"id": period.pk, "name": period.name, "semester": period.semester,
+                   "status": period.lifecycle_status}
+                  for period in rubric.evaluation_periods.all()],
         "supersedesId": rubric.supersedes_id,
         "components": [
             rubric_component_payload(component)
@@ -531,7 +536,7 @@ def rubrics_view(request):
             status=status.HTTP_403_FORBIDDEN,
         )
     if request.method == "GET":
-        rubrics = Rubric.objects.prefetch_related("components").order_by(
+        rubrics = Rubric.objects.prefetch_related("components", "evaluation_periods").order_by(
             "family_code",
             "-version",
         )
@@ -590,6 +595,21 @@ def rubric_detail_view(request, pk):
         return state_conflict_response(exc)
     except DjangoValidationError as exc:
         return django_validation_response(exc)
+    return Response(rubric_payload(rubric))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def rubric_family_archive_view(request, pk):
+    if not office_only(request.user):
+        return Response({"error": "Only Office Staff/Admin can manage rubric configuration."}, status=403)
+    rubric = Rubric.objects.filter(pk=pk).first()
+    if rubric is None:
+        return Response({"error": "Rubric family was not found."}, status=404)
+    archived = request.data.get("archived")
+    if not isinstance(archived, bool):
+        return Response({"error": "Choose archive or restore."}, status=400)
+    rubric = set_rubric_family_archived(rubric=rubric, actor=request.user, archived=archived)
     return Response(rubric_payload(rubric))
 
 
@@ -861,6 +881,9 @@ def mark_records_view(request):
                 "panelMember": task.evaluator.full_name,
                 "evaluatorRole": task.evaluator_role,
                 "evaluatorRoleLabel": task.get_evaluator_role_display(),
+                "periodId": task.period_id,
+                "periodName": task.period.name,
+                "periodLifecycleStatus": task.period.lifecycle_status,
                 "semester": task.period.semester,
                 "programme": task.profile.programme,
                 "totalMark": (

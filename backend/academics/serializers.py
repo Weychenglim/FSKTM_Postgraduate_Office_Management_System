@@ -473,6 +473,7 @@ def capacity_audit_payload(audit):
         "id": audit.pk,
         "semesterId": audit.academic_semester_id,
         "planId": audit.plan_id,
+        "planVersion": audit.plan.version if audit.plan_id else None,
         "lecturerId": audit.lecturer_id,
         "availabilityWindowId": audit.availability_window_id,
         "action": audit.action,

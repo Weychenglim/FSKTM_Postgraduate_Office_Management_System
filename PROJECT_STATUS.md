@@ -17,11 +17,144 @@ Staff no longer change students one by one, and a student cannot graduate too ea
 
 Verified on a private database copy with disposable students: 73 browser checks across office and coordinator, including phone width. To raise with the supervisor or office: Regulation 16(1) says a candidate may not change programme, which conflicts with programme transfers.
 
+## Phase six feedback integration completed (1 November 2026)
+
+Completed F13 requirement-save outcomes and F17 participant/delegation draft protection, nested exit ownership, synchronous duplicate-write guards, conflict/permission retention and latest-read recovery. Workflow reports, appointment letters and announcement attachments now describe prepared browser handoffs; notification read updates are quiet on success and expose explicit failures; remaining Panel recommendation success uses the shared queue. Routed participant Back clears confirmed drafts before navigation, avoiding a second discard prompt.
+
+Verification: all 405 frontend source tests, TypeScript and production build passed (15.81 seconds; existing chunk-size advisory). Six affected browser runners passed 269 named scenario executions: phase six 50, appointment exports 30, feedback delivery 45, Panel nomination 51, shared exits 63 and timeline/workflow 30. Initial timeline/browser failures were reconciled with current import/extension controls, queued-error dismissal and intentional contained desktop table scrolling; no calendar production change was made. Scoped whitespace check passed. Source review found no remaining actionable phase-six issue. Mandatory requirements/design/status documentation and audit are updated. Evidence: `.superpowers/phase-six/` and `docs/PHASE_SIX_FEEDBACK_VERIFICATION_2026-11-01.md`.
+
+Six of seven phases are complete. Phase seven remains full-role/full-shell/native/saved-file acceptance and any fixes it reveals. All work remains local and uncommitted; prior/unrelated changes retained. No backend/API/schema/dependency changes, live academic/account writes, commit, push or deployment.
+
+## Phase five Marks feedback completed (1 November 2026)
+
+Completed rubric draft isolation/protection, period draft/lifecycle reviews, current-scope generation review and truthful outcomes, exact Lecturer submission payload review, Office correction delta/Cancel/recovery, and completion-window draft/identity protection. Shared feedback ownership and opt-in recoveryDirty preserve existing permissions, reasons, signed closure review, versions, idempotency and central deadline routing. All four task reviews approved. Broad final review found a completion-history retry that erased an unrelated revocation draft; its RED/GREEN regression and scoped fix review are approved, with no remaining actionable phase-five findings.
+
+Final verification: full frontend source suite 405 passed, zero failures/skips; nine browser runners total 444 named scenario executions; TypeScript and production build exit 0; scoped whitespace check exit 0. Earlier failed source assertions and workspace expectations were updated to preserve their actual contracts and rerun successfully. Counts include existing and unrelated November 1 tests, not only new phase-five cases. Evidence/manifest: docs/PHASE_FIVE_MARKS_FEEDBACK_PLAN_2026-10-31.md and ignored phase workspace integrated-verification.md. Existing build chunk-size advisory remains. Full authenticated shell/native unload/live acceptance remains phase seven.
+
+Five of seven packages are complete. Phase six still includes Workflow/shared-editor fixes and quiet/export consistency development; phase seven is mainly acceptance testing and verification, with fixes if found. All work remains local and uncommitted; no live academic/account writes, schema/API/dependency changes, push or deployment were performed. Unrelated local work is preserved.
+## Phase-four calendar and setup consistency completed (30 October 2026)
+
+Completed approved package four. Calendar Create/Import preserve independent drafts and clear only the committed method; Add/Edit and informational extensions use one standalone or nested guard. Template feedback is visible inside the open modal, clears only its own errors and uses request/session identity independent of workbook selection. Semester transitions protect local disposal/replacement, pending writes and initialized defaults; direct403/409 and committed-refresh recovery retain input and require a successful latest read before more writes. Lecturer cancellation protects its private reason without clearing the visible create form.
+
+Capacity single/bulk/publication/discard and carryover reassessment use consistent ownership and retained outcomes. A reason is dirty, not a pending write. Preparation retains committed plans and resolves the original requested route through an optional owned RecordPage settlement callback, including standalone/MemoryRouter fallback. Existing explicit completion allowance is preserved even while an old dirty report lingers. Operational overview/managed-record decisions, forms, deadline scopes and calendar connections keep current authorization, signed preview, version/fingerprint/event and academic rules.
+
+Final verification: **393 frontend source tests passed**, TypeScript passed, production build passed (2519 modules,23.38s; existing ExcelJS advisory), and **773 mounted scenario/viewport executions across13 suites passed using each final passing suite run**. Root serial batch passed12 suites; calendar390px Chrome timed out with updater IPC errors after its first23 cases. Unchanged isolated calendar retry passed69/69 in6.610s. The failed run is retained and its partial cases are excluded. No application/harness change was made for this retry. Exact manifest and logs: docs/PHASE_FOUR_SETUP_FEEDBACK_PLAN_2026-10-30.md and ignored .superpowers/sdd/phase-four-setup/.
+
+Independent task/scoped/final source reviews report no remaining actionable code findings. Review corrections have mounted failing evidence: read-failure write gating, unresolved disposal submitting underneath, dirty reassessment reported as busy, pending preparation/window navigation loss, absent non-data-router settlement, lost explicit-completion allowance and template retry/request lifetime. Historical duplicate activation cases, cancelled runs and screenshot previews are excluded from final totals.
+
+Evidence uses real components with synthetic HTTP/unload events; calendar/shared interaction fixtures do not certify production CSS acceptance. Native browser unload prompts, authenticated full-shell/role/logout and saved-workbook acceptance remain package seven. Marks and broader workflow/export/shared-dependency work remain packages five/six. This feedback phase adds no backend/API/schema/dependency or academic-rule changes; unrelated pause-time capacity pagination, semester selector, shared-select/styles and prior reporting artifacts are preserved. All changes remain local and uncommitted, with no reset, live academic write, push, merge or deployment.
+
+## Phase-three appointment consistency completed (30 October 2026)
+
+Completed approved package three of the five-module feedback audit. Supervisor submission now uses retained shared delivery, with a standalone Student workspace owner; contact and supporting nomination/replacement Cancel protect actual edits and preserve unrelated parent work. Supporting nomination 403 now follows the existing eligibility-refresh recovery path. Research creation/correction/transfer preserve conflicted input, block stale submission, require consent before replacing it, reject late identity/session responses and clear confirmed drafts before refresh. Appointment filters stay quiet, and appointment/Supervisor workload/Panel workload exports use prepared/no-results feedback plus contextual generation errors.
+
+Final validation: **389 frontend source tests passed** (79.580s), **506 mounted browser scenario executions across 16 suites passed** using the final passing run for each suite/viewport, TypeScript passed, production build passed (2517 modules, 14.00s; existing ExcelJS chunk advisory), and diff whitespace checks passed. Independent task/final reviews found no remaining actionable code findings; reviewers independently reran research recovery (28), appointment feedback (7), child drafts (9 before viewport expansion) and export feedback (30). Reruns and prior phases are not added to the 506 count.
+
+Failing-first evidence covers shared/standalone lost submission feedback, four local-cancel behaviors, forbidden supporting recovery, eight export/filter behaviors, research 403/409 draft loss/stale retry, failed background-read retention and a concurrent review/refresh busy-state race. One wider capacity run failed on an old expectation for details inside the candidate choice. The pre-existing UI already separates its remaining-place badge from selected-summary active/reserved/limit detail; the fixture now checks both actual components, and all 28 capacity executions pass. No capacity production behavior was changed for that maintenance.
+
+Evidence remains isolated production components with synthetic HTTP. Export-feedback generation is stubbed; child-draft/export fixtures do not load application CSS. No browser-saved-file, full-shell/native-unload or production acceptance is claimed. Broader setup, Marks, workflow/quiet-action sweep and final acceptance remain packages four through seven. All changes remain local/uncommitted; pre-existing capacity and reporting artefacts are preserved. Wizard screenshots/cache now use temporary isolated output, and tracked screenshots overwritten by its initial run were restored to their clean pre-run state. Detailed manifest: docs/PHASE_THREE_APPOINTMENT_FEEDBACK_PLAN_2026-10-30.md.
+
+## FYP testing chapter and manual result register (29 October 2026)
+
+Prepared an editable testing chapter and seven-sheet result workbook from the senior's 172-page reference, the current 162-scenario guide and current source-of-truth/acceptance documents. The chapter covers all five owned modules with representative detailed case tables, integration/system/validation plans, UAT method and honest result-summary structure. The workbook retains all 162 original IDs and maps report IDs, prerequisites/data/expected results, individual runs, defects/retests, blank participant ratings and 11 separately named historical A07 observations. Primary module counts 30/47/16/35/34 total162; compound variants and overlapping technique/automated/UAT populations are not conflated.
+
+All delivered current Actual results remain blank and statuses Not run. Prior Panel80 evidence does not certify planned correction82/84; no participant feedback or new manual/automated application outcome was fabricated. Independent evidence review confirmed the scope and found only corrected hierarchy/reference/spacing refinements. Word rendering and workbook formula/visual/read-back checks are part of artefact verification, not product acceptance. Root requirements/design and preparation notes updated. No application code, existing record/account, runtime server, report-source PDF, commit or push changed.
+
+Final artefact checks passed: all 14 rendered Word pages visually reviewed, 162 unique catalogue/result IDs with reconciled primary-module counts, seven workbook sheets, 11 separately named prior observations, 15 blank UAT ratings and unavailable pass/UAT means before new data. A temporary Pass changed the summary and flagged missing evidence, then was restored; final cached formulas have no errors. Deliverables and recording instructions are linked from `docs/FYP_TESTING_REPORT_PREPARATION_2026-10-29.md`.
+
+## Phase-two shared feedback foundation completed (29 October 2026)
+
+Completed approved delivery package 2; plan is `docs/PHASE_TWO_SHARED_FEEDBACK_PLAN_2026-10-29.md`. Shared outcomes queue without overlap, distinguish deliveries from message text, optionally deduplicate explicit operation IDs, expire routine info/success after four visible seconds and pause for hover/focus. Warning/error outcomes remain dismissible. Native-modal/document inertness defers the body host without suppressing usable active records. Nested providers reuse the owner and account/role keys invalidate former-session callbacks. Legacy local page emitters retain their current behaviour until their later migration.
+
+DecisionDialog isolates late save/reload callbacks, exposes explicit completion/discard hooks and consent before replacing private input, retains same-record conflict recovery and inherited pending-write protection, and associates consequence descriptions with native dialogs. RecordPage resolves completed pending exits and restores protection for fresh edits. Registered page drafts now resolve voluntary header/settings logout before authentication changes; forced expiry remains immediate. Missing standalone registrations remain later-package work. Failing-first reproductions and scoped/integrated reviews caught and corrected an over-broad inert selector and a reopened action's invisible conflict/busy state. Final scoped reviews and integrated review report no remaining actionable findings.
+
+Fresh verification: all 389 frontend source/render/service/utility tests passed with no failures/skips. Eight mounted browser suites passed 350 named scenario executions: new feedback delivery45 and shared exit45, phase-one drafts20, Panel nomination51, shared decision21, Marks feedback26, timeline/workflow30 and periods112; counts include each suite/viewport once, not reruns. Final TypeScript and production build passed after the last fix (2517 modules, 8.94s; existing ExcelJS chunk advisory). Evidence uses real components/native dialogs, routing and synthetic HTTP; authenticated full-portal/native-unload acceptance was not rerun. Requirements, architecture and audit updated; prior capacity/phase-one work preserved. No dependency, API/schema, academic-rule/authorization change, commit, live academic write or deployment.
+
+## Phase-one follow-up bug review (29 October 2026)
+
+Repeated source and independent read-only review of the five phase-one production files and their surrounding dialog, draft, async submission and history integrations found no actionable bugs. Fresh verification passed all 389 frontend source/render/service/utility tests (zero failures or skips), 20 phase-one draft browser scenario executions and 51 Panel nomination browser scenario executions, plus TypeScript, the production build (2516 modules, 16.04s; existing ExcelJS chunk-size advisory) and the whitespace check. Browser evidence uses real components with synthetic HTTP; authenticated full-portal/native unload acceptance was not rerun. Requirements and architecture documents were checked and remain accurate; no application-code change was needed. This review covers phase one; the broader audit's pending findings remain pending.
+
+## Phase-one draft corrections (29 October 2026)
+
+Implemented the approved first phase of `docs/FIVE_MODULE_NOTIFICATION_CONFIRMATION_REVIEW_2026-10-29.md`, scoped to F01 backup completion, F02 Panel disposal, F08 reconciliation private input and F09 initialized deadline defaults. Mounted failing-first tests reproduced the specific defects. Backup commits retire completed drafts before refresh and close through the single shared outcome, while failed saves/cancelled reviews retain input. Panel true close disposes its draft; keyed fields reset by student/replacement identity inside a stable owning RecordPage. Acceptance abandonment clears private state without erasing visible repair drafts. Deadline defaults and restored edits are clean, with selected-case choices counted only in their active scope. An initial Panel keyed-remount/history regression was reproduced during independent review and fixed with routed failing-first tests; scoped re-review and integrated review found no remaining actionable findings. Broader toast standardization and other inventory findings remain pending.
+
+Verification: new phase-one draft suite 20 browser scenario executions; Panel nomination 51 (including routed transitions/cleanup); shared dialog 21; Marks feedback 26; timeline/workflow feedback 30; periods workspace 112. These total 260 named scenario executions across six isolated component suites, counting each suite/viewport once rather than adding reruns. Supplemental source/render/utility/API selection passed all 22 reported tests. An initial parallel run hit the older tests' shared Vite cache lock; the affected dialog suite subsequently passed sequentially, and the new runner uses an isolated temporary cache. Final `npm run lint` passed; `npm run build` passed (2516 modules, 12.84s; existing ExcelJS chunk-size advisory); `git diff --check` passed. Evidence uses synthetic HTTP/real components; no fresh authenticated full-portal/native unload acceptance is claimed. No live academic writes, resets, commit or deployment; prior capacity-selector changes remain preserved. Requirements and architecture documents updated for this implementation.
+
+## Five-module notification and confirmation second review (29 October 2026)
+
+Prepared `docs/FIVE_MODULE_NOTIFICATION_CONFIRMATION_REVIEW_2026-10-29.md` after a second source review with independent Dashboard/setup, appointment and Marks/Workflow audits. The proposed plan covers action families, role/ownership boundaries, quiet-action parity, toast lifetime, final-review consent, draft disposal, all navigation/session paths, committed-refresh and conflict recovery, implementation order and 36 behavioral acceptance cases. Findings include a backup assignment remaining dirty after successful creation, Panel discarded drafts retained on reopen, Supervisor submission feedback lost on redirect, false default deadline dirtiness and missing guards in several reachable setup paths. Source-confirmed findings and isolated handler evidence are distinguished from unrun browser acceptance.
+
+Fresh verification: shared DecisionDialog mounted suite passed seven scenarios at each of 1024/390/320px (21 executions); decision-submission utility checks passed; shared dialog/record/host/Office consistency selection passed all seven reported tests. These do not certify the new host-specific acceptance cases. All three mandatory project documents were checked; product requirements and implemented architecture remain unchanged, so no requirement/design claims were added. This is planning/documentation only: no application/backend/test source changes, live academic mutations, account changes, commit, push or deployment. Existing uncommitted work was preserved.
+
+## Local UAT servers started (29 October 2026)
+
+Started the existing isolated five-module UAT backend and frontend using `scripts/prepare_five_module_uat.py --start`, preserving prepared accounts and test records. Portal `http://127.0.0.1:3003/`, backend health on8003 and proxied health on3003 each returned HTTP200. Local process IDs/logs are in ignored `backend/.env.five-module-uat/`. Requirements/design files remain present; no workflow, configuration, migration or account changes were needed.
+
+## Candidate capacity selector review (29 October 2026)
+
+Independent read-only review found no current API regression. Review identified a defensive Supervisor display fallback: when availableSlots is omitted, filled contains active appointments only. Both option and selected summary now use workloadCount, or active filled plus reservedLoad, for remaining-place fallback. A failing-first rendered regression covers both views. Authoritative API fields, reservation rules and submission guards are unchanged. Fresh verification: 22 focused frontend checks and 18 backend candidate/capacity tests passed using disposable test_candidate_review_20261029. TypeScript checked after the fallback fix. Existing 27 responsive mounted browser scenarios and production build passed before this arithmetic-only review correction; not rerun for the correction. No fresh live authenticated workflow, commit or push.
+
+## Candidate capacity selector enhancement (29 October 2026)
+
+Student Supervisor application and Lecturer Panel nomination now display role-specific remaining places before selection; one remaining place uses the existing amber badge. Detailed active/accepted-awaiting-Coordinator counts appear after selection. Panel candidates expose additive activeLoad/reservedLoad fields from the existing resolver. Reservation timing, acceptance warnings, intake/eligibility guards and backend enforcement are unchanged.
+
+Verified: 21 focused frontend checks; 14 Panel capacity backend tests on disposable PostgreSQL test_candidate_capacity_ui_20261029 (including a failing-first candidate API regression); 27 mounted browser scenarios at 1440/1024/390px covering selection, refreshed capacity, busy/intake guards, replacement submission and geometry; TypeScript; production build (existing ExcelJS chunk advisory); git diff whitespace check. Mobile fixture screenshot visually inspected. Browser evidence uses isolated components and synthetic data, not a fresh authenticated live workflow. Changes remain uncommitted; existing staged work was preserved.
+
+## Report-label layout cleanup completed (29 October 2026)
+
+Closed the A07 participant-lifecycle label follow-up. Both summary render paths now adapt columns to available container width and display spaced labels such as Graduated Students. Temporary headless Chrome inspection of the production component and built CSS reproduced original label overflow at 320/1024/1280px; all seven labels and counts passed containment/content checks after the fix across Office widths 320, 390, 768, 1024, 1280 and 1440px and supplied Coordinator summaries at 390/1280px. Desktop fixtures reserve sidebar width; these synthetic component checks do not certify full-shell role authorization. Saved 1024px screenshot was visually inspected. Browser-control initialization was unavailable, so no fresh interactive login pass is claimed.
+
+TypeScript, production build (2514 modules, 34.69s; existing ExcelJS chunk advisory), report clarity/integration and report utility checks passed. No backend change or new backend test run. Evidence: `docs/FULL_PORTAL_NATIVE_ACCEPTANCE_2026-10-29.md` layout follow-up; temporary runner/results/screenshot remain in ignored UAT evidence. Remaining advanced manual cases, shared integrations and deployment checks are unchanged. Accumulated work remains uncommitted.
+
+## A07 core full-portal and native acceptance (29 October 2026)
+
+Completed the named A07 slice in the existing isolated UAT on 3003/8003, starting from empty academic workflows: Office semester/capacity/calendar/proposal setup; complete Student → primary → Coordinator and primary → Panel → Coordinator approval chains; balanced rubric/period publication; Supervisor 85 and Panel 80 saved and submitted/locked. Student desktop/390px dossier privacy, cross-student and Office-route redirects, Technical portal refusal, real native availability-picker selection/invalid date/cancellation, report date filters and role-scoped exports were observed. Five files actually saved into Downloads were independently parsed or byte-compared; Office has both Marks rows, Panel its own, Coordinator no Marks sheet. Final read-only database assertions verify appointments, two tasks/submissions/receipts, availability cancellation and retained dates/history.
+
+Fixed the reproduced first-use calendar 409: valid first manual creation now initializes the selected Draft/Active calendar atomically with entry/audit, with a locked lifecycle recheck and no partial records on invalid input or audit failure. Five regressions added. Actual full-portal retest created the first event in a separate future Draft without Excel; reload and independent reads confirm dates/audit and original active semester/Marks preservation. Empty-state guidance now explains both creation options. Native Chrome beforeunload Cancel retained the unsaved title; confirmed Reload restored the saved event. Test windows were closed after logout without disturbing the existing draw.io window.
+
+Affected backend gate passed 152 tests in 24.950s after the final lock guard; the final release rerun also passed all 152 tests in 648.234s. Counts overlap and are not additive. Selected-semester frontend check, TypeScript and production build passed (2514 modules, 18.27s; existing ExcelJS chunk advisory). Django system/migration-drift checks passed. Evidence: `docs/FULL_PORTAL_NATIVE_ACCEPTANCE_2026-10-29.md`, E17 and ignored A07 screenshots/manifest. This is core A07 evidence, not all 162 manual cases or every date editor/browser. Shared Registry, teammate modules, faculty/template/identity decisions and production-host acceptance remain separate; historical clause totals are unchanged. Existing UAT data now contains the completed journey and is not reset by preparation. Only the isolated API was refreshed; no live academic/account changes, production deployment, commit or push. Direct review only. The crowded participant-lifecycle label observation was subsequently resolved in the focused layout cleanup recorded above.
+
+## Five-module sequential test guide and isolated accounts (28 October 2026)
+
+Prepared `docs/FIVE_MODULE_TESTING_START_HERE.md`, the 162-case `docs/FIVE_MODULE_SEQUENTIAL_TEST_GUIDE.md`, and `docs/FIVE_MODULE_TEST_PLAN_REVIEW_2026-10-28.md` from HEAD c062330 plus the current pending source-of-truth/A05 working changes. Source audits and a skeptical review corrected superseded rules and seven sequencing/prerequisite issues; final review found no remaining blockers. The guide starts with Office semester/capacity/calendar/intake/documents and follows both appointment chains, evaluation and reporting before spare-participant failure/replacement/transfer/lifecycle/handover cases. All manual cases remain Not run; controlled legacy, time, audit-outage and concurrency fixtures are explicitly separate prerequisites.
+
+User selected a separate local test database. Added the guarded `scripts/prepare_five_module_uat.py` helper and three offline safeguards (failed before implementation, then passed). Prepared 31 fictional accounts in fresh `fsktm_uat_20261028_5bfb97` with migrations applied; verified all passwords/hashes, roles, active states, technical flags and explicit Office Marks permission variants. Initial semesters, primary/Panel appointments and evaluation tasks are zero; no research/rubric/delegation workflow was pre-created. Credentials, sample files, media, logs, process IDs and local evidence stay in ignored `backend/.env.five-module-uat/`. Existing development records/passwords, source changes and normal environment files were preserved.
+
+Separate loopback-only UAT servers are available at `127.0.0.1:3003/8003` with isolated auth cookies, console email and real backend services; normal throttles/permissions remain. HTTP smoke verified six portal-role accounts' login/identity/UAT cookies/logout, technical portal exclusion 403, Office semester read 200 and Student semester write denial 403; frontend/direct/proxied health all returned 200. Full manual journeys and full application regression suite were not executed for this preparation. Requirements/design updated for testing scope/helper isolation; README links the entry guide. No merge, production deployment, commit or push performed.
+
+## A06 compound lifecycle and Marks acceptance (28 October 2026)
+
+Completed the core technical A06 pass on the current branch, preserving the existing A05/Office changes and separate manual UAT preparation. Twenty new persisted/API/concurrency cases cover terminal supporting/team closure and pending work, graduation blockers, deferral/return after ended appointments, permanent extension invalidation, Coordinator responsibilities/delegation retirement, three audit-outage rollback combinations, direct assignment bypasses, historical role scope and competing lifecycle/Marks submissions. Two additional production-component/real-HTTP journeys pass 24 assertions at exact 1440/390px, with unchanged stored rows and separately parsed role-scoped XLSX.
+
+Reproduced and fixed private lifecycle explanations leaking through Student primary closure and pending-replacement cancellation projections in request list/detail and dossiers. Student responses redact private closure reasons/actors/lifecycle audits and the specific automatic lifecycle cancellation reason/event; normal request decision reasons remain available. Authorized staff retain full data. The dossier UI independently suppresses private closure/audit fields in supplied public data. No stored business/audit history, workflow transition, database schema or dependency changed. Failing API and browser regressions precede the fixes; see the report for exact red evidence and harness-only corrections.
+
+Final scoped gate: **22 tests passed in 45.772s**, comprising 20 persisted/API/concurrency tests and two browser journeys. Wider regression: **793 tests passed in 325.738s** across Appointments, Marks, Dashboard and focused lifecycle/delegation/Office accounts suites, using fast password hashing only in the test process. Final source integration recheck: **59 tests passed in 75.385s**, covering all 20 new cases, Office primary replacement, workflow ageing and all eight A05/A06 browser journeys (156 assertions). Nine frontend checks, TypeScript, production build (2514 modules, 25.10s; existing ExcelJS chunk advisory), Django checks, migration drift and syntax/whitespace checks passed. Counts overlap and must not be added. All `test_a06_*` databases are absent. This is core technical acceptance, not certification of every manual compound clause. Full-shell/native cases remain A07; shared Registry responsibility handover, faculty/template/identity policy and production-host checks retain their boundaries. No live academic/account writes, password reset, server restart, deployment, commit or push. Existing UAT environment preserved; direct review only. Evidence: `docs/COMPOUND_LIFECYCLE_MARKS_ACCEPTANCE_2026-10-28.md`.
+
+## A05 reports, exports, dossiers and reconciliation acceptance (28 October 2026)
+
+Completed the named A05 core pass on the merged branch, preserving the earlier Office rollout and unrelated README/documentation edits. Added nine API/persisted combinations for report/XLSX consistency and formula safety, public/private dossiers, supporting replacement/closure, programme transfer, delegation revocation, handover and reconciliation including actual stale evidence and audit-outage rollback. Six new production-component/real-HTTP browser journeys at exact 1440/390px pass 132 assertions. Python separately parses exported workbooks and compares exact stored rows; temporary calendar CRUD leaves original entries intact with three Office audits, and reconciliation changes only the intended request semester plus its audit.
+
+Reproduced one production defect: an older Student Progress Dossier response could replace a newer selected student's record. The isolated desktop red test failed in 5.498s; generation/loaded-identity guards now reject obsolete successes, errors and completion callbacks, clear old details and preserve the newer loading state. Desktop/phone regressions cover late success, late 404, pending reads and unknown destinations. This is the only production source change; no API/schema/dependency/authorization changes.
+
+Final scoped gate: 15 tests passed in 56.994s (nine persisted/API tests plus six browser journeys). Wider integration gate: 194 backend tests passed in 363.626s across dashboard, supervision exports, delegation/lifecycle, research, reassessment and Office authorization; it includes the same nine API tests, so counts must not be added. Seven related frontend scripts and two existing simulated-response browser suites passed (54 reconciliation and 30 timeline/workflow viewport scenarios). Final TypeScript, production build (2514 modules, 16.37s; existing ExcelJS large-chunk advisory), Django checks, migration drift, Python/Node syntax and whitespace checks passed. All `test_a05_*` databases are absent. Final Office preview remains zero legacy staff flags.
+
+Native save-to-disk and complete login-shell certification remain A07; the repeatable export journeys capture the native save boundary after fetching and validating real XLSX bytes. An Office workbook actually saved during the initial harness run was identified by its synthetic rows, parsed and preserved in ignored `backend/.env.a05-office-report-observed.xlsx`; existing Downloads files were untouched. Timeline create/edit/delete uses real production API contracts with production management/history/retry UI; existing simulated-response suites separately cover modal failure/field retention. Remaining compound terminal/concurrency/assignment cases remain A06. No live academic mutations, account/password changes, process restart, deployment, commit or push. Direct review completed; no independent reviewer result claimed. Evidence and reproducible commands: `docs/REPORTING_RECONCILIATION_ACCEPTANCE_2026-10-28.md`. Root requirements/design, pending register and E15 updated without promoting unexercised compound checklist clauses.
+
+## Local Office access conversion completed (28 October 2026)
+
+Completed the authorized rollout on the merged source at `3070332`. Verified actual technical admin credential login and legacy Office admin-session denial against the listening API before changing flags. The guarded command converted the one legacy Office account; exact account comparison confirmed only `is_staff` changed. Office retains role, activation, password and explicit Marks correction authority; existing/fresh portal sessions retain authorized reads, while admin entry/Add requests are denied. Technical recovery works and technical portal access is refused. Repeat apply is a no-op; final preview reports zero legacy Office flags.
+
+Fresh verification: 123 focused backend/browser tests passed in 102.850s in a disposable PostgreSQL database, including all 29 real browser/API Marks assertions. All 83 local runtime assertions passed; 63 protected table fingerprints remained unchanged. Django system and migration-drift checks pass. The local database has no evaluation tasks/periods, so Marks/window/closure mutations are isolated test evidence, not live-record acceptance. Verification sessions cleaned up; no academic mutations, password reset, application-code change, production deployment, commit or push. Updated rollout report/register/checklist supersede the historical restart/flag-conversion blocker. Requirements and architecture reviewed and annotated; A05-A07 remain pending. See `docs/OFFICE_ACCESS_ROLLOUT_2026-10-28.md`.
+
 ## System-wide README (28 October 2026)
 
 Replaced the five-owned-module introduction with a whole-system overview covering the combined team project: roles, all portal modules, the appointment-to-evaluation workflow, Registry, Letters, File Repository, Announcements/Notifications, FAQ/chatbot, and Settings. Expanded the stack and repository map, retained development/demo guidance, and documented backend-integrated frontend configuration, verification commands, and operational references. Module ownership boundaries remain separate. Requirements and architecture documents were reviewed; no product requirements, runtime architecture, or application code changed.
 
 Verification: checked module descriptions against local routes/services and backend references; all 10 local documentation links and anchors resolve, Markdown fences are balanced, all 10 listed backend module directories exist, the four documented npm scripts and Node minimum match package.json, and all eight PowerShell examples parse without errors. A separate reader review found no actionable issues. Corrected the frontend test locations during the final source check. Whitespace checks pass. Application tests were not rerun for this documentation-only update; the pre-existing local-server status note is preserved.
+
+## Local server start on merged branch (28 October 2026)
+
+Restarted frontend (127.0.0.1:3001) and backend (127.0.0.1:8000) from codex/portal-consistency-and-toast at 3070332. Created a local PostgreSQL custom-format backup in the system temporary folder before applying all nine pending accounts/FAQ/letters migrations from the merged main. Migration check is clear; frontend, backend health and proxied API health each returned HTTP 200. Requirements and architecture reviewed with no additional source design changes. No account conversion or production deployment performed. This runtime status note is local and uncommitted.
 
 ## Branch integration and release (28 October 2026)
 
@@ -3657,3 +3790,534 @@ Implemented Student appointment-result visibility and result-only in-app notific
 - Seven focused component test files passed all 16 checks. TypeScript and production build passed; the existing ExcelJS chunk-size advisory remains. Reconciliation browser checks passed at 1440/390/320 px. Semester activation and timeline/feedback suites initially timed out during a parallel run, then passed when rerun serially, including their responsive and permission/action checks.
 - Actual Office workspace previews passed 24 page/view/width combinations at 1440/390/320 px, checking document overflow, heading/control clipping and the new decorative SVGs. Inspected desktop and narrow screenshots. Corrected a missing mock Panel-workload endpoint in the home preview and recaptured it; this was a fixture issue, not a production change.
 - Reproduce with `$env:POLISH_TOOLS='1'; node output/appointment-visual-polish-20261024/capture.mjs`. Preview data is fictional and read-only; authenticated end-to-end testing is not claimed. Examples: `tools-semesters-1440.png`, `tools-calendar-entries-390.png` and `tools-reconciliation-1440.png` in that output folder. Required requirements/design documents were updated.
+
+
+## Panel capacity consistency — 29 October 2026
+
+Completed the user-approved rule: submitted Panel nominations do not reserve; acceptance reserves, Coordinator approval activates. Added request-specific capacity warnings, acceptance guards, neutral automatic closure on confirmed full capacity and separate pending/reserved status sets across workflow consumers. Existing unrelated working-tree changes are preserved.
+
+Verification:
+- A broad 788-test backend run passed 779 and exposed nine outdated fixtures/expectations. Corrected the accepted-reservation fixtures, full-capacity HTTP 409 expectation, configured audit actor/semester and final-approval restriction timing. The final affected-workflow rerun passed all 114 tests in 16.433s, including thirteen new Panel API/concurrency tests. A subsequent fresh review reran the complete current selection: all 790 backend tests passed in 246.143s.
+- Seventy-three related frontend checks and nine final affected component checks passed. The fresh review also ran the entire frontend source test selection: all 385 tests passed in 58.141s.
+- Forty-four mounted browser scenarios passed: sixteen Panel and twenty-eight Supervisor, at desktop/mobile widths. Visually inspected the corrected mobile warning and saved desktop/mobile screenshots.
+- TypeScript and production build passed; existing bundle-size advisory remains. Django system check and migration consistency checks passed. Git whitespace check passed.
+- Independent review and follow-up found no remaining actionable issue after correcting cancellation copy, an Office workload aggregate and text encoding.
+- Migration 0020 was applied locally after verifying it was the only pending migration and its SQL was a no-op. Existing requests/appointments were not rewritten.
+
+Fresh review: independent backend/frontend inspections found no new actionable regression; all 790 backend tests, all 385 frontend tests, 44 mounted browser scenarios, TypeScript, production build, Django checks and migration consistency passed. The review identified an existing Office repair limitation: its current-semester capacity precheck could block a valid historical-policy handoff. The user subsequently authorized the repair-policy fix recorded below. Recorded in docs/PANEL_CAPACITY_REVIEW_2026-10-29.md. No production code changed during this review.
+
+Details: docs/PANEL_CAPACITY_RESERVATIONS_2026-10-29.md. No commit/push for this follow-up has been performed.
+
+
+## Office older-request handoff repair — 29 October 2026
+
+Completed the fix for the previously documented limitation. Panel handoff detection and locked application now use the shared request-policy guard. Approved handoff recovery retains the consumed Office reassessment target, including Closed targets; archived source/target semesters remain blocked. Original approval attribution/date, request semester and immutable consumption history are preserved.
+
+Verification: five initial real-API regressions failed against the original code and passed after the fix. The affected backend run passed all 79 tests in 88.112s (repair, reconciliation, reassessment, lifecycle, Panel reservations/concurrency and capacity publication). A final repair-only run passed all 13 cases in 12.938s, including the additional shared Supervisor recovery regression. Cases include missing/full/restricted/archived policy, other reservations, stale unconsumed grants and capacity changes after preview/inside the locked handler. Independent read-only review found no actionable issue. Django check, migration drift and Git whitespace checks passed.
+
+Requirements, architecture and previous review notes are updated. Details: docs/OFFICE_HANDOFF_CAPACITY_FIX_2026-10-29.md. No schema/frontend change, migration, commit or push for this fix.
+
+
+## Combined commit and push — 29 October 2026
+
+The user explicitly authorized committing and pushing all pending workspace changes, including Panel capacity/Office handoff repair and the previously separate Office privacy, calendar initialization, reporting/dossier responsiveness, acceptance fixtures and testing guides. Verification completed before publication. The full backend selection ran 1,923 tests in 899.576s: 1,920 passed, two were skipped and one Office reporting fixture still treated a submitted Panel nomination as reserved. Corrected only that fixture to an accepted nomination with a decision timestamp; all 34 reporting/acceptance/handoff-repair tests then passed in 20.583s. No production code changed during this commit preparation, and the entire backend suite was not repeated after the fixture-only correction.
+
+All 385 frontend tests, TypeScript, production build, 44 serial browser scenarios, three offline UAT-bootstrap safeguard tests, Django check, migration drift and staged whitespace checks passed. The initial parallel browser attempt had one failure under concurrent frontend load; the same suites passed serially. Existing build bundle-size advisory remains.
+
+Sensitive filename/token scan found no credentials, private keys, environment files or database exports in the pending set; generated dependency/build/private UAT data remain ignored. The final commit includes all 74 pending source, test, documentation and screenshot files. This explicit authorization supersedes the earlier implementation-phase “not committed/pushed” notes. Publication targets the existing codex/portal-consistency-and-toast branch; no remote merge or PR is requested.
+
+## Local testing sandbox restart (30 October 2026)
+
+Restarted the existing isolated manual-testing portal using scripts/prepare_five_module_uat.py --start. Verified HTTP 200 from the login page on port 3003, backend health on port 8003, and proxied API health on port 3003. Existing test database and records were preserved. No requirements, architecture or configuration changes were needed.
+
+## Fresh manual-testing sandbox (30 October 2026)
+
+The user subsequently requested cleanup to restart at A01. Stopped only the verified sandbox processes, verified the exact local database `fsktm_uat_20261028_5bfb97`, and created a private PostgreSQL custom-format backup with a readable table-of-contents check before cleanup. Flushed sandbox records and restored the original 31 account/profile fixtures transactionally using the existing private login details. Verified all passwords, roles, active states, technical flags and Office Marks grants, and zero academic/workflow, notification and session records before restarting. The private backup and count receipt are under `backend/.env.five-module-uat/backups/20261030-162317/`; no database export or credentials are tracked. Existing uploaded files and historical evidence are preserved privately. The normal development database was not changed.
+
+Updated the two manual-testing entry guides to identify this fresh baseline and retain A07 as historical evidence. Reviewed PROJECT_REQUIREMENTS.md and ARCHITECTURE_AND_CODING_DESIGN.md: no product requirements, schema, architecture or standing bootstrap behavior changed. This was a one-time authorized sandbox reset; ordinary helper preparation/start still preserves records. Fresh HTTP checks returned 200 for the login page and direct/proxied API health; authenticated Office semester APIs returned an empty list and no active semester. No manual test cases are marked Passed by the reset.
+## Semester archive button styling (30 October 2026)
+
+Changed the draft semester's Archive draft action to the existing solid red, white-text button variant. Archive icon, disabled conditions and confirmation flow remain unchanged. Requirements and architecture documentation were checked; no business rule or architecture change. Validation: inspected the exact variant mapping and action diff; whitespace check passed. Styling-only change; no new tests or live archive action performed.
+
+## Semester archive confirmation and readiness controls (30 October 2026)
+
+Moved the existing archive reason/confirmation form into the shared accessible modal shell for draft and closed semesters. Cancellation, dirty-input disposal, write locking, conflict handling and required reasons remain intact; archive confirmation uses the solid red action. Refresh checks now uses a bordered secondary button with refresh icon and loading feedback. Other lifecycle forms remain unchanged. Extended the existing browser scenario to require a modal and verify cancellation performs no archive write. Requirements and architecture documentation were reviewed: this restores existing confirmation conventions without changing lifecycle rules or system architecture. Validation: 87 mounted browser scenarios passed across 1440px, 390px and 320px, including archive modal/cancel coverage and activation safeguards. Scoped whitespace check passed. TypeScript check passed. No live semester was archived.
+
+## Capacity preparation spacing (30 October 2026)
+
+Added 12px inner form padding, 28px separation after the planning reference, more space around draft choices, and 32px/24px footer margin/padding in Prepare capacity limits. The reference panel now has 20px padding. Changes are scoped to this form's existing CSS selectors; fields, typography, actions and workflow behavior are unchanged. Checked PROJECT_REQUIREMENTS.md and ARCHITECTURE_AND_CODING_DESIGN.md: no requirement or architecture change. Validation: reviewed the flex wrapping and field sizing rules and passed the scoped whitespace check. No new tests were added for this spacing-only change; live visual inspection was not performed.
+
+## Capacity preparation text width and section gap correction (30 October 2026)
+
+Removed the introductory paragraph's 72-character width cap so it uses the available card width and wraps only when necessary. Changed the preparation form to a grid with a reliable 28px gap between its introduction, planning reference, fieldset and footer; removed competing reference/paragraph margins and retained a total 32px footer separation. Requirements and architecture documentation were checked; this is a scoped presentation correction only. Verified with headless Chrome against the actual stylesheet: the intro and reference both measured 1036px wide, and the gap from reference bottom to legend was 28px. This was an isolated layout check, not a live authenticated-page inspection. Scoped whitespace check passed.
+
+## Capacity activity version identification (30 October 2026)
+
+Added version column/filter, copy-source descriptions, semester-wide event labels, and per-version activity shortcuts. Filters apply on the server before pagination; version options include historical/discarded plans for the selected semester. Existing audit writes, reasons, permissions and chronological ordering are preserved. Added API coverage for version filtering/metadata, null-plan events and invalid filters, and expanded the mounted browser scenario for version/source labels, immediate filtering, reset and version shortcuts. Validation passed: two targeted backend tests, TypeScript, and 172 mounted capacity-workspace browser scenarios across 1440px, 1280px, 390px and 320px. Scoped whitespace check passed. No live capacity records were changed.
+
+## Live UAT capacity audit version recovery (30 October 2026)
+
+The UAT backend runs via prepare_five_module_uat.py --serve with Django --noreload. After the activity-log UI update, its process still served the old audit payload without planVersion or version-filter metadata. Verified the exact port-8003 process command before stopping it and restarted only that backend using the existing sandbox configuration; retained the frontend and all database/upload records. Updated the private process receipt. Backend health passed. Authenticated through the port-3003 proxy using the existing private Office account and verified all 12 currently returned audit rows across two semesters include planVersion, every plan-linked row has a positive version, and paginated responses include version options. No product code changes were needed; requirements and architecture documents were checked and remain applicable. The missed backend restart caused the user's Version unavailable labels; refreshing the activity page now loads the current payload.
+
+## Archived semester Office tools audit and fix (30 October 2026)
+
+Fixed Lecturer capacity explicitly showing its complete archived-inclusive catalogue as working choices. Archived semesters are now excluded from the selector/default, direct archived links are rejected before workspace loading, and return-to-focus refresh clears an externally archived selected semester. Internal archived copy sources remain available. Added three mounted browser scenarios for hidden archived choices, rejected deep links and stale-context invalidation/all-archived disabled selection. Reviewed Calendar and Periods & deadlines: their shared lifecycle eligibility excludes archived semesters. Marks setup loads non-archived semesters and restricts new periods to Draft/Active. Workload tools use current effective capacity rather than archived semester selectors; reconciliation links into the validated tools. Academic semester management and reports intentionally retain archived historical records. Validation passed: TypeScript, all 184 mounted capacity browser scenarios across four desktop/mobile widths, three existing frontend integration/helper checks, the existing backend closed/archived capacity-write rejection test, and scoped whitespace checking. No live semester/capacity records were modified and no backend restart is needed for these frontend changes.
+
+## Office selector and badge consistency (30 October 2026)
+
+Replaced separate Calendar, Lecturer capacity and Periods & deadlines semester controls with OfficeAcademicSemesterSelect. Unified labels, control width, dates, effective-status badge tones and placeholder visibility. Calendar uses the same 24px section spacing and Dashboard back-label convention as the other tools. Fixed hidden option handling in PortalSelect, missing shared Published/Open/Upcoming tones and a neutral-only managed-window status. Reviewed Dashboard/semester management, Marks configuration and workload/report controls: retain their distinct form/history purposes and existing permissions while reusing portal controls/status tokens. Added focused shared-control/hidden-option/colour checks. Validation passed: eight focused selector/status checks, TypeScript, production build, 184 capacity, 120 periods and 57 calendar mounted browser scenarios (361 total). Scoped whitespace check passed. Build retains the existing large ExcelJS chunk advisory. No live records were changed.
+
+## Local test portal restart (31 October 2026)
+
+Started the existing isolated UAT portal on port 3003 and backend on port 8003 using the preserving bootstrap helper. Verified HTTP 200 for the login page, direct backend health and proxied API health after backend startup. No database reset or account changes were performed. Reviewed the mandatory requirements/design documentation; no requirement, architecture or configuration change was needed.
+
+## Activation refresh action placement (31 October 2026)
+
+Moved Refresh checks into the Activation readiness card header beside its readiness badge. Review activation and Archive draft remain separated in the footer. Existing responsive header action wrapping, refresh handler, loading indicator and disabled conditions are preserved. Reviewed PROJECT_REQUIREMENTS.md and ARCHITECTURE_AND_CODING_DESIGN.md: no requirement, architecture or behavior changes. Validation: inspected header/footer placement and scoped whitespace check passed; no new tests for this presentation-only move.
+
+### Semester extension and ending modals (31 October 2026)
+- Fixed Extend end date and End semester opening inline cards: both now use the same labelled modal as Archive.
+- Added modal and horizontal-overflow assertions to existing transition scenarios; adjusted nested confirmation assertions to inspect the topmost dialog. Confirmed the assertions fail against the inline implementation before fixing it.
+- Verification: 87 mounted browser scenario runs passed across 1440px, 390px and 320px, covering semester transitions and activation. TypeScript verification recorded below. No live semester records changed.
+- TypeScript check passed; scoped git diff whitespace check passed.
+
+### Larger semester lifecycle modals (31 October 2026)
+- Widened Extend, End semester and Archive dialogs from max-w-lg to max-w-3xl, with 24px padding on phones and 32px on larger screens. Shared viewport width and scroll limits remain in place. Requirements and architecture unchanged.
+
+- Semester lifecycle modal close buttons now match DecisionDialog: shared icon-button styling, 36px rounded-rectangle target and plain X icon with accessible Close dialog label. Requirements and architecture unchanged.
+
+- Removed the redundant Confirm lifecycle change eyebrow from semester transition modals; action-specific accessible titles remain. Updated transition tests to detect dialog dismissal through its title element rather than removed copy. Requirements and architecture unchanged.
+
+### Calendar entry spacing and direct window links (31 October 2026)
+- Increased row padding and status-column space, stacked row actions and replaced text-like Delete with a bordered danger button and trash icon. Retained all columns and responsive cards, with horizontal scrolling for constrained desktop tables.
+- Manage period now opens the exact appointment or Marks window with semester context. Added browser assertions for both direct destinations while preserving ordinary anchor behavior.
+- Validation: TypeScript and calendar draft browser suite passed; direct operational/Marks window navigation assertions passed. Periods suite remains non-green because its separate MarkEntryPeriodConfig pending-save navigation scenario times out at the unsaved-navigation confirmation (reproduced twice); no tests or navigation guards disabled. Scoped whitespace check passed.
+
+### Calendar row action refinement (31 October 2026)
+- Replaced oversized stacked actions with a compact side-by-side management button and bordered trash icon button with an accessible event-specific label and tooltip. Linked status uses a compact table-only variant; detailed Calendar status explanations remain available. Requirements and architecture unchanged.
+
+- Calendar Delete uses shared dangerSolid styling (red background, white icon). Removed the hidden child wrapper that participated in the button flex layout and offset the icon; accessible name and tooltip remain on the button. Requirements and architecture unchanged.
+
+- Aligned Calendar row Delete buttons by giving Manage period and Edit event the same 124px width, preserving the compact 34px delete target and shared action gap. Requirements and architecture unchanged.
+
+
+### Calendar event editing consistency — 31 October 2026
+
+Implemented both Calendar editing fixes: restored linked-event metadata editing with read-only dates and direct Manage period link; removed the separate editor extension action and added a conditional reason field to the ordinary Save changes flow. Verification: TypeScript passed; all 25 Calendar browser scenarios passed at three widths (75 checks); 22 focused backend tests passed using an isolated in-memory database. A broader initial SQLite run hit the existing PostgreSQL-only JSON contains query in dashboard task tests; the affected edit test was updated for the new extension-reason contract and passed in the focused run. Restarted the existing UAT backend on port 8003 to load the API change. No live academic data modified.
+
+
+### Calendar Edit event button width — 31 October 2026
+
+Reduced the Calendar Entries Edit event button from 124px to 100px while retaining a fixed width and the existing Delete button alignment. CSS-only adjustment; requirements and architecture unchanged. Scoped whitespace check passed.
+
+
+### Linked calendar date management visibility — 31 October 2026
+
+Grouped linked event dates in a highlighted Linked submission window section, with an explicit read-only explanation and a navy/white Manage period link button with calendar icon. Direct window navigation and unsaved-edit protection remain unchanged. Presentation only; requirements and architecture unchanged. TypeScript and all 75 Calendar browser checks passed.
+
+## Calendar Excel import review — 31 October 2026
+
+Spaced Browse/Clear file actions, expanded P1/P2 category names and replaced Informational with Calendar only plus a short explanation. Validated previews use padded rows, horizontal overflow and ten-row local pagination. Preview import disappears after validation; one navy Import N events action remains. File changes reset preview/pagination; existing signed-token, replacement acknowledgement, busy guards and recovery remain intact.
+
+Validation: TypeScript passed; all 26 mounted Calendar scenarios passed at 1440, 390 and 320 widths (78 executions), including a 23-event pagination/clear-file regression. These fixtures verify interactions without production CSS; no live import or academic data change was performed. Requirements and architecture documentation updated.
+
+## Guided Calendar Excel template — 31 October 2026
+
+Improved the downloadable workbook with a separate Instructions sheet, field rules/examples, replacement and visibility guidance, Panel terminology, optional period-link columns, dropdown assistance, header comments, wrapped rows, frozen headers and explicit ISO date display. The parser now reads the named Timeline sheet even when Instructions was the last selected tab; legacy active-sheet files remain supported.
+
+Validation: 21 isolated backend tests passed across template generation, signed preview/replacement validation and Office template permissions. Includes example round-trip and save-with-Instructions-active regressions. Diff whitespace check passed. Existing SQLite nulls-distinct warning is unrelated. Refreshed only the isolated UAT backend on port 8003 to serve the new template; no seeding or academic data changes. Requirements and architecture documentation updated.
+
+## Calendar template Instructions scrolling fix — 31 October 2026
+
+Corrected the Instructions freeze pane from C12 (eleven introductory rows pinned) to A2 (title row only), which frees the viewport for scrolling on short displays. Four focused template tests passed, including serialized pane checks and example round-trip/import with Instructions active. Architecture documentation updated; requirements unchanged. Refreshed isolated UAT backend to serve corrected downloads, without seeding or data changes.
+
+## Calendar import simplification and live download fix — 31 October 2026
+
+Removed Week Label, Activity Code and Period ID from generated templates; new imports cannot establish period links. Removed import link instructions, schedule-source preview column and Calendar only labels. Seven-column templates remain compatible with the parser; existing linked-event replacement guards are preserved. Legacy populated link columns are explicitly rejected with direction to Periods & deadlines. Instructions now has no frozen or split panes.
+
+Root-cause follow-up: the user's latest downloaded workbook still contained C12 because earlier restart selection missed relative script command lines and left an old server running. Stopped only identified UAT helper process trees, relaunched using the absolute script path, then authenticated a read-only HTTP template download and verified seven columns and no Instructions panes in the actual response. Separately opened the generated workbook in an isolated hidden Excel instance and verified ScrollRow=15, FreezePanes=False and SplitRow=0; user workbook was untouched.
+
+Validation: 28 isolated backend tests passed, TypeScript passed, 78 Calendar browser scenario executions passed and import static test passed. Requirements and architecture updated. No seed/reset, live calendar import, commit or push.
+
+## Calendar template responsibility wording — 31 October 2026
+
+Removed the Panel-versus-Examiner instruction from the Action field guide and generated header note. Clarified that Action stores responsibility text shown in calendar event details; retained the field because it is persisted and displayed. Requirements and architecture checked: no scope or design change.
+
+## Calendar responsibility create/edit consistency — 31 October 2026
+
+Fixed the actual mismatch: imported Action was saved/displayed in calendar details but dropped by the management adapter, absent from Create/Edit, and manual creates derived it from audience. Added Responsible parties fields with independent action persistence, length/blank guards and dirty-state protection; adapter preserves imported values. Template now includes a third example for Office Staff responsibility with OFFICE_STAFF audience and explains the editor label.
+
+Validation: TypeScript passed; 27 Calendar mounted scenarios at three widths passed (81 executions), including independent responsibility/audience create/edit payloads and imported responsibility loading. Four template tests passed including Office Staff round-trip. Requirements and architecture updated. Isolated UAT backend refreshed without data writes or reseeding.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+Simplified the submission-rule panel to one explanation, separated programme scope from window names, and removed repeated timeline titles from the overview. Inspected backend overlap validation: drafts may coexist; conflicting published windows are rejected. Validation: TypeScript and scoped diff checks passed. Two isolated backend tests passed for overlap and scope/stale guards. Changed desktop browser flows passed, including separate columns, concise rules and linkage access through Manage window. The full Periods browser suite remains blocked by the previously known late Marks save/unsaved-navigation scenario; full responsive-suite success is not claimed.
+
+
+## Window-table alignment correction — 31 October 2026
+
+Replaced obsolete five-column widths with scoped six-column sizing for appointment and Marks windows. Desktop tables scroll inside their container if needed; mobile retains labelled cards. Opens and Closes use identical two-line date/time presentation with explicit MYT. Status and action retain separate space. Validation: TypeScript passed; focused mounted browser checks passed at 1440, 1280, 390 and 320px for both appointment and Marks tables, including column separation, date structure and page overflow.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+Simplified the submission-rule panel to one explanation, separated programme scope from window names, and removed repeated timeline titles from the overview. Inspected backend overlap validation: drafts may coexist; conflicting published windows are rejected. Verification pending.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+Simplified the submission-rule panel to one explanation, separated programme scope from window names, and removed repeated timeline titles from the overview. Inspected backend overlap validation: drafts may coexist; conflicting published windows are rejected. Verification pending.
+
+### Submission window detail cleanup - 31 October 2026
+- Restructured submission-window detail cards; moved Archive into the window action footer with solid red styling. Replaced history open/close buttons with an expandable card, shortened audit metadata and removed CREATE deadline repetition. TypeScript and focused browser checks passed at 1440, 1280, 390 and 320px (8 detail scenarios; 4 table layout scenarios). Broader suite: 29 desktop scenarios passed; the previously known late Marks save/navigation scenario still fails at the unsaved-changes guard. Component recovered from recorded edits after a Windows encoding write error; existing draft/linking guards verified by the broader suite.
+
+### Submission schedule and readable history revision - 31 October 2026
+- Redesigned the submission schedule with consistent single-line date/time values, explicit timezone, stronger label/value hierarchy and one lifecycle badge. Replaced the raw nested history presentation with shared appointment disclosure and divided audit rows; removed unchanged timestamp arrows and empty extra-time hints. Focused history rendering checks and 8 detail browser scenarios across desktop/mobile passed; existing table layout checks passed. Desktop and mobile screenshots inspected.
+
+
+### Linked calendar schedule warning — 31 October 2026
+Updated linked schedule editing with an amber warning, warning icon, explicit save consequence and linked event names above the inputs. Replaced repeated low-emphasis hints. Focused history unit checks and eight browser scenarios passed at 1440, 1280, 390 and 320px, including linked edit warning placement, shared icon styling and modal overflow checks.
+
+
+### Compact linked calendar notice - 31 October 2026
+Reduced the linked calendar notice to a compact blue information strip, preserving event names and save consequences. Eight focused browser scenarios passed at desktop and mobile widths, including notice placement and modal overflow.
+
+
+### Window table status clarity - 31 October 2026
+Simplified submission-window table status to one badge, shared with Marks evaluation windows. Lifecycle precedence and all six status cases passed unit checks. Appointment and Marks table status/layout passed browser checks at 1440, 1280, 390 and 320px.
+
+
+### Window status spacing - 31 October 2026
+Shifted window table Status left by reallocating two percentage points from Closes to Status; layout checks passed at 1440, 1280, 390 and 320px.
+
+
+### Date restriction review layout and discard - 31 October 2026
+Restructured restriction review into spaced window summaries, grouped programme coverage, separate opening/closing values and shared timezone. Widened this review to 768px; aligned acknowledgement. Replaced inline decision discard with shared confirmation modal. TypeScript, eight focused desktop/mobile review scenarios and 63 shared decision/exit scenarios passed. Updated related fixture selectors for the separate modal. All 21 shared dialog dismissal/responsive scenarios and the focused period rendering checks passed.
+
+
+### Submission access labels - 31 October 2026
+Implemented meaningful appointment submission-access labels and wider column. Six label mapping checks and desktop/mobile table layout checks passed.
+
+### Submission availability notice and action fixes - 31 October 2026
+- Replaced the crowded yellow heading notice with a full-width neutral notice below the student page heading. New application is disabled while checking or when intake is blocked; retry actions use the same guard.
+- Supervisor/Panel final submission now waits for availability reads. Draft preparation remains supported; server-side submission checks are unchanged.
+- Marks uses the shared notice for scheduled/closed/read-only tasks and active extra time; write handlers also enforce task permissions.
+- Validation: 10 availability unit cases and Student application rendering checks passed; 5 mounted availability scenarios passed at four viewport widths (20 checks), and 51 existing Panel nomination scenarios passed. Desktop/mobile notice screenshots inspected. Final TypeScript check and the five mounted availability scenarios passed after the last guard changes. Backend operational/completion-window regression checks passed in an isolated in-memory database: 47 discovered, 46 passed, one skipped. No live UAT data was changed.
+
+### Dashboard timeline preview cleanup - 1 November 2026
+- Removed Published and Dates enforced from dashboard event previews; unrestricted links show no submission message. Restricted windows show one meaningful schedule status.
+- Increased popup width and separated the title, date panel, metadata and description; expanded P1/P2 to Research Project 1/2 and renamed Action to Responsible parties.
+- Validation: 13 linked-status rendering tests passed. Responsive modal checks passed at 1440, 1280, 390 and 320px; TypeScript passed. Desktop and mobile screenshots inspected.
+
+### Office attention empty preview - 1 November 2026
+- Replaced the large inbox empty state with an inline check and No items need attention. Removed the unrelated hint and empty footer; populated preview links remain.
+- Focused error/empty-state and populated navigation checks passed at 1440, 1280, 390 and 320px (eight scenario runs). The broader Office dashboard suite currently fails three other checks: Marks period anchor, obsolete Create appointment period button expectation and informational extension expectation. These are outside this card change. TypeScript passed; the rendered empty preview was visually inspected.
+
+## Local test portal restart (1 November 2026)
+
+Started the existing isolated UAT portal on port 3003 and backend on port 8003 using scripts/prepare_five_module_uat.py --start. Verified HTTP 200 for login, direct backend health and proxied API health. Current accounts and test records were preserved; no database reset, requirements, design or configuration changes were made.
+
+Latest requested restart: stopped only the verified UAT frontend/backend processes and restarted both on ports 3003/8003. Fresh login, direct health and proxied health checks returned HTTP 200. Existing test accounts and records were preserved; no requirements, architecture or configuration updates were needed.
+
+### Compact application availability - 1 November 2026
+- Replaced the separate student Supervisor availability banner with a compact note under New application and an accessible refresh icon. Opening timestamps use MYT with the full timezone in the time tooltip. Validation: 11 availability rendering tests, 20 responsive scenario runs at 1440/1280/390/320px and TypeScript passed. Desktop/mobile screenshots inspected; blocked/recheck permissions preserved.
+
+### Supervisor application availability modal - 1 November 2026
+- Implemented Supervisor launch availability modal and inline status; removed the permanent date note and refresh icon from the header. Covered blocked/open launches, double click, close/focus restoration, opening after modal recheck and failed-check retry. Validation: all 20 responsive scenario runs at 1440/1280/390/320px passed; 10 existing availability rendering tests and TypeScript passed. Desktop/mobile modal screenshots inspected, and focused diff whitespace checks passed. No live test data was changed.
+
+### Supervisor availability presentation refinement - 1 November 2026
+- Removed Not open yet beside New application and redesigned the availability modal with a calmer unified layout, separate date/time hierarchy and secondary refresh action. Validation: 20 responsive scenario runs at 1440/1280/390/320px, 10 availability rendering tests and TypeScript passed. Desktop/mobile screenshots inspected; launch, retry, duplicate-click and focus-return checks remain passing.
+
+### Supervisor application progress and draft controls - 1 November 2026
+- Removed the routine Applications open notice from the application editor. Stretched the desktop progress markers to align with both card edges and centered intermediate labels while retaining the compact mobile display.
+- Moved Draft details/Save draft into the step-heading row. Moved the restore/resume reminder into Draft details with an accessible live announcement; save/discard errors remain visible. Anchored the disclosure to its controls container after the phone regression caught the old horizontal offset overflowing.
+- Validation: application clarity rendering check, all 10 shared availability tests, TypeScript, and all 32 wizard scenarios at 1440/390/320px (96 scenario executions) passed. Final geometry checks at 1440/768/640/390px confirmed no open badge or horizontal overflow and full-width desktop markers with nonoverlapping labels. Desktop and phone screenshots were visually inspected. Focused whitespace checks passed. Existing unrelated workspace changes and live test records were preserved; no backend behavior, commit or push changed.
+
+### Concise draft details - 1 November 2026
+Simplified Draft details copy and removed repeated restoration/saved-state paragraphs and the timestamp inset. Existing resume/discard controls and confirmations are retained.
+
+Added concise automatic-reopen and Save draft guidance above the file reminder. Verified the exact text order; no behavior changes.
+
+### Single required project course code - 1 November 2026
+- Implemented one required project course code input without Add/Remove actions. Added frontend and API validation tests, updated wizard restore expectations and submission fixtures for the new required field. Validation: frontend rendering/validation tests, 96 mounted wizard scenario runs at 1440/390/320px and TypeScript passed. Core API/approval suite: 38 passed. Broader isolated SQLite run: 160 tests, 156 passed, 3 skipped, and one PostgreSQL-only concurrency test errored on SET lock_timeout; no tests or checks were disabled. Existing draft saving and stored multi-code rendering remain covered.
+- Reloaded only the local UAT backend to activate required-field API validation. Backend/proxied health and the application page returned HTTP 200; existing accounts and records were preserved.
+
+
+### Document requirement controls — 1 November 2026
+- Enlarged Active / Inactive / All control and changed Add/Edit requirement to the shared modal with rounded rectangle close control. Kept existing fields, validation, API writes and discard protection.
+- Verified mounted browser suite: 28 scenarios at desktop and mobile widths, 56 passes. Includes modal opening/closing, focus restoration, X/Escape discard protection, status filtering, successful save, refresh failure and duplicate submit protection.
+- TypeScript and focused diff whitespace checks passed.
+
+
+### Title-origin document decoupling — 1 November 2026
+- Removed student-origin-only proposal requirement across UI and API. Verified both origins follow configured optional/required document rules and missing general setup still blocks submissions.
+- Passed 38 isolated backend Section A/document tests, 10 frontend section/document checks, 99 wizard scenarios across 1440/390/320px, TypeScript, and focused diff whitespace checks.
+- Inspected Office Needs attention: no document setup reminder currently exists. Recommended follow-up: Office-only missing-requirements action linking directly to configuration, hidden after active setup. Not added in this phase.
+
+
+### Office document setup reminder — 1 November 2026
+- Completed the previously recommended follow-up: Office Needs attention now links directly to document requirement setup while no active requirement exists. Deactivating the last active item restores the reminder.
+- Passed all 10 Office attention backend tests on an isolated PostgreSQL test database, 3 frontend routing checks, 12 desktop/mobile browser scenarios (1440/1280/390/320px), TypeScript and focused diff whitespace checks. SQLite initially could not execute an existing JSON contains query in the broader persisted-data test; the complete suite passed on PostgreSQL.
+- Reloaded the local UAT backend; health returned HTTP 200 and a read-only check confirmed the reminder is present for the current unconfigured UAT setup.
+
+
+### Document setup attention row clarity — 1 November 2026
+- Removed repeated record title and Faculty-wide metadata from the document setup row. Replaced the red Blocking issue label with amber Setup required and a clear No active document requirements reason.
+- Verification passed: 12 browser scenarios across desktop/mobile widths, TypeScript and focused diff whitespace checks.
+
+
+### Explicit no-documents configuration — 1 November 2026
+- Added Office document setup control and shared reason modal, audited mutually exclusive no-documents/checklist policies, student guidance and form support, and matching Office attention behavior.
+- Verified 54 PostgreSQL backend tests (documents, Section A and Office attention), 102 responsive wizard scenarios, 58 mounted Office/feedback scenarios and document utility assertions. Eight focused frontend checks, TypeScript and migration consistency checks also pass.
+- Applied migration 0021 to local UAT (including its pending 0020 status-choice dependency), restarted backend 8003, and verified backend health plus frontend 3003 return HTTP 200. Existing requirements/submissions and the actual Office policy remain unchanged until Office explicitly saves its choice. No commit or push performed.
+
+
+### Document requirement textarea padding — 1 November 2026
+- Added the existing form-control-md spacing to the document setup reason, requirement-edit reason and guidance textareas. The base form-control class has no padding; using the shared size class supplies consistent horizontal and vertical inset.
+- Checked all three textareas use the shared padding class and the scoped diff has no whitespace errors. Requirements and architecture were reviewed; neither needs changing for this presentation fix.
+
+
+### Unified document policy and checklist — 1 November 2026
+- Combined document policy and checklist in one card, moved Add requirement into its header, and replaced the separate setup action with Change and an explicit policy-choice modal. No-documents mode uses a compact empty state while preserving inactive items.
+- Configuration history is collapsed by default, with 10 entries per page instead of truncating to the latest 12. Existing Office-only access, required reasons, active-item guards and unsaved-change protection remain.
+- Verification passed: 31 mounted scenarios at desktop and mobile widths (62 checks), including policy save/discard, active-item safeguards and pagination through 23 audit records; TypeScript and scoped whitespace checks passed. No live policy changes, commit or push.
+
+
+### Document requirements simplified hierarchy — 1 November 2026
+- Removed duplicate headings and shaded policy bands. Kept a single workspace title and Add requirement action, compact policy summary with Change policy, and a single tab divider. Added counted underline tabs and distinct first-use/filter-empty messages.
+- Mounted browser verification passed 32 scenarios at desktop/mobile widths (64 checks), covering keyboard tab navigation, policy guards, discard behavior and history pagination. TypeScript and scoped whitespace checks passed. No live policy changes, commit or push.
+
+
+### Document policy action clarity — 1 November 2026
+- Replaced inline Setup incomplete wording with actionable guidance beneath Document checklist. Change document policy now uses the shared outlined button, spaced to the right on desktop and below the text on mobile.
+- Requirements and architecture reviewed; policy rules and component patterns are unchanged. Verified 32 mounted scenarios at desktop/mobile widths (64 checks); scoped whitespace checks passed.
+
+
+### Document settings button — 1 November 2026
+- Restyled the policy action with the shared dark primary button, Settings2 icon and shorter Document settings label. Existing policy modal and layout remain. Requirements and architecture reviewed; no rule or structural changes.
+- Verification: 64 mounted desktop/mobile checks passed; scoped whitespace check passed.
+
+
+### Document actions alignment — 1 November 2026
+- Moved Document settings and Add requirement into one wrapping header action group with consistent spacing, removing their stacked right-edge placement. Both actions are blocked during initial loading or a failed read. Requirements and architecture reviewed; no policy or structural changes.
+- Verification: 64 mounted browser checks passed; scoped whitespace check passed.
+
+
+### Selected supervisor summary — 1 November 2026
+- Moved remaining capacity into a separated footer alongside an outlined Clear selection button with an X icon. Replaced the dense workload/approval/limit string with an active-supervisee count; held places appear only when nonzero. Capacity calculation and server enforcement are unchanged. Panel nomination presentation is unchanged.
+- Requirements and architecture reviewed; this is a focused presentation adjustment. Verification: application clarity checks and all three shared capacity tests passed; the production-CSS desktop candidate/selection browser scenario passed. The broader browser suite remains blocked by a separate New application recovery navigation assertion, so no full-suite pass is claimed. Scoped whitespace checks passed.
+
+### Latest main integration and sandbox restart - 1 November 2026
+- Fetched origin/main at 358df9e and merged it into codex/portal-consistency-and-toast as dc4b832. Preserved tracked/untracked local work with a named stash, restored it, and retained the stash as a recovery copy. Resolved AppointmentLetterPage by keeping upstream return navigation plus local DecisionFeedback and duplicate-download guard. Restored local changes to an unstaged state; nothing was pushed.
+- Backed up the isolated UAT database privately before applying seven pending upstream Documents/FAQ/Letters migrations. No database reset was performed. Restarted only verified UAT port owners on 3003/8003; login and direct/proxied health all returned HTTP 200.
+- TypeScript, production build, Django system checks and browserTab.test.ts passed. Existing ExcelJS chunk advisory remains. appointmentLetters.test.ts failed on a source-text regular expression expecting LF while the Python file uses CRLF; this is not claimed as passed. No full-suite claim. Reviewed the mandatory requirements/design files; this integration adds no new local product requirement or architectural choice beyond upstream code and the documented conflict reconciliation.
+
+
+### Request review capacity clarity — 1 November 2026
+- Replaced the four-count capacity string in the shared Supervisor request review sidebar with a plain available-place sentence. Nonzero held places get a separate explanation; active/limit counts and zero reservations are omitted. Shared Office, Coordinator and Lecturer request consumers inherit the presentation; permissions and acceptance checks are unchanged.
+- Requirements and architecture reviewed; no business rule or component architecture changes. All 16 Supervisor capacity regression tests and scoped whitespace checks passed, including full-capacity acceptance guards, restricted policy states and omission of zero reservations.
+
+
+### Remove review capacity summary — 1 November 2026
+- Removed the capacity summary entirely from the shared Supervisor request Review and outcome card at user request. Role-specific acceptance guards and capacity warnings remain unchanged. Requirements and architecture reviewed; no business rule changes.
+- Verification: all 15 Supervisor capacity regression tests passed; scoped whitespace checks passed.
+
+
+### Appointment workload card spacing — 1 November 2026
+- Replaced dense dot-separated workload/semester strings in Supervisor and Panel request summary cards with spaced count grids and a separate semester/plan footer. Zero held places are omitted. Requirements reviewed; no business rule changes. Verification pending.
+
+
+### Compact workload cards correction — 1 November 2026
+- Removed the extra count grid and semester/plan footer that increased summary-row height. Supervisor requests, Panel requests and My Panel students now share one short capacity sentence beneath the existing progress bar. No additional rows, statistics or divider. Requirements reviewed; capacity rules unchanged. All 21 focused Supervisor/Panel capacity and summary tests passed; scoped whitespace checks passed. The prior TypeScript run passed before this final compact-layout adjustment.
+
+### Explain compact workload totals — 1 November 2026
+- Updated all three workload cards to show active appointments and nonzero awaiting-approval counts, e.g. “1 active · 1 awaiting approval”, without adding card rows. Requirements reviewed; capacity rules unchanged. All 21 focused regression tests passed.
+
+Removed the requested introductory category/count explanations from both Office appointment attention pages. Verified both exact paragraphs are absent; no behavior changes.
+
+### Consistent application required markers — 1 November 2026
+- Checked frontend step validation against API serializers, Research Intent and Section A contracts. Standardised required form labels to an accessible asterisk, added a single legend, preserved optional document labels and Office document rules. All nine Research Intent fields remain required; course rows are conditional on declaring completed courses. No validation rules changed.
+- Verification: all 19 focused application rendering and validation tests passed; scoped whitespace checks passed. PROJECT_REQUIREMENTS.md reviewed; no business-rule changes.
+
+### Lecturer dashboard compact capacity summaries — 1 November 2026
+- Applied the same active / awaiting-approval supporting line to both Lecturer dashboard capacity cards using AppointmentWorkloadDetails. Removed semester/plan footer metadata. No changes to counts or capacity policy. Requirements reviewed.
+- Verification: Lecturer dashboard checks and 18 capacity regression scenarios passed (19 test entries total); scoped whitespace checks passed.
+
+### Panel nomination selection cleanup — 1 November 2026
+- Removed the successful Recommendations open banner from the nomination form while keeping availability loading/errors and blocked feedback. Simplified selected lecturer hierarchy to name, department, staff number, concise active count and a spaced footer with capacity badge / Clear selection. Removed plan metadata and repetitive reservation hint. Requirements reviewed; nomination eligibility and submission guards unchanged.
+- Verification: nomination workflow, submission contracts and Panel capacity tests passed from the frontend working directory (5 test entries); component import and scoped whitespace checks passed.
+
+### Panel candidate selected indicator — 1 November 2026
+- Added the same check icon / Selected text used by Supervisor selection beside the chosen Panel dropdown candidate’s capacity badge. Existing aria-selected and selection behaviour preserved. Requirements and architecture reviewed; no changes needed.
+
+- Removed the successful ready-to-submit sentence from Panel nomination; validation messages remain when submission is blocked and button descriptions only reference visible messages. Requirements / architecture reviewed; no rule changes.
+
+### UAT cross-department coverage — 2026-11-01
+- Replaced the shared department placeholder for 12 local UAT lecturer/Coordinator profiles with three fictional departments and updated future account seeds. Preserved existing appointments, requests and capacity limits.
+- Verified four bootstrap tests and authenticated read-only Supervisor/Panel candidate probes: all three departments represented; UAT Outsider selectable in both. No end-to-end cross-department approval was submitted.
+
+### Co-supervisor nomination modal — 2026-11-01
+- Replaced the inline nomination/replacement card with the shared modal across existing entry points, preserving validation, candidate reload, errors and post-submit team refresh.
+- Verified 30 mounted browser scenarios (10 at each of 1440/390/320px), including accessible modal title/focus, clean Close, dirty Escape, Keep editing, discard and busy protection; three focused component/API test files, TypeScript (`tsc --noEmit`) and scoped whitespace checks passed.
+
+- Co-supervisor modal cleanup: hide the current primary supervisor from candidate options and remove the review/slot explanatory sentence. Shared nomination/replacement flow and server eligibility checks remain intact.
+
+### Co-supervisor picker refinement — 2026-11-01
+- Replaced dense candidate strings with the shared searchable picker, lecturer metadata, capacity badges and a selected checkmark; no duplicate selected card. Added justification padding. Candidate metadata supplied by the existing authenticated API; eligibility unchanged.
+- Extended browser coverage for department/staff search, empty results and keyboard selection. Focused backend candidate metadata/availability regression passed. Restarted only the local UAT backend to load metadata.
+
+### Co-supervisor single-field picker correction — 2026-11-01
+- Replaced the select trigger plus nested search with one editable combobox and attached candidate list, matching Panel nomination. Selected name, checkmark, capacity badges and padded justification retained. Removed the now-unused SelectMenu extensions from the preceding iteration.
+- All 30 mounted browser scenarios passed, including an explicit single-search-field assertion, department/staff search and keyboard selection.
+
+
+### Pending co-supervisor nomination guard — 2026-11-01
+Implemented sequential pending co-supervisor nominations and replaced the inline pending dossier with a View nomination request link. Added API regression coverage for both pending stages and resuming after approval, plus shared-detail rendering coverage. Verification results recorded below.
+
+Verification: all 16 co-supervision API tests passed; shared team/detail route rendering checks, TypeScript and 30 mounted browser scenarios passed. Restarted the isolated UAT backend and verified its health endpoint.
+
+Pending co-supervisor summary action: align View nomination request to the right using a wrapping flex row; workflow rules remain unchanged (2026-11-01).
+
+
+### Integrated pending team members — 2026-11-01
+Pending co-supervisor requests appear directly under Supporting supervisors, without a separate Pending nominations heading or a contradictory unassigned message. Panel summaries similarly show the proposed member and review-stage badge while pending, and avoid duplicate empty-state sentences. Pending Panel names are projected only when the actor may view that recommendation. Existing active members remain visible during replacement.
+
+Validation: shared team, Panel-summary and route rendering checks passed, including pending/empty/replacement states. TypeScript and the focused API privacy/workflow regression passed.
+
+
+### Unified request tables — 2026-11-02
+Implemented unified request tables across Lecturer, Student, Coordinator and Office research/request contexts, retaining role-specific actions and filters. Removed redundant per-stage headings and repeated table headers. Final history omits waiting time and uses Outcome. Existing appointment rosters and Panel personal review history retain their distinct semantics. Validation passed: Lecturer appointment requests, Student applications, Coordinator approvals/efficiency/research paging, Office workspace, research amendments, shared role hierarchy, Lecturer consistency and Panel workspace/flat-browse regression suites; TypeScript and production build. Build retains its large-chunk advisory.
+
+### Supporting supervision detail cleanup — 2026-11-02
+- Added a primary/supporting divider and distinct supporting appointment action footer.
+- Replaced embedded completed nomination request dossiers with compact outcome/date summaries and View nomination request links.
+- Separated supporting appointment history from primary appointment changes; suppressed duplicate activation-only audit entries on active member details while preserving later changes.
+- Validation: supervisory team rendering, routed supervision and Panel summary suites plus TypeScript checked for this change.
+
+- 2026-11-02: Moved Supporting appointment history below Appointment record in the shared detail sidebar and styled its request links in navy/white. Verified focused rendering suites and TypeScript.
+
+- 2026-11-02: Removed the Supporting appointment history card from shared supervision details at user request, superseding its sidebar placement. Current team and appointment record retained.
+
+- 2026-11-02: Removed dense active/reserved/available/limit text from shared Panel request review sidebars. Retained acceptance guards, rejection access and blocked-capacity feedback. Focused Panel capacity and layout checks run.
+
+- 2026-11-02: Aligned pending request, Panel recommendation, supporting supervision and Accept/Reject action casing with the standard uppercase button style. No workflow or permission changes.
+
+- 2026-11-02: Removed remaining review-action typography and nomination sizing overrides. Shared PortalButton now supplies the standard 11px medium-size label, extrabold weight, spacing and rounded shape.
+
+- 2026-11-02: Hidden ineligible co-supervisor picker options and aligned visible replacement buttons. Added an ineligible active-supporting candidate to the mounted picker regression fixture.
+
+- 2026-11-02: Added the missing primary/supporting divider on Panel assignment details and matched the Student supervisor overview. Checked related team rendering paths; supervision details already had the divider.
+
+- 2026-11-02: Removed the Nomination history card from Panel student details following user approval. Preserved current appointment, pending request and separate nomination records/history access.
+
+
+### 2026-11-02 — Rubric family creation modal
+
+Moved rubric-family creation to the page-header action and shared modal; removed the empty-state duplicate action. Verified 23 mounted scenarios at 1440px, 390px and 320px (69 scenario runs), covering empty-state creation, cancellation/discard, successful creation and existing draft/recovery behaviour.
+
+
+### 2026-11-02 — Rubric input contrast
+
+Corrected pale rubric form values with explicit slate-800 text and restored marks module typography inside the creation modal. No validation or workflow changes.
+
+
+### 2026-11-02 — Assessment component workspace
+
+Completed rubric assessment workspace redesign: compact selected-version summary, full-width component table with increased padding, one readiness indicator, and shared add/edit modals. Adapted regression scenarios to the modal workflow: 27 scenarios passed at 1440px, 390px and 320px (81 runs). TypeScript and production build passed; styled desktop and 390px screenshots reviewed using isolated mock data. Existing Vite large-chunk advisory remains unchanged.
+
+
+### 2026-11-02 — Rubric hierarchy and row actions
+Rubric presentation follow-up: consolidated identity/selector, aligned marks/readiness, enlarged component table typography, and replaced mismatched icon-only controls with matching labelled row actions. Verified: 27 rubric browser scenarios at 1440px, 390px and 320px (81 runs); TypeScript and production build passed. Styled desktop and phone mock-fixture screenshots reviewed. Existing large ExcelJS chunk advisory remains.
+
+
+### 2026-11-02 — Rubric placement and column widths
+Adjusted rubric selector/action placement and component column widths in response to screenshot review. All 81 rubric browser scenario runs and the production build passed; styled desktop and phone fixture screenshots reviewed.
+
+### Rubric family entrance and archive — 2026-11-02
+- Implemented family table, separate detail workspace without the combined picker, period usage disclosure, version history, and family archive/restore with confirmation. Search, Status dropdown and 10-row pagination replace the proposed switch tabs.
+- Preserved modal validation, dirty-draft protection, conflict recovery and existing evaluation references. Added Office authorization and archive preservation tests plus mounted entrance/archive scenarios at desktop and phone widths.
+- UAT marks migration 0012 applied and backend on port 8003 restarted; health endpoint returned OK. No live rubric family was archived during testing.
+- Verification: 16 backend configuration tests and 90 mounted browser scenario runs passed; TypeScript and production build passed. Final layout review and scoped checks recorded after polish below.
+
+- Final review: desktop/phone family and detail layouts inspected; table headers match component typography, list filters survive detail navigation, and existing archived rubric assignments remain visible in period editing. Final rubric regression suite: 33 scenarios at three widths (99 runs); evaluation-period draft browser suite also passed. Backend configuration suite: 16 tests. TypeScript, production build, migration drift check and scoped diff check passed. Existing ExcelJS bundle-size advisory remains unrelated.
+
+### Rubric version clarity — 2026-11-02
+Rubric version controls simplified: removed duplicate version subtitle/target, aligned Version and Current badge, exposed NEW VERSION for editable versions and fixed singular version-history wording. Added confirmation/cancel regression coverage.
+Validation: 102 mounted browser scenario runs and TypeScript passed for the version-clarity update.
+
+### Rubric action spacing — 2026-11-02
+Separated the crowded rubric action row into page-header, summary-header and footer actions.
+
+Applied requested placement: Archive beside Edit details, New version in page header.
+
+
+### Mark Entry Periods entrance — 2026-11-02
+Updated only the Mark Entry Periods entrance to match Rubric families; removed Manage semesters and duplicate empty-state creation action. Deeper editor remains unchanged. Validation results recorded below.
+Validation: 57 mounted browser scenario runs (19 scenarios at three widths), TypeScript and production build passed. Search, pagination, archived visibility and return-to-list state verified. Existing ExcelJS bundle-size advisory remains.
+
+
+### Period editor spacing and navigation — 2026-11-02
+Improved period-editor section spacing and dropdown consistency; removed card-level Back to period list and editor New period actions. Existing closed-period Archive uses danger styling. Regression verification follows.
+Validation: 57 browser scenario runs, TypeScript, production build and scoped diff checks passed. Existing ExcelJS bundle advisory remains unrelated.
+
+
+### Period preview and history — 2026-11-02
+Moved recipient preview to a modal and configuration history to a separate collapsible card. Verified preview opens/closes without writes; existing period workflow regressions remain covered.
+
+
+### Rubric total feedback — 2026-11-02
+Corrected rubric total badge: over-target totals use a red Over target badge, below-target totals say Below target, and empty component lists say Not configured.
+
+
+### Rubric reactivation and code case — 2026-11-02
+Added explicit Reactivate action on inactive editable components and preserved case for newly created family codes. Existing lowercase codes were not rewritten.
+
+### Period configuration layout refinement — 2026-11-02
+Refined period configuration: removed repeated targeting summary, consolidated preview and write actions into one footer, increased history card separation and redesigned history rows. TypeScript, 57 mounted browser scenario runs at three widths, and scoped diff whitespace checks passed.
+
+### Scalable recipient preview — 2026-11-02
+Redesigned and widened recipient preview; added bounded rows, search, role filter, summary totals and optional explanations. TypeScript, rendering checks and 60 mounted browser scenario runs passed, including a 125-recipient pagination/search/role-filter scenario at three widths.
+
+### Recipient preview pagination visibility — 2026-11-02
+Removed redundant single-page recipient preview navigation. TypeScript and 60 mounted browser scenario runs passed, including hiding controls after filtering down to one page.
+
+### Period publication confirmation clarity — 2026-11-02
+Tidied period publication confirmation with labelled scope, separated estimate, correct count grammar and neutral publishing styling. TypeScript, 60 mounted browser scenario runs and scoped whitespace checks passed.
+
+### Period closure workflow and reuse review — 2026-11-02
+Moved early closure to an on-demand modal and removed the deadline shortcut. Inspected publication: differently named periods may reuse the same rubric and role and produce separate tasks. TypeScript, deadline entry-point checks, 63 mounted browser scenario runs and scoped whitespace checks passed.
+
+### Published period footer navigation — 2026-11-02
+Added Manage periods & deadlines to the left of Close period early in the published-period footer. TypeScript and scoped whitespace checks passed.
+
+
+### Marks overview and period monitoring — 2026-11-02
+Implemented semester-wide marks summary and period comparison table; removed duplicate recent-record/activity/follow-up panels. Added scoped record navigation and API period identifiers. Verified: TypeScript and production build passed; 12 mounted scope/pagination/navigation scenarios plus 15 responsive UI scenarios passed at 1440/390/320px. Three backend tests passed using an isolated in-memory SQLite test database. Reviewed the rendered desktop screenshot.
+
+Marks overview semester context (2026-11-02): Show the selected academic semester's start/end dates beneath its selector, with 24px separation before summary cards. Dates use the existing academic semester API and Malaysia date formatter; unavailable date metadata does not block marks content.
+
+
+2026-11-02: Increased submission monitoring table headers to 14px for readability; presentation-only change. Requirements and architecture unchanged.
+
+2026-11-02: Mark records redesigned into six columns, larger headers and consistent row spacing, combined mark/status, secondary student link and primary View marks action. Existing filters and pagination retained. Requirements/design reviewed: presentation only.
+
+- Mark records readability correction: separate student identity and research columns, remove initials avatar and redundant semester/count hints, use stable column widths and consistent row spacing. Filters and record access remain available; presentation-only change, requirements and architecture reviewed unchanged.
+
+- Mark records follow-up: removed the redundant semester column (semester filter retained); grouped View marks and accessible student-record icon in one horizontal action group. Wider research/evaluator columns replace the displaced student link. No business-rule or architecture changes.
+
+- Mark records pagination: concise record count and labelled Previous / Page X of Y / Next controls replace the loaded-record sentence and numbered squares. Presentation-only; requirements and architecture unchanged.
+
+- Mark records polish: left-aligned action heading/button, removed student-record action as requested, and matched evaluator/deadline primary (14px) and secondary (12px) text. Requirements/architecture reviewed; no business-rule changes.
+
+- Mark records column spacing: Student 20%, Research title 29%, Action 12%; shifts actions right and reallocates unused action space to reading columns. CSS only; requirements and architecture unchanged.
+
+- Period archive now collects the required reason in a shared modal with Cancel and red Archive period controls instead of an inline form. Existing transition validation retained. Requirements and architecture unchanged.
+
+
+### Evaluation task workspace — 2026-11-02
+Evaluation task workspace simplified: concise eligible-period picker, Generate evaluation tasks wording, stronger metadata contrast, no Selected period caption, quiet empty state, and separate recent-actions card. Validation: TypeScript passed; mounted generation regressions passed all 27 scenarios across 1440px, 390px and 320px; focused diff whitespace check passed. Browser regressions cover behaviour, not visual screenshot review.
+
+Evaluation task period details follow-up: removed redundant generation guidance for ready periods and standalone semester caption. Metadata uses small bold labels and small regular-weight values. Requirements and architecture unchanged.
+
+Removed the Evaluation Task Assignment header Manage deadlines button as requested.
