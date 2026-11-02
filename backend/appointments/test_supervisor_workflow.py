@@ -145,6 +145,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "proposedSupervisorId": (
                     supervisor or self.supervisor_user
                 ).lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Configurable postgraduate workflow",
                 "researchArea": "Human-Centred Artificial Intelligence",
                 "researchAbstract": "A sufficiently detailed research abstract.",
@@ -242,6 +243,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Missing research area",
                 "researchAbstract": "The application should fail before persistence.",
                 "researchIntent": valid_research_intent_json(),
@@ -313,6 +315,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Capacity guarded workflow",
                 "researchArea": "Software Engineering",
                 "researchAbstract": "A direct identifier must not bypass capacity.",
@@ -455,6 +458,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "No active semester",
                 "researchArea": "Artificial Intelligence",
                 "researchAbstract": "This request must not be accepted.",
@@ -703,6 +707,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.other_supervisor.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Second active request",
                 "researchArea": "Artificial Intelligence",
                 "researchAbstract": "This must be rejected while another request is active.",

@@ -393,6 +393,16 @@ class SupervisorApplicationDocument(models.Model):
         raise ValidationError("Submitted supervisor application documents are immutable.")
 
 
+class SupervisorDocumentSetup(models.Model):
+    """Explicit faculty-wide choice; an absent row remains unconfigured."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    no_documents_required = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(id=1), name="supervisor_document_setup_singleton")]
+
+
 class SupervisorDocumentRequirement(models.Model):
     """Office-configurable checklist item for supervisor applications."""
 
@@ -421,11 +431,13 @@ class SupervisorDocumentRequirementAudit(models.Model):
     class Action(models.TextChoices):
         CREATE = "CREATE", "Create"
         UPDATE = "UPDATE", "Update"
+        SETUP = "SETUP", "Document setup"
 
     requirement = models.ForeignKey(
         SupervisorDocumentRequirement,
         on_delete=models.PROTECT,
         related_name="audits",
+        null=True, blank=True,
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,

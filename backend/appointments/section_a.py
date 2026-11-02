@@ -4,7 +4,6 @@ import json
 
 from django.utils import timezone
 from rest_framework import serializers
-from rest_framework.exceptions import APIException
 
 from accounts.models import StudentRegistry, User
 
@@ -16,11 +15,6 @@ DECLARATION_TEXT = (
     "to the best of my knowledge."
 )
 COURSE_FIELD_LIMITS = {"courseName": 255, "courseCode": 64, "semesterSession": 64, "grade": 32}
-
-
-class ProposalRequirementUnavailable(APIException):
-    status_code = 409
-    default_code = "proposal_requirement_unavailable"
 
 
 def proposal_requirement():
@@ -87,19 +81,6 @@ class SectionAField(serializers.Field):
                 values[key] = value.strip()
             cleaned.append(values)
         return {**data, "courseResults": cleaned}
-
-
-def validate_section_a_proposal(section, documents):
-    """Run after normal private-document validation; optional proposals become conditional."""
-    if section is None or section["titleOrigin"] != "STUDENT":
-        return
-    requirement = proposal_requirement()
-    if requirement is None:
-        raise ProposalRequirementUnavailable({
-            "sectionA": "An active research-proposal document requirement must be configured for student-proposed titles."
-        })
-    if not any(document.requirement.pk == requirement.pk for document in documents):
-        raise serializers.ValidationError({"sectionA": "A research proposal is required for a student-proposed title."})
 
 
 def capture_section_a(section, *, student, semester, actor):

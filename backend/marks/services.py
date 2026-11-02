@@ -3,11 +3,11 @@ import json
 
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from django.core.validators import validate_slug
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
-from django.utils.text import slugify
 
 from academics.models import AcademicSemester
 from accounts.models import Lecturer, Student
@@ -84,6 +84,7 @@ def _rubric_snapshot(rubric):
         "targetMark": f"{rubric.target_mark:.2f}",
         "componentTotal": f"{rubric.component_total:.2f}",
         "isActive": rubric.is_active,
+        "isArchived": rubric.is_archived,
         "components": [
             {
                 "id": component.pk,
@@ -146,7 +147,10 @@ def _configuration_audit(
 @transaction.atomic
 def clone_rubric_version(*, rubric, actor):
     _assert_office_admin(actor)
-    rubric = Rubric.objects.select_for_update().get(pk=rubric.pk)
+    family = list(Rubric.objects.select_for_update().filter(family_code=rubric.family_code).order_by("pk"))
+    rubric = next(version for version in family if version.pk == rubric.pk)
+    if rubric.is_archived:
+        raise ValidationError("Restore this rubric family before creating a new version.")
     source_snapshot = _rubric_snapshot(rubric)
     latest_version = (
         Rubric.objects.filter(family_code=rubric.family_code)
@@ -200,10 +204,11 @@ def clone_rubric_version(*, rubric, actor):
 @transaction.atomic
 def create_rubric(*, actor, family_code, name, description, target_mark):
     _assert_office_admin(actor)
-    family_code = slugify(family_code)[:64]
+    family_code = str(family_code).strip()[:64]
     if not family_code:
         raise ValidationError("Rubric family code is required.")
-    if Rubric.objects.filter(family_code=family_code).exists():
+    validate_slug(family_code)
+    if Rubric.objects.filter(family_code__iexact=family_code).exists():
         raise ValidationError("Rubric family code is already in use.")
     rubric = Rubric.objects.create(
         family_code=family_code,
@@ -228,6 +233,8 @@ def create_rubric(*, actor, family_code, name, description, target_mark):
 def update_rubric(*, rubric, actor, values):
     _assert_office_admin(actor)
     rubric = Rubric.objects.select_for_update().get(pk=rubric.pk)
+    if rubric.is_archived:
+        raise MarksStateConflict("Restore this rubric family before editing.")
     if rubric.is_locked:
         raise MarksStateConflict(
             "Locked rubric versions must be cloned before editing."
@@ -247,6 +254,25 @@ def update_rubric(*, rubric, actor, values):
         after_values=_rubric_snapshot(rubric),
     )
     return rubric
+
+
+@transaction.atomic
+def set_rubric_family_archived(*, rubric, actor, archived):
+    _assert_office_admin(actor)
+    versions = list(Rubric.objects.select_for_update().filter(
+        family_code=rubric.family_code).order_by("pk"))
+    for version in versions:
+        if version.is_archived == archived:
+            continue
+        before = _rubric_snapshot(version)
+        version.is_archived = archived
+        version.save(update_fields=["is_archived", "updated_at"])
+        _configuration_audit(
+            entity_type=MarksConfigurationAudit.EntityType.RUBRIC,
+            entity_id=version.pk, action="ARCHIVE" if archived else "RESTORE",
+            actor=actor, before_values=before, after_values=_rubric_snapshot(version),
+        )
+    return next(version for version in versions if version.pk == rubric.pk)
 
 
 def _validate_component_order(rubric, display_order, *, exclude_id=None):
@@ -285,6 +311,8 @@ def _validate_period_dates(academic_semester, opens_at, closes_at):
 def create_rubric_component(*, rubric, actor, values):
     _assert_office_admin(actor)
     rubric = Rubric.objects.select_for_update().get(pk=rubric.pk)
+    if rubric.is_archived:
+        raise MarksStateConflict("Restore this rubric family before editing.")
     if rubric.is_locked:
         raise MarksStateConflict(
             "Locked rubric versions must be cloned before editing."
@@ -308,12 +336,15 @@ def create_rubric_component(*, rubric, actor, values):
 @transaction.atomic
 def update_rubric_component(*, component, actor, values):
     _assert_office_admin(actor)
+    Rubric.objects.select_for_update().get(pk=component.rubric_id)
     component = (
         RubricComponent.objects.select_for_update()
         .select_related("rubric")
         .get(pk=component.pk)
     )
     rubric = component.rubric
+    if rubric.is_archived:
+        raise MarksStateConflict("Restore this rubric family before editing.")
     if rubric.is_locked:
         raise MarksStateConflict(
             "Locked rubric versions must be cloned before editing."
@@ -374,6 +405,9 @@ def create_evaluation_period(
         raise MarksStateConflict(
             "Evaluation periods can only be prepared for Draft or Active semesters."
         )
+    rubric = Rubric.objects.select_for_update().get(pk=rubric.pk)
+    if rubric.is_archived or not rubric.is_active:
+        raise MarksStateConflict("Select a current, unarchived rubric version.")
     _validate_period_dates(academic_semester, opens_at, closes_at)
     period = EvaluationPeriod(
         name=str(name).strip(),
@@ -437,6 +471,11 @@ def update_evaluation_period(*, period, actor, values, reason=""):
                 "This evaluation period is linked to a semester timeline. "
                 "Resolve its timeline links before moving it to another semester."
             )
+        if "rubric" in values and values["rubric"].pk != period.rubric_id:
+            candidate = Rubric.objects.select_for_update().get(pk=values["rubric"].pk)
+            if candidate.is_archived or not candidate.is_active:
+                raise MarksStateConflict("Select a current, unarchived rubric version.")
+            values = {**values, "rubric": candidate}
         for field in (
             "name",
             "academic_semester",

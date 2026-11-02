@@ -10,6 +10,7 @@ from django.utils.text import get_valid_filename, slugify
 
 from .models import (
     SupervisorDocumentRequirement,
+    SupervisorDocumentSetup,
     SupervisorDocumentRequirementAudit,
 )
 
@@ -63,6 +64,42 @@ def _audit_requirement(requirement, *, actor, action, reason="", before=None):
     )
 
 
+def document_setup_status():
+    no_documents = SupervisorDocumentSetup.objects.filter(pk=1, no_documents_required=True).exists()
+    return {"noDocumentsRequired": no_documents,
+            "configured": no_documents or SupervisorDocumentRequirement.objects.filter(is_active=True).exists()}
+
+
+def _lock_document_setup():
+    SupervisorDocumentSetup.objects.get_or_create(pk=1)
+    return SupervisorDocumentSetup.objects.select_for_update().get(pk=1)
+
+
+@transaction.atomic
+def set_document_setup(*, actor, no_documents_required, reason):
+    if not str(reason or "").strip():
+        raise ValidationError("A reason is required to change document setup.")
+    setup = _lock_document_setup()
+    if no_documents_required and SupervisorDocumentRequirement.objects.filter(is_active=True).exists():
+        raise ValidationError("Deactivate active checklist items before choosing no documents required.")
+    if setup.no_documents_required != no_documents_required:
+        before = {"noDocumentsRequired": setup.no_documents_required}
+        setup.no_documents_required = no_documents_required
+        setup.save(update_fields=["no_documents_required"])
+        SupervisorDocumentRequirementAudit.objects.create(
+            actor=actor, action=SupervisorDocumentRequirementAudit.Action.SETUP,
+            reason=reason.strip(), before_values=before,
+            after_values={"noDocumentsRequired": no_documents_required},
+        )
+    return document_setup_status()
+
+
+def _validate_document_mode(activating):
+    setup = _lock_document_setup()
+    if activating and setup.no_documents_required:
+        raise ValidationError("Turn off no documents required before activating a checklist item.")
+
+
 def _next_requirement_code(label):
     base = slugify(label)[:54] or "document-requirement"
     candidate = base
@@ -87,6 +124,7 @@ def _validate_active_limit(*, activating=False, excluding=None):
 
 @transaction.atomic
 def create_requirement(*, actor, values):
+    _validate_document_mode(values.get("is_active", True))
     _validate_active_limit(activating=values.get("is_active", True))
     requirement = SupervisorDocumentRequirement(
         code=_next_requirement_code(values["label"]),
@@ -111,6 +149,7 @@ def update_requirement(requirement, *, actor, values, reason):
     reason = str(reason or "").strip()
     if not reason:
         raise ValidationError("A reason is required to change a document requirement.")
+    _validate_document_mode(values.get("is_active", requirement.is_active))
     requirement = SupervisorDocumentRequirement.objects.select_for_update().get(
         pk=requirement.pk
     )
@@ -200,7 +239,7 @@ def validate_application_documents(files, requirement_codes):
     active_requirements = list(
         SupervisorDocumentRequirement.objects.filter(is_active=True)
     )
-    if not active_requirements:
+    if not active_requirements and not document_setup_status()["noDocumentsRequired"]:
         raise DocumentRequirementsNotConfigured(
             "Supervisor document requirements have not been configured."
         )

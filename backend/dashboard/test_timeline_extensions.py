@@ -63,3 +63,31 @@ class TimelineExtensionTests(APITestCase):
         self.assertEqual(notices.count(),1)
         send_deadline_reminders(now=timezone.now())
         self.assertEqual(notices.count(),1)
+
+    def test_edit_extension_is_atomic_and_requires_a_reason(self):
+        url = f'/api/dashboard/timeline/entries/{self.entry.pk}/'
+        deadline = (timezone.localdate()+timedelta(days=7)).isoformat()
+        response = self.client.patch(url, {'title':'Updated presentation','deadlineEnd':deadline}, format='json')
+        self.assertEqual(response.status_code,400)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.title,'Research presentation')
+        before = self.entry.deadline_end.isoformat()
+        response = self.client.patch(url, {'title':'Updated presentation','deadlineEnd':deadline,
+            'extensionReason':'Extra presentation sessions','expectedDeadlineEnd':before}, format='json')
+        self.assertEqual(response.status_code,200,response.data)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.title,'Updated presentation')
+        audit = TimelineAuditLog.objects.get(entry=self.entry,action='EXTEND')
+        self.assertEqual(audit.reason,'Extra presentation sessions')
+        self.assertEqual(audit.before_values['deadlineEnd'],before)
+        self.assertEqual(audit.after_values['deadlineEnd'],deadline)
+
+    def test_edit_extension_rejects_stale_and_outside_semester(self):
+        url = f'/api/dashboard/timeline/entries/{self.entry.pk}/'
+        for values in (
+            {'deadlineEnd':(timezone.localdate()+timedelta(days=7)).isoformat(),'expectedDeadlineEnd':'2000-01-01'},
+            {'deadlineEnd':(self.academic_semester.ends_on+timedelta(days=1)).isoformat()},
+        ):
+            result = self.client.patch(url, {'extensionReason':'Extra sessions',**values}, format='json')
+            self.assertEqual(result.status_code,400,result.data)
+        self.assertFalse(TimelineAuditLog.objects.filter(entry=self.entry,action='EXTEND').exists())

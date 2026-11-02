@@ -767,6 +767,9 @@ class MarkEntryWorkflowTests(APITestCase):
         response = self.client.get("/api/marks/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["periodId"], self.period.pk)
+        self.assertEqual(response.data[0]["periodName"], self.period.name)
+        self.assertEqual(response.data[0]["periodLifecycleStatus"], self.period.lifecycle_status)
         self.assertEqual(response.data[0]["studentId"], "MEA-MARK-001")
         self.assertEqual(response.data[0]["status"], "Draft")
 

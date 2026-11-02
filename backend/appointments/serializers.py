@@ -260,6 +260,8 @@ class StudentResearchProfileSerializer(serializers.ModelSerializer):
 
 
 class PanelCandidateSerializer(serializers.ModelSerializer):
+    activeLoad = serializers.SerializerMethodField()
+    reservedLoad = serializers.SerializerMethodField()
     staffId = serializers.SerializerMethodField()
     name = serializers.CharField(source="full_name")
     department = serializers.SerializerMethodField()
@@ -279,6 +281,8 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
+            "activeLoad",
+            "reservedLoad",
             "staffId",
             "name",
             "department",
@@ -302,6 +306,12 @@ class PanelCandidateSerializer(serializers.ModelSerializer):
     def get_workloadCount(self, obj):
         resolution = self._capacity(obj)
         return resolution.active_load + resolution.reserved_load
+
+    def get_activeLoad(self, obj):
+        return self._capacity(obj).active_load
+
+    def get_reservedLoad(self, obj):
+        return self._capacity(obj).reserved_load
 
     def get_staffId(self, obj):
         return staff_no_for_user(obj)
@@ -1124,13 +1134,18 @@ class SupervisorApplicationCreateSerializer(serializers.Serializer):
     researchIntent = ResearchIntentField(required=True)
     proposedSupervisorId = serializers.CharField()
     projectCourseCodes = serializers.CharField(
-        max_length=255, required=False, allow_blank=True, trim_whitespace=True, default="",
+        max_length=255, required=True, allow_blank=False, trim_whitespace=True,
     )
     researchTitle = serializers.CharField(max_length=500)
     researchArea = serializers.CharField(max_length=255, allow_blank=False)
     researchAbstract = serializers.CharField()
     replacesAppointmentId = serializers.IntegerField(required=False, allow_null=True)
     replacementReason = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_projectCourseCodes(self, value):
+        if any(separator in value for separator in (",", ";", "\r", "\n")):
+            raise serializers.ValidationError("Enter only one project course code.")
+        return value
 
     def validate(self, attrs):
         request = self.context["request"]

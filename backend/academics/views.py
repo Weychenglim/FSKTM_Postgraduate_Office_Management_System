@@ -646,15 +646,21 @@ def semester_capacity_audits_view(request, pk):
     semester = get_object_or_404(AcademicSemester, pk=pk)
     audits = (
         LecturerCapacityAudit.objects.filter(academic_semester=semester)
-        .select_related("actor")
+        .select_related("actor", "plan")
         .order_by("-created_at", "-pk")
     )
     audits = capacity_browse_filters(request, audits, "audits")
     audits, pagination = _paginate_capacity_queryset(request, audits)
-    return _capacity_page_response(
+    response = _capacity_page_response(
         [capacity_audit_payload(audit) for audit in audits],
         pagination, request,
     )
+    if isinstance(response.data, dict):
+        response.data["versions"] = list(
+            SemesterCapacityPlan.objects.filter(academic_semester=semester)
+            .order_by("-version").values_list("version", flat=True)
+        )
+    return response
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])

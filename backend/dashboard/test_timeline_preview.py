@@ -106,27 +106,18 @@ class TimelinePreviewSafetyTests(APITestCase):
         self.assertEqual(self.confirm(preview, content).status_code, 409)
         self.assertFalse(SemesterTimeline.objects.exists())
 
-    def test_explicit_period_mapping_projects_live_dates_and_blocks_direct_date_edit(self):
-        from django.core.files.uploadedfile import SimpleUploadedFile
+    def test_import_rejects_link_mapping_without_changing_existing_windows(self):
         period = self.period()
+        original_dates = (period.opens_at, period.closes_at)
         upload = workbook_upload([self.linked_row(period)], headers=fixture.REQUIRED_HEADERS + ['Activity Code', 'Period ID'])
-        content = upload.read(); upload.seek(0)
         self.client.force_authenticate(self.admin)
-        preview = self.client.post('/api/dashboard/timeline/upload/preview/',
+        response = self.client.post('/api/dashboard/timeline/upload/preview/',
             {'semesterId': self.academic_semester.pk, 'file': upload}, format='multipart')
-        self.assertEqual(preview.status_code, 200, preview.data)
-        self.assertEqual(self.confirm(preview.data, content).status_code, 201)
-        entry = SemesterTimelineEntry.objects.get()
-        self.assertEqual(entry.operational_period_id, period.pk)
-        period.closes_at += timezone.timedelta(days=1)
-        period.save(update_fields=['closes_at'])
-        response = self.client.get('/api/dashboard/timeline/active/')
-        self.assertEqual(response.data['levels'][0]['entries'][0]['deadlineEnd'], period.closes_at.astimezone(timezone.get_current_timezone()).date().isoformat())
-        response = self.client.patch(f'/api/dashboard/timeline/entries/{entry.pk}/',
-            {'deadlineEnd': (timezone.localdate(period.closes_at) + timezone.timedelta(days=1)).isoformat()}, format='json')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn('Periods & deadlines', str(response.data))
+        self.assertFalse(SemesterTimeline.objects.exists())
         period.refresh_from_db()
-        self.assertEqual(entry.operational_period_id, period.pk)
+        self.assertEqual((period.opens_at, period.closes_at), original_dates)
 
     def test_replacement_cannot_drop_link_and_equivalent_legacy_row_preserves_it(self):
         period = self.period()
@@ -239,7 +230,8 @@ class TimelinePreviewSafetyTests(APITestCase):
                     headers=fixture.REQUIRED_HEADERS + ['Activity Code', 'Period ID'])}, format='multipart')
             self.assertEqual(response.status_code, 400, response.data)
         preview, content = self.preview([row[:8]])
-        self.assertIsNone(preview['rows'][0]['operationalPeriodId'])
+        self.assertNotIn('operationalPeriodId', preview['rows'][0])
+        self.assertNotIn('marksPeriodId', preview['rows'][0])
         self.assertEqual(self.confirm(preview, content).status_code, 201)
         self.assertIsNone(SemesterTimelineEntry.objects.get().operational_period_id)
 

@@ -316,6 +316,50 @@ class MarksConfigurationApiTests(APITestCase):
         self.assertEqual(response.data["semester"], self.academic_semester.label)
         return response
 
+    def test_archive_family_preserves_used_versions_and_restores(self):
+        rubric_id = self.create_ready_rubric()
+        period = self.create_draft_period(rubric_id)
+        published = self.client.post(f"/api/marks/periods/{period.data['id']}/publish/", {}, format="json")
+        self.assertEqual(published.status_code, 200)
+        cloned = self.client.post(f"/api/marks/rubrics/{rubric_id}/clone/", {}, format="json")
+        self.assertEqual(cloned.status_code, 201)
+        archived = self.client.post(f"/api/marks/rubrics/{rubric_id}/archive/", {"archived": True}, format="json")
+        self.assertEqual(archived.status_code, 200)
+        self.assertTrue(all(Rubric.objects.values_list("is_archived", flat=True)))
+        self.assertEqual(EvaluationPeriod.objects.get(pk=period.data["id"]).rubric_id, rubric_id)
+        self.assertEqual(archived.data["usage"][0]["id"], period.data["id"])
+        self.assertEqual(Rubric.objects.get(pk=rubric_id).components.count(), 2)
+        self.assertEqual(self.client.patch(f"/api/marks/rubrics/{cloned.data['id']}/", {"name": "Changed"}, format="json").status_code, 409)
+        self.assertEqual(self.client.post(f"/api/marks/rubrics/{rubric_id}/clone/", {}, format="json").status_code, 400)
+        blocked = self.client.post("/api/marks/periods/", {
+            "name": "Blocked", "semesterId": self.academic_semester.pk,
+            "rubricId": cloned.data["id"],
+        }, format="json")
+        self.assertEqual(blocked.status_code, 409)
+        restored = self.client.post(f"/api/marks/rubrics/{rubric_id}/archive/", {"archived": False}, format="json")
+        self.assertEqual(restored.status_code, 200)
+        self.assertFalse(Rubric.objects.filter(is_archived=True).exists())
+        self.assertTrue(Rubric.objects.get(pk=cloned.data["id"]).is_active)
+        self.assertFalse(Rubric.objects.get(pk=rubric_id).is_active)
+
+    def test_archive_family_is_office_only_and_validates_input(self):
+        rubric_id = self.create_ready_rubric()
+        endpoint = f"/api/marks/rubrics/{rubric_id}/archive/"
+        self.assertEqual(self.client.post(endpoint, {"archived": "false"}, format="json").status_code, 400)
+        for user in (self.lecturer, self.coordinator, self.student):
+            self.client.force_authenticate(user)
+            self.assertEqual(self.client.post(endpoint, {"archived": True}, format="json").status_code, 403)
+        self.assertFalse(Rubric.objects.get(pk=rubric_id).is_archived)
+
+    def test_family_code_preserves_case_and_rejects_case_duplicate(self):
+        payload = {"familyCode": "CODE-Mixed01", "name": "TEST PANEL", "targetMark": "100.00"}
+        response = self.client.post("/api/marks/rubrics/", payload, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["familyCode"], "CODE-Mixed01")
+        self.assertEqual(response.data["name"], "TEST PANEL")
+        payload["familyCode"] = "code-mixed01"
+        self.assertEqual(self.client.post("/api/marks/rubrics/", payload, format="json").status_code, 400)
+
     def test_office_can_create_rubric_and_components(self):
         rubric_id = self.create_ready_rubric()
 

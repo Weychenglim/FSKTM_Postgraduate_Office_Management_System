@@ -44,27 +44,27 @@ class ApplicationCourseCodeTests(APITestCase):
         )
 
     def test_manual_codes_survive_role_views_and_existing_approval_chain(self):
-        response = self.submit(projectCourseCodes="  ABC1234, XYZ9000  ")
+        response = self.submit(projectCourseCodes="  ABC1234  ")
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data.get("projectCourseCodes"), "ABC1234, XYZ9000")
+        self.assertEqual(response.data.get("projectCourseCodes"), "ABC1234")
         application = SupervisorApplication.objects.get(pk=response.data["id"])
-        self.assertEqual(application.project_course_codes, "ABC1234, XYZ9000")
+        self.assertEqual(application.project_course_codes, "ABC1234")
         detail_url = f"/api/appointments/supervisor/applications/{application.pk}/"
         for actor in (self.student_user, self.supervisor_user, self.coordinator):
             with self.subTest(role=actor.role):
                 self.authenticate(actor)
                 detail = self.client.get(detail_url)
                 self.assertEqual(detail.status_code, 200)
-                self.assertEqual(detail.data["projectCourseCodes"], "ABC1234, XYZ9000")
+                self.assertEqual(detail.data["projectCourseCodes"], "ABC1234")
         self.authenticate(self.office_admin)
         office_detail = self.client.get(
             f"/api/appointments/office-workspace/requests/primary/{application.pk}/"
         )
         self.assertEqual(office_detail.status_code, 200)
-        self.assertEqual(office_detail.data["projectCourseCodes"], "ABC1234, XYZ9000")
+        self.assertEqual(office_detail.data["projectCourseCodes"], "ABC1234")
         office_records = self.client.get("/api/appointments/supervisor/")
         self.assertEqual(office_records.status_code, 200)
-        self.assertEqual(office_records.data[0]["projectCourseCodes"], "ABC1234, XYZ9000")
+        self.assertEqual(office_records.data[0]["projectCourseCodes"], "ABC1234")
         accepted = self.accept_by_supervisor(application.pk)
         self.assertEqual(accepted.status_code, 200)
         self.assertEqual(accepted.data["status"], "PENDING_COORDINATOR")
@@ -73,27 +73,29 @@ class ApplicationCourseCodeTests(APITestCase):
             f"/api/appointments/coordinator-workspace/requests/primary/{application.pk}/"
         )
         self.assertEqual(coordinator_detail.status_code, 200)
-        self.assertEqual(coordinator_detail.data["projectCourseCodes"], "ABC1234, XYZ9000")
+        self.assertEqual(coordinator_detail.data["projectCourseCodes"], "ABC1234")
         approved = self.client.post(
             f"/api/appointments/supervisor/applications/{application.pk}/coordinator-approve/"
         )
         self.assertEqual(approved.status_code, 200)
         self.assertEqual(approved.data["status"], "APPROVED")
-        self.assertEqual(approved.data["projectCourseCodes"], "ABC1234, XYZ9000")
+        self.assertEqual(approved.data["projectCourseCodes"], "ABC1234")
         self.assertTrue(SupervisorAppointment.objects.filter(
             application=application, status="ACTIVE",
         ).exists())
         self.assertTrue(self.student_user.research_profile)
 
-    def test_old_client_can_omit_course_codes(self):
+    def test_missing_course_code_is_rejected(self):
         response = self.submit()
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data.get("projectCourseCodes"), "")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("projectCourseCodes", response.data)
+        self.assertFalse(SupervisorApplication.objects.exists())
 
-    def test_whitespace_only_course_codes_are_optional(self):
+    def test_whitespace_only_course_code_is_rejected(self):
         response = self.submit(projectCourseCodes="   ")
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data.get("projectCourseCodes"), "")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("projectCourseCodes", response.data)
+        self.assertFalse(SupervisorApplication.objects.exists())
 
     def test_course_codes_accept_the_maximum_length(self):
         response = self.submit(projectCourseCodes="A" * 255)
@@ -116,3 +118,11 @@ class ApplicationCourseCodeTests(APITestCase):
         self.coordinator.lecturer.coordinator.save(update_fields=["programme_managed"])
         self.authenticate(self.coordinator)
         self.assertEqual(self.client.get(detail_url).status_code, 403)
+
+    def test_multiple_course_codes_are_rejected(self):
+        for value in ("ABC1234, XYZ9000", "ABC1234; XYZ9000", "ABC1234\nXYZ9000"):
+            with self.subTest(value=value):
+                response = self.submit(projectCourseCodes=value)
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("projectCourseCodes", response.data)
+                self.assertFalse(SupervisorApplication.objects.exists())

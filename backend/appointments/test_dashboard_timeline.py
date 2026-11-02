@@ -205,7 +205,7 @@ class DashboardTimelineApiTests(APITestCase):
             SimpleUploadedFile("template.xlsx", admin_template.content)
         )
         headers = [cell.value for cell in workbook.active[1]]
-        self.assertEqual(headers, REQUIRED_HEADERS)
+        self.assertEqual(headers, [header for header in REQUIRED_HEADERS if header != "Week Label"])
         self.assertNotIn("Step", headers)
         self.assertNotIn("Status", headers)
 
@@ -561,6 +561,7 @@ class DashboardTimelineApiTests(APITestCase):
                 "deadlineStart": (today - timedelta(days=1)).isoformat(),
                 "deadlineEnd": (today + timedelta(days=1)).isoformat(),
                 "weekLabel": "Week 2 - Updated",
+                "extensionReason": "Updated presentation schedule",
             },
             format="json",
         )
@@ -571,7 +572,7 @@ class DashboardTimelineApiTests(APITestCase):
 
         from dashboard.models import TimelineAuditLog
 
-        self.assertTrue(TimelineAuditLog.objects.filter(action="EDIT_ENTRY").exists())
+        self.assertTrue(TimelineAuditLog.objects.filter(action="EXTEND").exists())
 
     def test_office_admin_can_move_timeline_entry_between_project_levels(self):
         self.authenticate(self.admin)

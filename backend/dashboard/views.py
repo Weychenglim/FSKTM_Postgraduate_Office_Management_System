@@ -552,6 +552,9 @@ def timeline_entry_detail_view(request, pk):
     serializer = TimelineEntryUpdateSerializer(data=request.data, context={"entry": entry}, partial=True)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
+    extension_reason = data.pop("extensionReason", "")
+    data.pop("expectedDeadlineEnd", None)
+    before_dates = {"deadlineStart": entry.deadline_start.isoformat(), "deadlineEnd": entry.deadline_end.isoformat()}
 
     if "level" in data and data["level"] != entry.level:
         target_level_entries = SemesterTimelineEntry.objects.filter(
@@ -583,8 +586,11 @@ def timeline_entry_detail_view(request, pk):
         actor=request.user,
         timeline=entry.timeline,
         entry=entry,
-        action=TimelineAuditLog.Action.EDIT_ENTRY,
-        summary=f"Updated {entry.level} entry: {(entry.title or entry.detail)[:120]}",
+        action="EXTEND" if extension_reason else TimelineAuditLog.Action.EDIT_ENTRY,
+        summary=f"{'Extended' if extension_reason else 'Updated'} {entry.level} entry: {(entry.title or entry.detail)[:120]}",
+        reason=extension_reason,
+        before_values=before_dates if extension_reason else {},
+        after_values={"deadlineStart": entry.deadline_start.isoformat(), "deadlineEnd": entry.deadline_end.isoformat()} if extension_reason else {},
     )
     return Response(TimelineEntrySerializer(entry).data)
 

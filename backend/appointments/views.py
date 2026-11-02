@@ -1,5 +1,4 @@
 from .request_visibility import can_view_supervisor_application, routine_supervisor_requests
-from .section_a import validate_section_a_proposal
 from .supervisor_replacement import is_office_replacement, assert_current_predecessor
 from .capacity_reassessment import lock_request, assert_not_archived, ReassessmentConflict
 from .capacity_closure import acceptance_capacity, supervisor_workload_summary
@@ -1480,6 +1479,29 @@ def _office_requirement_access(request):
     )
 
 
+@api_view(["GET", "PATCH"])
+@permission_classes([IsAuthenticated])
+def supervisor_document_setup_view(request):
+    from .supervisor_documents import document_setup_status, set_document_setup
+    if request.method == "GET":
+        return Response(document_setup_status())
+    denied = _office_requirement_access(request)
+    if denied:
+        return denied
+    from rest_framework import serializers
+    class SetupSerializer(serializers.Serializer):
+        noDocumentsRequired = serializers.BooleanField()
+        reason = serializers.CharField(max_length=2000)
+    serializer = SetupSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        return Response(set_document_setup(actor=request.user,
+            no_documents_required=serializer.validated_data["noDocumentsRequired"],
+            reason=serializer.validated_data["reason"]))
+    except DjangoValidationError as exc:
+        return _django_validation_error_response(exc)
+
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def active_supervisor_document_requirements_view(_request):
@@ -1557,8 +1579,8 @@ def supervisor_document_requirement_audits_view(request):
             {
                 "id": audit.pk,
                 "requirementId": audit.requirement_id,
-                "requirementCode": audit.requirement.code,
-                "requirementLabel": audit.requirement.label,
+                "requirementCode": audit.requirement.code if audit.requirement_id else "",
+                "requirementLabel": audit.requirement.label if audit.requirement_id else "Document setup",
                 "actorName": audit.actor.full_name,
                 "actorRole": audit.actor.role,
                 "action": audit.action,
@@ -1687,10 +1709,7 @@ def supervisor_applications_view(request):
             files,
             requirement_codes,
         )
-        validate_section_a_proposal(serializer.validated_data.get("sectionA"), validated_documents)
     except DocumentRequirementsNotConfigured as exc:
-        # Keep the conditional proposal configuration failure actionable for Section A.
-        validate_section_a_proposal(serializer.validated_data.get("sectionA"), [])
         return error_response(str(exc), status.HTTP_409_CONFLICT)
     except DjangoValidationError as exc:
         return _django_validation_error_response(exc)

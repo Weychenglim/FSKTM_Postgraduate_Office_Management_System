@@ -41,6 +41,16 @@ class PanelCapacityReservationTests(APITestCase):
         self.client.force_authenticate(self.panel)
         return self.client.post(f'/api/appointments/panel/recommendations/{row.pk}/panel-accept/')
 
+    def test_candidates_expose_accepted_reservations_separately_from_active_workload(self):
+        self.limit(2)
+        self.nomination('PENDING_COORDINATOR')
+        self.nomination()
+        self.client.force_authenticate(self.supervisor)
+        response = self.client.get('/api/appointments/panel/candidates/')
+        self.assertEqual(response.status_code, 200)
+        candidate = next(row for row in response.data if row['staffId'] == self.panel.lecturer.staff_no)
+        self.assertEqual((candidate.get('activeLoad'), candidate.get('reservedLoad'), candidate['availableSlots']), (0, 1, 1))
+
     def approve(self, row):
         self.client.force_authenticate(self.coordinator)
         return self.client.post(f'/api/appointments/panel/recommendations/{row.pk}/coordinator-approve/')

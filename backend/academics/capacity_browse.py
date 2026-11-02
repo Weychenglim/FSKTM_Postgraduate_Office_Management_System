@@ -13,6 +13,7 @@ class CapacityBrowseSerializer(serializers.Serializer):
     ])
     role = serializers.ChoiceField(required=False, choices=["ALL", "SUPERVISOR", "PANEL"])
     lecturerId = serializers.IntegerField(required=False, min_value=1)
+    version = serializers.IntegerField(required=False, min_value=1)
     scope = serializers.ChoiceField(required=False, choices=["working"])
     pageResult = serializers.BooleanField(required=False, default=False)
 
@@ -55,6 +56,9 @@ def capacity_browse_filters(request, queryset, kind):
             if state not in states:
                 raise serializers.ValidationError({"status": "Choose an availability status."})
             queryset = queryset.filter(states[state])
-    elif query:
-        queryset = queryset.filter(Q(actor__full_name__icontains=query) | Q(action__icontains=query.replace(" ", "_")) | Q(reason__icontains=query))
+    else:
+        if data.get("version"):
+            queryset = queryset.filter(plan__version=data["version"])
+        if query:
+            queryset = queryset.filter(Q(actor__full_name__icontains=query) | Q(action__icontains=query.replace(" ", "_")) | Q(reason__icontains=query))
     return queryset

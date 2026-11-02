@@ -3429,6 +3429,29 @@ class CapacityApiTests(TestCase):
         self.assertEqual(unknown_window.status_code, 404)
         self.assertEqual(unknown_semester.status_code, 404)
 
+    def test_capacity_audits_filter_versions_before_pagination(self):
+        first = self.create_plan().data
+        second = self.create_plan().data
+        semester_event = LecturerCapacityAudit.objects.create(
+            academic_semester=self.semester, actor=self.office,
+            action=LecturerCapacityAudit.Action.AVAILABILITY_CREATE,
+            reason="Semester-wide availability change.",
+        )
+        url = f"/api/academics/semesters/{self.semester.pk}/capacity-audits/"
+        response = self.client.get(url, {
+            "pageResult": "true", "version": second["version"], "limit": 1,
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["total"], 1)
+        self.assertEqual(response.data["versions"], [second["version"], first["version"]])
+        self.assertEqual(response.data["rows"][0]["planId"], second["id"])
+        self.assertEqual(response.data["rows"][0]["planVersion"], second["version"])
+        all_events = self.client.get(url).data
+        self.assertIsNone(next(row for row in all_events if row["id"] == semester_event.pk)["planVersion"])
+        self.assertEqual(self.client.get(url, {"version": 999, "pageResult": "true"}).data["total"], 0)
+        self.assertEqual(self.client.get(url, {"version": 0}).status_code, 400)
+        self.assertEqual(self.client.get(url, {"version": "invalid"}).status_code, 400)
+
     def test_capacity_audits_are_office_only_and_deterministic(self):
         plan = self.complete_plan()
         self.publish_plan(plan)
