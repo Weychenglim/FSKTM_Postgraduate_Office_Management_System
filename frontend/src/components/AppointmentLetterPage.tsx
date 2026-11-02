@@ -1,3 +1,4 @@
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -6,12 +7,12 @@
 // An appointment letter (UC22) on its own page in Files, where the student and
 // the lecturers it was sent to open it from their notice.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { FileDown } from 'lucide-react';
 import { RecordPage } from './RecordPage';
 import { LetterPages } from './LetterPages';
-import { PortalButton, PortalToast } from './PortalPrimitives';
+import { PortalButton } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { GeneratedLetter } from '../types';
 import { downloadLetterPdf, getLetterRequest, inactiveStudentReason } from '../services';
@@ -30,15 +31,16 @@ const loadProblem = (err: unknown) =>
   inactiveStudentReason(err) ??
   (err instanceof ApiError && err.status === 404 ? "This letter isn't available to you." : err instanceof Error ? err.message : 'Could not open this letter.');
 
-export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = ({ letterId, isStudent, onBack }) => {
+const LetterContent: React.FC<AppointmentLetterPageProps> = ({ letterId, isStudent, onBack }) => {
   const [letter, setLetter] = useState<GeneratedLetter | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const from = typeof location.state?.from === 'string' ? location.state.from : '';
+  const publish = useDecisionFeedback()!;
+  const downloadInFlight = useRef(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -54,14 +56,16 @@ export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = ({ le
   }, [load]);
 
   const download = async () => {
-    if (!letter) return;
+    if (!letter || downloadInFlight.current) return;
+    downloadInFlight.current = true;
     setDownloading(true);
     try {
       await downloadLetterPdf(letter);
+      publish('Appointment letter prepared. Your browser will handle the download.', 'success');
     } catch (err) {
-      setToast(err instanceof Error ? err.message : 'Could not download the PDF.');
-      setTimeout(() => setToast(null), 4000);
+      publish(err instanceof Error ? err.message : 'Could not prepare the PDF.', 'danger');
     } finally {
+      downloadInFlight.current = false;
       setDownloading(false);
     }
   };
@@ -90,7 +94,6 @@ export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = ({ le
         ) : undefined
       }
     >
-      <PortalToast message={toast} />
       {loading ? (
         <LoadingState message="Opening the letter…" />
       ) : error || !letter ? (
@@ -137,3 +140,5 @@ export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = ({ le
     </RecordPage>
   );
 };
+
+export const AppointmentLetterPage: React.FC<AppointmentLetterPageProps> = props => <DecisionFeedbackProvider scopeKey="appointment-letter"><LetterContent {...props}/></DecisionFeedbackProvider>;

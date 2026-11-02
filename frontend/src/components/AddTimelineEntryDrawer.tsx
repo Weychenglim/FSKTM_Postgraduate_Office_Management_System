@@ -25,12 +25,13 @@ interface TimelineEntry {
   endDate: string;
   targetRole: ('STUDENT' | 'LECTURER' | 'OFFICE_STAFF')[];
   description?: string;
+  action?: string;
 }
 
 interface AddTimelineEntryDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (newEntry: Omit<TimelineEntry, 'id'>) => void;
+  onSave: (newEntry: Omit<TimelineEntry, 'id'>) => Promise<boolean> | boolean | void;
   timelineLabel: string;
   busy?: boolean;
   error?: string | null;
@@ -54,6 +55,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
   const [endDate, setEndDate] = useState('');
   const [targetRole, setTargetRole] = useState<TimelineEntry['targetRole']>(['STUDENT']);
   const [description, setDescription] = useState('');
+  const [action, setAction] = useState('Student');
 
   // Reset fields on open
   useEffect(() => {
@@ -64,6 +66,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
       setEndDate('');
       setTargetRole(['STUDENT']);
       setDescription('');
+      setAction('Student');
     }
   }, [isOpen]);
 
@@ -83,7 +86,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy || !eventName.trim() || targetRole.length === 0) return;
+    if (busy || !eventName.trim() || !action.trim() || targetRole.length === 0) return;
 
     onSave({
       event: eventName,
@@ -91,7 +94,8 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
       startDate: formatToDisplayDate(startDate),
       endDate: formatToDisplayDate(endDate),
       targetRole,
-      description
+      description,
+      action: action.trim(),
     });
   };
 
@@ -103,13 +107,14 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
     }
   };
 
-  const dirty = !!eventName || !!startDate || !!endDate || !!description || category !== 'Research Project (P1)' || targetRole.join() !== 'STUDENT';
+  const dirty = action !== 'Student' || !!eventName || !!startDate || !!endDate || !!description || category !== 'Research Project (P1)' || targetRole.join() !== 'STUDENT';
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   if (!isOpen) return null;
   const renderForm = (requestBack: () => void) => <form
               onSubmit={handleSubmit}
               className="space-y-5"
             >
+              <fieldset disabled={busy} className="contents">
               <div 
                 id="add-drawer-body" 
                 className="space-y-5"
@@ -234,6 +239,12 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                   </div>
                 </div>
 
+                <div className="space-y-1.5">
+                  <label className="form-label block" htmlFor="timeline-responsible-create">Responsible parties</label>
+                  <input id="timeline-responsible-create" type="text" required maxLength={255} value={action} onChange={event => setAction(event.target.value)} placeholder="e.g. Student / Supervisor / Panel / Office Staff" className="form-control form-control-sm" />
+                  <p className="card-description">Who carries out the event. Target roles controls who can see it.</p>
+                </div>
+
                 {/* Field 6: Description or notes field */}
                 <div className="space-y-1.5">
                   <label className="form-label block">
@@ -267,7 +278,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                 
                 <PortalButton
                   type="submit"
-                  disabled={busy || !eventName.trim() || targetRole.length === 0}
+                  disabled={busy || !eventName.trim() || !action.trim() || targetRole.length === 0}
                   isLoading={busy}
                   variant="primary"
                   size="md"
@@ -276,6 +287,7 @@ export const AddTimelineEntryDrawer: React.FC<AddTimelineEntryDrawerProps> = ({
                   Create event
                 </PortalButton>
               </div>
+              </fieldset>
             </form>;
   return embedded ? renderForm(onClose) : <RecordPage title="Add Timeline Entry" backLabel="Back to Timeline Management" onBack={onClose} pageKey="timeline-add" dirty={dirty} busy={busy}>{renderForm}</RecordPage>;
 };

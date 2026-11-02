@@ -39,6 +39,7 @@ class SupervisorSubmissionConcurrencyTests(APITransactionTestCase):
                 client.force_authenticate(self.student_user)
                 response = client.post('/api/appointments/supervisor/applications/', {
                     'proposedSupervisorId': supervisor.lecturer.staff_no,
+                    'projectCourseCodes': 'WQD7002',
                     'researchTitle': 'Concurrent synthetic proposal',
                     'researchArea': 'Artificial Intelligence',
                     'researchAbstract': 'Fictional proposal to exercise simultaneous request submission.',

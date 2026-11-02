@@ -54,6 +54,7 @@ export function timelineEntryToLegacy(entry: SemesterTimelineEntry): TimelineEnt
     id: String(entry.id),
     event: entry.title || entry.detail,
     description: entry.detail,
+    action: entry.action,
     category: legacyCategory(entry),
     startDate: formatDisplayDate(entry.deadlineStart),
     endDate: formatDisplayDate(entry.deadlineEnd),
@@ -106,7 +107,7 @@ export async function createTimelineEntry(
       level: legacyLevel(entry),
       title: entry.event,
       detail: entry.description || entry.event,
-      action: entry.targetRole.join(' / '),
+      action: entry.action ?? entry.targetRole.join(' / '),
       deadlineStart: toIsoDate(entry.startDate),
       deadlineEnd: toIsoDate(entry.endDate),
       targetRoles: entry.targetRole,
@@ -117,7 +118,8 @@ export async function createTimelineEntry(
 
 export async function updateTimelineEntry(
   id: string,
-  entry: Pick<TimelineEntry, 'event' | 'description' | 'category' | 'startDate' | 'endDate' | 'targetRole'> & { weekLabel?: string },
+  entry: Pick<TimelineEntry, 'event' | 'description' | 'category' | 'startDate' | 'endDate' | 'targetRole'> & { action?: string; weekLabel?: string; extensionReason?: string; expectedDeadlineEnd?: string },
+  linkedDates = false,
 ): Promise<SemesterTimelineEntry> {
   return request<SemesterTimelineEntry>(`/dashboard/timeline/entries/${id}/`, {
     method: 'PATCH',
@@ -125,9 +127,10 @@ export async function updateTimelineEntry(
       level: legacyLevel(entry),
       title: entry.event,
       detail: entry.description || entry.event,
-      deadlineStart: toIsoDate(entry.startDate),
-      deadlineEnd: toIsoDate(entry.endDate),
+      ...(!linkedDates ? { deadlineStart: toIsoDate(entry.startDate), deadlineEnd: toIsoDate(entry.endDate) } : {}),
+      ...(entry.extensionReason ? { extensionReason: entry.extensionReason, expectedDeadlineEnd: entry.expectedDeadlineEnd } : {}),
       targetRoles: entry.targetRole,
+      ...(entry.action !== undefined ? { action: entry.action } : {}),
       ...(entry.weekLabel !== undefined ? { weekLabel: entry.weekLabel } : {}),
     }),
   });

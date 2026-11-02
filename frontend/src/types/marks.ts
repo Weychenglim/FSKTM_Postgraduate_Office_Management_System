@@ -28,6 +28,8 @@ export interface DeadlineMetadata {
 }
 
 export interface MarkRecord extends DeadlineMetadata {
+  periodId?: number;
+  periodName?: string;
   id: string; // Record ID e.g. "MRK-2025-021"
   studentId: string;
   studentName: string;
@@ -79,6 +81,8 @@ export interface MarksConfigurationAuditEvent {
 }
 
 export interface RubricVersion {
+  isArchived?: boolean;
+  usage?: {id: number; name: string; semester: string; status: string}[];
   id: number;
   familyCode: string;
   code: string;

@@ -1,3 +1,4 @@
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -23,7 +24,7 @@ interface TopHeaderProps {
   menuAlert?: string;
 }
 
-export const TopHeader: React.FC<TopHeaderProps> = ({
+const TopHeaderContent: React.FC<TopHeaderProps> = ({
   userName,
   userRole,
   onLogout,
@@ -35,6 +36,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const [bellOpen, setBellOpen] = useState(false);
   const { items, unreadCount, markRead, markAllRead } = useNotifications();
   const navigate = useNavigate();
+  const publish = useDecisionFeedback()!;
   const latest = latestNotifications(items);
 
   useEffect(() => {
@@ -133,7 +135,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                     <button
                       type="button"
                       disabled={unreadCount === 0}
-                      onClick={() => void markAllRead().catch(() => undefined)}
+                      onClick={() => void markAllRead().catch(error => publish(error instanceof Error ? error.message : 'Unable to update notification read state.', 'danger'))}
                       className="text-[10px] font-bold text-blue-600 hover:text-blue-800 disabled:text-slate-300 disabled:cursor-default cursor-pointer"
                     >
                       Mark all as read
@@ -261,3 +263,5 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
     </header>
   );
 };
+
+export const TopHeader: React.FC<TopHeaderProps> = props => <DecisionFeedbackProvider scopeKey="header-notifications"><TopHeaderContent {...props}/></DecisionFeedbackProvider>;

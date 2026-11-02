@@ -24,6 +24,7 @@ urlpatterns = [
     path("periods/<int:pk>/archive/", views.archive_evaluation_period_view),
     path("rubrics/", views.rubrics_view),
     path("rubrics/<int:pk>/", views.rubric_detail_view),
+    path("rubrics/<int:pk>/archive/", views.rubric_family_archive_view),
     path("rubrics/<int:pk>/clone/", views.clone_rubric_view),
     path(
         "rubrics/<int:pk>/components/",

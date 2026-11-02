@@ -55,6 +55,7 @@ class PanelRecommendation(models.Model):
             "CANCELLED_BY_SUPERVISOR",
             "Cancelled by Supervisor",
         )
+        CANCELLED_CAPACITY_FULL = "CANCELLED_CAPACITY_FULL", "Capacity full"
         CANCELLED_BY_OFFICE = "CANCELLED_BY_OFFICE", "Cancelled by Office"
         APPROVED = "APPROVED", "Approved"
 
@@ -63,10 +64,8 @@ class PanelRecommendation(models.Model):
         Status.PENDING_COORDINATOR,
         Status.APPROVED,
     )
-    WORKLOAD_RESERVED_STATUSES = (
-        Status.SUBMITTED_TO_PANEL,
-        Status.PENDING_COORDINATOR,
-    )
+    PENDING_STATUSES = (Status.SUBMITTED_TO_PANEL, Status.PENDING_COORDINATOR)
+    WORKLOAD_RESERVED_STATUSES = (Status.PENDING_COORDINATOR,)
 
     profile = models.ForeignKey(
         StudentResearchProfile,
@@ -394,6 +393,16 @@ class SupervisorApplicationDocument(models.Model):
         raise ValidationError("Submitted supervisor application documents are immutable.")
 
 
+class SupervisorDocumentSetup(models.Model):
+    """Explicit faculty-wide choice; an absent row remains unconfigured."""
+
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    no_documents_required = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=models.Q(id=1), name="supervisor_document_setup_singleton")]
+
+
 class SupervisorDocumentRequirement(models.Model):
     """Office-configurable checklist item for supervisor applications."""
 
@@ -422,11 +431,13 @@ class SupervisorDocumentRequirementAudit(models.Model):
     class Action(models.TextChoices):
         CREATE = "CREATE", "Create"
         UPDATE = "UPDATE", "Update"
+        SETUP = "SETUP", "Document setup"
 
     requirement = models.ForeignKey(
         SupervisorDocumentRequirement,
         on_delete=models.PROTECT,
         related_name="audits",
+        null=True, blank=True,
     )
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,

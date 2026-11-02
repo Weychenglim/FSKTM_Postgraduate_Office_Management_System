@@ -445,23 +445,28 @@ def timeline_entry_list_view(request):
         return denied
 
     semester = get_timeline_semester(request)
-    if semester is not None:
-        AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+    if semester is None:
+        return timeline_locked_response()
+    # Serialize first-event creation with imports and other calendar mutations.
+    semester = AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+    if semester.lifecycle_status not in {
+        AcademicSemester.Lifecycle.DRAFT, AcademicSemester.Lifecycle.ACTIVE,
+    }:
+        return timeline_locked_response()
     timeline = get_managed_timeline(request)
     if timeline is None:
-        return Response(
-            {
-                "error": (
-                    "No editable semester timeline exists. Upload a timeline "
-                    "for a Draft or Active semester first."
-                )
-            },
-            status=status.HTTP_409_CONFLICT,
+        timeline = SemesterTimeline(
+            academic_semester=semester,
+            semester=semester.get_term_display(),
+            session=semester.academic_session,
+            uploaded_by=request.user,
         )
 
     serializer = TimelineEntryCreateSerializer(data=request.data, context={"timeline": timeline})
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
+    if timeline.pk is None:
+        timeline.save()
 
     with transaction.atomic():
         level_entries = SemesterTimelineEntry.objects.select_for_update().filter(
@@ -547,6 +552,9 @@ def timeline_entry_detail_view(request, pk):
     serializer = TimelineEntryUpdateSerializer(data=request.data, context={"entry": entry}, partial=True)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
+    extension_reason = data.pop("extensionReason", "")
+    data.pop("expectedDeadlineEnd", None)
+    before_dates = {"deadlineStart": entry.deadline_start.isoformat(), "deadlineEnd": entry.deadline_end.isoformat()}
 
     if "level" in data and data["level"] != entry.level:
         target_level_entries = SemesterTimelineEntry.objects.filter(
@@ -578,8 +586,11 @@ def timeline_entry_detail_view(request, pk):
         actor=request.user,
         timeline=entry.timeline,
         entry=entry,
-        action=TimelineAuditLog.Action.EDIT_ENTRY,
-        summary=f"Updated {entry.level} entry: {(entry.title or entry.detail)[:120]}",
+        action="EXTEND" if extension_reason else TimelineAuditLog.Action.EDIT_ENTRY,
+        summary=f"{'Extended' if extension_reason else 'Updated'} {entry.level} entry: {(entry.title or entry.detail)[:120]}",
+        reason=extension_reason,
+        before_values=before_dates if extension_reason else {},
+        after_values={"deadlineStart": entry.deadline_start.isoformat(), "deadlineEnd": entry.deadline_end.isoformat()} if extension_reason else {},
     )
     return Response(TimelineEntrySerializer(entry).data)
 

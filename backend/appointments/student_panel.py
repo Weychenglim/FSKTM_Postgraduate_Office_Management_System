@@ -19,7 +19,7 @@ def current_student_panel_records(profile):
         return appointment, None
     recommendation = (
         profile.panel_recommendations.filter(
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+            status__in=PanelRecommendation.PENDING_STATUSES,
         )
         .prefetch_related("workflow_events")
         .select_related("academic_semester")

@@ -264,31 +264,36 @@ class SupervisorSectionATests(APITestCase):
         self.assertEqual(response.status_code, 201, response.data)
         self.assertEqual(len(self.exact(response.data["id"]).data["sectionA"]["courseResults"]), 50)
 
-    def test_student_title_requires_optional_proposal_and_secure_content(self):
+    def test_optional_proposal_is_optional_for_both_title_origins(self):
         SupervisorDocumentRequirement.objects.update(is_required=False)
-        response = self.submit(self.section(), files=False)
-        self.assertEqual(response.status_code, 400)
-        self.assertFalse(SupervisorApplication.objects.exists())
-        response = self.submit(self.section(), documents=[valid_pdf(content=b"invalid")])
-        self.assertEqual(response.status_code, 400)
-        response = self.submit(self.section())
-        self.assertEqual(response.status_code, 201, response.data)
+        for origin in ['STUDENT', 'SUPERVISOR']:
+            with self.subTest(origin=origin):
+                response = self.submit(self.section(titleOrigin=origin), files=False)
+                self.assertEqual(response.status_code, 201, response.data)
+                SupervisorApplication.objects.all().delete()
 
-    def test_missing_proposal_configuration_is_explicit_and_never_created(self):
+    def test_required_proposal_remains_required_for_both_title_origins(self):
+        SupervisorDocumentRequirement.objects.update(is_required=True)
+        for origin in ['STUDENT', 'SUPERVISOR']:
+            with self.subTest(origin=origin):
+                response = self.submit(self.section(titleOrigin=origin), files=False)
+                self.assertEqual(response.status_code, 400, response.data)
+        self.assertFalse(SupervisorApplication.objects.exists())
+
+    def test_student_title_does_not_require_a_specific_document_code(self):
         SupervisorDocumentRequirement.objects.update(is_active=False)
         SupervisorDocumentRequirement.objects.create(code="other", label="Other", is_required=False)
         self.authenticate(self.student_user)
         self.assertIsNone(self.client.get("/api/appointments/supervisor/application-prefill/").data["proposalRequirementCode"])
         response = self.submit(self.section(), files=False)
-        self.assertEqual(response.status_code, 409, response.data)
-        self.assertFalse(SupervisorApplication.objects.exists())
+        self.assertEqual(response.status_code, 201, response.data)
         self.assertFalse(SupervisorDocumentRequirement.objects.get(code="research-proposal").is_active)
 
-    def test_no_active_requirements_reports_section_a_configuration_error(self):
+    def test_no_active_requirements_reports_general_configuration_error(self):
         SupervisorDocumentRequirement.objects.update(is_active=False)
         response = self.submit(self.section(), files=False)
         self.assertEqual(response.status_code, 409, response.data)
-        self.assertIn("sectionA", response.data)
+        self.assertNotIn("sectionA", response.data)
 
     def test_partial_section_missing_any_required_field_is_rejected(self):
         for key in self.section():

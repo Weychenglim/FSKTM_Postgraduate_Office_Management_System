@@ -1,3 +1,77 @@
+## Phase six feedback integration (1 November 2026)
+
+Existing DecisionFeedbackProvider ownership now covers requirement configuration, participant/delegation commands, Workflow exports, appointment letters, notification updates and the remaining Panel recommendation success emitter. A small useDraftDiscard hook reuses PortalConfirmModal for local replacement consent; DraftNavigationGuard retains route/session/unload ownership. Participant management aggregates delegation drafts through RecordDraft so there is one route blocker. Confirmed local Back clears owned drafts before navigation to avoid a second discard prompt. Synchronous refs prevent duplicate writes/exports; post-commit reads cannot turn a successful command into a failed save. Conflicted delegation/participant editors remain blocked and preserve their draft when latest reads fail. No API/schema/dependency or security-rule changes.
+
+## Phase five Marks interaction design (1 November 2026)
+
+Marks pages reuse DecisionFeedbackProvider and nested-aware DraftNavigationGuard/RecordDraft ownership. Rubric forms keep independent initialized baselines; scoped replacement and conflict recovery preserve unrelated work. Period reviews bind to context and period identity, invalidate obsolete recipient previews, and distinguish a committed write from failed reads. Generation checks current saved scope without adding an exact-count preview API, retains loaded fallback content during refresh, and aggregates fallback reports through one assignment guard; backup RecordPage retains its completion allowance. Lecturer final submission uses its captured reviewed snapshot and existing payload-keyed submission reference. Office latest-read recovery clears stale inputs only after successful replacement. DecisionDialog's optional recoveryDirty defaults to dirty and separates external-editor replacement consent from cancelling final review. Completion-window drafts report to an inherited owner or stand alone; the fallback receives all loaded tasks so presentation filters do not silently change grant identity. No backend/API/schema/dependency change belongs to this phase. Final checks and any remaining limits are in PROJECT_STATUS.md.
+## Phase five Marks interaction design (31 October–1 November 2026)
+
+Implementation is tracked in `docs/PHASE_FIVE_MARKS_FEEDBACK_PLAN_2026-10-31.md`. `RubricsManagementView` owns independent initialized metadata and component baselines, merges latest-record reads by affected scope, and blocks stale retries after direct 403/409 until a successful read. `MarkEntryPeriodConfig` owns period/reason draft state and uses the existing `ClosureReview` for signed close; publish/archive each use one shared final review. `EvaluationTaskAssignment` reviews saved generation readiness, re-reads the selected period before POST, and derives authoritative counts only from the generation response. The assignment host retains loaded content during secondary reads and owns nested fallback draft state through `RecordDraft.Provider` and one `DraftNavigationGuard`.
+
+`MarkEntryDetail` submits a captured final payload snapshot and keeps the existing payload-keyed receipt and version behavior. `SubmittedMarksActions` shows complete changed score/comment deltas; an opt-in `DecisionDialog.recoveryDirty` separates consent for latest-record replacement from quiet dismissal of the final review, leaving other callers' default behavior intact. `MarksCompletionWindows` registers grant/revoke draft and busy state with its nested owner, uses full loaded task scope independently of presentation filters, and clears committed input before follow-up reads. These paths use stable `DecisionFeedback` ownership, preserve contextual errors and read-only recovery after committed-write refresh failure, and add no API, schema, authorization or academic rule. Integrated verification and broad review remain tracked separately in the phase workspace.
+## Calendar and setup guard ownership — phase four (30 October 2026)
+
+Package four extends the existing RecordDraft, RecordPage, SessionExit and DecisionFeedback contracts to missing setup entry points. DraftNavigationGuard delegates to an existing RecordPage where present and supplies router/unload/logout ownership only when absent. Its host remains mounted across completion so a blocked exit can proceed after the draft becomes clean; inactive siblings release their router guard. DecisionDialog opts into this fallback explicitly, retaining default compatibility. Calendar methods keep independent baselines and clear only the committed method. Retained modal drafts receive inline completion context while the shared queue waits for usable delivery; academic mutation and subsequent read outcomes remain separate. Template feedback has its own state and request/session generation: workbook selection cannot cancel a pending template request, newer requests take precedence, and disposed sessions cannot publish old outcomes. Prepared wording describes browser handoff, not a saved file. See `docs/PHASE_FOUR_SETUP_FEEDBACK_PLAN_2026-10-30.md`.
+
+Semester transitions use the shared confirmation modal for local disposal/replacement, initialized end-date comparisons and a synchronous write lock. ClosureReview exposes optional label/acknowledgment/block callbacks while preserving other callers' defaults and signed preview behavior. Transition views remain mounted across History navigation. Direct403/409 transitions require latest-record recovery; a committed save with failed list refresh retains its returned baseline and blocks further writes until a successful reload. Internal saved-baseline installation remains distinct from entering a stale list record. Lecturer availability cancellation reason reports as its own private draft alongside the visible create form; discarding/completing it clears only that scope. Stable feedback owners reuse the shell queue.
+
+Capacity decisions use a stable aggregate guard; conditional single/bulk/publication/discard editors report to it, while preparation retains its own RecordPage. Carryover reassessment reports typed reason as dirty rather than pending, so nested navigation remains discardable. Create/clone retain the returned committed plan when refresh fails and block accidental repeated creation. The optional RecordPage/RightDrawer `onNavigationSettled` handoff keeps successful preparation mounted until its own blocked route has proceeded; it also settles clean/idle standalone and MemoryRouter owners. Existing explicit completion allowance still releases a blocked route when a saved owner's old dirty report lingers. The local settlement callback requires genuine clean/unblocked state and adds no global navigation bypass.
+
+Operational decisions/extensions render under the managed RecordPage when one exists and use standalone guarding on the overview. Submission-window forms have a stable owner across conditional closure, including same-semester anchor navigation. Existing period kinds, candidate/task identity, dates, expected revisions, capacity fingerprints/status/event checks, signed preview and authorization remain authoritative. Final fixtures cover production components with synthetic HTTP; native unload prompts, authenticated full-shell/logout and saved-workbook acceptance remain phase seven. This feedback package adds no backend/API/schema/dependency or academic-rule change; unrelated concurrent capacity pagination and semester-selector changes are preserved separately.
+
+## Appointment feedback migration (30 October 2026)
+
+The Student Supervisor workspace and appointment/workload report hosts supply a local DecisionFeedbackProvider that reuses an existing shell provider. Supervisor application success is published before completion navigation, so the retained owner displays it once after the editor closes. Its direct-form fallback uses PortalToast delivery identity and visible-duration handling. Contact and supporting nomination forms own their local discard confirmation and continue reporting child dirty/busy state through RecordDraft; closing a child never grants a parent-wide completion allowance.
+
+Research creation retains an options/baseline snapshot independently of workspace loading. Role/route/student/action and local editor generation identify its session; incidental refresh versions do not replace entered values. Forbidden/conflicting creation blocks resubmission and keeps the form mounted. Explicit Replace and review installs a new baseline only after a successful same-student/session read, preserving the draft after failed or stale reads. Monotonic session identity rejects A-B-A callbacks; current-scope acknowledgment prevents completed recovery remaining busy after incidental refresh. Confirmed creation retires its draft before refreshing and uses completeDecision/shared feedback for one truthful outcome; direct standalone research hosts retain an inline fallback. Approval/cancellation DecisionDialog and existing version payloads remain authoritative.
+
+Appointment Apply/Clear actions update visible results without notifications. Report preparation/no-results outcomes use the shared queue; useExcelExport owns generation exclusion and contextual persistent errors. Existing role-scoped rows/columns and file-generation code are preserved. Focused mounted fixtures use synthetic HTTP; export-feedback fixtures replace only the generation boundary and do not certify a browser-saved workbook. The child-draft/export interaction fixtures do not load production CSS; viewport interaction evidence is separate from visual acceptance. Research Intent screenshot output and its Vite cache now stay within each runner's isolated temporary directory.
+
+## FYP testing artefact traceability (29 October 2026)
+
+The testing report draft and workbook in `outputs/fyp-testing-01a18227/` reuse the existing guide IDs and add report IDs. One primary module is assigned per scenario for nonduplicated counts; technique tags and compound variants are not additional parent cases. Current manual results start blank/Not run; historical A07 observations and participant UAT remain separate records. Summary formulas derive from the result register with explicit missing-evidence checks and no fabricated pass-rate denominator. Source extraction/build/render intermediates remain ignored local artefacts; application/runtime architecture and schemas are unchanged. Method and limitations: `docs/FYP_TESTING_REPORT_PREPARATION_2026-10-29.md`.
+
+## Shared outcome and session-exit infrastructure (29 October 2026)
+
+DecisionFeedback owns an ordered per-session outcome queue and accepts optional operation identities; nested providers reuse the nearest host. PortalToast exposes optional delivery identity/lifetime while preserving legacy calls. Shared delivery suspends for actual native modals or inert body/document ancestors, then restarts its visible lifetime; unrelated inert list siblings remain irrelevant. App supplies account/role feedback identity instead of mutable display names. Legacy page emitters migrate separately.
+
+DecisionDialog tracks open-session generations separately from decision identity, isolates asynchronous save/reload completion and provides optional onComplete/onDiscard callbacks alongside compatible onClose. RecordPage retains one draft aggregate/router guard, restores protection on a new clean-to-dirty transition and resolves clean pending navigation after writes settle. SessionExit observes those aggregate scopes through a context registry and coordinates voluntary logout before the auth callback, without adding a router blocker or changing forced-expiry handling. The session owner remounts across account boundaries so pending exit callbacks cannot cross them. New isolated browser fixtures exercise real production components/native dialogs under StrictMode; no API, database, dependency or academic-authority change is introduced.
+
+## Phase-one draft lifecycle corrections (29 October 2026)
+
+EvaluationTaskAssignment records a successful backup commit synchronously before its secondary refresh. That ref scopes RecordPage completion/dirty protection and disables another confirmation; the mounted DecisionDialog publishes the existing single success/refresh-warning outcome before its close callback disposes the completed editor. Failed mutation and cancelled review leave the form intact. Workflow reconciliation marks only acceptance-dialog private inputs dirty and clears that scope on closure; repair final-review cancellation retains the visible repair input. OperationalPeriodManagement captures its initialized extension scope and converted deadline once at opening, compares current values to that baseline and includes candidate/task selections in dirty tracking. Panel nomination draft disposal is isolated from the owning RecordPage/history lifecycle and keyed to student/replacement identity. No API/schema/dependency or authorization change is required. Mounted synthetic-HTTP regressions cover completion, abandonment, retained failures, initialized defaults and reverted edits; full-shell live academic acceptance remains separate.
+
+## Report lifecycle summary layout (29 October 2026)
+
+Both participant-lifecycle summary render paths in WorkflowReports use a container-sized CSS grid with auto-fit and a 9rem minimum track capped at 100% for narrow containers. Cards may shrink and labels may wrap; camel-case metric keys are split into words locally before existing report label formatting. Global report formatting, APIs, counts, exports and permissions are unchanged. Verification uses the production component and built CSS in temporary headless Chrome fixtures, with synthetic responses and exact iframe widths; desktop fixtures reserve sidebar space. No permanent test harness or application dependency is added. Evidence and boundaries are recorded in the A07 report's layout follow-up.
+
+## Initial manual calendar creation (29 October 2026)
+
+The timeline entry POST locks the selected semester and rechecks Draft/Active status. When no current timeline exists, it constructs an unsaved semester-linked calendar for serializer/link validation, saves it only after valid input, then writes the event and audit in the existing atomic request. This serializes first-event creation with imports and other calendar mutations and preserves rollback. No schema/dependency change. Timeline creation regressions cover first/repeated entry, invalid input, audit outage, Student denial and a semester closed after an earlier read. A07 observations use the separate manual UAT environment; downloaded files are inspected independently of toasts/blob creation.
+
+The empty calendar explains both manual creation and Excel import. Full-shell A07 evidence uses real login/logout and persisted portal workflows; native Chrome verifies beforeunload separately from in-app browser behavior. A read-only database/file manifest and screenshots remain in the ignored UAT evidence directory. See `docs/FULL_PORTAL_NATIVE_ACCEPTANCE_2026-10-29.md` for exact coverage and limits.
+
+## Public lifecycle projections and A06 acceptance (28 October 2026)
+
+SupervisorApplicationSerializer receives request context at every API call site, selects a public lifecycle payload for Student/missing actors, and removes the Office participant-lifecycle cancellation reason/event from public request representations. Dossier construction applies the same cancellation boundary and adds primary end reasons only to internal records. Existing ordinary request decision evidence and internal lifecycle serialization remain intact. StudentProgressDossier gates workflow audits and primary/Panel/supporting closure text on internal visibility, supplementing API redaction without replacing record authorization. Stored audit/event/appointment models and business transitions are unchanged; no migration or dependency is added.
+
+`accounts.test_compound_lifecycle_acceptance` adds guarded disposable PostgreSQL fixtures, exact multi-model rollback snapshots and separate-connection concurrency tests for lifecycle/Marks combinations. Two opt-in TerminalLifecycleBrowserJourney tests reuse the real-HTTP reporting harness at 1440/390px; unmodified API privacy is checked separately from deliberately contaminated supplied data used to test the UI guard. Native/full-shell and shared Registry responsibility handover remain separate acceptance. Evidence: `docs/COMPOUND_LIFECYCLE_MARKS_ACCEPTANCE_2026-10-28.md`.
+
+## Isolated manual UAT preparation (28 October 2026)
+
+`scripts/prepare_five_module_uat.py` prepares a uniquely named local PostgreSQL database and 31 fictional account/profile rows without pre-creating semester, appointment, research or evaluation workflows. It refuses ordinary/remote database targets, never resets a configured sandbox, and writes generated credentials/media/logs only under Git-ignored `backend/.env.five-module-uat/`. Standard migrations and existing account models/explicit Marks permissions are reused. Standalone tests cover isolation and actor prerequisites. Optional servers use `127.0.0.1:3003/8003`, separate secret/auth cookies (including rotation-grace key), console email and real backend services without changing normal `.env` or weakening permissions/throttles. These are development test helpers; production workflow code is unchanged. Guide/critique/evidence boundaries are in `docs/FIVE_MODULE_SEQUENTIAL_TEST_GUIDE.md` and `docs/FIVE_MODULE_TEST_PLAN_REVIEW_2026-10-28.md`.
+
+## Dossier request identity and A05 verification (28 October 2026)
+
+StudentProgressDossier tracks request generation and the student identity resolved by the latest request. Success, error and completion callbacks update state only for that generation; effect cleanup invalidates prior reads. Starting a read clears the previous dossier, and a loaded-identity mismatch renders loading immediately during route changes. Existing services, API scope and schemas remain unchanged.
+
+`dashboard.acceptance_fixtures` supplies guarded synthetic actors, appointments, supporting membership, submitted Marks, calendar entries and an unassigned legacy request. Nine API/persisted tests cover reports/XLSX, lifecycle privacy, supporting replacement/closure, transfers, delegation revocation, handover and reconciliation including audit-outage rollback. Six opt-in browser journeys mount production reports/dossier/reconciliation/calendar components over real isolated HTTP at 1440/390px. They delay actual responses and inject transport failures; parsed workbooks and exact stored rows independently verify outcomes. The native download save boundary is captured rather than certified. Existing timeline/reconciliation simulated-response browser suites remain separately identified. No new application dependency or migration. Evidence: `docs/REPORTING_RECONCILIATION_ACCEPTANCE_2026-10-28.md`.
+
+## Office account conversion operation (28 October 2026)
+
+The existing transactional conversion command has been applied locally after verifying the listening API's technical-only admin gate and real recovery credentials. Only the legacy Office `is_staff` field changed; 63 protected model/through-table fingerprints remained identical. Existing/fresh Office portal sessions and dedicated technical admin login were verified; repeat conversion is idempotent. No authentication design, schema, dependency or application-code changes were needed. See `docs/OFFICE_ACCESS_ROLLOUT_2026-10-28.md` for the 123-test gate, 83 runtime assertions and evidence boundaries.
+
 ## Branch integration and release (28 October 2026)
 
 Use a normal merge of origin/main into the current feature branch. Keep appointment source navigation available when a partial supervisory DTO has an approved application ID but lacks lifecycle details; omit fabricated lifecycle controls and facts. Workload tests assert the current accessible section hierarchy and lecturer heading rather than obsolete typography tokens. Retain Office/Technical Administrator separation and incoming main features together. The two content conflicts keep main's redesigned letter-management and staff-account screens; obsolete staff-component alignment fixtures now exercise the shared production workload headings. The automatic account-admin merge preserves immutable profile owners alongside main's read-only AccountChange registration.
@@ -736,7 +810,7 @@ Shared browsing preserves Panel member identity for staff monitoring and start/e
 
 The appointment module owns a nullable `SupervisorApplication.section_a` JSON submission record. New multipart `sectionA` input is a strict version-1 structure containing title origin, bounded student-declared course rows or explicit none and declaration acceptance. Identity/contact data, declaration text, actor and timestamps are server-owned. Existing research fields remain authoritative application fields. Missing Section A is an explicit compatibility path for older clients and historical records; no historical values are reconstructed from current profiles.
 
-The Student-only `/api/appointments/supervisor/application-prefill/` resolves account/profile/registry particulars and the effective application semester. Exact `/api/appointments/supervisor/applications/<id>/section-a/` uses the existing application permission check and returns only the authorized submitted record. Both sensitive endpoints use no-store cache headers. Standard queue/list/candidate/export DTOs remain unchanged. Conditional proposal enforcement reuses validated private uploads and the active research-proposal requirement; file security, global document requirements and creation/approval transactions stay intact.
+The Student-only `/api/appointments/supervisor/application-prefill/` resolves account/profile/registry particulars and the effective application semester. Exact `/api/appointments/supervisor/applications/<id>/section-a/` uses the existing application permission check and returns only the authorized submitted record. Both sensitive endpoints use no-store cache headers. Standard queue/list/candidate/export DTOs remain unchanged. Private uploads are validated against Office-configured document requirements independently of title origin; file security and creation/approval transactions stay intact.
 
 The existing Student application retains particulars/research/results/supervisor/documents/review sections, now composed into the four steps described in the 2026-10-21 Research Intent extension above. Shared exact request details load Section A separately, use submitted identity/programme/session in their summary, and display results/declaration with explicit loading/retry/missing/legacy states. Dirty-draft protections include new inputs. Office replacements retain their separately documented Office workflow. The implementation uses existing React/DRF/portal conventions without new dependencies. Design, compatibility decisions and verification contract: `docs/superpowers/specs/2026-10-17-supervisor-section-a-design.md`.
 
@@ -1549,7 +1623,7 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `LecturerCapacityAudit` is append-only across instance, QuerySet, bulk-update, deletion, and conflict-update paths. Task 3 services emit one audit per affected action using the existing stable action values, dedicated entity foreign keys, actor/reason, and primitive/ISO before/after snapshots. `capacity_plan_snapshot()` orders entries by stable Lecturer identity, includes the canonical content fingerprint, and remains deterministic and JSON-safe.
 - Draft readiness is derived from current persisted lifecycle and Supervisor/Panel profiles. Every eligible Lecturer needs exactly one entry, required-role limits must be non-null, absent-role limits must be null, and zero remains valid. Copying drops ineligible historical rows, adapts removed roles to null, skips source rows whose newly required limit is unknown, and never copies availability windows.
 - `academics.capacity` is the shared read-only semester/role resolver. It reads only the published plan, current persisted account/lifecycle and role eligibility, active same-role availability windows, and global workload rows. State precedence is `INELIGIBLE`, `NOT_CONFIGURED`, `TEMPORARILY_UNAVAILABLE`, `OVER_CAPACITY`, `FULL`, then `AVAILABLE`; zero limits and non-negative arithmetic are handled explicitly. Its frozen result exposes an applicable availability end date only when the final state is `TEMPORARILY_UNAVAILABLE`; every other state returns null, and neither the result nor public conflict messages expose the internal reason.
-- Existing workload semantics remain intact: active Supervisor appointments consume Supervisor capacity, while active Panel appointments and submitted/pending recommendations are reported separately as active and reserved load. Existing no-semester workload-limit callers continue reading legacy profile values; semester-aware compatibility calls delegate to the resolver and fail closed to zero for missing policy or ineligible Lecturers.
+- Workload semantics: active primary/supporting appointments and accepted primary reservations consume Supervisor capacity; active Panel appointments and accepted recommendations awaiting Coordinator approval are reported separately as active and reserved load. Unanswered requests consume neither role’s capacity. Existing no-semester workload-limit callers continue reading legacy profile values; semester-aware compatibility calls delegate to the resolver and fail closed to zero for missing policy or ineligible Lecturers.
 - `academics.views` exposes Office-only capacity-plan list/create/detail/compatibility-edit/clone/publish, nested Lecturer-entry update, semester availability list/create, availability cancellation, and capacity-audit list endpoints. Views authenticate and authorize before object resolution, validate camelCase serializers, enforce client version identity, and delegate every mutation to `academics.capacity_services`. Base `CapacityLifecycleConflict` and resolver `CapacityConflict` map to `409`; malformed domain values map to `400`, unknown objects to `404`, and database races to a stable `409` response.
 - Capacity plan payloads include semester identity, version/origin/supersession lineage, current-published and readiness state, canonical `contentFingerprint`, actor/timestamp metadata, and entries ordered by staff number and stable IDs. Entry payloads retain Draft limits while exposing current shared-resolver load/state metadata for held roles. Caller-loaded entries are reused for readiness and fingerprinting, and a focused query ceiling guards the detail response. Availability/audit payloads are deterministic; internal availability and cancellation reasons exist only behind Office management authorization.
 - `StrictCapacitySerializer` rejects every request-body key outside each capacity command's declared camelCase fields. The empty clone serializer prevents ignored data from producing plan/audit side effects, while a dedicated strict reason serializer protects availability cancellation without changing the shared Semester `ReasonSerializer`.
@@ -1561,7 +1635,7 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `academics.test_capacity_helpers.publish_test_capacity_plan()` builds complete realistic fixture policy through the same fingerprinted lifecycle services. A suitable Published plan is reused; any other pre-existing policy fails the fixture instead of being silently replaced. Guarded `seed_users` follows the same service flow before first demo-semester activation and never changes existing capacity history.
 - Appointment candidate endpoints resolve the current effective semester once, derive each eligible Lecturer's role-specific state through `academics.capacity`, omit ineligible and temporarily unavailable new selections, and pass immutable resolutions into serializers. Candidate and Office/Lecturer workload payloads share the same semester/plan/version, load, limit, slot, state, selectability, and public availability-date contract; compatibility fields remain available for existing frontend consumers.
 - Supervisor and Panel submissions perform an early resolver check and repeat it after Student/Lecturer row locking before persistence. Final Coordinator approvals lock the source workflow, participant, and target Lecturer, then recheck the workflow's persisted `academic_semester`; the only capacity-semester substitution is an explicit Office carryover reassessment authorization, while the workflow semester itself remains unchanged. `CapacityConflict` is translated to `409`, and the surrounding transaction preserves the pending workflow and all downstream records.
-- `activate_replacement()` is the final shared assignment boundary for ordinary and replacement activations. It locks the incoming Lecturer and repeats the role-specific source-semester guard before ending an old appointment. Panel activation excludes only its own recommendation reservation, preventing double counting while preserving all unrelated reservations. Existing Supervisor and selected-Panel review actions deliberately remain available after capacity changes because they do not create an appointment.
+- `activate_replacement()` is the final shared assignment boundary for ordinary and replacement activations. It locks the incoming Lecturer and repeats the role-specific source-semester guard before ending an old appointment. Panel activation excludes only its own recommendation reservation, preventing double counting while preserving all unrelated reservations. Supervisor and selected-Panel acceptance rechecks capacity under locks before reserving a place; rejection remains available under existing eligibility guards.
 - Persisted Supervisor applications and Panel recommendations derive only `unavailableUntil` for their already-selected Lecturer. The shared resolver returns that date only for the final `TEMPORARILY_UNAVAILABLE` state, so Student-facing payloads never expose Office reasons or internal capacity policy details.
 - `dashboard.reports` resolves current Supervisor and Panel capacity through the same semester policy used by appointment mutations. Office reports receive complete role-state distributions and capacity attention; Coordinator and Lecturer report payloads set the faculty capacity section to null. Existing workflow rows and XLSX sheets carry plan/version, state, limit, load, slots, and public availability dates without exposing internal reasons.
 - `dashboard.actions` adds Office-only `LECTURER_CAPACITY` actions for over-capacity, temporary-unavailability, and active-semester unconfigured states. They participate in the existing deterministic 20-item action limit and navigate through Dashboard metadata rather than creating a separate workflow record.
@@ -1642,3 +1716,332 @@ The approved extension introduces dedicated supporting nomination and appointmen
 - `OfficeToolSection` and `OfficeToolViews` accept explicit optional Lucide icon props. `OfficeToolHeading` supplies the existing heading typography with a decorative tile for standalone calendar/capacity headings. Reuse `AppointmentIcon` and its muted palette rather than introduce another icon system or change global page headers.
 - Semester/calendar navigation retains text and pressed-state semantics. Semester records, submission overview, capacity policy/workload/version collections and reconciliation summary/list headings receive task-specific icons. Dashboard tool-group icons use the same neutral tile.
 - No API, authorization, data, persistence, dependency or workflow changes. `POLISH_TOOLS=1` in the existing visual capture script mounts actual Office workspaces against fictional read-only fixtures at desktop and narrow widths.
+
+
+## Panel acceptance reservations — 29 October 2026
+
+`PanelRecommendation.PENDING_STATUSES` covers both ongoing review states; `WORKLOAD_RESERVED_STATUSES` covers only `PENDING_COORDINATOR`. Capacity totals/publication/workspace use reservations; workflow and integrity consumers use pending statuses. Historical migrations retain their historical semantics. No existing request statuses are rewritten.
+
+Panel acceptance follows the existing policy-semester → Student/request → Lecturer lock order, rechecks effective request capacity and atomically changes status. Final approval excludes its own reservation. The activation and reconciliation paths close only other unaccepted nominations whose own effective policy is filled by ACTIVE appointments. Closure stores cancellation metadata, a System workflow event and deduplicated in-app notifications within the same transaction. Migration `0020_panel_capacity_full` adds the terminal choice without altering stored records.
+
+The existing nomination serializer supplies `acceptanceCapacity` (active, reserved, limit, available places, pending requests and state) for ongoing nominations. The panel detail and acceptance dialog use that request policy; the dashboard remains a current-semester summary. Existing AlertMessage/DecisionDialog components render the concise warning; acceptance fails closed if capacity metadata is missing.
+
+Validation includes real PostgreSQL competing acceptances, request/closure/recovery API tests, capacity publication/workflow regressions, SSR checks and mounted desktop/mobile browser scenarios.
+
+
+## Approved handoff repair policy resolution — 29 October 2026
+
+`dashboard.reconciliation._request_capacity_available()` uses the shared `assert_request_capacity()` guard for both Supervisor and Panel handoff detection. Panel repair repeats that guard after policy/Student/request/Lecturer locking; `activate_replacement()` retains its final guard. Removed the separate current-semester Panel workload/legacy-limit precheck.
+
+`capacity_reassessment.capacity_semester()` resolves an APPROVED request with a latest CONSUMED event to that event's recorded target semester. This is approval evidence, not a new grant: Closed targets remain usable for recovery while archived sources/targets are blocked. Requests without consumed approval evidence retain original-policy or existing current-Active reassessment freshness rules. Repairs do not consume the authorization again, change the request semester or rewrite approval history. No schema or frontend changes.
+
+Regression tests use real Office list/apply endpoints and the locked repair handler, cover differing current/source limits, consumed carryover, archived/missing/restricted/full policies, reservations, stale unconsumed grants, changes after preview and preserved approval attribution/audits.
+
+## Candidate capacity presentation (29 October 2026)
+
+`CandidateCapacity` and `CandidateCapacityBreakdown` share read-only availability presentation across Supervisor application and Panel nomination selectors. They use server capacity state/remaining counts, with existing legacy total/load fallback only for display. The Panel candidate API adds `activeLoad` and `reservedLoad` from its existing cached capacity resolution; no new workload queries, database schema or reservation rules. Selection, busy/intake guards and server capacity enforcement remain in their existing owners.
+
+## Capacity audit version browsing (30 October 2026)
+
+Capacity audit payloads add nullable planVersion from the protected plan relation, eagerly loaded with actor to avoid per-row queries. Audit browsing accepts a positive integer version filter before counting/pagination. Only paginated audit envelopes add a descending versions list scoped to the selected semester; existing array consumers remain compatible. The Office collection owns the immediate filter and receives optional initialVersion from version shortcuts. Copy-source descriptions use immutable beforeValues snapshots; events without a linked plan remain semester-wide. No database migration or mutation/audit behavior changes.
+
+## Capacity semester selection refresh (30 October 2026)
+
+The Office capacity workspace retains the full semester catalogue for historical copy-source resolution but derives non-archived working options separately. Semester resolution validates URL/current selection before loading capacity collections. A separate generation counter suppresses stale catalogue reads; return-to-focus refresh revalidates lifecycle before refreshing the selected workspace, clears invalid cached plans/roster, and disables readiness during refresh. Existing server lifecycle guards remain authoritative. No backend API/schema changes were required.
+
+## Shared Office semester control (30 October 2026)
+
+OfficeAcademicSemesterSelect composes the existing PortalSelect and StatusBadge with the established capacity-semester CSS classes, common Malaysia date formatting and getStatusBadgeTone. Calendar, capacity and periods supply eligible options, selected ID, disabled state and their existing change handlers. Effective status takes precedence over lifecycle for display, while lifecycle continues to control permissions. The PortalSelect adapter now omits hidden native options from its custom menu, retaining native form/validation markup. Shared badge mapping covers Published/Open/Upcoming; managed submission-window details use the same mapping. No backend contracts, lifecycle rules or data changes.
+
+### Shared semester transition modal (31 October 2026)
+- AcademicSemesterManagement renders every lifecycle transition through SemesterTransitionSurface using PortalModal; the archive-only modal branch and inline-card fallback are removed. Existing transition state, dirty-discard dialogs, busy guards and signed closure review remain unchanged.
+
+### Calendar linked-window navigation (31 October 2026)
+- Calendar links retain semester and period anchors and add manage=window. OfficePeriodsManagement passes this explicit intent into OperationalPeriodManagement, which validates the owning activity and window before opening its existing RecordPage. Ordinary anchor links retain row-focus behavior. Timeline entry spacing and minimum desktop width are scoped to the Entries table; small-screen cards remain intact.
+
+
+### Calendar event editing consistency — 31 October 2026
+
+Timeline entry PATCH accepts extensionReason and expectedDeadlineEnd. An unlinked later end date requires a reason and passes semester/date validation; metadata and date changes commit atomically with one EXTEND audit containing before/after dates. Linked metadata PATCH omits dates and retains existing owning-period validation. Calendar Entries always opens the editor; its linked date section provides the direct window management link.
+
+### Calendar import review presentation — 31 October 2026
+
+UploadTimelineDrawer paginates validated previews locally in batches of ten without changing the signed token or import payload. Clearing, selecting or re-previewing a file resets pagination. Table overflow remains horizontal on narrow screens; the modal retains bounded scrolling.
+
+### Guided Calendar workbook generation — 31 October 2026
+
+The existing openpyxl template generator preserves import header names and adds supported Activity Code/Period ID columns, header comments, list validation, explicit date formats, frozen headers, wrapped examples and an Instructions sheet. The parser selects the named Timeline sheet regardless of the last active tab, falling back to the active sheet for legacy workbooks. Backend import and period-link rules remain authoritative and unchanged.
+
+Calendar template Instructions freezes only its title row (A2), leaving the field guide scrollable on short displays; introductory guidance is not pinned.
+
+### Simplified calendar import contract — 31 October 2026
+
+Template headers are Level, Title, Detail, Action, Deadline Start, Deadline End and Target Roles. Week Label is no longer required or generated (legacy files remain readable). Populated legacy mapping columns are rejected with direction to Periods & deadlines. Existing exact matching links are preserved on replacement, including their legacy week metadata; replacement cannot drop linked records. Preview projection omits link IDs and the UI removes the link guidance and schedule-source column. Instructions has no freeze/split pane and 85% default zoom.
+
+### Calendar responsibility editor mapping — 31 October 2026
+
+TimelineEntry retains optional action through timelineEntryToLegacy. Create/Edit bind a required 255-character Responsible parties input, include it in dirty state and send it as the existing API action field. Omitted action in older create callers retains the previous audience fallback; omitted update action preserves stored responsibility. No schema or permission change.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+OperationalPeriodManagement uses separate Window and Programmes columns for appointment and Marks window lists. Calendar linkage remains in the managed record. Existing backend publication overlap validation is unchanged.
+
+
+## Window-table alignment correction — 31 October 2026
+
+Replaced obsolete five-column widths with scoped six-column sizing for appointment and Marks windows. Desktop tables scroll inside their container if needed; mobile retains labelled cards. Opens and Closes use identical two-line date/time presentation with explicit MYT. Status and action retain separate space. Validation: TypeScript passed; focused mounted browser checks passed at 1440, 1280, 390 and 320px for both appointment and Marks tables, including column separation, date structure and page overflow.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+OperationalPeriodManagement uses separate Window and Programmes columns for appointment and Marks window lists. Calendar linkage remains in the managed record. Existing backend publication overlap validation is unchanged.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+OperationalPeriodManagement uses separate Window and Programmes columns for appointment and Marks window lists. Calendar linkage remains in the managed record. Existing backend publication overlap validation is unchanged.
+
+### Submission window detail cleanup - 31 October 2026
+- OperationalPeriodManagement uses separate window, calendar and native details/summary history cards for appointment and Marks windows. History retains lazy extra-time loading and revoke controls; presentation maps audit actions to plain-language titles. PeriodCalendarConnection suppresses additional linking when a connection exists; server contracts are unchanged.
+
+### Submission schedule and readable history revision - 31 October 2026
+- Window details reuse SupervisorRequestDisclosure for history. OperationalHistory follows RequestAuditHistory row conventions (action/date, actor, actual changes and reason). Date changes compare formatted Malaysia values so equivalent offset/precision representations do not create false changes; name, programme scope and evaluator-role changes are also represented. The compact WindowDateTime renderer remains exclusive to overview tables. Existing lazy extra-time retrieval and revoke controls remain available.
+
+
+### Linked calendar schedule warning — 31 October 2026
+OperationalPeriodManagement uses the shared warning AlertMessage above schedule inputs for linked events (including a selected event during creation). No focus-triggered popup or schedule mutation behavior was added. Unknown calendar connection states retain a visible caution.
+
+
+### Compact linked calendar notice - 31 October 2026
+Linked schedule impact now uses one sentence with a small Info icon and subtle blue background, without a heading or separate event-name row. The unknown-connection warning remains unchanged.
+
+
+### Window table status clarity - 31 October 2026
+Shared WindowScheduleStatus uses lifecycle for non-published windows and effective schedule status for published windows; ENDED is presented as Closed. Appointment and Marks tables use the same renderer and existing badge tones. Detail-page lifecycle and enforcement controls are unchanged.
+
+
+### Window status spacing - 31 October 2026
+Desktop window tables allocate 15% to Closes and 12% to Status, moving Status left while keeping Action in place. Mobile layout is unchanged.
+
+
+### Date restriction review layout and discard - 31 October 2026
+ProgrammeCoverageReview groups coverage by window ID while preserving programme membership and uncovered programmes. Restriction review opts into the shared DecisionDialog wide size. DecisionDialog uses PortalConfirmModal for unsaved dismissal, preserving dirty guards, owner callbacks and native focus trapping; replacement review remains unchanged.
+
+
+### Submission access labels - 31 October 2026
+WindowSubmissionAccess combines lifecycle, effective schedule and activity enforcement for appointment overview rows. Marks schedule status remains unchanged. Status column widened to 18%, reducing preceding column widths.
+
+### Shared submission availability feedback - 31 October 2026
+- OperationalIntakeFeedback composes SubmissionAvailabilityNotice for consistent responsive icon/title/detail/action layout. MarkEntryDetail reuses the notice without conflating Marks task permissions with operational intake enforcement.
+- Student workspace entry actions and handlers use useOperationalIntake loading/blocked state; Supervisor and Panel final-submit handlers also wait for reads. Pending enabled reads are reported during the initial effect transition. Existing server-side intake validation remains authoritative.
+- MarkEntryDetail guards draft and final writes using canEdit/canSubmit as well as existing UI controls. Only ACTIVE completion-window metadata is presented as available extra time.
+- Isolated mounted browser fixtures cover blocked/open transitions, retained Panel input and Marks scheduled/closed/extra-time permissions; responsive fixtures exercise production CSS at 1440, 1280, 390 and 320px.
+
+### Dashboard timeline preview presentation - 1 November 2026
+- TimelineCalendar composes TimelineEventDetails and TimelineSubmissionStatus for dashboard-facing presentation; LinkedPeriodStatus remains unchanged for Office management tables.
+- Unrestricted operational links render no status container. Shared calendar consumers inherit the same preview layout; role audience filtering and backend period permissions are unchanged.
+- Focused static rendering tests cover lifecycle/schedule wording and unrestricted suppression; mounted browser tests cover the actual modal and date/detail structure at desktop and phone widths.
+
+### Office attention empty preview - 1 November 2026
+- AdministrationDashboard uses a scoped home-attention-empty state instead of the general full-page EmptyState. Styling is isolated to Office home; shared async states are unchanged.
+- The existing Office dashboard browser fixture supports a focused empty-preview run while preserving its full default scenario suite.
+
+### Compact application availability - 1 November 2026
+- OperationalIntakeFeedback supports an opt-in compact header presentation. Student Supervisor groups it with New application; form and Marks notices retain their existing layout. Permission checks are unchanged.
+
+### Supervisor application availability modal - 1 November 2026
+- StudentSupervisorAppointment guards launch with a synchronous in-flight ref and refreshed operational availability. ApplicationAvailabilityModal uses shared PortalModal, labelled title, standard close control and check/close actions. Closing restores launch focus. This phase changes Supervisor launch only; Panel, Marks and final-submit API permissions remain unchanged. The superseded compact header presentation was removed.
+
+### Supervisor availability presentation refinement - 1 November 2026
+- ApplicationAvailabilityModal uses a single padded layout with a contextual icon/title, associated explanation, date/time inset and an unsegmented action row. Removed the Supervisor header status and its obsolete query-param dependency; launch recheck and permissions remain intact.
+
+### Supervisor application progress layout - 1 November 2026
+- SupervisorAppointmentApplicationPage suppresses its local OperationalIntakeFeedback notice when canSubmit is true. The shared notice component, intake hook, launch check and submit guards are unchanged.
+- Desktop progress uses three flexible intervals followed by a marker-width final column. Intermediate labels center beneath their markers; the final label aligns inward from the card edge. Completed-step navigation and the existing mobile progress strip are retained.
+- The step-heading row owns the draft controls; the disclosure popover anchors to the controls container instead of a fixed negative horizontal offset. The phone controls container spans the available width.
+- Draft feedback stores text and an optional inDetails presentation flag. Restore/resume context appears in the disclosure and an sr-only live status, while save/discard failures remain inline. Draft persistence and permission checks are unchanged.
+
+### Concise draft details - 1 November 2026
+The draft disclosure shows a brief file reminder, an unboxed saved timestamp, existing actions and conditional loading/unsaved/empty feedback. Restore announcements remain accessible outside the disclosure.
+
+Added two short instructional sentences to the existing draft disclosure; draft state and actions are unchanged.
+
+### Single required project course code - 1 November 2026
+- Keep the projectCourseCodes text API/model and projectCodeEntries draft array for compatibility. Render one required input, preserving legacy multi-code draft text visibly for correction. Validate one nonblank code on wizard continuation and API creation; reject comma, semicolon or line-separated lists. No historical data migration or draft completeness constraint.
+
+
+### Document requirement modal — 1 November 2026
+- SupervisorDocumentRequirements reuses SegmentedControl (larger tabs variant) and PortalModal rather than mounting a RecordPage editor.
+- useDraftDiscard handles local Cancel, X, Escape and backdrop dismissal; DraftNavigationGuard retains route/unload protection. PortalModal provides accessible naming, native focus containment and trigger focus restoration. Create/update service contracts are unchanged.
+
+
+### Title-origin document decoupling — 1 November 2026
+- Removed the conditional Section A proposal validator from the submission API and conditional frontend required-document projection. Title-origin fields and utility validation no longer consume proposal configuration.
+- Application prefill retains proposalRequirementCode for response compatibility; it no longer controls upload validation. The general unconfigured-setup 409 and normal configured upload validation remain enforced; explicit no-documents setup is described below.
+
+
+### Office document setup attention projection — 1 November 2026
+- build_office_attention_tasks adds a read-only SUPERVISOR_DOCUMENT_REQUIREMENTS setup item using the shared document setup-status check; the legacy capped dashboard task builder is unchanged.
+- A documents category keeps configuration separate from supervision requests, with blocking priority because missing setup prevents application submission. Both summary and record navigation resolve directly to the existing document requirements route. No persisted notification or migration is needed.
+
+
+### Document setup attention presentation — 1 November 2026
+- OfficeAttentionPage gives the documents setup category a concise reason and warning-tone Setup required badge. Backend blocking priority remains unchanged because setup still blocks submissions. Other attention categories keep their existing presentation.
+
+
+### Explicit Supervisor document setup — 1 November 2026
+- Migration appointments.0021 adds the faculty-wide SupervisorDocumentSetup singleton (default false); no row or false with no active items means unconfigured. No policy is automatically enabled by migration.
+- Authenticated GET /appointments/supervisor/document-requirements/setup/ returns noDocumentsRequired/configured. Office-only PATCH requires the boolean and a reason. Changes use the existing immutable requirement audit with SETUP action and nullable requirement reference.
+- Setup writes and checklist writes share a transaction/row lock, preventing simultaneous no-documents mode and active checklist items. Existing active requirements and legacy active-list API remain compatible. Submission still rejects unknown/inactive uploads and applies normal file security; empty uploads succeed only with active optional-only items or explicit no-documents setup.
+- Student guidance/form load the explicit setup alongside checklist data; failed reads remain errors. Office attention uses the same setup-status service without writes. Existing modal/discard/save feedback patterns apply to the Office setting.
+
+
+### Document requirements workspace presentation — 1 November 2026
+- SupervisorDocumentRequirements groups the policy summary and checklist; Add requirement belongs to the checklist header. A shared PortalModal uses draft radio state independent of persisted policy and existing discard protection.
+- Configuration history uses native details/summary and shared WorkspacePagination, slicing the existing newest-first audit response into 10-entry pages. Pagination is client-side; the existing Office-only audit endpoint and stored history are unchanged. Refresh resets to page one.
+
+
+### Document requirements local tab presentation — 1 November 2026
+- Replaced the page-local pill switch with counted underline tabs, connected tab/panel IDs, roving tab focus and Arrow/Home/End keyboard navigation. Shared page-level tab styling is unchanged. Policy and checklist share one unbanded header area; existing modal, persistence and history pagination are retained.
+
+
+### Appointment workload summary presentation — 1 November 2026
+- AppointmentSummaryCard accepts optional supportingContent. Shared AppointmentWorkloadDetails renders one short supporting sentence: nonzero held places, otherwise available places; policy restrictions override numerical availability. Supervisor and Panel request landing summaries and My Panel students share this compact presentation. Semester/version metadata stays in capacity management; capacity calculations remain in existing adapters.
+
+- Workload supporting text now explains utilization with active appointments and nonzero awaiting-approval counts in one line across Supervisor requests, Panel requests and My Panel students. Policy restrictions retain priority.
+
+Removed only the introductory paragraphs in OfficeSupervisorAttention and OfficePanelAttention; category selection, counts and filtering are unchanged.
+
+- Supervisor application required labels share ApplicationRequiredMark (visual asterisk with screen-reader text). Research Intent textareas expose native required and aria-required; submission validation remains in existing step validators and API contracts.
+
+- Lecturer dashboard Supervisor and Panel capacity cards also reuse AppointmentWorkloadDetails, mapping authoritative active and reserved fields separately from occupied totals.
+
+- Panel nomination selection hides successful intake feedback locally; OperationalIntakeFeedback remains available for loading, errors and blocked intake. Candidate capacity presentation remains separate from unchanged submission enforcement.
+
+### UAT department fixtures
+- `scripts/prepare_five_module_uat.py` assigns explicit fictional AI, Data Science and Cyber Security departments to lecturer/Coordinator account specifications. Department is profile metadata; candidate eligibility and student-programme approval routing are unchanged. Existing UAT profiles were updated by matched staff ID and email without re-running sandbox preparation.
+
+### Co-supervisor nomination modal
+- `CoSupervisorNominationForm` owns a labelled `PortalModal` with the shared rectangular close control, compact student context, scrollable form body and fixed footer. Close, Escape and backdrop dismissal use the existing dirty-draft guard. The separate shared confirmation modal handles discards. Removed the obsolete inline-editor scrolling/focus effect; modal focus management is provided by `PortalModal`. API contracts and role/capacity checks are unchanged.
+
+- Co-supervisor modal derives visible candidates by primary-supervisor user ID; selection validation and empty-state checks use that same filtered list. Backend eligibility checks remain authoritative.
+
+- Co-supervisor nomination uses one editable combobox inside `PortalModal`, following the Panel nomination picker: name/staff/department search in the field itself, a directly attached result list, `CandidateCapacity` badges and a selected checkmark. The same field displays the selected name when closed. Keyboard navigation skips disabled options; Escape closes the list before the modal. Co-supervisor candidate responses include staffId/department; frontend capacity metadata uses the shared CapacityState type. Justification uses explicit padding and line height.
+
+
+### Pending co-supervisor nomination guard — 2026-11-01
+Co-supervisor creation checks for any pending nomination under the existing student transaction lock. Team canNominate projections reflect this guard, and the shared detail card also gates stale capability flags. Existing request decisions remain available, including legacy concurrent nominations. Compact pending summaries use the existing supporting-request route.
+
+Pending co-supervisor summary action: align View nomination request to the right using a wrapping flex row; workflow rules remain unchanged (2026-11-01).
+
+
+### Integrated pending team members — 2026-11-01
+Pending co-supervisor requests appear directly under Supporting supervisors, without a separate Pending nominations heading or a contradictory unassigned message. Panel summaries similarly show the proposed member and review-stage badge while pending, and avoid duplicate empty-state sentences. Pending Panel names are projected only when the actor may view that recommendation. Existing active members remain visible during replacement.
+
+
+### Unified request tables — 2026-11-02
+WorkspaceRecordTable accepts an explicit history mode with matching responsive columns/cells and column widths. Lecturer appointment and research-change lists render a single combined table. Student and Coordinator request histories use the shared history mode; CoordinatorRequestTable and PanelBrowse match final-history semantics. Request grouping remains in workflow utilities for partitioning and counts, while visual group sections have been removed. Server-paged research ordering and pagination remain server-owned.
+
+### Supporting supervision detail presentation — 2026-11-02
+- The shared non-collapsible SupervisoryStudentDetailCard applies a section divider and action footer across role-specific detail routes, retaining capability checks.
+- Completed nominations render as linked summaries in Supporting appointment history rather than embedding CoSupervisorNominationCard approval/audit dossiers. Primary lifecycle changes retain their separate Appointment changes surface.
+- Active supporting members omit ACTIVATED events from their local changes disclosure; raw history and standalone request views are preserved.
+
+- 2026-11-02: The shared supervision detail sidebar stacks appointment management and supporting history; it stacks below the main content on smaller screens. History links use the primary navy/white action styling.
+
+- 2026-11-02: The shared non-collapsible supervision details no longer render completed supporting nomination or former appointment history cards. Current team management, pending request links and primary appointment changes remain unchanged.
+
+- 2026-11-02: Removed PanelCapacityNotice from shared PanelRecommendationDetail. Acceptance capacity guards remain in the review controller, with a conditional blocked-action explanation; confirmation reservation messages remain unchanged.
+
+- 2026-11-02: Removed sentence-case and normal tracking overrides from shared request action containers and Panel/supervision action buttons so PortalButton typography applies consistently. Navigation-link actions in pending supporting summaries also use uppercase styling.
+
+- 2026-11-02: RequestDetailActions now owns layout only (width, stacking, spacing) and delegates typography and shape to PortalButton. Removed local button text-size/height overrides from supervision actions and Panel nomination controls. The supporting request navigation link matches standard secondary button tokens.
+
+- 2026-11-02: CoSupervisorNominationForm filters candidate.selectable before search and selection, retaining server validation. Panel replacement keeps its specific accessible name while using Replace as the visible label.
+
+- 2026-11-02: Aligned Supporting supervisors section borders and spacing in shared PanelAssignmentDetails and StudentSupervisorsOverview with SupervisoryStudentDetailCard. Panel assignment routes inherit this presentation without adding management controls.
+
+- 2026-11-02: Removed the completed nomination history surface and its local pagination state from PanelSuperviseeDetails; retained the recommendations prop contract for callers and the separate nomination records route.
+
+
+### 2026-11-02 — Rubric family creation modal
+
+RubricsManagementView shares its metadata editor between inline version editing and a PortalModal creation flow. Modal cancellation restores the previous selection after explicit discard where needed. Mutation conflict recovery is rendered inside the creation modal so it remains actionable.
+
+
+### 2026-11-02 — Rubric input contrast
+
+Rubric inputs explicitly set dark value text and muted placeholders to avoid inheriting muted label colour. The rubric creation portal carries the marks-workspace class to retain module typography outside its original DOM ancestor.
+
+
+### 2026-11-02 — Assessment component workspace
+
+RubricsManagementView now tracks separate metadata and component modal visibility while retaining existing API mutations, baselines, conflict recovery and navigation guards. PortalSelect replaces the family sidebar. Component forms use two columns on larger screens and one on phones; the component table scrolls within its card. Committed component mutations close the editor before refreshing so a failed read cannot expose a repeat submission.
+
+
+### 2026-11-02 — Rubric hierarchy and row actions
+RubricsManagementView groups version selection with the read-only rubric summary; readiness is grouped with the marks total rather than creation actions. Scoped marksWorkspace styles provide 12px table headers, 14px row values and middle alignment. Shared PortalButtons retain component deactivation semantics and confirmation.
+
+
+### 2026-11-02 — Rubric placement and column widths
+Rubric summary uses a title/action row followed by a left-aligned selector. Assessment table uses an explicit colgroup (8/30/13/12/13/24 percent) and contained horizontal scrolling below 960px.
+
+### Rubric family workspace — 2026-11-02
+- `RubricFamilyList.tsx` groups versions into one family row, handles local search/status filtering and pagination, and renders bounded version history. `RubricsManagementView` owns selection, detail reads, modal edits, mutation recovery and archive confirmation.
+- `Rubric.is_archived` (marks migration 0012) is independent of `is_active`, which continues to identify the current version. Office-only POST `/api/marks/rubrics/<id>/archive/` accepts a boolean `archived` and updates/audits every family version transactionally. It never deletes marks or changes period rubric references.
+- Archive and clone lock family versions in stable primary-key order. Criteria changes reject archived versions. New period creation and rubric reassignment validate current, unarchived versions on the server; new-period choices exclude archives while existing assignments remain visible.
+- Rubric payloads include version-specific evaluation-period usage (name, semester, lifecycle). Marks overview shows its actual period rubric, without falling back to an arbitrary active family.
+
+### Rubric version clarity — 2026-11-02
+The rubric workspace reuses the existing clone service for NEW VERSION on locked and unlocked versions, with shared confirmation and existing write/conflict guards. Version identity appears once beside its Current/Previous badge; target totals remain in Assessment components.
+
+### Rubric action spacing — 2026-11-02
+Moved version creation to PageHeader actions with the same busy, refresh and conflict guards. Summary footer separates family lifecycle controls from metadata editing; existing confirmation flows are unchanged.
+
+Summary actions contain metadata and family lifecycle buttons; version creation stays in PageHeader. Removed the lifecycle footer introduced in this round.
+
+
+### Mark Entry Periods entrance — 2026-11-02
+MarkEntryPeriodList presents the entrance table using shared PortalCard, PortalSelect, PortalButton and StatusBadge. Parent-owned filters/page survive detail navigation; existing period selection, draft guards, context scoping and lifecycle APIs are retained. Pagination is ten rows with horizontal scrolling on narrow screens.
+
+
+### Period editor spacing and navigation — 2026-11-02
+Period-editor styling is scoped in marksWorkspace.css. Shared PortalSelect controls use standard form-control classes, with disabled placeholder options hidden after selection. Existing returnToList draft protection now serves the PageHeader back link; lifecycle APIs and archival eligibility remain unchanged.
+
+
+### Period preview and history — 2026-11-02
+MarkEntryPeriodConfig uses the shared PortalModal for its read-only recipient estimate, gated by current preview eligibility. Audit events render in a separate native details card with bounded scrolling; publication validation is unchanged.
+
+
+### Rubric reactivation and code case — 2026-11-02
+Component activation/deactivation share the guarded update and confirmation flow. Rubric family creation validates slug characters without lowercasing and checks existing family codes case-insensitively. Existing stored codes remain unchanged.
+
+### Period configuration layout refinement — 2026-11-02
+Period configuration uses a scoped flex workspace with a 1.75rem card gap, a responsive preview/write footer and newest-first activity rows with human-readable actions, author, timestamp and optional reason. History remains bounded and scrollable.
+
+### Scalable recipient preview — 2026-11-02
+Extracted MarkEntryRecipientPreview into a stateful component; filtering and pagination are local and read-only. The dialog uses max-w-6xl. Programme appears only for multiple programmes. Exclusion counts remain role-based because the API does not supply excluded identities or exact reasons.
+
+### Recipient preview pagination visibility — 2026-11-02
+Recipient preview renders page navigation only when the filtered page count exceeds one. Search and role filtering continue to reset the current page.
+
+### Period publication confirmation clarity — 2026-11-02
+Period publication uses the shared PortalConfirmModal with info tone and CheckCircle2 icon. A structured summary replaces joined paragraphs; archive retains danger styling and existing final-review guards remain unchanged.
+
+### Period closure workflow and reuse review — 2026-11-02
+Period configuration scopes the closure modal to period ID and route context. ClosureReview accepts optional children to place the reason after the signed unfinished-task preview and before confirmation. Existing closure tokens, conflict handling and draft guards are preserved. Publication currently rejects duplicate name/semester only; reuse of rubric and evaluator role remains allowed across periods, with tasks unique per period. No new cross-period business rule introduced.
+
+### Published period footer navigation — 2026-11-02
+The published-period footer reuses onManageTimeline with selected period context through the existing guarded leaveTo navigation.
+
+
+### Marks overview and period monitoring — 2026-11-02
+MarksOverview shares loaded evaluation periods with MarkSubmissionMonitoring; semester totals exclude draft/archived periods. Monitoring defaults to open/scheduled, supports closed periods and ten-row pagination. Record responses expose periodId, periodName and periodLifecycleStatus; URL scope filters active records and survives detail navigation. Existing authenticated-shell list state retains refinements. No eligibility or publication rules change.
+
+Marks overview semester context (2026-11-02): Show the selected academic semester's start/end dates beneath its selector, with 24px separation before summary cards. Dates use the existing academic semester API and Malaysia date formatter; unavailable date metadata does not block marks content.
+
+
+
+### Evaluation task workspace — 2026-11-02
+EvaluationTaskAssignment filters generation-period choices independently of loaded task/backup data. Empty scopes suppress filters and count summaries; temporary assignment activity renders in a separate conditional collapsible card.

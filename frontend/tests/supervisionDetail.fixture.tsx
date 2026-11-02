@@ -16,7 +16,7 @@ const root=createRoot(document.getElementById('root')!);
 const tick=()=>new Promise(resolve=>setTimeout(resolve,25));
 const check=(value:unknown,message:string)=>{if(!value)throw Error(message);};
 const text=()=>document.getElementById('root')!.textContent||'';
-const button=(label:string)=>[...document.querySelectorAll<HTMLButtonElement>('button')].find(node=>node.textContent?.trim()===label);
+const button=(label:string)=>[...document.querySelectorAll<HTMLButtonElement>('button')].find(node=>(node.getAttribute('aria-label')||node.textContent?.trim())===label);
 const details=(title:string)=>[...document.querySelectorAll<HTMLDetailsElement>('details')].find(node=>node.querySelector('summary')?.textContent?.trim()===title);
 let calls:string[]=[];
 window.fetch=async()=>{throw Error('Pure layout checks must not call any live API');};

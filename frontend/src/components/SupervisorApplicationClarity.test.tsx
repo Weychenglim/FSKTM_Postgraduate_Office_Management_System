@@ -8,11 +8,14 @@ import {parseProjectCourseCodes} from '../utils/projectCourseCodes';
 
 const html = renderToStaticMarkup(<form.SupervisorAppointmentApplicationPage onBack={() => {}} onSuccess={() => {}} />);
 assert.doesNotMatch(html, /aria-label="Application sections"|Jump to section|One pending request at a time|You can cancel while awaiting Supervisor review|Your appointment starts after final approval/);
-assert.match(html, /Project course codes/);
+assert.match(html, /Project course code/);
 assert.match(html, /<input[^>]*id="project-course-codes-input"[^>]*maxLength="255"/);
 const replacement = renderToStaticMarkup(<ProjectCourseCodeEntries entries={parseProjectCourseCodes('ABC1234, XYZ9000')} onChange={()=>{}} />);
-assert.match(replacement, /id="project-course-codes-input"[^>]*value="ABC1234"/);
-assert.match(replacement, /value="XYZ9000"/);
+assert.equal((replacement.match(/<input/g) || []).length, 1);
+assert.match(replacement, /required=""/);
+assert.match(replacement, /value="ABC1234, XYZ9000"/);
+assert.doesNotMatch(replacement, /optional|Add course code|Remove/);
+assert.doesNotMatch(html, /Add course code|Remove project course code/);
 assert.doesNotMatch(html,/Replacement reason|Change Supervisor|replacement-reason-input/);
 assert.doesNotMatch(html, /Separate multiple codes with commas|150 words|max 500 words|Submit SV Request/);
 for (const id of ['project-details','supervisor-selection','supporting-documents']) {

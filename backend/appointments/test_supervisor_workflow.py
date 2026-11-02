@@ -145,6 +145,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
                 "proposedSupervisorId": (
                     supervisor or self.supervisor_user
                 ).lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Configurable postgraduate workflow",
                 "researchArea": "Human-Centred Artificial Intelligence",
                 "researchAbstract": "A sufficiently detailed research abstract.",
@@ -242,6 +243,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Missing research area",
                 "researchAbstract": "The application should fail before persistence.",
                 "researchIntent": valid_research_intent_json(),
@@ -313,6 +315,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Capacity guarded workflow",
                 "researchArea": "Software Engineering",
                 "researchAbstract": "A direct identifier must not bypass capacity.",
@@ -455,6 +458,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "No active semester",
                 "researchArea": "Artificial Intelligence",
                 "researchAbstract": "This request must not be accepted.",
@@ -703,6 +707,7 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.other_supervisor.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Second active request",
                 "researchArea": "Artificial Intelligence",
                 "researchAbstract": "This must be rejected while another request is active.",
@@ -1203,16 +1208,17 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             programme=self.student_user.student.programme,
             semester=self.student_user.student.intake_semester,
             proposed_topic="Panel workflow audit",
-            supervisor=self.other_supervisor,
+            supervisor=self.supervisor_user,
         )
         recommendation = PanelRecommendation.objects.create(
             profile=profile,
-            supervisor=self.other_supervisor,
-            recommended_member=self.supervisor_user,
+            supervisor=self.supervisor_user,
+            recommended_member=self.other_supervisor,
+            academic_semester=self.academic_semester,
             status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
         )
 
-        self.authenticate(self.supervisor_user)
+        self.authenticate(self.other_supervisor)
         accepted = self.client.post(
             f"/api/appointments/panel/recommendations/{recommendation.pk}/panel-accept/"
         )
@@ -1222,4 +1228,4 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             panel_recommendation=recommendation
         )
         self.assertEqual(event.action, "PANEL_ACCEPT")
-        self.assertEqual(event.actor, self.supervisor_user)
+        self.assertEqual(event.actor, self.other_supervisor)

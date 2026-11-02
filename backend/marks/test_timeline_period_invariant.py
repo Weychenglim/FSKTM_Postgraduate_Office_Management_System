@@ -111,3 +111,21 @@ class TimelinePeriodSemesterInvariantTests(APITestCase):
                 'closes_at': parse_datetime(move['closesAt'])})
         period.refresh_from_db()
         self.assertEqual(period.academic_semester_id, self.semester.pk)
+
+    def test_linked_event_metadata_can_change_without_dates(self):
+        period = self.period()
+        entry = self.link(period)
+        result = self.client.patch(f'/api/dashboard/timeline/entries/{entry.pk}/', {
+            'title':'Updated linked event', 'detail':'Updated instructions', 'targetRoles':['STUDENT'], 'level':'P2',
+        }, format='json')
+        self.assertEqual(result.status_code,200,result.data)
+        entry.refresh_from_db()
+        self.assertEqual(entry.title,'Updated linked event')
+        self.assertEqual(entry.target_roles,['STUDENT'])
+        self.assertEqual(entry.level,'P2')
+        self.assertEqual(entry.marks_period_id,period.pk)
+        result = self.client.patch(f'/api/dashboard/timeline/entries/{entry.pk}/', {
+            'deadlineEnd':(timezone.localdate(period.closes_at)+timedelta(days=1)).isoformat(),
+            'extensionReason':'Trying to change linked dates',
+        }, format='json')
+        self.assertEqual(result.status_code,400,result.data)

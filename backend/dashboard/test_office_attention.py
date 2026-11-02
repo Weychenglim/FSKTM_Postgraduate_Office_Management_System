@@ -133,7 +133,54 @@ class OfficeAttentionPersistedDataTests(APITestCase):
         self.assertTrue(all(row['category']=='supervision' for row in filtered.data['results']))
         # The uncapped read remains a projection of existing eligibility, not a new workflow.
         legacy_ids = {row['id'] for row in build_dashboard_tasks(self.office)}
-        self.assertTrue({row['id'] for row in data['results'] if row['category']!='calendar'}.issubset(
+        self.assertTrue({row['id'] for row in data['results'] if row['category'] not in {'calendar', 'documents'}}.issubset(
             {row['id'] for row in build_dashboard_tasks(self.office, limit=None)}))
         self.assertTrue(legacy_ids)
         self.assertEqual(before, {model._meta.label: model.objects.count() for model in models})
+
+
+class DocumentRequirementAttentionTests(APITestCase):
+    def setUp(self):
+        self.office = User.objects.create_user(email='document-setup-office@example.test', role=User.Role.OFFICE_ADMIN)
+        self.client.force_authenticate(self.office)
+
+    def read(self):
+        with patch('dashboard.office_attention.build_dashboard_tasks', return_value=[]):
+            response = self.client.get('/api/dashboard/attention/')
+        self.assertEqual(response.status_code, 200, response.data)
+        return response.data
+
+    def test_missing_setup_is_one_faculty_wide_office_action(self):
+        data = self.read()
+        self.assertEqual(data['total'], 1)
+        row = data['results'][0]
+        self.assertEqual(row['recordType'], 'SUPERVISOR_DOCUMENT_REQUIREMENTS')
+        self.assertEqual(row['category'], 'documents')
+        self.assertEqual(row['responsibility'], 'review')
+        self.assertEqual(row['urgency'], 'blocking')
+        self.assertEqual(row['programme'], 'Faculty-wide')
+        self.assertEqual(data['summary'][0]['title'], 'Configure supervisor document requirements')
+        self.assertEqual(data['summary'][0]['count'], 1)
+
+    def test_inactive_requirement_does_not_resolve_setup(self):
+        from appointments.models import SupervisorDocumentRequirement
+        SupervisorDocumentRequirement.objects.create(code='old', label='Old upload', is_active=False)
+        self.assertEqual(self.read()['total'], 1)
+
+    def test_any_active_requirement_resolves_and_deactivation_restores_reminder(self):
+        from appointments.models import SupervisorDocumentRequirement
+        requirement = SupervisorDocumentRequirement.objects.create(code='custom', label='Custom upload', is_required=False)
+        self.assertEqual(self.read()['total'], 0)
+        requirement.is_required = True
+        requirement.save()
+        self.assertEqual(self.read()['total'], 0)
+        requirement.is_active = False
+        requirement.save()
+        self.assertEqual(self.read()['total'], 1)
+
+    def test_explicit_no_documents_resolves_and_revocation_restores_reminder(self):
+        from appointments.supervisor_documents import set_document_setup
+        set_document_setup(actor=self.office, no_documents_required=True, reason="No uploads needed")
+        self.assertEqual(self.read()['total'], 0)
+        set_document_setup(actor=self.office, no_documents_required=False, reason="Require checklist setup")
+        self.assertEqual(self.read()['total'], 1)

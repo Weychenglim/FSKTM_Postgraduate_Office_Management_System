@@ -9,7 +9,7 @@ const results:{name:string;error:string|null}[]=[];
 let root:Root|null=null;
 const check=(value:unknown,message:string)=>{if(!value)throw new Error(message);};
 const until=async(predicate:()=>unknown)=>{for(let i=0;i<100;i++){if(predicate())return;await new Promise(resolve=>setTimeout(resolve,10));}throw new Error(`Timed out: ${container.textContent}`);};
-const button=(label:string)=>Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(row=>row.textContent?.trim()===label);
+const button=(label:string)=>Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(row=>row.textContent?.trim()===label);
 const change=(field:HTMLInputElement|HTMLTextAreaElement|HTMLSelectElement,value:string)=>{
   const prototype=field instanceof HTMLSelectElement?HTMLSelectElement.prototype:field instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;
   Object.getOwnPropertyDescriptor(prototype,'value')!.set!.call(field,value);
@@ -59,11 +59,11 @@ await scenario('Failed Panel nomination keeps its selected member and notes with
 });
 
 const team={studentId:7,matricNo:'PG007',studentName:'Fixture Student',programme:'Computing',studentStatus:'Active',primarySupervisor:{id:9,name:'Dr Primary'},primaryAppointmentId:4,research:{title:'Current title',area:'Networks',abstract:'Abstract'},appointments:[],nominations:[],canNominate:true,timeline:[]};
-async function supporting(conflict:boolean,saved=false,cancelBeforeRecovery=false){
+async function supporting(conflict:boolean|403,saved=false,cancelBeforeRecovery=false){
   let reads=0,posts=0;
   window.fetch=async(input,options)=>{
     const path=new URL(String(input),location.origin).pathname;
-    if(path.endsWith('/nominations/')&&options?.method==='POST'){posts++;return saved?Response.json({id:21},{status:201}):Response.json({detail:conflict?'Nomination eligibility changed':'Nomination could not be saved'},{status:conflict?409:500});}
+    if(path.endsWith('/nominations/')&&options?.method==='POST'){posts++;return saved?Response.json({id:21},{status:201}):Response.json({detail:conflict?'Nomination eligibility changed':'Nomination could not be saved'},{status:conflict===403?403:conflict?409:500});}
     if(path.endsWith('/candidates/'))return Response.json([{id:8,name:'Dr Supporting',selectable:true,reason:'',capacityState:'AVAILABLE',activeLoad:1,limit:3}]);
     if(path.endsWith('/co-supervisor/')){reads++;return reads===2?Response.json({detail:'Workspace refresh unavailable'},{status:503}):Response.json({teams:[team],appointments:[],nominations:[]});}
     throw new Error(`Unexpected route ${path}`);
@@ -91,7 +91,7 @@ async function supporting(conflict:boolean,saved=false,cancelBeforeRecovery=fals
   if(conflict){
     check(button('Submit nomination')!.disabled,'Unreconciled eligibility must prevent a repeat write');
     check(button('Reload nomination availability'),'Recovery read needs a contextual action');
-    if(cancelBeforeRecovery){button('Cancel')!.click();await until(()=>!button('Submit nomination'));check(button('Reload supervisory team'),'Cancel hid the only recovery action');button('Reload supervisory team')!.click();await until(()=>reads===3);check(posts===1,'Cancelled recovery repeated write');return;}
+    if(cancelBeforeRecovery){button('Cancel')!.click();await until(()=>button('Discard changes'));button('Discard changes')!.click();await until(()=>!button('Submit nomination'));check(button('Reload supervisory team'),'Cancel hid the only recovery action');button('Reload supervisory team')!.click();await until(()=>reads===3);check(posts===1,'Cancelled recovery repeated write');return;}
     button('Reload nomination availability')!.click();
     await until(()=>reads===3&&!button('Submit nomination')!.disabled);
     check(form.querySelector<HTMLTextAreaElement>('textarea')!.value==='Keep this nomination justification','Read retry discarded justification');
@@ -100,6 +100,7 @@ async function supporting(conflict:boolean,saved=false,cancelBeforeRecovery=fals
 }
 await scenario('Failed supporting nomination keeps inputs and displays an inline error',()=>supporting(false));
 await scenario('Conflicting nomination and failed recovery read preserve input and block duplicate writes',()=>supporting(true));
+await scenario('Forbidden supporting nomination and failed recovery retain input and block writes',()=>supporting(403));
 await scenario('Saved supporting nomination survives refresh failure without another write',()=>supporting(false,true));
 await scenario('Cancelling conflicted nomination keeps recovery available',()=>supporting(true,false,true));
 root?.unmount();document.getElementById('test-results')!.textContent=JSON.stringify(results);

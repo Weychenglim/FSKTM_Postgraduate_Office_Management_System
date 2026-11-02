@@ -8,6 +8,7 @@ import {RecordPage} from './RecordPage';
 import {cancelLecturerAvailability,createLecturerAvailability,getLecturerAvailability,type LecturerAvailabilityContext,type LecturerAvailabilityInput,type LecturerAvailabilityRole,type LecturerAvailabilityWindow} from '../services/lecturerAvailabilityApi';
 import {formatMalaysiaDate,formatMalaysiaDateTime} from '../utils/malaysiaDateTime';
 import {completeDecision} from '../utils/decisionSubmission';
+import {DecisionFeedbackProvider} from './DecisionFeedback';
 
 const roleLabel=(role:LecturerAvailabilityRole)=>role==='SUPERVISOR'?'Supervisor':'Panel';
 function restrictionState(row:LecturerAvailabilityWindow) {
@@ -18,7 +19,11 @@ function restrictionState(row:LecturerAvailabilityWindow) {
 }
 type Confirmation={key:number;kind:'create';values:LecturerAvailabilityInput;semesterLabel:string}|{key:number;kind:'cancel';row:LecturerAvailabilityWindow};
 
-export function LecturerAvailabilityPage({onBack,onChanged}:{onBack:()=>void;onChanged?:()=>void}) {
+export function LecturerAvailabilityPage(props:{onBack:()=>void;onChanged?:()=>void}) {
+  return <DecisionFeedbackProvider scopeKey="lecturer-availability"><LecturerAvailabilityContent {...props}/></DecisionFeedbackProvider>;
+}
+
+function LecturerAvailabilityContent({onBack,onChanged}:{onBack:()=>void;onChanged?:()=>void}) {
   const [scope,setScope]=useState<{semesterId?:number;limit:number;offset:number}>({limit:10,offset:0});
   const [data,setData]=useState<LecturerAvailabilityContext|null>(null);
   const [loading,setLoading]=useState(true);
@@ -67,7 +72,10 @@ export function LecturerAvailabilityPage({onBack,onChanged}:{onBack:()=>void;onC
         if(confirmation.kind==='create') {
           await createLecturerAvailability(confirmation.values);
           if(mounted.current){setStartsOn('');setEndsOn('');setReason('');}
-        } else await cancelLecturerAvailability(confirmation.row.id,cancellationReason.trim());
+        } else {
+          await cancelLecturerAvailability(confirmation.row.id,cancellationReason.trim());
+          if(mounted.current)setCancellationReason('');
+        }
         onChanged?.();
       },load);
     } finally {if(mounted.current)setBusy(false);}
@@ -77,7 +85,7 @@ export function LecturerAvailabilityPage({onBack,onChanged}:{onBack:()=>void;onC
   const pageCount=Math.max(1,Math.ceil(total/scope.limit));
   const createConfirmation=confirmation?.kind==='create'?confirmation:null;
   const cancelConfirmation=confirmation?.kind==='cancel'?confirmation:null;
-  return <RecordPage title="My availability" subtitle="Set when you cannot take new Supervisor or Panel assignments." backLabel="Back to dashboard" onBack={onBack} dirty={dirty} busy={busy}>
+  return <RecordPage title="My availability" subtitle="Set when you cannot take new Supervisor or Panel assignments." backLabel="Back to dashboard" onBack={onBack} dirty={dirty||(!!cancelConfirmation&&!!cancellationReason.trim())} busy={busy}>
     {data?<div className="max-w-md space-y-2">
       <label htmlFor="availability-semester" className="form-label">Semester</label>
       <PortalSelect id="availability-semester" className="form-control form-control-md" value={selectedSemesterId??''} disabled={busy||!!confirmation} onChange={event=>setScope(previous=>({...previous,semesterId:Number(event.target.value),offset:0}))}>
@@ -120,7 +128,8 @@ export function LecturerAvailabilityPage({onBack,onChanged}:{onBack:()=>void;onC
     </>:null}
     <DecisionDialog isOpen={!!confirmation} decisionKey={confirmation?.key} kind="confirmation" title={cancelConfirmation?'Cancel availability restriction':'Confirm availability restriction'}
       confirmLabel={cancelConfirmation?'Confirm cancellation':'Confirm restriction'} cancelLabel="Go back" tone={cancelConfirmation?'warning':'info'} busy={busy}
-      canConfirm={cancelConfirmation?!!cancellationReason.trim():!!createConfirmation} onClose={()=>setConfirmation(null)} onConfirm={confirm} onReload={load}
+      canConfirm={cancelConfirmation?!!cancellationReason.trim():!!createConfirmation} dirty={!!cancelConfirmation&&!!cancellationReason.trim()}
+      onClose={()=>setConfirmation(null)} onComplete={()=>{setCancellationReason('');setConfirmation(null);}} onDiscard={()=>{setCancellationReason('');setConfirmation(null);}} onConfirm={confirm} onReload={load}
       successMessage={cancelConfirmation?'Restriction cancelled. Its history has been retained.':createConfirmation&&createConfirmation.values.startsOn>new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Kuala_Lumpur'})?'Restriction saved and scheduled for the selected dates.':'Restriction saved for the selected dates.'}
       message={createConfirmation?<div className="space-y-4 text-sm leading-relaxed text-slate-800">
         <dl className="space-y-2"><div><dt className="font-semibold">Semester</dt><dd>{createConfirmation.semesterLabel}</dd></div><div><dt className="font-semibold">Role and dates</dt><dd>{roleLabel(createConfirmation.values.role)} · {formatMalaysiaDate(createConfirmation.values.startsOn)} to {formatMalaysiaDate(createConfirmation.values.endsOn)} (inclusive)</dd></div><div><dt className="font-semibold">Reason</dt><dd className="whitespace-pre-wrap">{createConfirmation.values.reason}</dd></div></dl>

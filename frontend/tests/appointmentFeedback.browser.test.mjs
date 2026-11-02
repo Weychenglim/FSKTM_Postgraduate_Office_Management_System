@@ -43,7 +43,7 @@ test('mounted appointment feedback regressions', {timeout:60000}, async()=>{
     assert.ok(result && result!=='RUNNING',`Browser tests did not finish: ${stdout.slice(-3000)}`);
     const decoded=result.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&');
     const checks=JSON.parse(decoded);
-    assert.equal(checks.length,6,'Every mounted scenario must finish');
+    assert.equal(checks.length,7,'Every mounted scenario must finish');
     console.log(checks.map(check=>`${check.error?'FAIL':'PASS'} ${check.name}${check.error?`: ${check.error}`:''}`).join('\n'));
     assert.deepEqual(checks.filter(check=>check.error),[],'Mounted browser regression failures');
   } finally {

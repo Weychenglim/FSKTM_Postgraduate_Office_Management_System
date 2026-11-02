@@ -6,7 +6,7 @@ export const panelRecommendationStatusGroup = (
   status: PanelRecommendationStatus,
 ): Exclude<PanelRecommendationRecordGroup, 'All'> => {
   if (status === 'APPROVED') return 'Approved';
-  if (status === 'CANCELLED_BY_SUPERVISOR' || status === 'CANCELLED_BY_OFFICE') return 'Cancelled';
+  if (status === 'CANCELLED_BY_SUPERVISOR' || status === 'CANCELLED_BY_OFFICE' || status === 'CANCELLED_CAPACITY_FULL') return 'Cancelled';
   if (status === 'REJECTED_BY_PANEL' || status === 'REJECTED_BY_COORDINATOR') {
     return 'Rejected';
   }

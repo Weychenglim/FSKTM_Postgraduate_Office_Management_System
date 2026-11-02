@@ -262,8 +262,9 @@ def resolve_lecturer_capacity(
             .first()
         )
 
-    from appointments.models import SupervisorApplication
-    pending_requests = SupervisorApplication.objects.filter(proposed_supervisor=user, status="SUBMITTED_TO_SUPERVISOR").count() if role == CapacityRole.SUPERVISOR else 0
+    from appointments.models import SupervisorApplication, PanelRecommendation
+    pending_requests = (SupervisorApplication.objects.filter(proposed_supervisor=user, status="SUBMITTED_TO_SUPERVISOR").count()
+        if role == CapacityRole.SUPERVISOR else PanelRecommendation.objects.filter(recommended_member=user, status="SUBMITTED_TO_PANEL").count())
     return derive_capacity_resolution(
         semester_id=semester.pk,
         plan_id=plan.pk if plan is not None else None,

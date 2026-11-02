@@ -1,9 +1,9 @@
 import {DashboardHeader} from './DashboardHeader';
 /** @license SPDX-License-Identifier: Apache-2.0 */
 import React from 'react';
-import {UsersRound,ChevronRight,CalendarDays,Gauge,FileChartColumn,BarChart3} from 'lucide-react';
+import {UsersRound,ChevronRight,CalendarDays,Gauge,FileChartColumn,BarChart3,CheckCircle2} from 'lucide-react';
 import {PortalButton,PortalCard} from './PortalPrimitives';
-import {EmptyState,ErrorState,LoadingState} from './StateViews';
+import {ErrorState,LoadingState} from './StateViews';
 import {AlertMessage} from './AlertMessage';
 import {APP_ROUTES,sidebarItemForPath} from '../constants/routes';
 import {getDashboardSummary,getPanelWorkloads} from '../services';
@@ -43,6 +43,7 @@ export const AdministrationDashboard:React.FC<AdministrationDashboardProps>=({on
   const attention=useOfficeRead(getOfficeAttention),summary=useOfficeRead(getDashboardSummary),workload=useOfficeRead(getPanelWorkloads);
   const preview=officeAttentionPreview(attention.data?.summary??[]);
   const groups={review:preview.filter(row=>row.responsibility==='review'),waiting:preview.filter(row=>row.responsibility==='waiting')};
+  const attentionEmpty = !attention.loading && !attention.error && !groups.review.length && !groups.waiting.length;
   const navigate=(route:string)=>{
     if(onNavigateToRoute)onNavigateToRoute(route);
     else if(route===APP_ROUTES.dashboardTimeline&&onNavigateToTimeline)onNavigateToTimeline();
@@ -62,10 +63,10 @@ export const AdministrationDashboard:React.FC<AdministrationDashboardProps>=({on
     <div className="home-layout-container"><div className="home-overview-grid">
       <PortalCard padding="none" id="office-needs-attention" className="home-attention" role="region" aria-label="Needs attention">
         <header><h2 className="section-heading">Needs attention</h2></header>
-        {attention.loading?<LoadingState message="Loading attention records…" className="home-state"/>:attention.error?<ErrorState message={attention.error} onRetry={attention.reload} className="home-state"/>:!groups.review.length&&!groups.waiting.length?<EmptyState title="No outstanding attention records" description="Office tools remain available below." className="home-state"/>:<>
+        {attention.loading?<LoadingState message="Loading attention records…" className="home-state"/>:attention.error?<ErrorState message={attention.error} onRetry={attention.reload} className="home-state"/>:attentionEmpty?<div className="home-attention-empty" role="status"><CheckCircle2 aria-hidden="true" size={18}/><p>No items need attention.</p></div>:<>
           {attentionRows(groups.review,'For Office review')}{attentionRows(groups.waiting,'Waiting on others')}
         </>}
-        <div className="home-attention-footer"><PortalButton size="sm" variant="ghost" onClick={()=>navigate(`${APP_ROUTES.dashboardAttention}?view=all`)}>View all attention</PortalButton></div>
+        {!attentionEmpty ? <div className="home-attention-footer"><PortalButton size="sm" variant="ghost" onClick={()=>navigate(`${APP_ROUTES.dashboardAttention}?view=all`)}>View all attention</PortalButton></div> : null}
       </PortalCard>
       <OfficeCalendarPreview onOpen={()=>navigate(APP_ROUTES.dashboardTimeline)}/>
     </div></div>

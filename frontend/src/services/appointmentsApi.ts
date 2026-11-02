@@ -175,7 +175,7 @@ export async function getPanelRecommendations(): Promise<SubmittedRecommendation
     date: r.submittedDate,
     status: r.status === 'APPROVED'
       ? 'Approved'
-      : r.status === 'CANCELLED_BY_SUPERVISOR' || r.status === 'CANCELLED_BY_OFFICE'
+      : r.status === 'CANCELLED_BY_SUPERVISOR' || r.status === 'CANCELLED_BY_OFFICE' || r.status === 'CANCELLED_CAPACITY_FULL'
       ? 'Cancelled'
       : r.status === 'REJECTED_BY_PANEL' || r.status === 'REJECTED_BY_COORDINATOR'
       ? 'Rejected'
@@ -306,6 +306,21 @@ export async function createSupervisorApplication(
     '/appointments/supervisor/applications/',
     payload,
   );
+}
+
+export interface SupervisorDocumentSetup {
+  noDocumentsRequired: boolean;
+  configured: boolean;
+}
+
+export async function getSupervisorDocumentSetup(): Promise<SupervisorDocumentSetup> {
+  return request<SupervisorDocumentSetup>('/appointments/supervisor/document-requirements/setup/');
+}
+
+export async function updateSupervisorDocumentSetup(noDocumentsRequired: boolean, reason: string): Promise<SupervisorDocumentSetup> {
+  return request<SupervisorDocumentSetup>('/appointments/supervisor/document-requirements/setup/', {
+    method: 'PATCH', body: JSON.stringify({ noDocumentsRequired, reason }),
+  });
 }
 
 export async function getActiveSupervisorDocumentRequirements(): Promise<SupervisorDocumentRequirement[]> {

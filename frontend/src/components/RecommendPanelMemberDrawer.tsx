@@ -1,4 +1,5 @@
 import { RecordPage } from './RecordPage';
+import { useRecordDraft } from './RecordDraft';
 import { AlertMessage } from './AlertMessage';
 import { ResearchAbstract } from './ResearchAbstract';
 import { OperationalIntakeFeedback, useOperationalIntake } from './OperationalIntakeFeedback';
@@ -17,7 +18,7 @@ import {
   canSubmitPanelCandidate,
   getPanelCandidateValidationMessage,
 } from '../utils/panelRecommendationWorkflow';
-import { capacityStateLabel } from '../utils/lecturerCapacity';
+import { CandidateCapacity } from './CandidateCapacity';
 
 export interface StudentData {
   studentUserId?: number;
@@ -41,15 +42,30 @@ interface RecommendPanelMemberDrawerProps {
   student: StudentData;
   candidates: PanelCandidate[];
   replacementMember?: string | null;
+  replacementAppointmentId?: number | null;
   onSubmit: (notes: string, candidateId: string, replacementReason: string) => void;
 }
 
-export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProps> = ({
+export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProps> = (props) => {
+  // Closing ends both the editor session and its draft.
+  if (!props.isOpen) return null;
+  return <PanelNominationPage {...props}/>;
+};
+
+const PanelNominationPage: React.FC<RecommendPanelMemberDrawerProps> = (props) => {
+  // Field identity may change within this session; its navigation entry stays owned
+  // by the same RecordPage until the editor actually closes.
+  const pageKey = useRef(`panel-nomination:${props.student.studentId}`).current;
+  const draftKey = JSON.stringify([props.student.studentUserId, props.student.studentId, props.replacementAppointmentId ?? props.replacementMember ?? null]);
+  return <RecordPage title={props.replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'} backLabel={props.backLabel ?? 'Back to Panel Appointments'} onBack={props.onClose} pageKey={pageKey} busy={props.busy}>
+    <PanelNominationForm key={draftKey} {...props}/>
+  </RecordPage>;
+};
+
+const PanelNominationForm: React.FC<RecommendPanelMemberDrawerProps> = ({
   isOpen,
   busy = false,
   submitError,
-  onClose,
-  backLabel = 'Back to Panel Appointments',
   student,
   candidates,
   replacementMember,
@@ -66,6 +82,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const searchRef = useRef<HTMLInputElement>(null);
   const optionsId = useId();
   const [activeStaffId, setActiveStaffId] = useState<string | null>(null);
+  useRecordDraft(selectedLecturer !== null || !!recommendationNotes.trim() || !!replacementReason.trim(), busy);
 
   useEffect(() => {
     if (!selectedLecturer) return;
@@ -137,7 +154,7 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitAttempted(true);
-    if (busy || intake.blocked || !canSubmitRecommendation || !selectedLecturer) return;
+    if (busy || intake.loading || intake.blocked || !canSubmitRecommendation || !selectedLecturer) return;
     onSubmit(
       recommendationNotes.trim(),
       selectedLecturer.staffId,
@@ -170,10 +187,8 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
     if (showDropdown && activeOption) document.getElementById(optionId(activeOption.staffId))?.scrollIntoView({block: 'nearest'});
   }, [showDropdown, activeOption?.staffId]);
 
-  if (!isOpen) return null;
-  return <RecordPage title={replacementMember ? 'Replace Panel Member' : 'Recommend Panel Member'} backLabel={backLabel} onBack={onClose} pageKey={`panel-nomination:${student.studentId}`} dirty={selectedLecturer !== null || !!recommendationNotes.trim() || !!replacementReason.trim()} busy={busy}>
-    <form aria-label="Panel nomination" onSubmit={handleFormSubmit} className="min-w-0 space-y-7">
-      <OperationalIntakeFeedback {...intake} activity="PANEL_RECOMMENDATION" onRetry={() => void intake.refresh()}/>
+  return <form aria-label="Panel nomination" onSubmit={handleFormSubmit} className="min-w-0 space-y-7">
+      {intake.loading || intake.error || !intake.availability?.canSubmit ? <OperationalIntakeFeedback {...intake} activity="PANEL_RECOMMENDATION" onRetry={() => void intake.refresh()}/> : null}
       <PortalCard padding="lg" role="region" aria-label="Student overview">
         <div id="recommend-student-card" className="flex flex-wrap items-start justify-between gap-5">
           <div className="min-w-0 space-y-2"><p className={label}>Student</p><h2 id="summary-student-name" className="text-lg font-semibold leading-relaxed text-brand-navy [overflow-wrap:anywhere]">{student.studentName}</h2><p id="summary-student-id" className="text-sm leading-6 text-slate-600 [overflow-wrap:anywhere]">{student.studentId}</p></div>
@@ -203,17 +218,27 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
                       onMouseDown={event => event.preventDefault()} onMouseEnter={() => {if(selectable)setActiveStaffId(candidate.staffId);}} onClick={() => handleLecturerSelect(candidate)}
                       className={`flex min-h-11 w-full flex-wrap items-start justify-between gap-2 border-b border-slate-100 p-3 text-left last:border-0 disabled:cursor-not-allowed disabled:opacity-60 ${activeOption?.staffId === candidate.staffId ? 'bg-blue-50' : 'enabled:hover:bg-slate-50'}`}>
                       <span className="min-w-0 flex-1 basis-40 space-y-1"><span className="block text-sm font-medium leading-6 text-slate-900 [overflow-wrap:anywhere]">{candidate.name}</span><span className="block text-xs font-normal leading-5 text-slate-500 [overflow-wrap:anywhere]">{candidate.staffId} · {candidate.department}</span></span>
-                      <StatusBadge tone={selectable ? 'success' : 'neutral'}>{candidate.capacityState ? capacityStateLabel(candidate.capacityState) : candidate.availability}</StatusBadge>
+                      <span className="flex flex-wrap items-center gap-2">
+                        {selectedLecturer?.staffId === candidate.staffId ? <span className="card-value flex items-center gap-1.5 text-indigo-700"><CheckCircle aria-hidden="true" className="h-4 w-4" />Selected</span> : null}
+                        <CandidateCapacity role="Panel" {...candidate} selectable={selectable} limit={candidate.workloadLimit} load={candidate.workloadCount}/>
+                      </span>
                     </button>;
                   }) : <p role="status" className="p-4 text-sm leading-6 text-slate-500">No matching lecturers found.</p>}
                 </div> : null}
               </div>
             </div>
             {selectedLecturer ? <div id="candidate-highlight-card" className="min-w-0 space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3"><p className="inline-flex items-center gap-2 text-xs font-medium leading-6 text-blue-700"><CheckCircle aria-hidden="true" className="h-4 w-4"/>Proposed Panel member</p><PortalButton size="sm" className="min-h-11" icon={X} disabled={busy} onClick={removeSelection}>Remove selection</PortalButton></div>
-              <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2"><div className="min-w-0 space-y-2"><dt className={label}>Panel member</dt><dd id="candidate-name" className={body}>{selectedLecturer.name}</dd></div><PanelDetailFact title="Staff number" value={selectedLecturer.staffId}/><PanelDetailFact title="Department" value={selectedLecturer.department}/><PanelDetailFact title="Active + reserved" value={`${selectedLecturer.workloadCount} / ${selectedLecturer.workloadLimit}`}/></dl>
-              <div className="flex flex-wrap items-center gap-3"><StatusBadge tone={(selectedLecturer.selectable ?? selectedLecturer.canSubmit) ? 'success' : 'warning'}>{selectedLecturer.capacityState ? capacityStateLabel(selectedLecturer.capacityState) : selectedLecturer.availability}</StatusBadge>{selectedLecturer.capacityPlanVersion != null ? <span className="text-xs leading-6 text-slate-500">Capacity plan v{selectedLecturer.capacityPlanVersion}</span> : null}</div>
-              {selectedLecturer.workloadHelpText ? <p className="text-xs leading-6 text-slate-500 [overflow-wrap:anywhere]">{selectedLecturer.workloadHelpText}</p> : null}
+              <div className="space-y-2">
+                <p className={label}>Selected Panel member</p>
+                <p id="candidate-name" className="text-sm font-semibold leading-6 text-brand-navy [overflow-wrap:anywhere]">{selectedLecturer.name}</p>
+                <p className="text-xs leading-6 text-slate-600 [overflow-wrap:anywhere]">{selectedLecturer.department}</p>
+                <p className="text-xs leading-6 text-slate-500">Staff number: {selectedLecturer.staffId}</p>
+              </div>
+              {selectedLecturer.activeLoad != null ? <p className="card-description">{selectedLecturer.activeLoad} active Panel {selectedLecturer.activeLoad===1?'student':'students'}{(selectedLecturer.reservedLoad??0)>0?` · ${selectedLecturer.reservedLoad} awaiting approval`:''}</p> : null}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                <CandidateCapacity role="Panel" {...selectedLecturer} selectable={selectedLecturer.selectable ?? selectedLecturer.canSubmit} limit={selectedLecturer.workloadLimit} load={selectedLecturer.workloadCount}/>
+                <PortalButton size="sm" variant="secondary" icon={X} disabled={busy} onClick={removeSelection}>Clear selection</PortalButton>
+              </div>
             </div> : null}
           </div>
           <div id="recommend-notes-section" className="space-y-2">
@@ -226,12 +251,12 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
             <textarea id="panel-replacement-reason" aria-describedby="replacement-continuity" disabled={busy} required value={replacementReason} onChange={event => setReplacementReason(event.target.value)} rows={3} placeholder="Explain why a different Panel member is required." className="w-full rounded-xl border border-slate-200 p-3.5 text-sm font-normal leading-6 text-slate-900 outline-none focus:border-brand-navy focus:ring-1 focus:ring-brand-navy disabled:opacity-60"/>
           </div> : null}
           <div className="space-y-4 border-t border-slate-100 pt-5">
-            <p id="eligibility-text" role="status" className={`text-xs leading-6 ${selectedLecturer && !canSubmitRecommendation ? 'text-amber-800' : 'text-slate-500'}`}>
+            {!canSubmitRecommendation ? <p id="eligibility-text" role="status" className={`text-xs leading-6 ${selectedLecturer && !canSubmitRecommendation ? 'text-amber-800' : 'text-slate-500'}`}>
               {selectedLecturer && !hasReplacementReason && hasRecommendationNotes ? 'Add a replacement reason before submitting.' : validationMessage}
-            </p>
+            </p> : null}
             {submitAttempted && !canSubmitRecommendation ? <p className="text-xs leading-6 text-rose-700">Complete the required fields and choose an eligible Panel member.</p> : null}
             {submitError ? <AlertMessage type="error" title="Recommendation could not be submitted" message={submitError}/> : null}
-            <PortalButton id="submit-recommendation-btn" type="submit" variant="primary" size="sm" className="min-h-11 w-full sm:w-auto" icon={Send} disabled={busy || intake.blocked || !canSubmitRecommendation} isLoading={busy} aria-describedby="eligibility-text">Submit to Panel</PortalButton>
+            <PortalButton id="submit-recommendation-btn" type="submit" variant="primary" size="sm" className="min-h-11 w-full sm:w-auto" icon={Send} disabled={busy || intake.loading || intake.blocked || !canSubmitRecommendation} isLoading={busy} aria-describedby={!canSubmitRecommendation ? 'eligibility-text' : undefined}>Submit to Panel</PortalButton>
           </div>
         </SupervisionDetailSection></div>
         <aside className="min-w-0" aria-label="Current research"><SupervisionDetailSection title="Current research" icon={BookOpen}>
@@ -239,6 +264,5 @@ export const RecommendPanelMemberDrawer: React.FC<RecommendPanelMemberDrawerProp
           <details data-panel-research-preview className="border-t border-slate-100 pt-4"><summary className="cursor-pointer rounded py-1 text-sm font-medium leading-6 text-slate-700 focus-visible:outline-2 focus-visible:outline-blue-600">Read abstract</summary><div id="research-abstract-text" className="mt-4"><ResearchAbstract value={student.abstract} inset={false}/></div></details>
         </SupervisionDetailSection></aside>
       </div>
-    </form>
-  </RecordPage>;
+    </form>;
 };

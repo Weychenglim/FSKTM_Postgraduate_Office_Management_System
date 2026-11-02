@@ -1,3 +1,4 @@
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 import { PortalSelect } from './PortalSelect';
 import { AlertMessage } from './AlertMessage';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,7 +34,6 @@ import {
   PageHeader,
   PortalButton,
   PortalCard,
-  PortalToast,
   StatusBadge,
 } from './PortalPrimitives';
 
@@ -168,7 +168,7 @@ export function LecturerReportSummary({ report, onNavigateToRoute }: {
   );
 }
 
-export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
+const WorkflowReportsContent: React.FC<WorkflowReportsProps> = ({
   currentUserRole,
   onBack,
   onNavigateToRoute,
@@ -187,8 +187,8 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   const reportQuery = buildWorkflowReportQuery(filters);
   const reportPending = loading || (!validationError && !error && loadedQuery !== reportQuery);
   const [exporting, setExporting] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const [toastTone, setToastTone] = useState<'success' | 'danger'>('success');
+  const publish = useDecisionFeedback()!;
+  const exportInFlight = useRef(false);
   const [attentionPage, setAttentionPage] = useReportViewState(office, 'attentionPage', 1);
   const [officeSection, setOfficeSection] = useReportViewState(office, 'section', 'attention');
   const attentionView = getOfficeReportAttentionPage(report?.attention ?? [], attentionPage);
@@ -228,18 +228,16 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   };
 
   const exportWorkbook = async () => {
-    if (!report || reportPending || validationError || error || exporting) return;
+    if (exportInFlight.current || !report || reportPending || validationError || error || exporting) return;
+    exportInFlight.current = true;
     setExporting(true);
     try {
       await downloadWorkflowReport(filters);
-      setToastTone('success');
-      setToast('Downloaded workflow_analytics_report.xlsx');
-      window.setTimeout(() => setToast(null), 3200);
+      publish('Workflow report prepared. Your browser will handle the download.', 'success');
     } catch (reason) {
-      setToastTone('danger');
-      setToast(reason instanceof Error ? reason.message : 'Unable to download the workbook.');
-      window.setTimeout(() => setToast(null), 3200);
+      publish(reason instanceof Error ? reason.message : 'Unable to prepare the workbook.', 'danger');
     } finally {
+      exportInFlight.current = false;
       setExporting(false);
     }
   };
@@ -309,10 +307,10 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           {report.participantLifecycle && (
             <PortalCard data-office-preserve padding="md" className="rounded-lg">
               <h3 className="section-label mb-5">Participant Lifecycle</h3>
-              <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3">
                 {Object.entries(report.participantLifecycle).map(([label, value]) => (
-                  <div key={label} className="rounded-md bg-slate-50 p-3">
-                    <span className="card-label block">{reportLabel(label)}</span>
+                  <div key={label} className="min-w-0 rounded-md bg-slate-50 p-3">
+                    <span className="card-label block [overflow-wrap:anywhere]">{reportLabel(label.replace(/([a-z])([A-Z])/g, '$1 $2'))}</span>
                     <strong className="card-value mt-1 block">{value}</strong>
                   </div>
                 ))}
@@ -324,7 +322,6 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
 
   return (
     <div id="workflow-reports-workspace" className="space-y-6 pb-16 text-left">
-      <PortalToast message={toast} tone={toastTone} />
       <PageHeader
         title={office ? 'Workflow reports' : 'Workflow Analytics'}
         subtitle={currentUserRole === 'Lecturer' ? 'Review waiting requests and assigned evaluation work, then explore workflow outcomes.' : 'Current persisted state across authorised workflow, marks, and timeline records.'}
@@ -499,10 +496,10 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
           </details> : office ? <OfficeReportBreakdown report={report} section={officeSection} onNavigate={onNavigateToRoute} /> : breakdowns}
           {office && report.participantLifecycle && <PortalCard data-office-preserve padding="md" className="rounded-lg">
             <h3 className="section-label mb-5">Participant Lifecycle</h3>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,9rem),1fr))] gap-3">
               {Object.entries(report.participantLifecycle).map(([label, value]) => (
-                <div key={label} className="rounded-md bg-slate-50 p-3">
-                  <span className="card-label block">{reportLabel(label)}</span>
+                <div key={label} className="min-w-0 rounded-md bg-slate-50 p-3">
+                  <span className="card-label block [overflow-wrap:anywhere]">{reportLabel(label.replace(/([a-z])([A-Z])/g, '$1 $2'))}</span>
                   <strong className="card-value mt-1 block">{value}</strong>
                 </div>
               ))}
@@ -513,3 +510,5 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
     </div>
   );
 };
+
+export const WorkflowReports: React.FC<WorkflowReportsProps> = props => <DecisionFeedbackProvider scopeKey="workflow-reports"><WorkflowReportsContent {...props}/></DecisionFeedbackProvider>;

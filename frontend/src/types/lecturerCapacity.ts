@@ -87,6 +87,7 @@ export interface LecturerCapacityAudit {
   id: number;
   semesterId: number;
   planId: number | null;
+  planVersion?: number | null;
   lecturerId: number | null;
   availabilityWindowId: number | null;
   action: string;

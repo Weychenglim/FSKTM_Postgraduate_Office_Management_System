@@ -1,10 +1,9 @@
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import type {SemesterCapacityPlan} from '../types';
 import type {CapacityBulkCommand, CapacityBulkMode} from '../types/lecturerCapacity';
 import type {CapacityWorkspaceLecturer} from '../services/capacityWorkspaceApi';
 import {buildCapacityBulkPreview} from '../utils/capacityBulk';
 import {DecisionDialog} from './DecisionDialog';
-import {CapacityDialogNavigationGuard} from './CapacityLecturerDialog';
 import {PortalButton} from './PortalPrimitives';
 import {PortalSelect} from './PortalSelect';
 import {AlertMessage} from './AlertMessage';
@@ -13,9 +12,10 @@ import {WorkspacePagination} from './RequestWorkspacePrimitives';
 
 const lecturerCount = (count: number) => `${count} ${count === 1 ? 'lecturer' : 'lecturers'}`;
 
-export function CapacityBulkDialog({plan, matching, selected, busy, onClose, onSave, onReload}: {
+export function CapacityBulkDialog({plan, matching, selected, busy, onClose, onSave, onReload, onDraftChange}: {
   plan: SemesterCapacityPlan; matching: CapacityWorkspaceLecturer[]; selected: CapacityWorkspaceLecturer[]; busy: boolean;
   onClose: () => void; onSave: (command: CapacityBulkCommand) => Promise<void | false>; onReload: () => Promise<void>;
+  onDraftChange?: (dirty: boolean) => void;
 }) {
   const [scope, setScope] = useState(selected.length ? 'selected' : 'matching');
   const [supervisor, setSupervisor] = useState(''), [panel, setPanel] = useState('');
@@ -24,6 +24,7 @@ export function CapacityBulkDialog({plan, matching, selected, busy, onClose, onS
   const targets = scope === 'selected' ? selected : matching;
   const preview = useMemo(() => buildCapacityBulkPreview(targets, {supervisor, panel}, mode), [targets, supervisor, panel, mode]);
   const dirty = !!supervisor.trim() || !!panel.trim() || mode !== 'MISSING_ONLY';
+  useEffect(() => {onDraftChange?.(dirty);}, [dirty, onDraftChange]);
   const canSave = targets.length > 0 && preview.entries.length > 0 && preview.errors.length === 0;
   const warningCount = preview.changes.filter(change => change.warnings.length).length;
   const pages = Math.max(1, Math.ceil(preview.changes.length / 5));
@@ -56,6 +57,5 @@ export function CapacityBulkDialog({plan, matching, selected, busy, onClose, onS
         <PortalButton size="sm" onClick={() => setReviewing(false)}>Back to settings</PortalButton>
       </>}
     </DecisionDialog>
-    <CapacityDialogNavigationGuard dirty={dirty} busy={busy} />
   </>;
 }

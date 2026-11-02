@@ -9,12 +9,13 @@ const workload:PanelWorkloadSummary={workloadCount:4,currentStudents:4,confirmed
 test('Panel landing metrics use active plus reserved capacity and incoming review counts',()=>{
   const html=render(<PanelLecturerSummaryCards workload={workload} reviewCount={3} awaitingCoordinatorCount={1}/>);
   assert.equal((html.match(/<article/g)??[]).length,3);
-  for(const text of ['Panel workload','Needs your review','Awaiting Coordinator','2026-2027-S1','Plan v2','2 active appointments','2 reserved nominations'])assert.ok(html.includes(text),text);
+  for(const text of ['Panel workload','Needs your review','Awaiting Coordinator','2 active · 2 awaiting approval'])assert.ok(html.includes(text),text);
   assert.match(html,/4 <span[^>]*>\/ 10/);
   assert.match(html,/card-metric">3</);
   assert.match(html,/card-metric">1</);
   const single=render(<PanelLecturerSummaryCards workload={{...workload,workloadCount:2,currentStudents:2,confirmedAppointments:1,pendingNominations:1}} reviewCount={0} awaitingCoordinatorCount={0}/>);
-  assert.match(single,/1 active appointment \+ 1 reserved nomination\./);
+  assert.match(single,/1 active · 1 awaiting approval/);
+  assert.doesNotMatch(single,/active appointment \+|reserved nomination/);
 });
 test('missing capacity configuration is explicit rather than a zero-seat capacity bar',()=>{
   const html=render(<PanelLecturerSummaryCards workload={{...workload,capacityState:'NOT_CONFIGURED',workloadLimit:0,selectable:false}} reviewCount={0} awaitingCoordinatorCount={0}/>);

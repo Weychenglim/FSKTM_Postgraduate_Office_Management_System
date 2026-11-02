@@ -43,6 +43,7 @@ export const PANEL_RECOMMENDATION_STATUS_LABELS: Record<PanelRecommendationStatu
   REJECTED_BY_COORDINATOR: appointmentRequestStatusLabel('REJECTED_BY_COORDINATOR'),
   CANCELLED_BY_SUPERVISOR: appointmentRequestStatusLabel('CANCELLED_BY_SUPERVISOR'),
   CANCELLED_BY_OFFICE: appointmentRequestStatusLabel('CANCELLED_BY_OFFICE'),
+  CANCELLED_CAPACITY_FULL: appointmentRequestStatusLabel('CANCELLED_CAPACITY_FULL'),
   APPROVED: appointmentRequestStatusLabel('APPROVED'),
 };
 
@@ -51,6 +52,7 @@ const REJECTED_STATUSES: PanelRecommendationStatus[] = [
   'REJECTED_BY_COORDINATOR',
   'CANCELLED_BY_SUPERVISOR',
   'CANCELLED_BY_OFFICE',
+  'CANCELLED_CAPACITY_FULL',
 ];
 
 export const isRejectedPanelRecommendationStatus = (status: PanelRecommendationStatus): boolean =>

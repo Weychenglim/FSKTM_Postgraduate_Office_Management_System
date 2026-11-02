@@ -190,6 +190,8 @@ class CoSupervisionTests(APITestCase):
         candidate = next(
             row for row in directory.data if row["id"] == self.new_supervisor.pk
         )
+        self.assertEqual(candidate["staffId"], self.new_supervisor.lecturer.staff_no)
+        self.assertEqual(candidate["department"], self.new_supervisor.lecturer.department)
         self.assertFalse(candidate["selectable"])
         self.assertEqual(candidate["capacityState"], "TEMPORARILY_UNAVAILABLE")
         self.assertNotIn(internal_reason, str(directory.data))
@@ -206,7 +208,15 @@ class CoSupervisionTests(APITestCase):
         first = self.nominate()
         self.assertEqual(first.status_code, 201)
         self.assertEqual(self.nominate().status_code, 409)
-        self.assertEqual(self.nominate(self.panel).status_code, 201)
+        self.assertEqual(self.nominate(self.panel).status_code, 409)
+        self.client.force_authenticate(user=self.supervisor)
+        team = self.client.get(f"/api/appointments/co-supervisor/students/{self.student.pk}/").data
+        self.assertFalse(team["canNominate"])
+        self.assertEqual(self.decide(first.data["id"], "accept", self.new_supervisor).status_code, 200)
+        self.assertEqual(self.nominate(self.panel).status_code, 409)
+        self.assertEqual(self.decide(first.data["id"], "approve", self.coordinator).status_code, 200)
+        second = self.nominate(self.panel)
+        self.assertEqual(second.status_code, 201)
         self.assertEqual(self.nominate(self.new_panel).status_code, 409)
 
     def test_rejected_and_cancelled_nominations_free_positions(self):

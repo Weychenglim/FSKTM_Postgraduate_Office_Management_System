@@ -20,11 +20,11 @@ export function PeriodCalendarConnection({semesterId,kind,periodId,name,opensAt,
  const [saving,setSaving]=useState(false);
  const linked=entries.filter(entry=>kind==='appointment'?entry.operationalPeriodId===periodId:entry.marksPeriodId===periodId);
  const available=entries.filter(entry=>!entry.operationalPeriodId&&!entry.marksPeriodId);
- const canChange=editable&&status==='ready'&&!!opensAt&&!!closesAt;
+ const canChange=editable&&status==='ready'&&!!opensAt&&!!closesAt&&!linked.length;
  useEffect(()=>{onInteractionChange(mode!==null||saving);return()=>onInteractionChange(false);},[mode,saving,onInteractionChange]);
  const open=(next:'link'|'create')=>{setEntryId('');setTitle(name);setLevel('P1');setRoles(kind==='marks'?['LECTURER']:['STUDENT','LECTURER']);setMode(next);};
- return <section aria-label="Semester timeline connection" className="space-y-4 border-t border-slate-200 pt-5">
-  <div><h3 className="section-heading">Semester timeline</h3><p className="card-description mt-1">After linking, manage dates through this submission window. The timeline follows automatically.</p></div>
+ return <section aria-label="Semester timeline connection" className="space-y-4">
+  <div><h3 className="section-heading">Semester timeline</h3><p className="card-description mt-1">Event dates follow this window automatically.</p></div>
   {status==='loading'?<p role="status" className="card-description">Loading timeline connection…</p>:status==='error'?<p role="alert" className="card-description">Timeline connection could not be checked. Reload calendar events before linking or creating an event.</p>:status==='missing'?<div className="space-y-2"><p className="card-description">{editable?'No semester timeline exists yet. Set it up in Academic calendar, then return to link this window.':'Calendar links cannot be changed for this semester.'}</p>{editable?<Link className="period-text-link" to={`${APP_ROUTES.dashboardTimeline}?semester=${semesterId}`}>Set up semester timeline →</Link>:null}</div>:<>
    {linked.length?<ul className="space-y-2">{linked.map(entry=><li key={entry.id}><p className="card-value">Linked: {entry.title||entry.detail}</p><p className="card-description mt-1">Research Project {entry.level==='P1'?'1':'2'} · {formatMalaysiaDate(entry.deadlineStart)} – {formatMalaysiaDate(entry.deadlineEnd)}</p></li>)}</ul>:<p className="card-value">Not linked to the semester timeline</p>}
    {editable&&(!opensAt||!closesAt)?<p className="card-description">Configure opening and closing dates before linking an event.</p>:null}

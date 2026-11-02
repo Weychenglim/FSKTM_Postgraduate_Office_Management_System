@@ -6,7 +6,7 @@ import type {MarkRecordDetail} from '../types';
 import {correctSubmittedMarkRecord, reopenSubmittedMarkRecord} from '../services/marksApi';
 import {validateSubmittedMarksCorrection} from '../utils/submittedMarksCorrection';
 import {formatMalaysiaDateTime} from '../utils/malaysiaDateTime';
-import {PortalButton, PortalCard} from './PortalPrimitives';
+import {PortalButton, PortalCard, PortalConfirmModal} from './PortalPrimitives';
 
 interface SubmittedMarksActionsProps {
   record: MarkRecordDetail;
@@ -22,18 +22,22 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
   const [error, setError] = useState('');
   const [awaitingLatest, setAwaitingLatest] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const submitting = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {mounted.current = true; return () => {mounted.current = false;};}, []);
 
   const editedScores = record.rubric.components.some(component => component.marksAwarded !== null && values[component.id] !== (component.marksAwarded || '0'));
-  useRecordDraft(!!mode && (!!reason.trim() || (mode === 'correct' && (editedScores || comments !== record.entry.comments))), busy);
+  const dirty = !!mode && (!!reason.trim() || (mode === 'correct' && (editedScores || comments !== record.entry.comments)));
+  useRecordDraft(dirty, busy);
   const actions = record.officeActions;
   const eligible = record.entry.status === 'SUBMITTED' && !!actions?.version && !!(actions.canCorrect || actions.canReopen);
   const components = record.rubric.components.filter(component => component.marksAwarded !== null);
   const original = {comments: record.entry.comments, components};
   const correctedTotal = components.reduce((total, component) => total + Number(values[component.id] || 0), 0);
+  const changedScores = components.filter(component => Number(values[component.id]) !== Number(component.marksAwarded));
+  const clearAction = () => {setMode(null); setValues({}); setComments(''); setReason(''); setError(''); setConfirmOpen(false);};
   const choose = (next: 'correct' | 'reopen') => {
     setMode(next); setError(''); setReason(''); setComments(record.entry.comments);
     setValues(Object.fromEntries(components.map(component => [component.id, component.marksAwarded || '0'])));
@@ -53,13 +57,13 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
         if (mode === 'correct') {
           await correctSubmittedMarkRecord(record.recordId, {
             expectedVersion: actions!.version!, reason: reason.trim(), comments,
-            scores: components.filter(component => Number(values[component.id]) !== Number(component.marksAwarded))
+            scores: changedScores
               .map(component => ({componentId: Number(component.id), marksAwarded: values[component.id]})),
           });
         } else {
           await reopenSubmittedMarkRecord(record.recordId, {expectedVersion: actions!.version!, reason: reason.trim()});
         }
-        setMode(null); setReason('');
+        clearAction();
       }, onReload);
       setAwaitingLatest(!!outcome.refreshFailed);
       return outcome;
@@ -71,6 +75,7 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
     setBusy(true); setError('');
     try {
       await onReload();
+      clearAction();
       setAwaitingLatest(false);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Unable to reload the latest mark record.');
@@ -103,7 +108,7 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
         <label className="form-label block">{mode === 'correct' ? 'Correction reason' : 'Reopening reason'}<textarea className="form-control mt-1" required disabled={busy} value={reason} onChange={event => setReason(event.target.value)}/></label>
         <div className="flex flex-wrap gap-2">
           <PortalButton variant="primary" disabled={busy || !reason.trim()} onClick={review}>{mode === 'correct' ? 'Review correction' : 'Review reopening'}</PortalButton>
-          <PortalButton disabled={busy} onClick={() => {setMode(null); setError('');}}>Cancel</PortalButton>
+          <PortalButton disabled={busy} onClick={() => {if(dirty)setDiscardOpen(true);else clearAction();}}>Cancel</PortalButton>
         </div>
       </div>}
     </>}
@@ -113,10 +118,16 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
       title={mode === 'correct' ? 'Save this correction?' : 'Reopen this submission?'}
       message={<div className="card-description space-y-2"><p>{mode === 'correct'
         ? `Total ${record.entry.totalMark} → ${correctedTotal.toFixed(2)}. The submission remains locked; the changes are audited.`
-        : 'The submission returns to Draft with its scores and comments preserved.'}</p><p className="card-description whitespace-pre-wrap">Reason: {reason}</p></div>}
+        : 'The submission returns to Draft with its scores and comments preserved.'}</p>
+        {mode === 'correct' ? <><ul>{changedScores.map(component => <li key={component.id}>{component.name}: {component.marksAwarded} → {values[component.id]}</li>)}</ul>
+          {comments !== record.entry.comments ? <p className="whitespace-pre-wrap">Overall comments: {record.entry.comments || 'None'} → {comments || 'None'}</p> : null}</> : null}
+        <p className="card-description whitespace-pre-wrap">Reason: {reason}</p></div>}
       confirmLabel={mode === 'correct' ? 'Save correction' : 'Reopen marks'} cancelLabel="Review again" tone="warning"
       successMessage={mode === 'correct' ? 'Correction saved and audited. The submission remains locked.' : 'Marks reopened and audited for Lecturer review.'}
-      onReload={onReload} onConfirm={submit} onClose={() => setConfirmOpen(false)}/>
+      recoveryDirty={dirty} onReload={async () => {await onReload(); clearAction(); setAwaitingLatest(false);}} onConfirm={submit} onClose={() => setConfirmOpen(false)}/>
+    <PortalConfirmModal isOpen={discardOpen} title="Discard unsaved changes?" message="The Office action has not been saved."
+      confirmLabel="Discard changes" cancelLabel="Keep editing" isLoading={busy}
+      onCancel={() => setDiscardOpen(false)} onConfirm={() => {if (!busy) {setDiscardOpen(false); clearAction();}}}/>
   </>;
 }
 

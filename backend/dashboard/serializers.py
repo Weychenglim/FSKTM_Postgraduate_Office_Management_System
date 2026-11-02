@@ -145,6 +145,8 @@ class TimelinePeriodLinkMixin:
 
 
 class TimelineEntryUpdateSerializer(TimelinePeriodLinkMixin, RejectUnknownFieldsMixin, serializers.Serializer):
+    extensionReason = serializers.CharField(required=False, max_length=2000, allow_blank=False, trim_whitespace=True)
+    expectedDeadlineEnd = serializers.DateField(required=False)
     operationalPeriodId = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     marksPeriodId = serializers.IntegerField(required=False, allow_null=True, min_value=1)
     level = serializers.ChoiceField(choices=SemesterTimelineEntry.Level.choices, required=False)
@@ -174,6 +176,18 @@ class TimelineEntryUpdateSerializer(TimelinePeriodLinkMixin, RejectUnknownFields
         end = attrs.get("deadlineEnd", entry.deadline_end)
         if end < start:
             raise serializers.ValidationError("Deadline End cannot be before Deadline Start.")
+        linked = attrs.get("operational_period", entry.operational_period_id) or attrs.get("marks_period", entry.marks_period_id)
+        extending = not linked and end > entry.deadline_end
+        if "expectedDeadlineEnd" in attrs and attrs["expectedDeadlineEnd"] != entry.deadline_end:
+            raise serializers.ValidationError("The end date changed. Reload the event before saving.")
+        if extending:
+            if not attrs.get("extensionReason"):
+                raise serializers.ValidationError({"extensionReason": "A reason is required when extending the end date."})
+            semester = entry.timeline.academic_semester
+            if end < timezone.localdate() or end > semester.ends_on or start < semester.starts_on:
+                raise serializers.ValidationError("The extension must be within the semester and cannot end in the past.")
+        elif "extensionReason" in attrs:
+            raise serializers.ValidationError({"extensionReason": "An extension reason is only used when moving an unlinked end date later."})
         return attrs
 
 

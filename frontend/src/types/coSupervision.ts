@@ -1,3 +1,4 @@
+import type {CapacityState} from './lecturerCapacity';
 import type {SupervisorApplicationRecord} from './appointment';
 
 export type CoSupervisorAction = 'accept' | 'reject' | 'approve' | 'coordinator-reject' | 'cancel';
@@ -5,7 +6,7 @@ export type CoSupervisorOutcome = 'COMPLETED' | 'WITHDRAWN' | 'OTHER';
 export interface TeamPerson { id: number; name: string; email?: string; department?: string }
 export interface SupervisionPanel {
   current: { member: TeamPerson; email: string; department: string; appointmentDate: string; requestId: number; recordKey?: string; canView: boolean } | null;
-  pending: { id: number; status: string; replacement: boolean; recordKey?: string; canView: boolean } | null;
+  pending: { id: number; member?: TeamPerson | null; status: string; replacement: boolean; recordKey?: string; canView: boolean } | null;
   canRecommend: boolean;
   canReplace: boolean;
 }
@@ -67,9 +68,12 @@ export interface SupervisoryTeam {
   timeline?: { id: number | string; title: string; date?: string | null; status?: string }[];
 }
 export interface CoSupervisorCandidate extends TeamPerson {
+  staffId?: string;
+  reservedLoad?: number;
+  availableSlots?: number | null;
   selectable: boolean;
   reason: string;
-  capacityState: string;
+  capacityState: CapacityState;
   activeLoad: number;
   limit: number | null;
   unavailableUntil?: string | null;

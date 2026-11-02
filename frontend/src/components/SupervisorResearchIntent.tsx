@@ -1,3 +1,4 @@
+import { ApplicationRequiredMark } from './SupervisorSectionAFormSections';
 import React, { useCallback, useEffect, useState, useId } from 'react';
 import type { SupervisorResearchIntent } from '../types/supervisorResearchIntent';
 import { RESEARCH_INTENT_FIELDS, type ResearchIntentField } from '../utils/supervisorResearchIntent';
@@ -16,14 +17,14 @@ export function SupervisorResearchIntentEditor({ value, onChange, disabled = fal
 }) {
   return <>{['Background and purpose', 'Questions and objectives', 'Research plan'].map((group, index) => <section key={group} id={index === 0 ? 'research-intent-fields' : undefined} tabIndex={-1} aria-labelledby={`intent-group-${index}`} className="application-section min-w-0 scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7 space-y-5">
       <h3 id={`intent-group-${index}`} className={typography.heading}>{group}</h3>
-      {index === 0 ? <p className="card-description">Complete each section of your research plan. All Research Intent fields are required.</p> : null}
+      {index === 0 ? <p className="card-description">Complete each section of your research plan.</p> : null}
       {index === 0 && error && !error.field ? <p role="alert" className="text-xs text-rose-700">{error.message}</p> : null}
       <fieldset disabled={disabled} className="min-w-0 space-y-5">
       <legend className="sr-only">{group}</legend>
       {RESEARCH_INTENT_FIELDS.filter(field => field.group === group).map(({ key, label, help }) => <div key={key} className="min-w-0 space-y-2">
-        <label htmlFor={`research-intent-${key}`} className="card-label block">{label} <span className="font-normal text-slate-500">(required)</span></label>
+        <label htmlFor={`research-intent-${key}`} className="card-label block">{label} <ApplicationRequiredMark /></label>
         <p id={`research-intent-${key}-help`} className="card-description">{help}</p>
-        <textarea id={`research-intent-${key}`} rows={5} maxLength={10000} value={value[key]} aria-required="true"
+        <textarea id={`research-intent-${key}`} rows={5} maxLength={10000} value={value[key]} required aria-required="true"
           aria-invalid={error?.field === key} aria-describedby={`research-intent-${key}-help${error?.field === key ? ` research-intent-${key}-error` : ''}`}
           className="form-control form-control-md" onChange={event => onChange({ ...value, [key]: event.target.value })} />
         {error?.field === key ? <p id={`research-intent-${key}-error`} role="alert" className="text-xs text-rose-700">{error.message}</p> : null}

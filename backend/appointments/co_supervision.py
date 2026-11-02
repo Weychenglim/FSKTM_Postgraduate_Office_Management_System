@@ -66,10 +66,13 @@ def active_primary(student):
     )
 
 
-def can_nominate(actor, student):
+def can_nominate(actor, student, *, check_pending=True):
     return (
         student_is_workflow_eligible(student)
         and user_is_assignable_lecturer(actor)
+        and (not check_pending or not CoSupervisorNomination.objects.filter(
+            student=student, status__in=CoSupervisorNomination.PENDING_STATUSES
+        ).exists())
         and SupervisorAppointment.objects.filter(
             student=student, supervisor=actor, status="ACTIVE"
         ).exists()
@@ -188,6 +191,10 @@ def _check_candidate(
     )
     if exclude_nomination:
         pending = pending.exclude(pk=exclude_nomination)
+    if check_positions and exclude_nomination is None and pending.exists():
+        raise CoSupervisionConflict(
+            "A co-supervisor nomination is already pending for this student. Wait for it to be resolved before submitting another."
+        )
     if pending.filter(candidate=candidate).exists():
         raise CoSupervisionConflict(
             "A pending nomination already exists for this candidate."
@@ -202,7 +209,7 @@ def _check_candidate(
         or PanelRecommendation.objects.filter(
             profile_filter,
             recommended_member=candidate,
-            status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+            status__in=PanelRecommendation.PENDING_STATUSES,
         ).exists()
     ):
         raise CoSupervisionConflict(
@@ -709,8 +716,8 @@ def supervision_panel_summary(student, actor, profile, primary):
         "panel_member__lecturer", "recommendation__profile"
     ).first() if profile else None
     pending = profile.panel_recommendations.filter(
-        status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
-    ).select_related("profile").order_by("-submitted_at", "-pk").first() if profile else None
+        status__in=PanelRecommendation.PENDING_STATUSES
+    ).select_related("profile", "recommended_member").order_by("-submitted_at", "-pk").first() if profile else None
     eligible = bool(profile and primary and primary.supervisor_id == actor.pk
         and profile.supervisor_id == actor.pk and profile.student_id == student.user_id
         and student_is_workflow_eligible(student) and user_is_assignable_lecturer(actor)
@@ -725,6 +732,7 @@ def supervision_panel_summary(student, actor, profile, primary):
             "canView": can_view_panel_recommendation(actor, current.recommendation),
         } if current else None,
         "pending": {"id": pending.pk, "status": pending.status, "recordKey": f"recommendation-{pending.pk}",
+            "member": person(pending.recommended_member) if can_view_panel_recommendation(actor, pending) else None,
             "replacement": bool(pending.replaces_appointment_id),
             "canView": can_view_panel_recommendation(actor, pending)} if pending else None,
         "canRecommend": eligible and current is None,
@@ -877,7 +885,7 @@ def workspace(actor):
 
 
 def candidates(*, student, actor):
-    if not can_nominate(actor, student):
+    if not can_nominate(actor, student, check_pending=False):
         raise CoSupervisionForbidden(
             "Only the active primary supervisor can select candidates."
         )
@@ -909,6 +917,8 @@ def candidates(*, student, actor):
         rows.append(
             {
                 **person(user),
+                "staffId": user.lecturer.staff_no,
+                "department": user.lecturer.department,
                 "selectable": not conflict,
                 "capacityState": capacity.state,
                 "activeLoad": capacity.active_load,

@@ -517,7 +517,7 @@ def duty_work(user, duty):
             ).count(),
             "pendingPanelRecommendations": PanelRecommendation.objects.filter(
                 recommended_member=user,
-                status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES,
+                status__in=PanelRecommendation.PENDING_STATUSES,
             ).count(),
         }
     return _work(counts)

@@ -16,9 +16,9 @@ test('My availability confirmation, recovery and responsive history',{timeout:24
   for(const path of [process.env.CHROME_PATH,join(process.env.PROGRAMFILES||'C:/Program Files','Google/Chrome/Application/chrome.exe'),join(process.env['PROGRAMFILES(X86)']||'C:/Program Files (x86)','Microsoft/Edge/Application/msedge.exe')].filter(Boolean))try{await access(path);executable=path;break;}catch{}
   assert.ok(executable,'Chrome/Edge required');
   const directory=await mkdtemp(join(tmpdir(),'lecturer-availability-'));
-  const screenshots=fileURLToPath(new URL('../../output/lecturer-availability/',import.meta.url));
+  const screenshots=join(directory,'screenshots');
   await mkdir(screenshots,{recursive:true});
-  const server=await createServer({configFile:false,root:fileURLToPath(new URL('../',import.meta.url)),logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null},plugins:[{name:'availability-fixture',configureServer(vite){vite.middlewares.use((req,res,next)=>{
+  const server=await createServer({configFile:false,root:fileURLToPath(new URL('../',import.meta.url)),cacheDir:join(directory,'vite-cache'),logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null},plugins:[{name:'availability-fixture',configureServer(vite){vite.middlewares.use((req,res,next)=>{
     const url=new URL(req.url,'http://localhost');if(url.pathname!=='/availability-test')return next();res.setHeader('Content-Type','text/html');
     if(url.searchParams.has('frame'))res.end('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/src/index.css"></head><body style="padding:16px"><div id="root"></div><script type="module" src="/tests/lecturerAvailability.fixture.tsx"></script></body></html>');
     else res.end(`<!doctype html><html><body style="margin:0"><iframe title="My availability fixture" style="border:0;width:${Number(url.searchParams.get('width'))}px;height:1200px" src="/availability-test?frame"></iframe><pre id="test-results" style="display:none">RUNNING</pre><script>addEventListener('message',event=>{if(event.origin===location.origin&&event.data.type==='availability-results')document.getElementById('test-results').textContent=JSON.stringify(event.data.results)});</script></body></html>`);
@@ -28,6 +28,6 @@ test('My availability confirmation, recovery and responsive history',{timeout:24
     const encoded=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];assert.ok(encoded&&encoded!=='RUNNING',stdout.slice(-2000));
     const results=JSON.parse(encoded.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
     console.log(results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
-    assert.equal(results.length,16);assert.deepEqual(results.filter(row=>row.error),[]);
+    assert.equal(results.length,19);assert.deepEqual(results.filter(row=>row.error),[]);
   }}finally{await server.close();const resolved=await realpath(directory),within=relative(await realpath(tmpdir()),resolved);assert.ok(!isAbsolute(within)&&!within.startsWith('..')&&basename(resolved).startsWith('lecturer-availability-'));await rm(resolved,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
 });

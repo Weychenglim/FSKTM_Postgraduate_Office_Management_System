@@ -7,11 +7,7 @@ const courseFields = [
   ['grade', 'grade', 32],
 ] as const;
 
-export function validateSupervisorSectionA(draft: SupervisorSectionADraft, context: {
-  proposalRequirementCode: string | null;
-  requirements: Array<{ code: string; isActive: boolean }>;
-  selectedFiles: Map<string, File>;
-}): string | null {
+export function validateSupervisorSectionA(draft: SupervisorSectionADraft): string | null {
   if (!draft.titleOrigin) return 'Choose who proposed the research title (title origin).';
   if (draft.noCoursesTaken && draft.courseResults.length > 0) return 'Remove course rows before declaring no completed courses; both cannot be submitted.';
   if (!draft.noCoursesTaken && draft.courseResults.length === 0) return 'Add completed courses or select No completed courses to declare.';
@@ -22,13 +18,6 @@ export function validateSupervisorSectionA(draft: SupervisorSectionADraft, conte
       if (!value) return `Complete the ${label} for course ${index + 1}, or remove the row.`;
       if (value.length > limit) return `Course ${index + 1} ${label} must not exceed ${limit} characters.`;
     }
-  }
-  if (draft.titleOrigin === 'STUDENT') {
-    const code = context.proposalRequirementCode;
-    if (!code || !context.requirements.some(item => item.code === code && item.isActive)) {
-      return 'The research proposal document requirement is not configured. Contact the Postgraduate Office before submitting a student-proposed title.';
-    }
-    if (!context.selectedFiles.has(code)) return 'Upload the research proposal for your student-proposed title.';
   }
   if (!draft.declarationAccepted) return 'Accept the declaration after reviewing your application.';
   return null;

@@ -2,7 +2,7 @@ import { PortalSelect } from './PortalSelect';
 import { RecordPage } from './RecordPage';
 import { ClosureReview } from './ClosureReview';
 import type { ClosureApproval } from '../types/marks';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   CalendarRange,
@@ -14,6 +14,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  X,
   XCircle,
 } from 'lucide-react';
 
@@ -42,7 +43,7 @@ import {
   PageHeader,
   PortalButton,
   PortalCard,
-  PortalToast,
+  PortalConfirmModal,
   StatusBadge,
   getStatusBadgeTone,
 } from './PortalPrimitives';
@@ -53,6 +54,15 @@ import {SemesterActivationSection} from './SemesterActivationSection';
 import {AlertMessage} from './AlertMessage';
 import {FieldError,FormFeedback} from './FormFeedback';
 import {clearFeedbackFields,focusFeedback,readFormFeedback,type FormFeedbackState} from '../utils/formFeedback';
+import {DecisionFeedbackProvider,useDecisionFeedback} from './DecisionFeedback';
+import {ApiError} from '../services/apiClient';
+import {PortalModal} from './PortalModal';
+
+function SemesterTransitionSurface({hidden, busy, onClose, children}: {
+  hidden: boolean; busy: boolean; onClose: () => void; children: React.ReactNode;
+}) {
+  return <PortalModal isOpen={!hidden} busy={busy} onClose={onClose} labelledBy="semester-transition-title" className="academic-semester-fields max-w-3xl p-6 sm:p-8">{children}</PortalModal>;
+}
 
 interface AcademicSemesterManagementProps {
   onBack: () => void;
@@ -80,7 +90,9 @@ const displayDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDat
   year: 'numeric',
 });
 
-export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProps> = ({
+export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProps> = (props) => <DecisionFeedbackProvider scopeKey="academic-semesters"><AcademicSemesterManagementContent {...props}/></DecisionFeedbackProvider>;
+
+const AcademicSemesterManagementContent: React.FC<AcademicSemesterManagementProps> = ({
   onBack,
   onOpenCapacity,
 }) => {
@@ -96,6 +108,8 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   const [auditAttempt, setAuditAttempt] = useState(0);
   const [form, setForm] = useState<AcademicSemesterInput>(EMPTY_FORM);
   const [transition, setTransition] = useState<TransitionAction | null>(null);
+  const [pendingTransition, setPendingTransition] = useState<TransitionAction | null | undefined>(undefined);
+  const [closureAcknowledged,setClosureAcknowledged]=useState(false);
   const [reason, setReason] = useState('');
   const [extensionEnd, setExtensionEnd] = useState('');
   const [loading, setLoading] = useState(true);
@@ -103,8 +117,12 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   const [error, setError] = useState<string | null>(null);
   const [formFeedback,setFormFeedback]=useState<FormFeedbackState|null>(null);
   const [transitionError,setTransitionError]=useState<string|null>(null);
+  const [transitionBlocked,setTransitionBlocked]=useState(false);
+  const [replaceTransition,setReplaceTransition]=useState(false);
   const [savedRefreshFailure,setSavedRefreshFailure]=useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const writeLock=useRef(false);
+  const blockedSemesterId=useRef<number|null>(null);
+  const feedback=useDecisionFeedback();
 
   const loadSemesters = useCallback(async () => {
     setLoading(true);
@@ -151,25 +169,25 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
     [filter, semesters],
   );
 
-  const showToast = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 3200);
-  };
+  const showToast = (message: string,tone:'success'|'warning'='success') => feedback?.(message,tone);
 
   const beginCreate = () => {
-    setFormFeedback(null);setTransitionError(null);setSavedRefreshFailure(false);
+    if(savedRefreshFailure||saving||writeLock.current)return;
+    setFormFeedback(null);setTransitionError(null);setTransitionBlocked(false);setReplaceTransition(false);setSavedRefreshFailure(false);
     setView('create');
     setDetailTab('overview');
     setSelected(null);
     setForm(EMPTY_FORM);
     setTransition(null);
+    setPendingTransition(undefined);setClosureAcknowledged(false);
     setReason('');
     setAudits([]);
     setError(null);
   };
 
-  const beginEdit = (semester: AcademicSemester) => {
-    setFormFeedback(null);setTransitionError(null);setSavedRefreshFailure(false);
+  const beginEdit = (semester: AcademicSemester, committed=false) => {
+    if(!committed&&(savedRefreshFailure||saving||writeLock.current))return;
+    setFormFeedback(null);setTransitionError(null);setTransitionBlocked(blockedSemesterId.current===semester.id);setReplaceTransition(false);setSavedRefreshFailure(false);
     setView('detail');
     setDetailTab('overview');
     setSelected(semester);
@@ -180,13 +198,14 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
       endsOn: semester.endsOn,
     });
     setTransition(null);
+    setPendingTransition(undefined);setClosureAcknowledged(false);
     setReason('');
     setExtensionEnd(semester.endsOn);
   };
 
   const saveDraft = async (event: React.FormEvent) => {
     event.preventDefault();
-    if(saving)return;
+    if(saving||writeLock.current||savedRefreshFailure)return;
     const report=(feedback:FormFeedbackState)=>{setFormFeedback(feedback);focusFeedback(feedback,SEMESTER_IDS,'semester-save-feedback');};
     if (!isConsecutiveAcademicSession(form.academicSession)) {
       report({message:'Correct the highlighted fields, then save again.',fields:{academicSession:'Use consecutive years, for example 2026/2027.'}});
@@ -197,25 +216,26 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
       report({message:'Correct the highlighted fields, then save again.',fields:{[!form.startsOn?'startsOn':'endsOn']:dateError}});
       return;
     }
-    setSaving(true);
+    writeLock.current=true;setSaving(true);
     setFormFeedback(null);
     try {
       const saved = selected
         ? await updateAcademicSemester(selected.id, form)
         : await createAcademicSemester(form);
-      beginEdit(saved);
-      if(await loadSemesters())showToast(selected ? 'Draft semester updated.' : 'Draft semester created.');
-      else setSavedRefreshFailure(true);
+      beginEdit(saved,true);
+      const outcome=selected ? 'Draft semester updated.' : 'Draft semester created.';
+      if(await loadSemesters())showToast(outcome);
+      else {setSavedRefreshFailure(true);showToast(`${outcome} The latest semester list could not be loaded. Reload before another action.`,'warning');}
     } catch (saveError) {
       report(readFormFeedback(saveError,academicSemesterErrorMessage(saveError),SEMESTER_FIELD_MAP));
     } finally {
-      setSaving(false);
+      writeLock.current=false;setSaving(false);
     }
   };
 
   const runTransition = async (approval?: ClosureApproval) => {
-    if (!selected || !transition || !reason.trim()) return;
-    setSaving(true);
+    if (!selected || !transition || !reason.trim() || writeLock.current||transitionBlocked||savedRefreshFailure||pendingTransition!==undefined||replaceTransition)return;
+    writeLock.current=true;setSaving(true);
     setTransitionError(null);
     try {
       const saved=transition==='close'?await closeAcademicSemester(selected.id, reason.trim(), approval)
@@ -224,14 +244,16 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
       setSelected(saved);
       if (transition === 'archive') { setView('list'); setSelected(null); }
       setTransition(null);
+      setPendingTransition(undefined);setClosureAcknowledged(false);
       setReason('');
-      if(await loadSemesters())showToast(`Semester ${transition === 'extend' ? 'extended' : transition==='close'?'ended':'archived'}.`);
-      else setSavedRefreshFailure(true);
+      const outcome=`Semester ${transition === 'extend' ? 'extended' : transition==='close'?'ended':'archived'}.`;
+      if(await loadSemesters())showToast(outcome);
+      else {setSavedRefreshFailure(true);showToast(`${outcome} The latest semester list could not be loaded. Reload before another action.`,'warning');}
     } catch (transitionError) {
-      if(!approval)setTransitionError(academicSemesterErrorMessage(transitionError));
+      if(!approval){setTransitionError(academicSemesterErrorMessage(transitionError));if(transitionError instanceof ApiError&&(transitionError.status===403||transitionError.status===409)){blockedSemesterId.current=selected.id;setTransitionBlocked(true);}}
       if (approval) throw transitionError;
     } finally {
-      setSaving(false);
+      writeLock.current=false;setSaving(false);
     }
   };
 
@@ -246,9 +268,27 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
   const dirty = view === 'create'
     ? JSON.stringify(form) !== JSON.stringify(EMPTY_FORM)
     : !!selected && selected.lifecycleStatus === 'DRAFT' && (form.academicSession !== selected.academicSession || form.term !== selected.term || form.startsOn !== selected.startsOn || form.endsOn !== selected.endsOn);
+  const transitionDirty=!!transition&&(reason!==''||(transition==='extend'&&extensionEnd!==selected?.endsOn)||closureAcknowledged);
+  const chooseTransition=(next:TransitionAction|null)=>{
+    if(saving||writeLock.current||pendingTransition!==undefined||(transitionBlocked&&next!==null)||(savedRefreshFailure&&next!==null))return;
+    if(transitionDirty){setPendingTransition(next);return;}
+    setTransition(next);setReason('');setExtensionEnd(selected?.endsOn??'');setTransitionError(null);setReplaceTransition(false);setClosureAcknowledged(false);
+  };
+  const discardTransition=()=>{
+    const next=pendingTransition;
+    setPendingTransition(undefined);setTransition(next??null);setReason('');setExtensionEnd(selected?.endsOn??'');setTransitionError(null);setReplaceTransition(false);setClosureAcknowledged(false);
+  };
+  const reviewLatestTransition=async()=>{
+    if(saving||writeLock.current)return;
+    setSaving(true);
+    try {
+      if(await loadSemesters()){
+        blockedSemesterId.current=null;setTransition(null);setReason('');setExtensionEnd('');setClosureAcknowledged(false);setTransitionBlocked(false);setReplaceTransition(false);setTransitionError(null);
+      }
+    } finally {setSaving(false);}
+  };
   if (view !== 'list') return <RecordPage title={selected ? selected.label : 'New academic semester'} subtitle={selected ? `${selected.code} · ${formatSemesterLifecycle(selected.lifecycleStatus)}` : 'Create a draft, then review readiness before activation.'} backLabel="Back to Academic Semesters"
-    onBack={() => { setView('list'); setTransition(null); setReason(''); setError(null); }} pageKey="academic-semester:record" dirty={dirty || !!reason.trim() || (transition === 'extend' && extensionEnd !== selected?.endsOn)} busy={saving}>
-    <PortalToast message={toast} tone="success" />
+    onBack={() => { setView('list'); setTransition(null); setReason(''); setError(null); }} pageKey="academic-semester:record" dirty={dirty || transitionDirty} busy={saving}>
     {error ? savedRefreshFailure?<AlertMessage type="warning" title="Changes saved; refresh required" message={error} actions={<PortalButton onClick={()=>void loadSemesters()}>Reload semesters</PortalButton>}/>:<ErrorState compact title="Couldn’t refresh semesters" message={error} onRetry={loadSemesters} /> : null}
     {selected ? <OfficeToolViews<typeof detailTab> appearance="workspace" label="Semester views" value={detailTab} options={[{value:'overview',label:'Overview',icon:LayoutDashboard},{value:'history',label:'History',icon:History}]} onChange={setDetailTab}/> : null}
       {detailTab === 'overview' && <PortalCard className="p-5">
@@ -273,7 +313,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
             <input
               id="semester-session" aria-invalid={!!formFeedback?.fields.academicSession} aria-describedby={formFeedback?.fields.academicSession?'semester-session-error':undefined}
               value={form.academicSession}
-              disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
+              disabled={saving||Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => {setForm({ ...form, academicSession: event.target.value });setFormFeedback(value=>clearFeedbackFields(value,['academicSession']));}}
               placeholder="2026/2027"
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
@@ -285,7 +325,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
             <PortalSelect
               id="semester-term" aria-invalid={!!formFeedback?.fields.term} aria-describedby={formFeedback?.fields.term?'semester-term-error':undefined}
               value={form.term}
-              disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
+              disabled={saving||Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => {setForm({ ...form, term: event.target.value as AcademicSemesterInput['term'] });setFormFeedback(value=>clearFeedbackFields(value,['term']));}}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             >
@@ -301,7 +341,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
               type="date"
               id="semester-start" aria-invalid={!!formFeedback?.fields.startsOn} aria-describedby={formFeedback?.fields.startsOn?'semester-start-error':undefined}
               value={form.startsOn}
-              disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
+              disabled={saving||Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => {setForm({ ...form, startsOn: event.target.value });setFormFeedback(value=>clearFeedbackFields(value,['startsOn','endsOn']));}}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
@@ -313,7 +353,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
               type="date"
               id="semester-end" aria-invalid={!!formFeedback?.fields.endsOn} aria-describedby={formFeedback?.fields.endsOn?'semester-end-error':undefined}
               value={form.endsOn}
-              disabled={Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
+              disabled={saving||Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
               onChange={(event) => {setForm({ ...form, endsOn: event.target.value });setFormFeedback(value=>clearFeedbackFields(value,['startsOn','endsOn']));}}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
@@ -322,7 +362,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
           {(!selected || selected.lifecycleStatus === 'DRAFT') ? (
             <div className="md:col-span-2">
               <div className="mb-4"><FormFeedback id="semester-save-feedback" feedback={formFeedback} fields={SEMESTER_FIELDS}/></div>
-              <PortalButton type="submit" icon={Save} variant="primary" disabled={saving || (!!selected && !dirty)}>
+              <PortalButton type="submit" icon={Save} variant="primary" disabled={saving || savedRefreshFailure || (!!selected && !dirty)}>
                 {selected ? 'Save changes' : 'Create draft'}
               </PortalButton>
             </div>
@@ -339,13 +379,8 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
                     key={action}
                     icon={icons[action]}
                     variant={action === 'close' ? 'danger' : 'secondary'}
-                    disabled={saving || dirty}
-                    onClick={() => {
-                      setTransitionError(null);
-                      setTransition(action);
-                      setReason('');
-                      setExtensionEnd(selected.endsOn);
-                    }}
+                    disabled={saving || dirty || transitionBlocked || savedRefreshFailure}
+                    onClick={() => chooseTransition(action)}
                   >
                     {action === 'close' ? 'End semester' : action === 'extend' ? 'Extend end date' : `${action[0].toUpperCase()}${action.slice(1)}`}
                   </PortalButton>
@@ -356,8 +391,9 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         ) : null}
       </PortalCard>}
 
-      {selected ? <div hidden={detailTab !== 'overview'}><SemesterActivationSection key={selected.id} semester={selected} dirty={dirty} busy={saving||!!transition} onCapacity={onOpenCapacity}
-        onArchive={()=>{setTransitionError(null);setTransition('archive');setReason('');}}
+      {selected&&transitionBlocked&&!transition?<AlertMessage type="warning" title="Review latest semester" message="The previous action was rejected. Reload the semester before making another lifecycle decision." actions={<PortalButton onClick={()=>void reviewLatestTransition()}>Review latest record</PortalButton>}/>:null}
+      {selected ? <div hidden={detailTab !== 'overview'}><SemesterActivationSection key={selected.id} semester={selected} dirty={dirty} busy={saving||!!transition||transitionBlocked||savedRefreshFailure} onCapacity={onOpenCapacity}
+        onArchive={()=>chooseTransition('archive')}
         onActivated={async saved=>{
           // Commit the returned lifecycle before refresh so a failed read cannot offer activation again.
           setSelected(saved);
@@ -366,22 +402,21 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
             const rows=await getAcademicSemesters(includeArchived);
             setSemesters(rows);setSelected(rows.find(row=>row.id===saved.id)??saved);setError(null);
           } catch(failure) {
-            setError('Semester activated, but the latest semester list could not be loaded. Reload before another action.');
+            setSavedRefreshFailure(true);setError('Semester activated, but the latest semester list could not be loaded. Reload before another action.');
             throw failure;
           }
         }}/></div>:null}
 
-      {detailTab === 'overview' && transition && selected ? (
-        <PortalCard className="academic-semester-fields border-sky-200 p-5">
+      {transition && selected ? (
+        <SemesterTransitionSurface hidden={detailTab!=='overview'} busy={saving||pendingTransition!==undefined||replaceTransition} onClose={()=>chooseTransition(null)}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="card-label text-sky-700">Confirm lifecycle change</p>
-              <h3 className="section-label">
+              <h3 id="semester-transition-title" className="section-label">
                 {`${transition === 'close' ? 'End' : transition[0].toUpperCase() + transition.slice(1)} ${selected.label}`}
               </h3>
             </div>
-            <button type="button" title="Cancel" onClick={() => setTransition(null)} className="p-2 text-slate-500">
-              <XCircle className="h-5 w-5" />
+            <button type="button" title="Cancel" aria-label="Close dialog" disabled={saving} onClick={() => chooseTransition(null)} className="icon-button h-9 w-9 shrink-0 disabled:cursor-not-allowed disabled:opacity-50">
+              <X className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
           {transition === 'extend' ? <p className="card-description mt-3">Extending the semester does not extend submission deadlines. Manage those through Periods &amp; deadlines.</p> : null}
@@ -392,6 +427,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
                 type="date"
                 min={selected.endsOn}
                 value={extensionEnd}
+                disabled={saving}
                 onChange={(event) => setExtensionEnd(event.target.value)}
                 className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 md:max-w-xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
               />
@@ -401,28 +437,32 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
             Reason
             <textarea
               value={reason}
+              disabled={saving}
               onChange={(event) => setReason(event.target.value)}
               rows={3}
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
               placeholder="Record the operational reason for this change."
             />
           </label>
-          {transitionError?<div className="mt-4"><AlertMessage type="error" title="Semester wasn’t changed" message={transitionError}/></div>:null}
-          {transition === 'close' ? <ClosureReview key={`${selected.id}-${transition}`} kind="semester" id={selected.id} disabled={saving || !reason.trim()} onConfirm={runTransition} /> : null}
+          {transitionError?<div className="mt-4"><AlertMessage type="error" title={transitionBlocked?'Review latest semester':'Semester wasn’t changed'} message={transitionError}/></div>:null}
+          {transitionBlocked?<div className="mt-3"><PortalButton disabled={saving} onClick={()=>transitionDirty?setReplaceTransition(true):void reviewLatestTransition()}>Review latest record</PortalButton></div>:null}
+          {transition === 'close' ? <ClosureReview key={`${selected.id}-${transition}`} kind="semester" id={selected.id} disabled={saving || transitionBlocked || pendingTransition!==undefined || replaceTransition || !reason.trim()} confirmLabel="End semester" onAcknowledgementChange={setClosureAcknowledged} onBlocked={failure=>{blockedSemesterId.current=selected.id;setTransitionBlocked(true);setTransitionError(academicSemesterErrorMessage(failure));}} onConfirm={runTransition} /> : null}
           <div className="mt-4 flex gap-2">
             {transition !== 'close' ? <PortalButton
               icon={transition === 'extend' ? RefreshCw : CheckCircle2}
-              variant="primary"
-              disabled={saving || !reason.trim() || (transition === 'extend' && extensionEnd <= selected.endsOn)}
+              variant={transition==='archive'?'dangerSolid':'primary'}
+              disabled={saving || transitionBlocked || savedRefreshFailure || pendingTransition!==undefined || replaceTransition || !reason.trim() || (transition === 'extend' && extensionEnd <= selected.endsOn)}
               onClick={() => void runTransition()}
             >
-              Confirm
+              {transition==='extend'?'Extend semester':'Archive semester'}
             </PortalButton> : null}
-            <PortalButton variant="secondary" onClick={() => setTransition(null)}>
+            <PortalButton variant="secondary" disabled={saving} onClick={() => chooseTransition(null)}>
               Cancel
             </PortalButton>
           </div>
-        </PortalCard>
+          <PortalConfirmModal isOpen={pendingTransition!==undefined} title="Discard transition details?" message="Discard the transition details you entered?" confirmLabel="Discard changes" cancelLabel="Keep editing" onCancel={()=>setPendingTransition(undefined)} onConfirm={discardTransition}/>
+          <PortalConfirmModal isOpen={replaceTransition} title="Review latest semester?" message="Replace the transition details you entered after loading the latest semester?" confirmLabel="Replace and review" cancelLabel="Keep editing" isLoading={saving} onCancel={()=>setReplaceTransition(false)} onConfirm={()=>void reviewLatestTransition()}/>
+        </SemesterTransitionSurface>
       ) : null}
 
       {selected && detailTab === 'history' ? (
@@ -456,7 +496,6 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
 
   return (
     <div className="office-tool-page space-y-6 animate-fade-in">
-      <PortalToast message={toast} />
       <PageHeader
         className="office-tool-heading"
         title="Academic Semesters"
@@ -465,7 +504,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
         onBack={onBack}
         actions={(
           <>
-            <PortalButton icon={Plus} variant="primary" onClick={beginCreate}>
+            <PortalButton icon={Plus} variant="primary" disabled={savedRefreshFailure||loading} onClick={beginCreate}>
               New semester
             </PortalButton>
           </>
@@ -539,7 +578,7 @@ export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProp
                     </StatusBadge>
                   </td>
                   <td className="data-td text-right">
-                    <PortalButton icon={Edit3} variant="secondary" onClick={() => beginEdit(semester)}>
+                    <PortalButton icon={Edit3} variant="secondary" disabled={savedRefreshFailure||loading} onClick={() => beginEdit(semester)}>
                       Open
                     </PortalButton>
                   </td>

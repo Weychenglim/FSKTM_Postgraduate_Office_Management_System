@@ -163,6 +163,7 @@ class SupervisorDocumentTests(APITestCase):
         self.authenticate(self.student_user)
         data = {
             "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+            "projectCourseCodes": "WQD7002",
             "researchTitle": "Secure postgraduate document workflows",
             "researchArea": "Secure Software Engineering",
             "researchAbstract": "A persisted and permission-checked document workflow.",
@@ -364,6 +365,7 @@ class SupervisorDocumentTests(APITestCase):
             "/api/appointments/supervisor/applications/",
             {
                 "proposedSupervisorId": self.supervisor_user.lecturer.staff_no,
+                "projectCourseCodes": "WQD7002",
                 "researchTitle": "Duplicate content",
                 "researchArea": "Secure Software Engineering",
                 "researchAbstract": "Duplicate content must be rejected.",
@@ -460,3 +462,60 @@ class SupervisorDocumentTests(APITestCase):
 
         self.assertEqual(cancelled.status_code, status.HTTP_200_OK)
         self.assertTrue(default_storage.exists(stored_name))
+
+
+class DocumentSetupTests(APITestCase):
+    setUp = SupervisorDocumentTests.setUp
+    authenticate = SupervisorDocumentTests.authenticate
+    create_requirement = SupervisorDocumentTests.create_requirement
+    submit_application = SupervisorDocumentTests.submit_application
+    setup_url = "/api/appointments/supervisor/document-requirements/setup/"
+
+    def set_mode(self, enabled, reason="Office reviewed upload policy"):
+        self.authenticate(self.office_user)
+        return self.client.patch(self.setup_url, {"noDocumentsRequired": enabled, "reason": reason}, format="json")
+
+    def test_explicit_no_documents_allows_submission_and_is_audited(self):
+        response = self.set_mode(True)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["noDocumentsRequired"])
+        self.assertTrue(response.data["configured"])
+        audit = SupervisorDocumentRequirementAudit.objects.get(action="SETUP")
+        self.assertIsNone(audit.requirement_id)
+        history = self.client.get("/api/appointments/supervisor/document-requirements/audits/")
+        self.assertEqual(history.status_code, 200)
+        self.assertEqual(history.data[0]["requirementLabel"], "Document setup")
+        self.assertEqual(audit.after_values, {"noDocumentsRequired": True})
+        submitted = self.submit_application()
+        self.assertEqual(submitted.status_code, 201, submitted.data)
+
+    def test_unconfigured_still_blocks_and_disabling_restores_block(self):
+        self.assertEqual(self.submit_application().status_code, 409)
+        self.assertEqual(self.set_mode(True).status_code, 200)
+        self.assertEqual(self.set_mode(False).status_code, 200)
+        self.assertEqual(self.submit_application().status_code, 409)
+
+    def test_active_requirement_and_no_documents_are_mutually_exclusive(self):
+        requirement = self.create_requirement()
+        self.assertEqual(self.set_mode(True).status_code, 400)
+        requirement.is_active = False
+        requirement.save()
+        self.assertEqual(self.set_mode(True).status_code, 200)
+        response = self.client.patch(f"/api/appointments/supervisor/document-requirements/{requirement.pk}/", {"isActive": True, "reason": "Reactivate"}, format="json")
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post("/api/appointments/supervisor/document-requirements/", {"label": "Transcript", "isActive": True}, format="json")
+        self.assertEqual(response.status_code, 400)
+
+    def test_only_office_can_change_setup_and_reason_required(self):
+        for user in [self.student_user, self.supervisor_user, self.coordinator_user]:
+            self.authenticate(user)
+            self.assertEqual(self.client.patch(self.setup_url, {"noDocumentsRequired": True, "reason": "Change"}, format="json").status_code, 403)
+            read = self.client.get(self.setup_url)
+            self.assertEqual(read.status_code, 200)
+            self.assertFalse(read.data["configured"])
+        self.assertEqual(self.set_mode(True, "").status_code, 400)
+
+    def test_no_documents_rejects_unexpected_uploads(self):
+        self.set_mode(True)
+        response = self.submit_application(file=valid_pdf())
+        self.assertEqual(response.status_code, 400)

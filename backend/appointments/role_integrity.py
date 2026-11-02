@@ -21,7 +21,7 @@ def _panel_roles(student):
     return (
         PanelAppointment.objects.filter(profiles, status=PanelAppointment.Status.ACTIVE),
         PanelRecommendation.objects.filter(
-            profiles, status__in=PanelRecommendation.WORKLOAD_RESERVED_STATUSES
+            profiles, status__in=PanelRecommendation.PENDING_STATUSES
         ),
     )
 

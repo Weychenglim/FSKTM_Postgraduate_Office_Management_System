@@ -15,7 +15,7 @@ import { MarkEntryDetail } from '../src/components/MarkEntryDetail';
 import { SubmittedMarkDetail } from '../src/components/SubmittedMarkDetail';
 import { MarkEntryRecordDetail } from '../src/components/MarkEntryRecordDetail';
 import { MarksCompletionWindows } from '../src/components/MarksCompletionWindows';
-import type { EvaluationTask } from '../src/types';
+import type { EvaluationTask, EvaluationPeriodOption } from '../src/types';
 
 const page = new URLSearchParams(location.search).get('page') || 'overview-empty';
 let fail = page === 'overview-error' || page === 'records-error' || page === 'lecturer-error' || page === 'history-error', writes = 0;
@@ -48,6 +48,7 @@ window.fetch = async (input, options = {}) => {
   if ((options.method || 'GET') !== 'GET') { writes++; throw Error('Read-only visual fixture attempted a write'); }
   if (path.endsWith('/dashboard/summary/')) return fail ? response({ detail: 'Summary unavailable.' }, 500) : response({ submittedMarkEntries: empty ? 0 : 1, incompleteMarkEntries: empty ? 0 : 2, supervisorMarkTasks: empty ? 0 : 1, panelMarkTasks: empty ? 0 : 2, backupMarkTasks: 0 });
   if (path.endsWith('/marks/periods/')) {
+    if(page === 'overview-error' && fail) return response({detail: 'Periods unavailable.'},500);
     const query = new URL(String(input), location.origin).search;
     periodQueries.push(query);
     if (page === 'periods-archived-only') return response(query.includes('includeArchived=true') ? [archivedPeriod] : []);
@@ -82,7 +83,7 @@ function Preview() {
   else if (page.startsWith('periods')) content = <MarkEntryPeriodConfig contextSearch={page === 'periods-context' ? '?semester=1&period=1' : ''} onBack={back} onManageSemesters={() => {}} onManageTimeline={() => navigate('/dashboard/periods')} />;
   else if (page.startsWith('rubrics')) content = <RubricsManagementView onBack={back} />;
   else if (page.startsWith('assignment')) content = <EvaluationTaskAssignment onBack={back} onManageTimeline={() => navigate('/dashboard/periods')} />;
-  else if (page === 'monitoring') content = <div className="marks-workspace"><MarkSubmissionMonitoring onViewRecords={viewRecords} /></div>;
+  else if (page === 'monitoring') content = <div className="marks-workspace"><MarkSubmissionMonitoring periods={[period as EvaluationPeriodOption]} onViewRecords={viewRecords} /></div>;
   else if (page.startsWith('records')) content = <MarkEntryRecords onBack={back} onViewRecordDetail={id => navigate(`/marks/records/${id}`)} onNavigateToDossier={id => navigate(`/students/${id}`)} />;
   else if (page.startsWith('lecturer')) content = <LecturerMarksEntry />;
   else if (page === 'history-retained' || page === 'history-error') content = <LecturerMarksEntry />;
@@ -194,7 +195,7 @@ try {
     assert(document.querySelectorAll('#checklist-card-section button').length === 3, 'metadata errors keep setup destinations available');
     assert(document.querySelector('#checklist-card-section')?.textContent?.includes('Not loaded'), 'failed metadata uses unknown setup status');
     assert(!!button('View mark records'), 'metadata errors keep records available');
-    assert(/1\s*\/\s*3 submitted/.test(document.querySelector('#monitoring-card')?.textContent || ''), 'monitoring loads independently of overview errors');
+    assert(!document.querySelector('#monitoring-card'), 'failed period metadata never shows misleading monitoring totals');
     fail = false; button('Retry')!.click();
     await until(() => !!document.querySelector('#summary-cards-grid'));
     assert(!document.querySelector('[role="alert"]'), 'retry recovers the overview');
@@ -223,15 +224,13 @@ try {
       start!.focus(); assert(document.activeElement === start, 'first setup action is keyboard focusable');
       start!.click(); await pause();
       assert(document.querySelector('#route')?.textContent === '/marks/config', 'first setup action opens period configuration');
-      assert(document.body.textContent?.includes('No active evaluation tasks'), 'zero-task monitoring explains the empty state');
+      assert(document.body.textContent?.includes('No open or scheduled periods'), 'zero-task monitoring explains the empty state');
       assert(!document.querySelector('[role="progressbar"]'), 'zero tasks do not show a percentage');
       assert(!document.querySelector('#column-followup'), 'empty monitoring omits zero-value follow-up clutter');
     } else {
-      assert(document.querySelector('[aria-label="Evaluation summary"]')?.textContent?.includes('Summary for one period'), 'summary explicitly describes its single-period scope');
+      assert(document.querySelector('[aria-label="Evaluation summary"]')?.textContent?.includes('Academic semester'), 'summary explicitly identifies semester scope');
       assert(checksPanel.textContent?.includes('All non-archived periods'), 'evaluation checks explicitly describe their broader scope');
-      button('Overdue')?.click(); await pause();
-      // The summary button contains a count and status; use its visible group label.
-      const overdue = [...document.querySelectorAll<HTMLButtonElement>('#monitoring-card button')].find(row => row.textContent?.includes('Overdue'))!;
+      const overdue = document.querySelector<HTMLButtonElement>('[aria-label="Overdue: 1"]')!;
       overdue.click(); await pause();
       assert(document.querySelector('#route')?.textContent?.includes('status=Overdue'), 'monitoring preserves the overdue record filter');
     }
@@ -239,11 +238,12 @@ try {
     assert(document.querySelector('#route')?.textContent?.includes('status=All%20Records'), 'all records remain available');
   }
   if (page === 'monitoring') {
-    const disclosure = document.querySelector<HTMLDetailsElement>('#monitoring-card details')!;
-    assert(!!disclosure && !disclosure.open, 'secondary monitoring details start collapsed');
-    disclosure.querySelector('summary')!.click(); await pause();
-    assert(disclosure.open && !!document.querySelector('#column-followup') && !!document.querySelector('#column-recent-activity'), 'follow-up and activity remain available on demand');
-    disclosure.querySelector('summary')!.click(); await pause();
+    assert(document.querySelectorAll('#monitoring-card tbody tr').length === 1, 'monitoring displays one row per period');
+    assert(!document.querySelector('#monitoring-card details'), 'monitoring omits duplicate follow-up and activity');
+    const target = document.querySelector<HTMLButtonElement>('[aria-label="View records for Research project evaluation"]')!;
+    assert(!!target, 'period progress has an accessible records action');
+    target.click(); await pause();
+    assert(document.querySelector('#route')?.textContent?.includes('status=All%20Records'), 'period records remain accessible');
   }
   if (page.startsWith('entry')) {
     const mark = document.querySelector<HTMLInputElement>('input[type=number]')!;

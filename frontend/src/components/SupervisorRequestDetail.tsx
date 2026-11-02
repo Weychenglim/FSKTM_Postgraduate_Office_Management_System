@@ -96,12 +96,6 @@ export function SupervisorRequestDetail({ request, actions, administration, cont
   const hasReview = showApproval || !!(request.replacementReason || request.rejectionReason || request.cancellationReason || actions || request.events?.length);
   const hasSidebar = hasReview || !!administration;
   const hasNotes = !!(request.replacementReason || request.rejectionReason || request.cancellationReason);
-  const capacity = request.acceptanceCapacity;
-  const capacityAvailability = !capacity || capacity.limit == null || capacity.state === 'NOT_CONFIGURED'
-    ? 'Availability not configured'
-    : ['TEMPORARILY_UNAVAILABLE','INELIGIBLE'].includes(capacity.state)
-      ? 'Unavailable for new requests'
-      : `${capacity.availableSlots} available`;
   return <div className="supervisor-request-detail space-y-7">
     <PortalCard padding="lg" role="region" aria-label="Request overview" data-request-summary>
       <div className="flex flex-wrap items-start justify-between gap-5">
@@ -156,7 +150,6 @@ export function SupervisorRequestDetail({ request, actions, administration, cont
         {hasNotes ? <div className="space-y-4">{[
           ['Requested replacement',request.replacementReason],['Decision reason',request.rejectionReason],['Cancellation reason',request.cancellationReason],
         ].filter(([,reason])=>reason).map(([title,reason])=><section key={title} aria-label={title!} className="space-y-2"><h3 className="text-sm font-semibold text-brand-navy">{title}</h3><p className="whitespace-pre-wrap text-sm font-normal leading-7 text-slate-900 [overflow-wrap:anywhere]">{reason}</p></section>)}</div> : null}
-        {capacity ? <p className="card-description" aria-label="Current request capacity">{capacity.activeLoad} active · {capacity.reservedLoad} reserved · {capacityAvailability}{capacity.limit != null ? ` · Limit ${capacity.limit}` : ' · Limit not configured'}</p> : null}
         {actions ? <div className="border-t border-slate-100 pt-6"><RequestDetailActions>{actions}</RequestDetailActions></div> : null}
     </SupervisionDetailSection> : null}
     {administration}

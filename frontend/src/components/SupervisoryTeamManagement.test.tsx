@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -80,13 +81,36 @@ console.log('Lecturer appointment activity is separated from shared semester dat
 const lecturerTeam = {...workspace.teams[0],timeline:mixedActivity};
 const renderLecturerTeam = (team: typeof lecturerTeam) => renderToStaticMarkup(<LecturerSupervisoryTeamCard team={team} busy={false} onNominate={()=>{}} onEnd={()=>{}} onReplace={()=>{}} onNominationAction={()=>{}} />);
 const lecturerTeamHtml = renderLecturerTeam(lecturerTeam);
-for (const text of ['Primary supervisor','Dr Primary','Supporting supervisors (0/2)','No supporting supervisors assigned.','Nominate co-supervisor','Current approved title','Research profile','Current programme','Full current abstract','Appointment activity (3)','Semester dates (1)','Supporting appointment history (2)','Complementary research expertise','Research changed','Office-managed dates','do not measure this student']) assert.ok(lecturerTeamHtml.includes(text), `Missing Lecturer team item: ${text}`);
+for (const text of ['Primary supervisor','Dr Primary','Supporting supervisors (0/2)','No supporting supervisors assigned.','Current approved title','Research profile','Current programme','Full current abstract','Appointment activity (3)','Semester dates (1)','Supporting appointment history (2)','Complementary research expertise','Research changed','Office-managed dates','do not measure this student']) assert.ok(lecturerTeamHtml.includes(text), `Missing Lecturer team item: ${text}`);
 assert.doesNotMatch(lecturerTeamHtml,/Timeline and progress|>Appointment history</);
 assert.doesNotMatch(renderLecturerTeam({...lecturerTeam,canNominate:false,nominations:[],appointments:[]}),/>Nominate co-supervisor<|>Replace<|>End appointment</);
-const activeLecturerTeam = renderLecturerTeam({...lecturerTeam,appointments:[{...appointment,status:'ACTIVE',canEnd:true}]});
+const activeLecturerTeam = renderLecturerTeam({...lecturerTeam,nominations:[],appointments:[{...appointment,status:'ACTIVE',canEnd:true}]});
 assert.match(activeLecturerTeam,/Dr Supporting|>Replace<|>End appointment</);
 assert.doesNotMatch(activeLecturerTeam,/No supporting supervisors assigned/);
 const replacementPending = renderLecturerTeam({...lecturerTeam,appointments:[{...appointment,status:'ACTIVE',canEnd:true}],nominations:[{...nomination,replacesAppointmentId:appointment.id}]});
 assert.doesNotMatch(replacementPending,/>Replace</);
-assert.equal((activeLecturerTeam.match(/Research Student/g) ?? []).length,2,'Student identity appears in team heading and recorded nomination only');
+assert.equal((activeLecturerTeam.match(/Research Student/g) ?? []).length,1,'Student identity appears once when no nomination is recorded');
 console.log('Lecturer team cards retain current supervision, profile, histories and capability-gated actions');
+
+const pendingTeamHtml = renderToStaticMarkup(<MemoryRouter><LecturerSupervisoryTeamCard collapsible={false} team={{...lecturerTeam,nominations:[{...nomination,status:'SUBMITTED_TO_CO_SUPERVISOR'}]}} busy={false} onNominate={()=>{}} onEnd={()=>{}} onReplace={()=>{}} onNominationAction={()=>{}} /></MemoryRouter>);
+assert.doesNotMatch(pendingTeamHtml, /Nominate co-supervisor|View nomination details|No supporting supervisors assigned|Pending nominations/);
+assert.match(pendingTeamHtml, /View nomination request/);
+assert.ok(pendingTeamHtml.includes(`/supporting-requests/${nomination.id}`));
+assert.doesNotMatch(pendingTeamHtml, /Complementary research expertise/,'Pending summary does not embed the request dossier');
+console.log('Pending nomination prevents another action and links to the full request');
+
+const renderDetail = (overrides: Partial<typeof lecturerTeam> = {}) => renderToStaticMarkup(<MemoryRouter><LecturerSupervisoryTeamCard collapsible={false} team={{...lecturerTeam,nominations:[],appointments:[],...overrides}} busy={false} onNominate={()=>{}} onEnd={()=>{}} onReplace={()=>{}} onNominationAction={()=>{}} /></MemoryRouter>);
+const approvedSupportingDetail = renderDetail({nominations:[{...nomination,status:'APPROVED',allowedActions:[]}],appointments:[{...appointment,status:'ACTIVE',canEnd:true,history:[{id:11,action:'ACTIVATED',actor:'Coordinator',createdAt:'2026-11-02T00:00:00Z',newStatus:'ACTIVE'}]}]});
+assert.match(approvedSupportingDetail,/aria-label="Supporting supervisors" class="[^"]*border-t border-slate-200 pt-6/,'Primary and supporting supervision have a clear divider');
+assert.match(approvedSupportingDetail,/<footer data-supporting-appointment-actions/,'Supporting appointment actions have their own footer');
+assert.doesNotMatch(approvedSupportingDetail,/Supporting appointment history|View nomination request/);
+assert.doesNotMatch(approvedSupportingDetail,/Approval progress|Audit history|Appointment started|Complementary research expertise|Request summary/,'The team detail links to the approval dossier instead of embedding it or repeating activation');
+assert.doesNotMatch(renderDetail({appointments:[{...appointment,status:'ACTIVE',history:[{id:12,action:'ACTIVATED',actor:'Coordinator',createdAt:'2026-11-02T00:00:00Z'}]}]}),/data-appointment-history|Audit history/,'Activation alone does not create a history section');
+const changedSupportingDetail = renderDetail({appointments:[{...appointment,status:'ACTIVE',history:[{id:13,action:'UPDATED',actor:'Coordinator',createdAt:'2026-11-02T00:00:00Z',reason:'Recorded correction'}]}]});
+assert.match(changedSupportingDetail,/Appointment changes|Recorded correction/,'Later lifecycle changes remain available');
+console.log('Supporting detail separates member sections and action footers, links completed nominations, and keeps genuine changes');
+
+const detailWithoutHistory = renderToStaticMarkup(<MemoryRouter><LecturerSupervisoryTeamCard collapsible={false} management={<div>Appointment record</div>} team={{...lecturerTeam,nominations:[{...nomination,status:'APPROVED',allowedActions:[]}]}} busy={false} onNominate={()=>{}} onEnd={()=>{}} onReplace={()=>{}} onNominationAction={()=>{}} /></MemoryRouter>);
+assert.match(detailWithoutHistory,/Appointment record/);
+assert.doesNotMatch(detailWithoutHistory,/Supporting appointment history|View nomination request|Research changed/,'Historical supporting appointments and completed nominations do not create a detail card');
+console.log('Team details retain appointment management without the supporting history card');

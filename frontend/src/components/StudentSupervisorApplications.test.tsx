@@ -68,7 +68,8 @@ assert.doesNotMatch(history, /Application availability|Checking availability|Che
 assert.equal((history.match(/>View request</g) ?? []).length, 3);
 assert.match(history, /Dr Historical 0|Dr Historical 1|Dr Historical 2/);
 assert.doesNotMatch(history, /Dr Proposed|2 calendar days/);
-for (const outcome of ['Completed', 'Rejected', 'Cancelled']) assert.ok(history.includes(`Waiting at this stage</span>${outcome}</td>`), `Waiting cells explain ${outcome}`);
+assert.match(history, /<th[^>]*>Outcome<\/th>/);
+assert.doesNotMatch(history, /Waiting at this stage|Current stage/);
 assert.doesNotMatch(history, /aria-label="Not applicable"/);
 assert.match(history, /Cancelled by Office/);
 const overview = render('', applications, true);

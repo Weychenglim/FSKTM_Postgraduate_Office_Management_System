@@ -49,14 +49,8 @@ test('unappointed and missing-name records are displayed honestly with permissio
   assert.match(missing, /Request replacement/);
 });
 
-test('completed nominations use a full-width history table outside the current-action sidebar',()=>{
+test('student detail omits completed nomination history while preserving current actions',()=>{
   const html=render(<PanelSuperviseeDetails student={student} recommendations={[{...request,status:'APPROVED'},{...request,id:11,studentId:'OTHER',recommendedMember:'Unrelated member'}]} onRecommend={()=>{}} onOpenRequest={()=>{}}/>);
-  const aside=html.match(/<aside[\s\S]*?<\/aside>/)?.[0]??'';
-  assert.doesNotMatch(aside,/Nomination history|View request/);
-  assert.match(html,/data-panel-nomination-history/);
-  assert.ok(html.indexOf('data-panel-nomination-history')>html.indexOf('</aside>'));
-  assert.match(html,/aria-label="Completed Panel nominations"/);
-  assert.match(html,/lg:justify-end/);
-  assert.doesNotMatch(html,/Unrelated member/);
-  assert.doesNotMatch(html,/<details[^>]*open/);
+  assert.doesNotMatch(html,/Nomination history|data-panel-nomination-history|Completed Panel nominations|Unrelated member/);
+  assert.match(html,/Current appointed panel member|Current research/);
 });

@@ -14,7 +14,7 @@ assert.throws(()=>malaysiaDeadline('2026-02-30T12:00'),/valid/);
 assert.throws(()=>malaysiaDeadline('2026-10-01'),/valid/);
 const office=renderToStaticMarkup(<MarksCompletionWindows tasks={[{taskId:2,studentName:'Old semester student',panelMember:'Dr Panel',status:'DRAFT',semester:'Closed semester',canGrantCompletionWindow:true},{taskId:3,studentName:'Submitted student',panelMember:'Dr Panel',status:'SUBMITTED',canGrantCompletionWindow:false}] as any} onChanged={async()=>{}}/>);
 assert.match(office,/Old semester student/);
-assert.match(office,/aria-label="Select Submitted student, Dr Panel" disabled=""/);
+assert.match(office,/aria-label="Select Submitted student, Dr Panel, Task #3" disabled=""/);
 const counts={submitted:10,notStarted:2,draft:3,paused:1,activeWindows:2,unfinished:6};
 const preview=renderToStaticMarkup(<ClosureSummary preview={{previewToken:'secret-preview-token',semesterId:1,periods:[{...counts,periodId:2,name:'Previous period'}],totals:counts,requiresAcknowledgement:true}}/>);
 assert.match(preview,/Previous period/);assert.match(preview,/Active windows/);assert.doesNotMatch(preview,/secret-preview-token|studentId|scores/);

@@ -11,7 +11,7 @@ from .models import SupervisorApplication, CoSupervisorNomination, PanelRecommen
 KINDS = {
     'SUPERVISOR': (SupervisorApplication, 'supervisor_application', ('SUBMITTED_TO_SUPERVISOR', 'PENDING_COORDINATOR')),
     'CO_SUPERVISOR': (CoSupervisorNomination, 'co_supervisor_nomination', CoSupervisorNomination.PENDING_STATUSES),
-    'PANEL': (PanelRecommendation, 'panel_recommendation', PanelRecommendation.WORKLOAD_RESERVED_STATUSES),
+    'PANEL': (PanelRecommendation, 'panel_recommendation', PanelRecommendation.PENDING_STATUSES),
 }
 
 class ReassessmentConflict(CapacityConflict):
@@ -82,7 +82,15 @@ def capacity_semester(row):
     # Archived records cannot be brought back into an appointment workflow.
     if source and source.lifecycle_status == AcademicSemester.Lifecycle.ARCHIVED:
         raise ReassessmentConflict('Archived semester requests cannot be approved.')
-    grant = current_grant(row)
+    event = latest(row)
+    # Approved handoff repairs retain the policy consumed by that approval.
+    # Pending grants still require the currently Active target below.
+    if row.status == 'APPROVED' and event and event.action == 'CONSUMED':
+        target = event.target_semester
+        if target.lifecycle_status == AcademicSemester.Lifecycle.ARCHIVED:
+            raise ReassessmentConflict('Archived capacity policies cannot be used for appointment repair.')
+        return target
+    grant = event if event and event.action in ('GRANTED', 'REPLACED') else None
     if grant is None:
         return source
     active = current_effective_semester()

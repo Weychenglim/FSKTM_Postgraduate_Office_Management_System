@@ -266,8 +266,8 @@ class PanelRecommendationWorkflowTests(APITestCase):
                 profile=profile,
                 supervisor=profile.supervisor,
                 recommended_member=panel_member,
-                justification="Existing pending nomination.",
-                status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+                justification="Existing accepted nomination.",
+                status=PanelRecommendation.Status.PENDING_COORDINATOR,
             )
 
     def test_office_panel_records_include_approved_pending_rejected_and_no_panel_profiles(
@@ -748,7 +748,7 @@ class PanelRecommendationWorkflowTests(APITestCase):
             supervisor=extra_profile.supervisor,
             recommended_member=self.panel,
             justification="Existing over-capacity reservation.",
-            status=PanelRecommendation.Status.SUBMITTED_TO_PANEL,
+            status=PanelRecommendation.Status.PENDING_COORDINATOR,
         )
         response = self.client.get("/api/appointments/panel/candidates/")
         candidate = next(
@@ -805,7 +805,7 @@ class PanelRecommendationWorkflowTests(APITestCase):
         self.assertEqual(candidate["capacityState"], "AVAILABLE")
         self.assertEqual(candidate["availableSlots"], 1)
         self.assertTrue(candidate["selectable"])
-        self.assertIn("submitted nominations", candidate["workloadHelpText"])
+        self.assertIn("accepted nominations", candidate["workloadHelpText"])
 
     def test_office_panel_workload_counts_confirmed_appointments_and_pending_nominations(
         self,
@@ -852,6 +852,8 @@ class PanelRecommendationWorkflowTests(APITestCase):
     def test_lecturer_can_view_own_panel_capacity_and_reserved_workload(self):
         recommendation = self.create_submitted_recommendation()
         self.authenticate(self.panel)
+        accepted=self.client.post(f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/")
+        self.assertEqual(accepted.status_code,status.HTTP_200_OK,accepted.data)
 
         response = self.client.get("/api/appointments/panel/my-workload/")
 
@@ -945,8 +947,13 @@ class PanelRecommendationWorkflowTests(APITestCase):
             ).exists()
         )
 
-    def test_panel_acceptance_continues_but_final_approval_rechecks_capacity(self):
+    def test_final_approval_rechecks_restrictions_after_panel_acceptance(self):
         recommendation = self.create_submitted_recommendation()
+        self.authenticate(self.panel)
+        accepted = self.client.post(
+            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/"
+        )
+        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
         today = timezone.localdate()
         LecturerAvailabilityWindow.objects.create(
             academic_semester=self.academic_semester,
@@ -957,11 +964,6 @@ class PanelRecommendationWorkflowTests(APITestCase):
             reason="Private approval-time restriction.",
             created_by=self.office_admin,
         )
-        self.authenticate(self.panel)
-        accepted = self.client.post(
-            f"/api/appointments/panel/recommendations/{recommendation['id']}/panel-accept/"
-        )
-        self.assertEqual(accepted.status_code, status.HTTP_200_OK)
 
         self.authenticate(self.coordinator)
         url = (
@@ -1220,7 +1222,7 @@ class PanelRecommendationWorkflowTests(APITestCase):
 
     def test_submitting_supervisor_can_cancel_pending_panel_recommendation(self):
         recommendation = self.create_submitted_recommendation()
-        self.assertEqual(count_panel_workload(self.panel), 1)
+        self.assertEqual(count_panel_workload(self.panel), 0)
 
         self.authenticate(self.supervisor)
         response = self.client.post(

@@ -126,14 +126,14 @@ class CapacityPublicationWorkloadTests(TestCase):
         with self.assertRaises(CapacityLifecycleConflict):
             self.publish()
 
-    def test_panel_limit_includes_active_and_both_reserved_stages(self):
+    def test_panel_limit_includes_active_and_accepted_but_not_unanswered_nominations(self):
         self.panel("APPROVED")
         self.panel("SUBMITTED_TO_PANEL")
         self.panel("PENDING_COORDINATOR")
-        self.limits(panel=2)
-        with self.assertRaisesRegex(CapacityLifecycleConflict, "Panel.*3"):
+        self.limits(panel=1)
+        with self.assertRaisesRegex(CapacityLifecycleConflict, "Panel.*2"):
             self.publish()
-        self.limits(panel=3)
+        self.limits(panel=2)
         self.assertEqual(self.publish().lifecycle_status, "PUBLISHED")
 
     def test_limit_equal_to_load_and_zero_without_load_can_publish(self):

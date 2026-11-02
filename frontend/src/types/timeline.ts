@@ -29,6 +29,7 @@ export interface TimelineEntry {
   id: string;
   event: string;
   description?: string;
+  action?: string;
   category: TimelineCategory;
   startDate: string;
   endDate: string;
@@ -84,8 +85,6 @@ export interface TimelinePreviewRow {
   deadlineStart: string;
   deadlineEnd: string;
   targetRoles: TimelineRole[];
-  operationalPeriodId: number | null;
-  marksPeriodId: number | null;
 }
 
 export interface TimelineUploadPreview {

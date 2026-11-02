@@ -4,7 +4,9 @@ The user approved separate Office portal and Technical Administrator logins, wit
 
 ## Profile-maintenance review follow-up
 
-The subsequent review found and fixed a pre-existing owner-link bypass in technical profile maintenance. Existing Student, Lecturer and OfficeStaff profiles now keep their owning User immutable; crafted reassignment is rejected before ModelForm binding. Nine permanent ownership regressions cover both lifecycle overwrites, Office staff identity and preserved valid maintenance/creation. The final follow-up passed 394 accounts/protected-admin tests in 86.566 seconds; no schema or frontend change. See [review and resolution](OFFICE_ADMIN_SEPARATION_REVIEW_2026-10-25.md). The earlier full-suite/browser counts below describe permission-separation verification before this follow-up; runtime activation remains pending.
+**28 October rollout update:** Local activation and Office flag conversion are complete. The updated API was already running; real technical credential login and Office admin-session denial were verified before conversion. One legacy Office flag was cleared, repeat apply changed nothing and final preview reports zero. Fresh verification passed 123 isolated tests, 29 included Marks browser/API assertions and 83 runtime assertions; 63 protected table fingerprints were unchanged. The historical activation blockers below are superseded. See [rollout evidence and limits](OFFICE_ACCESS_ROLLOUT_2026-10-28.md).
+
+The subsequent review found and fixed a pre-existing owner-link bypass in technical profile maintenance. Existing Student, Lecturer and OfficeStaff profiles now keep their owning User immutable; crafted reassignment is rejected before ModelForm binding. Nine permanent ownership regressions cover both lifecycle overwrites, Office staff identity and preserved valid maintenance/creation. The final follow-up passed 394 accounts/protected-admin tests in 86.566 seconds; no schema or frontend change. See [review and resolution](OFFICE_ADMIN_SEPARATION_REVIEW_2026-10-25.md). The earlier full-suite/browser counts below describe permission-separation verification before this follow-up; local activation and conversion were subsequently completed on 28 October.
 
 ## Resulting policy
 
@@ -38,7 +40,7 @@ If a technical login has not been provisioned, use `createsuperuser` with the in
 
 Initial local inspection found one legacy Office staff flag and no technical login. The user authorized choosing the account identity. Created `local.technical.admin@example.test` with a generated strong password held only in the ignored `backend/.env.technical-admin-account-2026-10-25.md`. A real Django authentication/client check against the development database verified admin login/index access and portal 403 `technical_account`. No existing account credentials/permissions were changed.
 
-Activation remains pending: automatic approval review rejected stopping/restarting the existing local Django API with only “blocked by policy”; no detailed reason was supplied. That process uses `--noreload`, so it still runs the previous code. Office flag conversion was deliberately not applied: clearing it before restarting would break the old process's portal checks. Restart the local API from the updated source first, then preview/apply the conversion command. No demo reseeding occurred. The new admin gate ignores Office flags once the updated process is running.
+Historical 25 October activation limitation: automatic approval review rejected stopping/restarting the then-running local API with only “blocked by policy”; conversion was deferred to preserve its old portal checks. The separate 28 October startup activated the merged source, and the verified rollout linked above completed local conversion without reseeding or password resets.
 
 ## Test-first failures and critical review
 
@@ -55,7 +57,7 @@ Final full-suite verification passed **1,551 tests in 487.320 seconds** across a
 
 The real Chrome/HTTP journeys use non-admin Office fixtures and disposable PostgreSQL databases, with no mocked academic API. Marks acceptance now includes actual production correction/reopening controls, reason validation, persisted audits and Lecturer resubmission. Supporting, research/transfer, delegation, and carryover/handover journeys cover desktop/phone widths as described in their earlier scoped reports; the Marks journey is desktop.
 
-The existing local API process was not restarted or reconfigured after its restart was rejected. No complete browser login-shell certification, native download/file-saving acceptance, production deployment or completion of A05-A07 is inferred. No independent reviewer pass is claimed: the earlier review agent was unavailable due to account usage limits; direct review is recorded instead.
+At the 25 October verification snapshot the API had not been restarted; the 28 October rollout supersedes that local activation limit. No complete browser login-shell certification, native download/file-saving acceptance, production deployment or completion of A05-A07 is inferred. No independent reviewer pass is claimed: the earlier review agent was unavailable due to account usage limits; direct review is recorded instead.
 
 ## Related documents
 

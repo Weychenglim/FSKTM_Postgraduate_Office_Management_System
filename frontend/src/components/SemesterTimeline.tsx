@@ -48,7 +48,7 @@ export const SemesterTimeline: React.FC<SemesterTimelineProps> = ({ timeline, lo
             {timeline?.message || 'No timeline available at now'}
           </p>
           <p className="card-description mt-1">
-            Upload the structured Excel template to create this semester's P1/P2 timeline.
+            Create one event or import the Excel template to start this semester's timeline.
           </p>
         </div>
       ) : (

@@ -1,10 +1,9 @@
-import {SupervisorRequestDisclosure} from './SupervisorRequestFields';
-import React, {useState} from 'react';
+import React from 'react';
 import type { PanelRecommendationDraft, PanelRecommendationSupervisee } from '../types';
-import { panelRequestPending, panelStatusLabel, panelStatusTone } from '../utils/panelPresentation';
+import { panelRequestPending, panelStatusLabel } from '../utils/panelPresentation';
 import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
 import { useListState } from './ListState';
-import { PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
+import { PortalButton, StatusBadge } from './PortalPrimitives';
 import { PortalSelect } from './PortalSelect';
 import { WorkspacePagination, WorkspaceSectionHeader, WorkspaceFilterCard } from './RequestWorkspacePrimitives';
 import {ClipboardList,Plus,ArrowRightLeft,UserRound,FileText} from 'lucide-react';
@@ -65,16 +64,12 @@ export function PanelSuperviseeRoster({ students, recommendations, onOpen, embed
   </section>;
 }
 
-export function PanelSuperviseeDetails({ student, pendingRequest, recommendations = [], onRecommend, onOpenRequest }: {
+export function PanelSuperviseeDetails({ student, pendingRequest, onRecommend, onOpenRequest }: {
   student: PanelRecommendationSupervisee; pendingRequest?: PanelRecommendationDraft;
   recommendations?: PanelRecommendationDraft[];
   onRecommend: () => void; onOpenRequest: (request: PanelRecommendationDraft) => void;
 }) {
   const appointed = Boolean(student.panelAppointmentId);
-  const [historyPage,setHistoryPage]=useState(1);
-  const history=recommendations.filter(row=>row.studentId===student.studentId&&!panelRequestPending(row.status))
-    .sort((a,b)=>(Date.parse(b.submittedAt||b.submittedDate)||0)-(Date.parse(a.submittedAt||a.submittedDate)||0));
-  const pages=Math.max(1,Math.ceil(history.length/5)),page=Math.min(historyPage,pages);
   return <section className="space-y-7" aria-label="Student Panel details">
     <PanelStudentOverview record={student}/>
     <div data-panel-supervisee-columns className="grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -91,28 +86,15 @@ export function PanelSuperviseeDetails({ student, pendingRequest, recommendation
             <StatusBadge tone="info">{panelStatusLabel(pendingRequest.status)}</StatusBadge>
             <dl><PanelDetailFact title={appointed?'Proposed replacement':'Proposed panel member'} value={pendingRequest.recommendedMember}/></dl>
             {appointed?<p className={supervisionDetailBody}>{student.currentPanelMember||'The current Panel member'} remains appointed until final approval of the replacement.</p>:null}
-            <PortalButton icon={FileText} variant="primary" className="min-h-11 w-full [&]:normal-case [&]:tracking-normal" onClick={()=>onOpenRequest(pendingRequest)}>View pending request</PortalButton>
+            <PortalButton icon={FileText} variant="primary" fullWidth onClick={()=>onOpenRequest(pendingRequest)}>View pending request</PortalButton>
           </> : student.canRecommend ? <>
             <p className={supervisionDetailBody}>{appointed?'A replacement takes effect after final approval.':'Select a Panel member for this student.'}</p>
-            <PortalButton variant="primary" icon={appointed?ArrowRightLeft:Plus} className="min-h-11 w-full [&]:normal-case [&]:tracking-normal" onClick={onRecommend}>{appointed?'Request replacement':'Nominate panel member'}</PortalButton>
+            <PortalButton variant="primary" icon={appointed?ArrowRightLeft:Plus} fullWidth onClick={onRecommend}>{appointed?'Request replacement':'Nominate panel member'}</PortalButton>
           </> : <p role="status" className={supervisionDetailBody}>A request is in progress. Another nomination cannot be submitted.</p>}
 
         </SupervisionDetailSection>
       </aside>
     </div>
-    {history.length?<div data-panel-nomination-history><PortalCard padding="lg" role="region" aria-label="Nomination history" className="[&>details]:border-t-0">
-      <SupervisorRequestDisclosure title={`Nomination history (${history.length})`}>
-        <table role="table" aria-label="Completed Panel nominations" className="data-table block table-fixed lg:table">
-          <thead role="rowgroup" className="hidden lg:table-header-group"><tr role="row" className="data-thead">{['Panel member','Outcome','Submitted','Action'].map(title=><th role="columnheader" key={title} scope="col" className={`data-th ${title==='Action'?'text-right':''}`}>{title}</th>)}</tr></thead>
-          <tbody role="rowgroup" className="block space-y-3 lg:table-row-group lg:space-y-0">{history.slice((page-1)*5,page*5).map(row=><tr role="row" key={row.id} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0">
-            <td role="cell" className="data-td col-span-2 block min-w-0 lg:table-cell [overflow-wrap:anywhere]"><span className="card-label mb-1 block lg:hidden">Panel member</span>{row.recommendedMember||'Not recorded'}</td>
-            <td role="cell" className="data-td block min-w-0 lg:table-cell"><span className="card-label mb-1 block lg:hidden">Outcome</span><StatusBadge tone={panelStatusTone(row.status)}>{panelStatusLabel(row.status)}</StatusBadge></td>
-            <td role="cell" className="data-td block min-w-0 lg:table-cell [overflow-wrap:anywhere]"><span className="card-label mb-1 block lg:hidden">Submitted</span>{formatRequestDisplayDate(row.submittedAt||row.submittedDate)}</td>
-            <td role="cell" className="data-td col-span-2 block lg:table-cell"><div className="flex justify-start lg:justify-end"><PortalButton size="sm" icon={FileText} className="min-h-11 whitespace-nowrap [&]:normal-case [&]:tracking-normal" aria-label={`View request for ${row.recommendedMember||'Panel member'}, submitted ${formatRequestDisplayDate(row.submittedAt||row.submittedDate)}`} onClick={()=>onOpenRequest(row)}>View request</PortalButton></div></td>
-          </tr>)}</tbody>
-        </table>
-        <WorkspacePagination page={page} pageCount={pages} total={history.length} pageSize={5} noun="records" onPage={setHistoryPage}/>
-      </SupervisorRequestDisclosure>
-    </PortalCard></div>:null}
+
   </section>;
 }
