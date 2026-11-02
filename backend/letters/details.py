@@ -5,6 +5,7 @@ letter generation, so the saved letter carries exactly what the preview showed.
 """
 from django.core.exceptions import ObjectDoesNotExist
 
+from accounts.semester_rules import progress_of
 from appointments.models import SupervisorAppointment
 
 
@@ -43,4 +44,11 @@ def letter_details(student):
         data.update(student.registry.to_letter_dict())
     except ObjectDoesNotExist:
         pass
+    progress = progress_of(student)
+    if progress.current and not data["currentSemester"]:
+        data["currentSemester"] = progress.current.label
+    if progress.maximum_semester and not data["maxSemester"]:
+        data["maxSemester"] = progress.maximum_semester.label
+    if progress.rule and progress.has_record:
+        data["minSemestersLeft"] = str(progress.short_of_minimum)
     return data

@@ -6,6 +6,9 @@ import calendar
 import re
 from datetime import datetime
 
+from accounts.semesters import nth_normal, steps_to
+from accounts.semesters import read as read_semester
+
 from .recipients import OPTIONAL_TAGS, recipient_block
 
 MALAY_MONTHS = [
@@ -20,9 +23,6 @@ PROGRAMMES_MS = {
 }
 MODES_MS = {"full time": "Sepenuh Masa", "full-time": "Sepenuh Masa", "part time": "Separuh Masa", "part-time": "Separuh Masa"}
 
-SESSION_RE = re.compile(r"(\d{4})\s*[/-]\s*(\d{4})")
-TERM_RE = re.compile(r"semester\s+(iii|ii|i|[123])\b|-s([123])\b", re.IGNORECASE)
-TERMS = {"i": 1, "1": 1, "ii": 2, "2": 2, "iii": 2, "3": 2}
 SESSION_WORD_RE = re.compile(r"(\d{4}/\d{4})\s+Session\b", re.IGNORECASE)
 # A plain number above this is a year, not a count of semesters.
 MAX_COUNT = 30
@@ -46,36 +46,31 @@ def add_months(day, months):
     return day.replace(year=year, month=month, day=min(day.day, calendar.monthrange(year, month)[1]))
 
 
-def semester_number(label):
-    """Count semesters from a label like "Semester II, 2025/2026 Session"; None if unreadable."""
-    session, term = SESSION_RE.search(label or ""), TERM_RE.search(label or "")
-    if not session or not term:
-        return None
-    return int(session.group(1)) * 2 + TERMS[(term.group(1) or term.group(2)).lower()] - 1
-
-
 def semesters_left(current, target, intake=""):
     """Semesters after the current one until ``target``: a semester label, or a
     plain count of semesters allowed counted from the intake. "" when unknown,
     such as a bare year."""
-    now = semester_number(current)
+    now = read_semester(current)
     if now is None:
         return ""
     count = (target or "").strip()
     if count.isdigit():
-        start = semester_number(intake)
+        start = read_semester(intake)
         if start is None or int(count) > MAX_COUNT:
             return ""
-        return str(max(0, int(count) - (now - start + 1)))
-    end = semester_number(target)
-    return "" if end is None else str(max(0, end - now))
+        return str(steps_to(now, nth_normal(start, int(count))))
+    end = read_semester(target)
+    return "" if end is None else str(steps_to(now, end))
 
 
 def request_values(values, details):
     """``values`` plus who the letter is for (in English and Malay) and the semesters left."""
     details = details or {}
     current = values.get("currentSemester", "")
-    minimum = semesters_left(current, values.get("expectedCompletion", ""), values.get("initialSemester", ""))
+    minimum = (
+        semesters_left(current, values.get("expectedCompletion", ""), values.get("initialSemester", ""))
+        or values.get("minSemestersLeft", "")
+    )
     maximum = semesters_left(current, values.get("maxSemester", ""), values.get("initialSemester", ""))
     return {
         **values,
@@ -99,7 +94,7 @@ def malay_values(values):
         malay["modeOfStudy"] = MODES_MS[mode.lower()].upper() if mode.isupper() else MODES_MS[mode.lower()]
     for key in ("currentSemester", "initialSemester", "maxSemester", "expectedCompletion"):
         if malay.get(key):
-            malay[key] = SESSION_WORD_RE.sub(r"Sesi \1", malay[key])
+            malay[key] = SESSION_WORD_RE.sub(r"Sesi \1", malay[key]).replace("Special Semester", "Semester Khas")
     for key in ("balanceSemestersMin", "balanceSemestersMax"):
         if malay.get(key):
             malay[key] = malay[key].replace("SEMESTER(S)", "SEMESTER")
