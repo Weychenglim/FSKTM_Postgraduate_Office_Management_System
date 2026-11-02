@@ -75,3 +75,31 @@ export const removeStudentSemester = (matric: string, id: number) =>
 
 export const saveStudentExtension = (matric: string, input: { semesters: number; reason: string }) =>
   request<StudentSemesters>(`${student(matric)}/semester-extension/`, json('PUT', input));
+
+export interface MoveStudent {
+  matric: string;
+  name: string;
+  programme: string;
+  avatarText: string;
+  avatarBg: string;
+  current: string;
+}
+
+export interface MoveSummary {
+  semester: { id: number; label: string; session: string; term: SemesterTerm; isSpecial: boolean } | null;
+  waiting: number;
+  lastMove: { by: string; at: string; moved: number; leftOut: number } | null;
+}
+
+export interface MoveState extends MoveSummary {
+  students?: MoveStudent[];
+  movingFrom: string;
+  deferred: number;
+}
+
+export const getSemesterMoveSummary = () => request<MoveSummary>(`${BASE}/semester-move/?summary=1`);
+
+export const getSemesterMove = () => request<MoveState>(`${BASE}/semester-move/`);
+
+export const moveStudents = (semesterId: number, matrics: string[]) =>
+  request<{ semester: string; moved: number; leftOut: number; notActive: string[] }>(`${BASE}/semester-move/`, json('POST', { semesterId, matrics }));

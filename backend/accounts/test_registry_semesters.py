@@ -275,3 +275,100 @@ class RegistrySemesterApiTests(APITestCase):
         self.assertEqual(typed.status_code, 200, typed.data)
         self.assertEqual(blank.semesters.count(), 2)
         self.assertEqual(typed.data["semester"], "Semester II, 2026/2027 Session")
+
+
+@override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
+class MoveStudentsApiTests(APITestCase):
+    url = "/api/registry/semester-move/"
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from academics.models import AcademicSemester
+
+        cls.office = User.objects.create_user(
+            email="office@example.test", password="pw", full_name="Office Person", role=User.Role.OFFICE_ADMIN,
+        )
+        today = timezone.localdate()
+        cls.portal = AcademicSemester.objects.create(
+            code="2026-2027-S2", academic_session="2026/2027", term="SEMESTER_II", created_by=cls.office,
+            starts_on=today - timedelta(days=5), ends_on=today + timedelta(days=60), lifecycle_status="ACTIVE",
+        )
+        cls.one = make_student("MV1", current="Semester I, 2026/2027 Session")
+        cls.two = make_student("MV2", current="Semester I, 2026/2027 Session")
+        cls.three = make_student("MV3")
+        cls.deferred = make_student("MV4", status=Student.Status.DEFERRED)
+        cls.gone = make_student("MV5", status=Student.Status.GRADUATED)
+        for student in (cls.one, cls.two, cls.three):
+            semesters_for(student, "Semester I, 2026/2027")
+
+    def body(self, *matrics):
+        return {"semesterId": self.portal.pk, "matrics": list(matrics)}
+
+    def test_only_the_office_moves_students(self):
+        self.client.force_authenticate(self.one.user)
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(self.client.post(self.url, self.body("MV1"), format="json").status_code, 403)
+
+    def test_it_lists_active_students_not_yet_on_the_semester(self):
+        self.client.force_authenticate(self.office)
+        data = self.client.get(self.url).data
+        self.assertEqual(data["semester"]["label"], "Semester II, 2026/2027 Session")
+        self.assertEqual(sorted(row["matric"] for row in data["students"]), ["MV1", "MV2", "MV3"])
+        self.assertEqual((data["waiting"], data["deferred"], data["lastMove"]), (3, 1, None))
+        self.assertEqual(data["movingFrom"], "Semester I, 2026/2027 Session")
+        summary = self.client.get(self.url, {"summary": "1"}).data
+        self.assertEqual(summary["waiting"], 3)
+        self.assertNotIn("students", summary)
+
+    def test_moving_adds_the_semester_and_can_run_twice(self):
+        self.client.force_authenticate(self.office)
+        moved = self.client.post(self.url, self.body("mv1", "MV2"), format="json")
+        self.assertEqual(moved.status_code, 200, moved.data)
+        self.assertEqual((moved.data["moved"], moved.data["leftOut"]), (2, 1))
+        self.assertEqual(self.one.semesters.count(), 2)
+        self.assertEqual(
+            StudentRegistry.objects.get(student=self.one).current_semester, "Semester II, 2026/2027 Session"
+        )
+        self.assertFalse(StudentRegistry.objects.filter(student=self.three).exists())
+        again = self.client.post(self.url, self.body("MV1", "MV2"), format="json")
+        self.assertEqual(again.data["moved"], 0)
+        self.assertEqual(self.one.semesters.count(), 2)
+        state = self.client.get(self.url).data
+        self.assertEqual([row["matric"] for row in state["students"]], ["MV3"])
+        self.assertEqual(state["lastMove"]["by"], "Office Person")
+
+    def test_a_deferred_student_gets_leave_and_nobody_else_moves(self):
+        self.client.force_authenticate(self.office)
+        response = self.client.post(self.url, self.body("MV1", "MV4", "MV5", "NOPE"), format="json")
+        self.assertEqual(response.data["moved"], 1)
+        self.assertEqual(sorted(response.data["notActive"]), ["MV4", "MV5", "NOPE"])
+        row = self.deferred.semesters.get(term="SEMESTER_II")
+        self.assertEqual(row.outcome, StudentSemester.Outcome.LEAVE)
+        self.assertFalse(self.gone.semesters.exists())
+
+    def test_a_special_semester_moves_only_those_added_and_nobody_on_leave(self):
+        self.portal.term = "SPECIAL"
+        self.portal.code = "2026-2027-SP"
+        self.portal.save()
+        self.client.force_authenticate(self.office)
+        data = self.client.get(self.url).data
+        self.assertTrue(data["semester"]["isSpecial"])
+        self.assertEqual(data["deferred"], 0)
+        response = self.client.post(self.url, self.body("MV2"), format="json")
+        self.assertEqual((response.data["moved"], response.data["semester"]), (1, "Special Semester, 2026/2027 Session"))
+        self.assertFalse(self.deferred.semesters.filter(term="SPECIAL").exists())
+        self.assertEqual(self.two.semesters.filter(term="SPECIAL").count(), 1)
+
+    def test_it_refuses_a_stale_page_and_no_active_semester(self):
+        self.client.force_authenticate(self.office)
+        stale = self.client.post(self.url, {"semesterId": self.portal.pk + 1, "matrics": ["MV1"]}, format="json")
+        self.assertEqual(stale.status_code, 409)
+        self.assertEqual(self.one.semesters.count(), 1)
+        self.portal.lifecycle_status = "CLOSED"
+        self.portal.save()
+        self.assertEqual(self.client.get(self.url).data["semester"], None)
+        self.assertEqual(self.client.post(self.url, self.body("MV1"), format="json").status_code, 409)

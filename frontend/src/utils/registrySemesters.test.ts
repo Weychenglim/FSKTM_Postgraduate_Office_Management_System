@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { StudentSemesters } from '../services/registrySemestersApi';
 import { APP_ROUTES } from '../constants/routes';
-import { maximumNotice, parseMatricList, semesterCount, studentCount, validSession } from './registrySemesters';
+import { findStudents, maximumNotice, parseMatricList, semesterCount, semesterMoveWaiting, shortSemester, studentCount, validSession } from './registrySemesters';
 
 assert.equal(semesterCount(1), '1 semester');
 assert.equal(semesterCount(3), '3 semesters');
@@ -31,5 +31,16 @@ assert.match(maximumNotice(progress({ pastMaximum: true }))?.text ?? '', /Semest
 assert.equal(APP_ROUTES.registryProgrammes, '/registry/programmes');
 assert.equal(APP_ROUTES.registryMoveStudents, '/registry/move-students');
 assert.equal(APP_ROUTES.registryGraduate, '/registry/graduate');
+
+assert.equal(shortSemester('Semester II, 2026/2027 Session'), 'Semester II, 2026/2027');
+const found = [{ name: 'Aisyah binti Rahman', matric: '26990001' }, { name: 'Lim Wei Jie', matric: '26990002' }];
+assert.deepEqual(findStudents(found, ''), []);
+assert.deepEqual(findStudents(found, 'aisyah').map(row => row.matric), ['26990001']);
+assert.deepEqual(findStudents(found, '0002').map(row => row.name), ['Lim Wei Jie']);
+assert.equal(semesterMoveWaiting(null), false);
+assert.equal(semesterMoveWaiting({ semester: null, waiting: 3, lastMove: null }), false);
+assert.equal(semesterMoveWaiting({ semester: {}, waiting: 0, lastMove: null }), false);
+assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: {} }), false);
+assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: null }), true);
 
 console.log('registry semester helper tests passed');

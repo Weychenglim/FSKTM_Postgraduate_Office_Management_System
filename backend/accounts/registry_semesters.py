@@ -1,4 +1,6 @@
 """Programme rules and each student's semesters, as Student Registry edits them."""
+from collections import Counter
+
 from django.db import transaction
 from django.db.models import Count
 from rest_framework import serializers, status
@@ -6,12 +8,27 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import ProgrammeRule, ProgrammeRuleChange, Student, StudentRegistry, StudentSemester
+from .models import (
+    ProgrammeRule,
+    ProgrammeRuleChange,
+    Student,
+    StudentRegistry,
+    StudentSemester,
+    StudentSemesterMove,
+)
 from .programmes import APPROVED_PROGRAMMES
 from .registry_programmes import programme_key
-from .registry_views import _find_student, _require_office_admin, _require_registry_reader
+from .registry_views import (
+    _avatar_bg,
+    _find_student,
+    _initials,
+    _registry_or_none,
+    _require_office_admin,
+    _require_registry_reader,
+)
 from .semester_rules import record_semester, serialize_progress, sync_current
 from .semesters import from_parts
+from .semesters import read as read_semester
 
 MAX_EXTENSION = 3
 
@@ -200,3 +217,164 @@ def student_extension_view(request, matric_no):
     registry.extension_reason = serializer.validated_data["reason"] if registry.extension_semesters else ""
     registry.save(update_fields=["extension_semesters", "extension_reason", "updated_at"])
     return Response(serialize_progress(student))
+
+
+def _active_semester():
+    from academics.services import current_effective_semester
+
+    portal = current_effective_semester()
+    if portal is None:
+        return None, None
+    return portal, from_parts(portal.academic_session, portal.term)
+
+
+def _on_semester(semester):
+    return StudentSemester.objects.filter(session=semester.session, term=semester.term).values("student_id")
+
+
+def _move_payload(portal, semester):
+    waiting = Student.objects.filter(status=Student.Status.ACTIVE).exclude(pk__in=_on_semester(semester))
+    last = (
+        StudentSemesterMove.objects.filter(session=semester.session, term=semester.term)
+        .select_related("moved_by")
+        .first()
+    )
+    return {
+        "semester": {
+            "id": portal.pk,
+            "label": semester.label,
+            "session": semester.session,
+            "term": semester.term,
+            "isSpecial": semester.is_special,
+        },
+        "waiting": waiting.count(),
+        "lastMove": {
+            "by": last.moved_by.full_name if last.moved_by else "",
+            "at": last.created_at.isoformat(),
+            "moved": last.moved_count,
+            "leftOut": last.left_out_count,
+        } if last else None,
+    }
+
+
+def _move_rows(semester):
+    students = (
+        Student.objects.filter(status=Student.Status.ACTIVE)
+        .exclude(pk__in=_on_semester(semester))
+        .select_related("user", "registry")
+        .order_by("user__full_name")
+    )
+    rows = []
+    for student in students:
+        registry = _registry_or_none(student)
+        rows.append(
+            {
+                "matric": student.matric_no,
+                "name": student.user.full_name,
+                "programme": student.programme,
+                "avatarText": _initials(student.user.full_name),
+                "avatarBg": _avatar_bg(student.matric_no),
+                "current": (registry.current_semester if registry else "") or student.intake_semester,
+            }
+        )
+    return rows
+
+
+def _usual_semester(rows):
+    """The semester most of these students are on, shown as where they are moving from."""
+    counts = Counter(read_semester(row["current"]) for row in rows)
+    counts.pop(None, None)
+    return counts.most_common(1)[0][0].label if counts else ""
+
+
+class MoveStudentsSerializer(serializers.Serializer):
+    semesterId = serializers.IntegerField()
+    matrics = serializers.ListField(child=serializers.CharField(max_length=64), allow_empty=False, max_length=5000)
+
+
+def _put_on_semester(students, semester, *, outcome, actor, note=""):
+    """Add this semester to each student, and make it their current one."""
+    StudentSemester.objects.bulk_create(
+        [
+            StudentSemester(
+                student=student, session=semester.session, term=semester.term, outcome=outcome, note=note, created_by=actor,
+            )
+            for student in students
+        ],
+        ignore_conflicts=True,
+    )
+    registries = {row.student_id: row for row in StudentRegistry.objects.filter(student__in=students)}
+    missing, changed = [], []
+    for student in students:
+        registry = registries.get(student.pk)
+        if registry is None:
+            missing.append(StudentRegistry(student=student, current_semester=semester.label))
+        elif registry.current_semester != semester.label:
+            registry.current_semester = semester.label
+            changed.append(registry)
+    StudentRegistry.objects.bulk_create(missing)
+    StudentRegistry.objects.bulk_update(changed, ["current_semester"])
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def semester_move_view(request):
+    """Office: move students into the active semester, all in one go.
+
+    Only the active semester can be moved into, and a student has one row per
+    semester, so running this twice changes nothing.
+    """
+    _require_office_admin(request)
+    portal, semester = _active_semester()
+    if semester is None:
+        if request.method == "POST":
+            return Response(
+                {"error": "There is no active semester. Set one in Academic Semesters first."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response({"semester": None, "waiting": 0, "lastMove": None})
+    if request.method == "GET":
+        payload = _move_payload(portal, semester)
+        if request.query_params.get("summary") != "1":
+            rows = _move_rows(semester)
+            deferred = Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=_on_semester(semester))
+            payload.update(
+                students=rows,
+                movingFrom=_usual_semester(rows),
+                deferred=0 if semester.is_special else deferred.count(),
+            )
+        return Response(payload)
+
+    serializer = MoveStudentsSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    if data["semesterId"] != portal.pk:
+        return Response(
+            {"error": f"The active semester is now {semester.label}. Reload the page and check the list again."},
+            status=status.HTTP_409_CONFLICT,
+        )
+    wanted = {matric.strip().casefold(): matric.strip() for matric in data["matrics"] if matric.strip()}
+    with transaction.atomic():
+        on_it = set(_on_semester(semester).values_list("student_id", flat=True))
+        active = list(Student.objects.filter(status=Student.Status.ACTIVE).select_for_update())
+        moving = [student for student in active if student.matric_no.casefold() in wanted and student.pk not in on_it]
+        known = {student.matric_no.casefold() for student in active}
+        _put_on_semester(moving, semester, outcome=StudentSemester.Outcome.STUDIED, actor=request.user)
+        if not semester.is_special:
+            deferred = list(Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=on_it))
+            _put_on_semester(
+                deferred, semester, outcome=StudentSemester.Outcome.LEAVE, actor=request.user,
+                note="Deferred when students moved to this semester",
+            )
+        left_out = len([student for student in active if student.pk not in on_it]) - len(moving)
+        StudentSemesterMove.objects.create(
+            session=semester.session, term=semester.term, moved_count=len(moving), left_out_count=left_out, moved_by=request.user,
+        )
+    return Response(
+        {
+            "semester": semester.label,
+            "moved": len(moving),
+            "leftOut": left_out,
+            "notActive": [matric for key, matric in wanted.items() if key not in known],
+        }
+    )

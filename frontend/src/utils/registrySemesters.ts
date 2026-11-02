@@ -50,3 +50,16 @@ export function maximumNotice(progress: StudentSemesters): SemesterNotice | null
   }
   return null;
 }
+
+export const shortSemester = (label: string) => label.replace(/ Session$/, '');
+
+/** Students whose name or matric number has the text in it. */
+export function findStudents<T extends { name: string; matric: string }>(students: T[], query: string): T[] {
+  const text = query.trim().toLowerCase();
+  if (!text) return [];
+  return students.filter(student => student.name.toLowerCase().includes(text) || student.matric.toLowerCase().includes(text));
+}
+
+/** Whether the Students tab should offer to move students: a semester has started and nobody has been moved yet. */
+export const semesterMoveWaiting = (summary: { semester: unknown; waiting: number; lastMove: unknown } | null) =>
+  Boolean(summary?.semester && summary.waiting > 0 && !summary.lastMove);

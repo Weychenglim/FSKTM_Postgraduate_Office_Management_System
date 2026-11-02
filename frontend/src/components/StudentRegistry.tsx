@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Mail,
   Calendar,
+  CalendarClock,
   Layers,
   FileSpreadsheet,
   UploadCloud,
@@ -56,6 +57,8 @@ import { historyTime } from '../utils/documentDisplay';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { APP_ROUTES, routeForNewProgrammeTransfer, routeForProgrammeTransfer } from '../constants/routes';
 import { getStudentTransfer, type StudentTransferSummary } from '../services/programmeTransfersApi';
+import { getSemesterMoveSummary, type MoveSummary } from '../services/registrySemestersApi';
+import { semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
 import { StudentSemestersCard } from './StudentSemestersCard';
@@ -302,6 +305,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   
   // Modals Dialog States
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
+  const [moveSummary, setMoveSummary] = useState<MoveSummary | null>(null);
+
+  useEffect(() => {
+    if (readOnly) return undefined;
+    let cancelled = false;
+    getSemesterMoveSummary().then((found) => { if (!cancelled) setMoveSummary(found); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [readOnly]);
   const [transfer, setTransfer] = useState<StudentTransferSummary | null>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1167,7 +1178,28 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             }
           />
 
-          {(!readOnly || canSeeTransfers) && <RegistryModuleTabs active="students" office={!readOnly} />}
+          {(!readOnly || canSeeTransfers) && (
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <RegistryModuleTabs active="students" office={!readOnly} />
+              {!readOnly && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <PortalButton size="sm" icon={CalendarClock} onClick={() => navigate(APP_ROUTES.registryMoveStudents)}>Move students</PortalButton>
+                  <PortalButton size="sm" icon={GraduationCap} onClick={() => navigate(APP_ROUTES.registryGraduate)}>Graduate students</PortalButton>
+                </div>
+              )}
+            </div>
+          )}
+
+          {!readOnly && moveSummary?.semester && semesterMoveWaiting(moveSummary) && (
+            <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3.5 text-[13.5px] font-semibold text-blue-900">
+              <span>
+                {moveSummary.semester.isSpecial
+                  ? `The ${shortSemester(moveSummary.semester.label)} has started. Move the students taking it.`
+                  : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} to move.`}
+              </span>
+              <PortalButton size="sm" variant="primary" onClick={() => navigate(APP_ROUTES.registryMoveStudents)}>Move students</PortalButton>
+            </div>
+          )}
 
           {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
           <div id="student-summary-cards" className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">

@@ -11,6 +11,7 @@ urlpatterns = [
         name="registry-programme-coordinators",
     ),
     path("programme-rules/", registry_semesters.programme_rules_view, name="registry-programme-rules"),
+    path("semester-move/", registry_semesters.semester_move_view, name="registry-semester-move"),
     path(
         "students/import/",
         registry_views.student_import_view,
