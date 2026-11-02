@@ -8,14 +8,15 @@ import { useNavigate } from 'react-router';
 import { SegmentedControl } from './PortalPrimitives';
 import { APP_ROUTES } from '../constants/routes';
 
-export type RegistryModuleTab = 'students' | 'staff_lecturers' | 'transfers';
+export type RegistryModuleTab = 'students' | 'staff_lecturers' | 'transfers' | 'programmes';
 
-const OFFICE_TABS: readonly RegistryModuleTab[] = ['students', 'staff_lecturers', 'transfers'];
+const OFFICE_TABS: readonly RegistryModuleTab[] = ['students', 'staff_lecturers', 'transfers', 'programmes'];
 const COORDINATOR_TABS: readonly RegistryModuleTab[] = ['students', 'transfers'];
 const TAB_ROUTES: Record<RegistryModuleTab, string> = {
   students: APP_ROUTES.registry,
   staff_lecturers: APP_ROUTES.registryStaff,
   transfers: APP_ROUTES.registryTransfers,
+  programmes: APP_ROUTES.registryProgrammes,
 };
 
 // Registry tabs, under each list heading. Each tab is its own page, so the
@@ -30,7 +31,7 @@ export const RegistryModuleTabs: React.FC<{ active: RegistryModuleTab; office?: 
       onChange={tab => {
         if (tab !== active) navigate(TAB_ROUTES[tab]);
       }}
-      labels={{ students: 'Students', staff_lecturers: 'Staff & Lecturers', transfers: 'Programme transfers' }}
+      labels={{ students: 'Students', staff_lecturers: 'Staff & Lecturers', transfers: 'Programme transfers', programmes: 'Programmes' }}
     />
   );
 };

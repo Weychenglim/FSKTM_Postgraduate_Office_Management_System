@@ -262,6 +262,9 @@ class StudentRegistry(models.Model):
     max_semester = models.CharField(max_length=64, blank=True, default="")  # {{MAX_SEMESTER}}
     expected_completion = models.CharField(max_length=64, blank=True, default="")  # {{EXPECTED_COMPLETION}}
     sponsor = models.CharField(max_length=255, blank=True, default="")
+    # Semesters added past the maximum on appeal to the Dean, three at most (Regulation 55).
+    extension_semesters = models.PositiveSmallIntegerField(default=0)
+    extension_reason = models.CharField(max_length=255, blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -680,3 +683,113 @@ class AccountChange(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("Account history cannot be deleted.")
+
+
+class ProgrammeRule(models.Model):
+    """How long a programme takes, in semesters. Filled in from the faculty's
+    handbook; the office can change it."""
+
+    programme = models.CharField(max_length=255, unique=True)
+    min_semesters = models.PositiveSmallIntegerField()
+    # UM counts a Special Semester when the programme's offer states it (Regulation 20(2)).
+    special_counts = models.BooleanField(default=True)
+    max_semesters = models.PositiveSmallIntegerField()
+    source = models.CharField(max_length=255, blank=True)
+    updated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="programme_rules_changed",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["programme"]
+
+    def __str__(self):
+        return f"{self.programme}: {self.min_semesters} to {self.max_semesters} semesters"
+
+
+class ProgrammeRuleChange(models.Model):
+    """One edit of a programme rule, kept because it changes who can graduate."""
+
+    rule = models.ForeignKey(ProgrammeRule, on_delete=models.CASCADE, related_name="changes")
+    actor = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="programme_rule_changes",
+    )
+    actor_name = models.CharField(max_length=255, blank=True)
+    before_values = models.JSONField(default=dict)
+    after_values = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class StudentSemester(models.Model):
+    """One semester of one student's studies. Moving a student forward adds a row,
+    so running it twice cannot count a semester twice."""
+
+    class Term(models.TextChoices):
+        SEMESTER_I = "SEMESTER_I", "Semester I"
+        SEMESTER_II = "SEMESTER_II", "Semester II"
+        SPECIAL = "SPECIAL", "Special Semester"
+
+    class Outcome(models.TextChoices):
+        STUDIED = "STUDIED", "Studied"
+        LEAVE = "LEAVE", "On leave"
+        # Medical and mobility leave do not use up the maximum (Regulation 8(11)).
+        LEAVE_EXEMPT = "LEAVE_EXEMPT", "On medical or mobility leave"
+
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="semesters")
+    session = models.CharField(max_length=9)
+    term = models.CharField(max_length=16, choices=Term.choices)
+    outcome = models.CharField(max_length=16, choices=Outcome.choices, default=Outcome.STUDIED)
+    note = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="student_semesters_added",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        # Terms sort as they run through a session.
+        ordering = ["session", "term"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "session", "term"], name="unique_student_semester"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.student_id}: {self.session} {self.term}"
+
+
+class StudentSemesterMove(models.Model):
+    """The office moved students into a semester. Once done, the Students tab stops
+    asking, even if some students were left out on purpose."""
+
+    session = models.CharField(max_length=9)
+    term = models.CharField(max_length=16, choices=StudentSemester.Term.choices)
+    moved_count = models.PositiveIntegerField(default=0)
+    left_out_count = models.PositiveIntegerField(default=0)
+    moved_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="student_semester_moves",
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

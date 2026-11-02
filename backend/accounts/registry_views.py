@@ -47,6 +47,8 @@ from .registry_import import (
 from .registry_profiles import remember_layout
 from .registry_template import TEMPLATE_FILE_NAME, XLSX_CONTENT_TYPE, build_template
 from .registry_programmes import programme_values, remember_choices
+from .semester_rules import record_semester, seed_student
+from .semesters import read as read_semester
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
 from .tokens import activation_link
@@ -373,6 +375,7 @@ def _register_student(data):
         semester = data.get("semester", "")
         if semester:
             StudentRegistry.objects.create(student=student, current_semester=semester)
+        seed_student(student)
     return student
 
 
@@ -874,9 +877,13 @@ def student_record_detail_view(request, matric_no):
             blacklist_user_refresh_tokens(student.user)
 
         if "semester" in data:
+            typed = read_semester(data["semester"])
+            if typed:
+                record_semester(student, typed, actor=request.user)
             registry, _ = StudentRegistry.objects.get_or_create(student=student)
             registry.current_semester = data["semester"]
             registry.save(update_fields=["current_semester", "updated_at"])
+        seed_student(student, actor=request.user)
 
     student.refresh_from_db()
     payload = to_record(student)

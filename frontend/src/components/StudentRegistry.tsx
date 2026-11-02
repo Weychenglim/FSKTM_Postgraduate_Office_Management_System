@@ -58,6 +58,7 @@ import { APP_ROUTES, routeForNewProgrammeTransfer, routeForProgrammeTransfer } f
 import { getStudentTransfer, type StudentTransferSummary } from '../services/programmeTransfersApi';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
+import { StudentSemestersCard } from './StudentSemestersCard';
 import {
   ImportCommitResponse,
   ImportDefaults,
@@ -432,7 +433,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusBlockers, setStatusBlockers] = useState<string[]>([]);
 
-  const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', intakeDate: '', semester: '' });
+  const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', intakeDate: '' });
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   // An edit clears the last save problem, so a fixed field no longer shows it.
@@ -455,9 +456,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       phone: viewingStudent?.phone ?? '',
       programme: viewingStudent?.programme ?? '',
       intakeDate: viewingStudent?.intakeDate ?? '',
-      semester: viewingStudent?.semester ?? '',
     });
   }, [viewingStudent?.id]);
+
+  // Semesters decide the current semester, so the record is read again after a change.
+  const refreshViewingStudent = () => {
+    if (!viewingStudent) return;
+    const matric = viewingStudent.id;
+    getStudentById(matric)
+      .then((updated) => setViewingStudent((current) => (current?.id === matric ? updated : current)))
+      .catch(() => undefined);
+    loadStudents();
+  };
 
   const handleStatusChange = async () => {
     if (!viewingStudent || !statusTarget || !statusReason.trim()) return;
@@ -501,7 +511,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     if (detailsDraft.phone.trim() !== student.phone) changes.phone = detailsDraft.phone.trim();
     if (detailsDraft.programme !== student.programme) changes.programme = detailsDraft.programme;
     if (detailsDraft.intakeDate.trim() !== student.intakeDate) changes.intakeDate = detailsDraft.intakeDate.trim();
-    if (detailsDraft.semester.trim() !== student.semester) changes.semester = detailsDraft.semester.trim();
     if (Object.keys(changes).length === 0) {
       setDetailsError('Nothing has changed yet.');
       return;
@@ -1106,7 +1115,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     || detailsDraft.phone.trim() !== viewingStudent.phone
     || detailsDraft.programme !== viewingStudent.programme
     || detailsDraft.intakeDate.trim() !== viewingStudent.intakeDate
-    || detailsDraft.semester.trim() !== viewingStudent.semester
     || statusTarget !== ''
     || statusReason.trim() !== ''
   );
@@ -2586,6 +2594,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                 </div>
 
+                <StudentSemestersCard
+                  matric={viewingStudent.id}
+                  readOnly={readOnly}
+                  onChanged={refreshViewingStudent}
+                />
+
                 {!readOnly && (
                 <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
                   <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
@@ -2666,24 +2680,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         placeholder="e.g. 2026/2027 Semester I"
                         className="form-control form-control-sm normal-case tracking-normal"
                       />
-                    </label>
-                    <label className="flex flex-col gap-1 form-label">
-                      Current Semester
-                      <input
-                        type="text"
-                        list="registry-semester-options-edit"
-                        value={detailsDraft.semester}
-                        onChange={(e) => editDetails({ semester: e.target.value })}
-                        disabled={detailsSaving}
-                        maxLength={64}
-                        placeholder="e.g. Semester I, 2026/2027 Session"
-                        className="form-control form-control-sm normal-case tracking-normal"
-                      />
-                      <datalist id="registry-semester-options-edit">
-                        {semesterOptions.map((semester) => (
-                          <option key={semester} value={semester} />
-                        ))}
-                      </datalist>
                     </label>
                   </div>
                   {detailsError && (
