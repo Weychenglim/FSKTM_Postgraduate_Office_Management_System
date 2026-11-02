@@ -290,7 +290,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
             <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-3">
               <div className="min-w-0">
                 <h3 className="section-label">Wording</h3>
-                <p className="card-description mt-1">The letterhead, reference number, date and signature are added for you.</p>
               </div>
               <SegmentedControl<'en' | 'ms'>
                 options={['en', 'ms'] as const}
@@ -319,7 +318,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                 </button>
                 {insertOpen && (
                   <FloatingMenu anchor={insertMenuRef} onClose={() => setInsertOpen(false)} width={320} className="rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                    <p className="px-2 pb-2 card-caption">Goes in where the cursor is, and is filled in for each letter.</p>
                     {insertGroups.map((group) => (
                       <div key={group.title} className="py-1">
                         <p className="px-2 pb-1 card-label">{group.title}</p>
@@ -355,16 +353,13 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                         )}
                       </div>
                     ))}
-                    {request && studentQuestions.length === 0 && (
-                      <p className="px-2 py-1 card-caption">To ask the student something, add a question in the Student form step.</p>
-                    )}
                   </FloatingMenu>
                 )}
               </div>
             </div>
             {language === 'ms' && !values.contentMs.trim() && (
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-blue-50/60 px-5 py-3">
-                <p className="text-[12.5px] font-medium text-blue-900">The Malay letter is printed as a second page. Leave it empty for an English-only letter.</p>
+                <p className="text-[12.5px] font-medium text-blue-900">Leave empty for an English-only letter.</p>
                 {values.content.trim() && <PortalButton size="sm" onClick={() => { onChange({ contentMs: values.content }); onEdited('contentMs'); }}>Start from the English text</PortalButton>}
               </div>
             )}
@@ -388,7 +383,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                 </p>
               )}
               <p className="card-caption">
-                Details in [square brackets] are filled in for each letter. A line such as | Name | [Student Name] | prints as a row of a details table.
+                Details in [square brackets] are filled in for each letter.
               </p>
             </div>
           </div>
@@ -397,7 +392,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
             <div className="space-y-3 px-5 pt-5 pb-3">
               <div>
                 <h3 className="section-label">Preview</h3>
-                <p className="card-description mt-1">Changes as you type. Details still to be filled in are highlighted.</p>
               </div>
               <form
                 className="flex flex-wrap items-center gap-2"
@@ -443,7 +437,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
       {(fields.length > 0 || problems.customFields) && (
         <AppointmentSection
           title="Blanks the office fills in"
-          description="The office types these in when approving each letter, for details the portal does not hold. Add one from Insert detail."
           icon={ListChecks}
         >
           {problems.customFields && <p role="alert" className="text-sm font-medium text-rose-800">{problems.customFields}</p>}

@@ -316,7 +316,7 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
                     <PortalButton variant="primary" icon={Mail} fullWidth isLoading={busy === 'link'} onClick={() => void sendLink()}>
                       Send password reset link
                     </PortalButton>
-                    <p className="text-[12px] leading-relaxed text-slate-500">The link lasts 30 minutes. The office never sees or sets a password.</p>
+                    <p className="text-[12px] leading-relaxed text-slate-500">The link lasts 30 minutes.</p>
                   </>
                 )}
                 {account.status === 'SIGN_IN_OFF' && (

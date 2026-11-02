@@ -80,7 +80,6 @@ export const FileHistory: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
     <RecordPage
       title="File history"
-      subtitle="Everything that happened to files, deleted ones included, and every change to the File Settings."
       backLabel="Back to Files"
       onBack={onBack}
     >

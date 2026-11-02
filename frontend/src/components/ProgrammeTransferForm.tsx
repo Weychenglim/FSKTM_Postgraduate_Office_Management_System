@@ -63,7 +63,7 @@ export const ProgrammeTransferForm: React.FC<{ matric: string }> = ({ matric }) 
   };
 
   const page = (children: React.ReactNode) => (
-    <RecordPage title="Request programme transfer" subtitle="The programme changes only after the coordinators approve." backLabel={`Back to ${source.label}`}
+    <RecordPage title="Request programme transfer" backLabel={`Back to ${source.label}`}
       onBack={() => navigate(source.path)} dirty={Boolean(destination || reason.trim())} busy={busy} navigationComplete={sent}>
       {children}
     </RecordPage>

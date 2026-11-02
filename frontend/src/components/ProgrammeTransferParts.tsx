@@ -63,7 +63,6 @@ export const StaysWithStudent: React.FC<{ primary: string; coSupervisors: string
           </div>
         ))}
       </dl>
-      <p className="text-[12px] text-slate-500">Supervisors, panel, marks and tasks stay as they are. The transfer adds no workload.</p>
     </section>
   );
 };

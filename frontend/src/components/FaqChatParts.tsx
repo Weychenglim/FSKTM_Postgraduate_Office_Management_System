@@ -101,7 +101,7 @@ export const FaqReplyView: React.FC<FaqReplyViewProps> = ({ reply, asked, typed,
       <AssistantRow>
         <p className="card-label">{passageSource(passage)}</p>
         <blockquote className="whitespace-pre-line border-l-4 border-slate-300 pl-4 text-slate-700 [overflow-wrap:anywhere]">{passage.text}</blockquote>
-        <p className={SMALL_NOTE}>This is a passage from a document the PG Office uploaded, not a reviewed FAQ answer.</p>
+        <p className={SMALL_NOTE}>From a PG Office document, not a reviewed answer.</p>
         <PortalButton size="sm" icon={FileText} onClick={() => onOpenDocument(passage.documentId, passage.fileName)}>
           Open document
         </PortalButton>
@@ -205,7 +205,6 @@ export const FaqComposer: React.FC<FaqComposerProps> = ({ value, onChange, onSen
           Send
         </PortalButton>
       </div>
-      <p className="card-caption">Press Enter to send, or Shift and Enter for a new line.</p>
     </form>
   );
 };

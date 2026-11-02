@@ -349,7 +349,6 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
             <section aria-labelledby="letter-check-heading" className="app-card p-5 sm:p-7 space-y-5">
               <div>
                 <h3 id="letter-check-heading" className="text-base font-semibold text-brand-navy">{template.name}</h3>
-                <p className="card-description mt-1">Your request is not sent until you press Send request.</p>
               </div>
               <dl className="divide-y divide-slate-100 border-y border-slate-100">
                 {summaryRows.map((row) => (

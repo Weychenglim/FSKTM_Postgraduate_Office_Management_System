@@ -8,7 +8,7 @@
 // the office approves it, so a letter cannot be copied from the screen.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { CircleHelp, Clock, FilePlus2, FileText, Inbox, Info, Send } from 'lucide-react';
+import { Clock, FilePlus2, FileText, Inbox, Info, Send } from 'lucide-react';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { OfficeToolViews } from './OfficeToolPrimitives';
 import { AppointmentIcon } from './AppointmentPrimitives';
@@ -151,7 +151,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   if (blockedReason) {
     return (
       <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans text-xs pb-12">
-        <PageHeader title="Letter Generation" subtitle="Official letters for students whose status is Active." />
+        <PageHeader title="Letter Generation" />
         <div role="alert" className="bg-white border border-amber-200 rounded-2xl p-8 text-center shadow-3xs max-w-xl mx-auto">
           <Info className="w-6 h-6 text-amber-500 mx-auto" />
           <p className="mt-3 text-sm font-black text-slate-800">Letter requests are not available</p>
@@ -209,7 +209,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans text-xs pb-12">
       <PortalToast message={toast} />
 
-      <PageHeader title="Letter Generation" subtitle="Ask the PG office for an official letter. You can view, print or download it once it is approved." />
+      <PageHeader title="Letter Generation" />
 
       <OfficeToolViews<StudentLetterView>
         label="Letter Generation views"
@@ -238,7 +238,6 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
           <section aria-labelledby="letter-choices-heading" className="app-card appointment-workspace-card">
             <div>
               <h2 id="letter-choices-heading" className="section-label">Which letter do you need?</h2>
-              <p className="card-description mt-1">The office checks your details and completes the letter. You are notified when it is approved.</p>
             </div>
 
             {templatesLoading ? (
@@ -302,22 +301,6 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                 })}
               </ul>
             )}
-          </section>
-          <section aria-labelledby="letter-guidance-heading" className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center gap-3">
-              <AppointmentIcon icon={CircleHelp} />
-              <h2 id="letter-guidance-heading" className="section-label">About letters</h2>
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <article className="space-y-2">
-                <h3 className="card-value">How it works</h3>
-                <p className="card-description text-slate-700">Choose a letter and answer its questions. The office checks your details, fills in what it holds, and approves the letter. You are notified, then you can view, print or download it.</p>
-              </article>
-              <article className="space-y-2">
-                <h3 className="card-value">Letters that expire</h3>
-                <p className="card-description text-slate-700">Some letters are only valid for a few months. Ask again when one is about to expire: the new copy replaces the old one for the same organisation.</p>
-              </article>
-            </div>
           </section>
         </>
       )}

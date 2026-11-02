@@ -93,7 +93,6 @@ const StaffAccountList: React.FC = () => {
     <div id="staff-accounts" className="space-y-6">
       <PageHeader
         title="Staff & Lecturers"
-        subtitle="Office staff, lecturers and programme coordinators who sign in to the portal."
         actions={
           <PortalButton variant="primary" icon={UserPlus} onClick={() => navigate(APP_ROUTES.registryStaffNew)}>
             Add account

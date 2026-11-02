@@ -147,7 +147,7 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
       ))}
       {progress.rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-[12.5px] font-semibold text-slate-600">
-          No semesters on record yet. They can't graduate until they have them.
+          No semesters on record.
         </p>
       ) : (
         <ul className="divide-y divide-slate-100">
@@ -209,7 +209,6 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
         )}
         {dialog?.kind === 'extension' && (
           <>
-            <p className="text-[13.5px] text-slate-600">The Dean can add up to 3 semesters past the maximum, on appeal.</p>
             <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
               Extra semesters
               <input className="form-control form-control-md" type="number" min={0} max={3} value={extension} disabled={busy} onChange={event => setExtension(event.target.value)} />

@@ -309,7 +309,6 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0 basis-64 flex-1">
           <h2 className="section-label">My requests</h2>
-          <p className="card-description mt-1">Where each request stands. Approved letters can be viewed, printed or downloaded here.</p>
         </div>
         <div role="group" aria-label="Request views" className="flex w-fit flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
           {switchButton('current', 'Current', current.length)}

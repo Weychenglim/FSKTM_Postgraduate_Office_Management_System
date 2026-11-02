@@ -37,8 +37,8 @@ const SHARE_TICKS = [
 ] as const;
 
 const KIND_CHOICES: Array<{ value: DocumentTypeKind; label: string; hint: string }> = [
-  { value: 'STUDENT', label: 'Files about students', hint: 'Forms, theses, letters and so on' },
-  { value: 'STAFF', label: 'Staff files', hint: 'Not about any student, for example a rubric or meeting notes' },
+  { value: 'STUDENT', label: 'Files about students', hint: 'Forms, theses, letters' },
+  { value: 'STAFF', label: 'Staff files', hint: 'Not about any student' },
 ];
 
 const Pill: React.FC<{ checked: boolean; disabled?: boolean; onChange: () => void; children: React.ReactNode }> = ({ checked, disabled = false, onChange, children }) => (
@@ -48,13 +48,13 @@ const Pill: React.FC<{ checked: boolean; disabled?: boolean; onChange: () => voi
   </label>
 );
 
-const SwitchRow: React.FC<{ id: string; title: string; hint: string; checked: boolean; onChange: (checked: boolean) => void }> = ({ id, title, hint, checked, onChange }) => (
+const SwitchRow: React.FC<{ id: string; title: string; hint?: string; checked: boolean; onChange: (checked: boolean) => void }> = ({ id, title, hint, checked, onChange }) => (
   <div className="flex items-center justify-between gap-4">
     <div>
       <p id={`${id}-title`} className="text-[15px] font-extrabold text-brand-navy">{title}</p>
-      <p id={`${id}-hint`} className="text-[13px] text-slate-500">{hint}</p>
+      {hint && <p id={`${id}-hint`} className="text-[13px] text-slate-500">{hint}</p>}
     </div>
-    <ToggleSwitch id={id} checked={checked} onChange={onChange} labelledBy={`${id}-title`} describedBy={`${id}-hint`} />
+    <ToggleSwitch id={id} checked={checked} onChange={onChange} labelledBy={`${id}-title`} describedBy={hint ? `${id}-hint` : undefined} />
   </div>
 );
 
@@ -174,7 +174,6 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             options={(settings?.groups ?? []).map(group => ({ value: group.value, label: group.label }))}
             onChange={group => change({ group })}
           />
-          <p className="text-[12px] text-slate-500">Every file of this type is tagged with its category, so people can find them together.</p>
         </div>
       </div>
 
@@ -203,15 +202,12 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             </Pill>
           ))}
         </div>
-        <p className="text-[12px] text-slate-500">
-          {staffKind ? 'The PG office can always upload.' : 'Staff upload for their own students only. The PG office can always upload.'}
-        </p>
         {errors.uploaders && <p className="text-[13px] font-semibold text-rose-700">{errors.uploaders}</p>}
       </Section>
 
       <Section title="Who can see it?" id="type-viewers">
         {staffKind ? (
-          <p className="text-[13px] text-slate-700">The uploader chooses when uploading: all lecturers and coordinators, coordinators only, or the PG office only.</p>
+          <p className="text-[13px] text-slate-700">The uploader chooses.</p>
         ) : (
           <>
             <div role="group" aria-labelledby="type-viewers" className="flex flex-wrap gap-2">
@@ -222,23 +218,20 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                 );
               })}
             </div>
-            <p className="text-[12px] text-slate-500">
-              Of the students the file is about. The PG office sees everything, and students see their own uploads. Staff can change this when they upload.
-              {draft.needsCheck ? ' The programme coordinator checks this type, so they always see it.' : ''}
-            </p>
+            {draft.needsCheck && <p className="text-[12px] text-slate-500">The programme coordinator always sees this type.</p>}
           </>
         )}
       </Section>
 
       {!staffKind && (
         <Section>
-          <SwitchRow id="type-check" title="The programme coordinator checks it" hint={'Uploads wait in "To check" until the student\'s programme coordinator accepts or returns them. If the programme has no coordinator, any programme coordinator can.'} checked={draft.needsCheck} onChange={needsCheck => change(needsCheck ? { needsCheck, shareCoordinator: true } : { needsCheck })} />
+          <SwitchRow id="type-check" title="The programme coordinator checks it" checked={draft.needsCheck} onChange={needsCheck => change(needsCheck ? { needsCheck, shareCoordinator: true } : { needsCheck })} />
         </Section>
       )}
 
       {!staffKind && (
         <Section>
-          <SwitchRow id="type-required" title="Every student must hand it in" hint="It shows on each student's to do list and in Required documents." checked={draft.required} onChange={required => change({ required })} />
+          <SwitchRow id="type-required" title="Every student must hand it in" checked={draft.required} onChange={required => change({ required })} />
           {draft.required && (
             <div className="space-y-4 pt-2">
               <label className="block space-y-1.5">
@@ -254,7 +247,7 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
                     </Pill>
                   ))}
                 </div>
-                <p className="text-[12px] text-slate-500">Leave them all unticked for every programme. Only Active students have to hand it in.</p>
+                <p className="text-[12px] text-slate-500">None ticked means every programme.</p>
               </div>
             </div>
           )}
@@ -278,9 +271,9 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
             {errors.description && <span className="block text-[13px] font-semibold text-rose-700">{errors.description}</span>}
           </label>
           {!staffKind && draft.uploaders.includes('STUDENT') && (
-            <SwitchRow id="type-one" title="One file per student" hint="A student's next upload becomes a new version of their file." checked={draft.onePerStudent} onChange={onePerStudent => change({ onePerStudent })} />
+            <SwitchRow id="type-one" title="One file per student" hint="The next upload becomes a new version." checked={draft.onePerStudent} onChange={onePerStudent => change({ onePerStudent })} />
           )}
-          <SwitchRow id="type-active" title="Can be chosen when uploading" hint="Switch it off to stop new uploads. Files already uploaded stay." checked={draft.isActive} onChange={isActive => change({ isActive })} />
+          <SwitchRow id="type-active" title="Can be chosen when uploading" checked={draft.isActive} onChange={isActive => change({ isActive })} />
         </div>
       </details>
 
@@ -300,7 +293,6 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
     <RecordPage
       title="File settings"
-      subtitle="Who can upload and see each type of file, and which ones every student must hand in. Files are tagged automatically from each type's category."
       backLabel="Back to Files"
       onBack={onBack}
       dirty={dirty}

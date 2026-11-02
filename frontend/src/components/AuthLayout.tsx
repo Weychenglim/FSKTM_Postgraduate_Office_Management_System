@@ -69,16 +69,6 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children }) => {
             Postgraduate Management System
           </motion.h1>
           
-          <motion.p 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            id="welcome-description" 
-            className="hidden md:block text-slate-400 text-sm lg:text-base mt-6 leading-relaxed font-normal"
-          >
-            A centralized, secure platform engineered for academic administrators and students. 
-            Manage records, automate document workflows, and access institutional resources efficiently.
-          </motion.p>
         </div>
 
         {/* Left Side Column Footer */}

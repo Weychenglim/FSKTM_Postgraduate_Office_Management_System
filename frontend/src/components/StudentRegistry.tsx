@@ -1151,8 +1151,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
         <div id="student-registry-directory-list" className="space-y-6">
           <PageHeader
             title="Student Registry"
-            subtitle={readOnly ? 'Read-only view of the students in your scope.' : 'Manage student records, registrations and sign-in access.'}
-            actions={
+                        actions={
               <div className="flex flex-wrap items-center gap-2 select-none">
                 {readOnly ? (
                   <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
@@ -1359,7 +1358,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 ) : displayedStudents.length === 0 ? (
                   <tr>
                     <td colSpan={columnCount} className="py-12 text-center text-slate-400 select-none text-xs font-bold">
-                      No matching students found. Adjust the search or filters and try again.
+                      No matching students.
                     </td>
                   </tr>
                 ) : (
@@ -1524,7 +1523,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {currentView === 'register' && !readOnly && (
         <RecordPage
           title="Register New Students"
-          subtitle="Import students from a CSV or Excel file, or add one student at a time."
           backLabel="Back to Student Registry"
           onBack={() => setCurrentView('list')}
           pageKey="registry-student-registration"
@@ -1548,7 +1546,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           <div className={registerActiveTab === 'bulk' ? "grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-fade-in" : "w-full animate-fade-in"}>
             
             {/* LEFT ACTIONS AREA FRAME */}
-            <div className={registerActiveTab === 'bulk' ? "lg:col-span-3 space-y-6" : "w-full space-y-6"}>
+            <div className={registerActiveTab === 'bulk' ? "lg:col-span-5 space-y-6" : "w-full space-y-6"}>
 
               {/* TAB 1: BULK IMPORT ACTIVE VIEW */}
               {registerActiveTab === 'bulk' && (
@@ -1569,9 +1567,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
                       <div>
                         <h3 className="section-label">File Upload</h3>
-                        <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                          Drag and drop your student registry CSV or XLSX file below.
-                        </p>
                       </div>
                       
                       {/* Live excel icon placeholder */}
@@ -1737,8 +1732,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               {/* TAB 2: MANUAL SINGLE CANDIDATE ENTRY FORM MATCHING MOCKUP */}
               {registerActiveTab === 'single' && (
                 <div id="single-candidate-register-container" className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-3xs space-y-6">
-                  <IconHeading title="New Student Registration" description="Enter the student's personal and academic details."
-                    descriptionClassName="text-[11px] text-slate-500 font-semibold mt-0.5"
+                  <IconHeading title="New Student Registration"
                     icon={<span className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0"><UserPlus className="w-5 h-5 text-brand-navy" /></span>}
                   />
 
@@ -1876,10 +1870,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         </div>
                       </div>
 
-                      <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
-                        Research title and supervisor are recorded later, through the supervisor
-                        application and appointment workflow.
-                      </p>
                     </div>
 
                     {/* ACCOUNT SETTINGS SECTION */}
@@ -1894,10 +1884,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       {/* Info Box */}
                       <div id="notice-box-credentials" className="bg-[#f0f5ff] border border-[#d0e0ff] text-[#1e3a8a] rounded-2xl p-4 flex items-start gap-3">
                         <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                        <p className="card-description text-left">
-                          No password is created. The student receives an activation link and
-                          chooses their own password, so no credential is ever sent by email.
-                        </p>
                       </div>
 
                       {/* Send activation link now or later */}
@@ -1919,10 +1905,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           <span className="block text-xs font-extrabold text-slate-900">
                             Send activation link immediately
                           </span>
-                          <span className="block text-[11px] text-slate-500 font-medium leading-normal">
-                            Email the student a link to set their password. Untick to register
-                            the account now and send the link later from their profile.
-                          </span>
                         </span>
                       </label>
                     </div>
@@ -1943,38 +1925,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               )}
 
             </div>
-
-            {/* RIGHT CONTEXTUAL INFO CARDS (40% WIDTH, ONLY FOR BULK TAB) */}
-            {registerActiveTab === 'bulk' && (
-              <div className="lg:col-span-2 lg:self-stretch flex flex-col">
-
-              {/* CARD 1: IMPORT GUIDELINES LIST, as tall as the upload card */}
-              <div className="flex-1 bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
-                <div className="flex items-center gap-3 mb-4 select-none">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
-                    <Info className="w-5 h-5" />
-                  </div>
-                  <h3 className="section-label">Import Guidelines</h3>
-                </div>
-
-                <div className="space-y-4 text-xs">
-                  {[
-                    <>Upload the office&apos;s <strong className="text-slate-800 font-bold">own spreadsheet as it is</strong>: you confirm which column holds each detail. For a typed list, use the Excel template.</>,
-                    <>Programme must be one of the <strong className="text-slate-800 font-bold">approved programmes</strong>; any other name is chosen once, or its rows skipped.</>,
-                    <>Matric numbers and emails must be <strong className="text-slate-800 font-bold">unique</strong> in the file and not already registered. Duplicates are skipped and listed.</>,
-                    <>Every new student receives an <strong className="text-slate-800 font-bold">activation email</strong> to choose their own password, now or later.</>,
-                    <>CSV or XLSX, up to <strong className="text-slate-800 font-bold">2 MB and 1,000 students</strong> per import.</>,
-                  ].map((guideline, index) => (
-                    <div key={index} className="flex gap-3">
-                      <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
-                      <p className="text-slate-650 font-medium leading-relaxed">{guideline}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-            )}
 
             {/* The preview gets the full width: it is where the office works. */}
             {registerActiveTab === 'bulk' && (
@@ -2013,9 +1963,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
                         <div>
                           <h3 className="section-label">Import Preview & Validation</h3>
-                          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                            Check each row before the accounts are created.
-                          </p>
                           {uploadedFile && (
                             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
                               <ImportSteps current={importStep === 'check' ? 2 : 0} />
@@ -2520,7 +2467,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      {viewingStudent ? <RecordPage title="Student Record" subtitle="Registry details, edits and sign-in access." backLabel="Back to Student Registry" onBack={closeRecord} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={statusSaving || saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
+      {viewingStudent ? <RecordPage title="Student Record" backLabel="Back to Student Registry" onBack={closeRecord} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={statusSaving || saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
 
               {/* Core student details body; only this part scrolls */}
               <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 mr-1 mb-3 ${THIN_SCROLLBAR}`}>

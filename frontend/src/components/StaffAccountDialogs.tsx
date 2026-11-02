@@ -401,7 +401,7 @@ export const DeleteDialog: React.FC<Omit<DialogProps, 'onDone'> & { onDeleted: (
       </>}
     >
       <p className="text-[13px] text-slate-700">
-        Use this for an account added by mistake. It can't be undone. The history keeps a line with the name and email.
+        This can't be undone.
       </p>
       {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
     </DialogShell>

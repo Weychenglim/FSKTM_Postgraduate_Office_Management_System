@@ -116,7 +116,7 @@ export const FaqTestChat: React.FC = () => {
   return (
     <RecordPage
       title="Test the chatbot"
-      subtitle="Ask the way a student would. Nothing is saved, and tests don't count in the figures."
+      subtitle="Nothing is saved."
       backLabel="Back to FAQ Chatbot"
       onBack={() => navigate(APP_ROUTES.faq)}
       pageKey="faq-test"
@@ -125,7 +125,7 @@ export const FaqTestChat: React.FC = () => {
       <section aria-label="Test chat" className="app-card mx-auto max-w-4xl overflow-hidden shadow-sm">
         <div role="log" aria-live="polite" aria-label="Conversation" className="space-y-5 px-5 py-6">
           <AssistantRow>
-            <p>Ask a question the way a student would. You'll see exactly what the student gets, and a note under each reply says which answer it came from, so you can open it and fix it.</p>
+            <p>Ask a question the way a student would.</p>
           </AssistantRow>
           {items.map(item => {
             if (item.kind === 'you') return <YouBubble key={item.id} text={item.text} />;

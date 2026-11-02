@@ -181,7 +181,6 @@ export const StudentFileSubmission: React.FC = () => {
     <div className="space-y-6 text-left font-sans pb-12">
       <PageHeader
         title="File Submission"
-        subtitle="Hand in your documents and keep the letters the office gives you."
         actions={<PortalButton variant="primary" icon={Plus} onClick={() => upload()}>Upload a file</PortalButton>}
       />
 
@@ -209,7 +208,6 @@ export const StudentFileSubmission: React.FC = () => {
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <h2 id="required-heading" className="section-label">Documents you must hand in</h2>
-                    <p className="card-description mt-1">Open one to hand it in, or to see where it is.</p>
                   </div>
                   <p className="text-[13px] font-semibold text-slate-700">{handedIn} of {required.length} handed in</p>
                 </div>
@@ -224,7 +222,7 @@ export const StudentFileSubmission: React.FC = () => {
             <section aria-labelledby="returned-heading" className="app-card overflow-hidden">
               <div className="px-5 pb-3 pt-5 sm:px-6">
                 <h2 id="returned-heading" className="section-label">Returned to you</h2>
-                <p className="card-description mt-1">Your programme coordinator sent these back. Upload a corrected file to each.</p>
+                <p className="card-description mt-1">Sent back. Upload a corrected file.</p>
               </div>
               <ul className="divide-y divide-slate-100 border-t border-slate-100">
                 {returnedElsewhere.map(file => (
@@ -241,7 +239,7 @@ export const StudentFileSubmission: React.FC = () => {
           )}
           {!required.length && !returnedElsewhere.length && (
             <section className="app-card">
-              <EmptyState icon={ListChecks} title="Nothing to hand in right now" description="When you have to hand in a document, it shows here with what to do next." actionLabel="Upload a file" onAction={() => upload()} />
+              <EmptyState icon={ListChecks} title="Nothing to hand in right now" description="Nothing to hand in." actionLabel="Upload a file" onAction={() => upload()} />
             </section>
           )}
         </>
@@ -263,7 +261,6 @@ export const StudentFileSubmission: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 pb-3 pt-5 sm:px-6">
             <div>
               <h2 id="files-title" className="section-label">My files</h2>
-              <p className="card-description mt-1">Filed for you by type, semester and programme. Only you, the PG office and the staff shown on each file can see it.</p>
             </div>
           </div>
           {!files.length ? (
@@ -273,7 +270,7 @@ export const StudentFileSubmission: React.FC = () => {
                 if (!(event.target as HTMLElement).closest('button')) filePicker.current?.click();
               }}
             >
-              <EmptyState icon={Upload} title="You have not uploaded any files yet." description="Drag a file here or click to choose one. Forms, your thesis and other documents for the PG office." actionLabel="Choose a file" onAction={() => filePicker.current?.click()} className="py-12" />
+              <EmptyState icon={Upload} title="You have not uploaded any files yet." description="Drag a file here or click to choose one." actionLabel="Choose a file" onAction={() => filePicker.current?.click()} className="py-12" />
             </div>
           ) : (
             <>
@@ -336,7 +333,6 @@ export const StudentFileSubmission: React.FC = () => {
         <section aria-labelledby="letters-title" className="app-card overflow-hidden">
           <div className="px-5 pb-3 pt-5 sm:px-6">
             <h2 id="letters-title" className="section-label">Letters from the office</h2>
-            <p className="card-description mt-1">Letters the office issued to you, including your appointment letters. Requests still waiting are in Letter Generation.</p>
           </div>
           {lettersError ? (
             <p className="border-t border-slate-100 px-5 py-4 text-[13px] text-slate-600 sm:px-6">Could not load your letters. <button type="button" className="font-bold text-blue-700" onClick={() => setReload(value => value + 1)}>Try again</button></p>

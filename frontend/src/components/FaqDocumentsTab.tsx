@@ -163,7 +163,7 @@ export const FaqDocumentsTab: React.FC = () => {
     <div className="space-y-5">
       <AppointmentSection
         title="Add a reference document"
-        description="A handbook or guide. When no answer fits a question, the chatbot can show a short passage from it, marked as an extract. PDF or Word, up to 10 MB. Scanned PDFs have no text to search."
+        description="PDF or Word, up to 10 MB."
         icon={Upload}
       >
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end">
@@ -191,7 +191,7 @@ export const FaqDocumentsTab: React.FC = () => {
       </AppointmentSection>
 
       <section aria-label="Reference documents" className="app-card appointment-workspace-card">
-        <WorkspaceSectionHeader title="Reference documents" description="The chatbot quotes from ready documents when no answer fits. Archived documents are not quoted." />
+        <WorkspaceSectionHeader title="Reference documents" />
         {documents.length === 0 ? (
           <EmptyState title="No reference documents yet." description="Add a handbook or guide above." />
         ) : (

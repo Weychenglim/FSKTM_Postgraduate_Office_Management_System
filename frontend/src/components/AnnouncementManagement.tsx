@@ -709,7 +709,7 @@ export const AnnouncementManagement: React.FC = () => {
                   emptyText="No intakes are recorded in the registry yet."
                 />
                 <p className="text-[10px] text-slate-400 font-semibold">
-                  Leave a group unselected to include every student in it.
+                  Leave empty for everyone.
                 </p>
               </div>
             )}
@@ -848,7 +848,7 @@ export const AnnouncementManagement: React.FC = () => {
                   onChange={(e) => { setPublishAtInput(e.target.value); setScheduleError(null); }}
                   className={`form-control form-control-md ${scheduleError ? 'form-control-error' : ''}`}
                 />
-                <p className="text-[10px] text-slate-400 font-semibold">Empty publishes it as soon as you press Publish.</p>
+                <p className="text-[10px] text-slate-400 font-semibold">Leave empty to publish now.</p>
               </div>
               {scheduleError && (
                 <p role="alert" className="md:col-span-2 text-[11px] font-semibold text-rose-600">{scheduleError}</p>
@@ -902,9 +902,6 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="section-label">Saved Drafts</h3>
-                <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                  Unpublished announcements. Edit to keep working, or publish to broadcast.
-                </p>
               </div>
               <StatusBadge tone="warning" className="rounded-lg px-2.5 py-1 text-[9px] shrink-0">
                 {drafts.length} draft{drafts.length === 1 ? '' : 's'}
@@ -994,7 +991,6 @@ export const AnnouncementManagement: React.FC = () => {
 
         <PageHeader
           title="Announcements"
-          subtitle="Create, schedule and manage announcements for the FSKTM community."
           actions={(
             <PortalButton variant="primary" icon={Plus} onClick={openComposer}>
               New announcement

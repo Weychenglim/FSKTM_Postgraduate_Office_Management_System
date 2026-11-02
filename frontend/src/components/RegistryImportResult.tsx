@@ -126,7 +126,7 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
       {registered.length > 0 && (
         <ResultList
           title="Already registered, so skipped"
-          note="These students already have an account. Nothing about them was changed."
+          note="Already have an account. Not changed."
           rows={registered}
         />
       )}
@@ -134,28 +134,28 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
       {programmeSkipped.length > 0 && (
         <ResultList
           title="Programme skipped"
-          note="You chose to skip these programmes, so these rows were not imported."
+          note="Skipped programmes."
           rows={programmeSkipped}
         />
       )}
       {notImported.length > 0 && (
         <ResultList
           title="Not imported"
-          note="These rows are still listed below, so you can fix them and import again."
+          note="Fix them below and import again."
           rows={notImported}
         />
       )}
       {filled.length > 0 && (
         <ResultList
           title="Emails filled from the Student ID"
-          note="These students' activation emails go to their SiswaMail address, filled from the Student ID."
+          note="Emails go to their SiswaMail address."
           rows={filled}
         />
       )}
       {emailNotSent.length > 0 && (
         <ResultList
           title="Created, but the activation email was not sent"
-          note="Open each student's record and use Send Activation Link."
+          note="Send them from each student's record."
           rows={emailNotSent}
         />
       )}

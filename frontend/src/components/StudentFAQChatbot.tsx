@@ -183,7 +183,6 @@ export const StudentFAQChatbot: React.FC = () => {
     <div id="student-faq-chatbot-view" className="mx-auto max-w-4xl space-y-6 text-left font-sans animate-fade-in">
       <PageHeader
         title="FAQ Chatbot"
-        subtitle="Ask about postgraduate procedures. Answers come from the PG Office FAQ."
         actions={hasAsked ? <PortalButton icon={RotateCcw} onClick={startOver}>Start over</PortalButton> : undefined}
       />
 
@@ -194,7 +193,7 @@ export const StudentFAQChatbot: React.FC = () => {
               <AppointmentIcon icon={Bot} tone="brand" />
               <div className="min-w-0">
                 <h2 className="text-base font-extrabold text-brand-navy">Hi! What would you like to know?</h2>
-                <p className="card-description mt-1">Ask in your own words. I answer from the PG Office FAQ and can't see your own records.</p>
+                <p className="card-description mt-1">I answer from the PG Office FAQ and can't see your own records.</p>
               </div>
             </div>
             {composer}
@@ -248,7 +247,6 @@ export const StudentFAQChatbot: React.FC = () => {
               <AppointmentIcon icon={Bot} tone="brand" />
               <div className="min-w-0">
                 <h2 className="section-label">FAQ Chatbot</h2>
-                <p className="card-description">Answers from the PG Office FAQ</p>
               </div>
             </div>
             {start && start.categories.length > 0 && (

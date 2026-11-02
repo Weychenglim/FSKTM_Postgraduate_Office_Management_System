@@ -1,3 +1,7 @@
+## Fewer words on Xiang's module screens (3 November 2026)
+
+Helper sentences, page subtitles and how-this-works panels were removed or shortened across sign-in, Settings, Announcements and Notifications, Student Registry and staff accounts, Programme transfers, File Management, Letter Generation and the FAQ Chatbot. A sentence stays only if it warns about something permanent, says why something is blocked, or someone would get stuck without it. Every changed screen was opened in a browser as office staff, coordinator, lecturer and student with no page errors.
+
 ## Intakes, tick lists and new names in Student Registry (2 November 2026)
 
 Move students is now Update current semester, and Graduate students is now Record graduations. Staff tick students from the portal's list, with no typing or pasting. Students on a later intake can't be updated or graduated early. Rules can apply to new intakes only. The intake is picked from a list, and the Students tab, Record graduations and Update current semester can all filter by it. Verified with backend tests and 55 browser checks on a private database copy. Dev database at accounts.0017.

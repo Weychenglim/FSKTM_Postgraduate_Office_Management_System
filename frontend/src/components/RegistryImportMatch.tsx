@@ -150,7 +150,7 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <IconHeading as="h3" titleId="registry-import-match-title" title="Match Columns"
-          description="Check which column of your file holds each detail. Nothing is created until you check the rows and import."
+          description="Check which column holds each detail."
           descriptionClassName="text-[11px] text-slate-500 font-semibold mt-0.5"
           icon={<span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0"><Columns3 className="w-5 h-5" /></span>}
         />
@@ -272,8 +272,6 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
       <div className="rounded-xl border border-slate-150 bg-slate-50/50 px-4 py-4 space-y-3">
         <IconHeading as="h4" className="gap-x-2" title="For Every Row"
           titleClassName="text-[10px] uppercase font-black tracking-wider text-slate-500"
-          description="Fills cells that are blank in your file, or a column it does not have. Values already in the file are kept."
-          descriptionClassName="text-[11px] font-semibold text-slate-500 mt-0.5"
           icon={<Rows3 className="w-4 h-4 text-slate-400 shrink-0" />}
         />
         <div className="grid gap-3 md:grid-cols-3">

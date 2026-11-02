@@ -168,7 +168,7 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
                 id="forgot-password-card"
                 badgeIcon={Lock}
                 title="Forgot Password"
-                subtitle="Enter your registered email address and we will send you a password reset link."
+                subtitle="We'll email you a reset link."
               >
                 <form onSubmit={handlePostRequest} className="w-full text-left">
                   <FormInput
@@ -198,7 +198,7 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
                   </PortalButton>
                 </form>
 
-                <InfoMessage message="If you do not receive an email within 5 minutes, please check your spam folder or contact your Office Staff directly." />
+                <InfoMessage message="Nothing after 5 minutes? Check your spam folder." />
               </AuthCard>
             </motion.div>
           ) : (
@@ -249,7 +249,7 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
                   </p>
                 )}
 
-                <InfoMessage message="Didn't receive the email? Check your spam folder or try resending after a few minutes." />
+                <InfoMessage message="Nothing yet? Check your spam folder." />
               </AuthCard>
             </motion.div>
           )}

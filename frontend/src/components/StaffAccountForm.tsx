@@ -14,15 +14,15 @@ import { PortalButton } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { SelectMenu } from './SelectMenu';
 
-const ROLES: { value: StaffRole; label: string; description: string }[] = [
-  { value: 'Office Staff/Admin', label: 'Office staff', description: "Runs the PG Office's work in the portal." },
-  { value: 'Lecturer', label: 'Lecturer', description: 'Supervises students or sits on panels.' },
-  { value: 'Programme Coordinator', label: 'Programme coordinator', description: 'Approves appointments for one programme.' },
+const ROLES: { value: StaffRole; label: string }[] = [
+  { value: 'Office Staff/Admin', label: 'Office staff' },
+  { value: 'Lecturer', label: 'Lecturer' },
+  { value: 'Programme Coordinator', label: 'Programme coordinator' },
 ];
 
-const DUTIES: { value: StaffDuty; description: string }[] = [
-  { value: 'Supervisor', description: 'Students can choose them as their supervisor.' },
-  { value: 'Panel', description: "Supervisors can recommend them as a student's panel member." },
+const DUTIES: { value: StaffDuty }[] = [
+  { value: 'Supervisor' },
+  { value: 'Panel' },
 ];
 
 type Details = { name: string; title: string; email: string; staffId: string; department: string; phone: string; researchArea: string; position: string };
@@ -135,7 +135,6 @@ export const StaffAccountForm: React.FC = () => {
   return (
     <RecordPage
       title="Add account"
-      subtitle="They get an email with a link to set their own password. No password is ever emailed."
       backLabel="Back to Staff & Lecturers"
       onBack={() => navigate(APP_ROUTES.registryStaff)}
       pageKey="staff-account:new"
@@ -177,13 +176,12 @@ export const StaffAccountForm: React.FC = () => {
                     />
                     <span>
                       <span className="block text-[14px] font-extrabold text-slate-800">{option.label}</span>
-                      <span className="block text-[12px] text-slate-500">{option.description}</span>
                     </span>
                   </label>
                 );
               })}
             </div>
-            <p className="text-[12px] text-slate-500">The role can't be changed later, because appointments and approvals depend on it.</p>
+            <p className="text-[12px] text-slate-500">Can't be changed later.</p>
             {problems.role && <p role="alert" className="text-[12px] font-semibold text-rose-700">{problems.role}</p>}
           </fieldset>
 
@@ -207,7 +205,7 @@ export const StaffAccountForm: React.FC = () => {
                   <Field id={id('email')} label="Email (used to sign in)" problem={problems.email} existing={existing.email}>
                     <input id={id('email')} type="email" className={inputClass(problems.email)} value={details.email} onChange={set('email')} maxLength={254} autoComplete="off" aria-describedby={describedBy('email')} />
                   </Field>
-                  <Field id={id('staffId')} label="Staff ID" hint="They can also sign in with it." problem={problems.staffId} existing={existing.staffId}>
+                  <Field id={id('staffId')} label="Staff ID" problem={problems.staffId} existing={existing.staffId}>
                     <input id={id('staffId')} className={inputClass(problems.staffId)} value={details.staffId} onChange={set('staffId')} maxLength={64} autoComplete="off" aria-describedby={describedBy('staffId')} />
                   </Field>
                   <Field id={id('department')} label={lecturerLike ? 'Department' : 'Department (optional)'} problem={problems.department}>
@@ -220,7 +218,7 @@ export const StaffAccountForm: React.FC = () => {
                     <input id={id('phone')} type="tel" className={inputClass(problems.phone)} value={details.phone} onChange={set('phone')} maxLength={32} aria-describedby={describedBy('phone')} />
                   </Field>
                   {role === 'Lecturer' && (
-                    <Field id={id('researchArea')} label="Research area (optional)" hint="Students see it when they choose a supervisor." problem={problems.researchArea} className="sm:col-span-2">
+                    <Field id={id('researchArea')} label="Research area (optional)" problem={problems.researchArea} className="sm:col-span-2">
                       <input id={id('researchArea')} className={inputClass(problems.researchArea)} value={details.researchArea} onChange={set('researchArea')} maxLength={255} />
                     </Field>
                   )}
@@ -231,7 +229,6 @@ export const StaffAccountForm: React.FC = () => {
                 <fieldset className="app-card space-y-3 p-5">
                   <legend className="sr-only">Duties</legend>
                   <h2 className="section-label" aria-hidden="true">Duties</h2>
-                  <p className="text-[13px] text-slate-600">Tick every duty that applies. A lecturer can have both.</p>
                   <div className="divide-y divide-slate-100">
                     {DUTIES.map(duty => (
                       <label key={duty.value} className="flex cursor-pointer items-start gap-3 py-3">
@@ -243,7 +240,6 @@ export const StaffAccountForm: React.FC = () => {
                         />
                         <span>
                           <span className="block text-[14px] font-bold text-slate-800">{DUTY_LABEL[duty.value]}</span>
-                          <span className="block text-[13px] text-slate-500">{duty.description}</span>
                         </span>
                       </label>
                     ))}
@@ -277,7 +273,7 @@ export const StaffAccountForm: React.FC = () => {
                       }}
                     />
                   </Field>
-                  <p className="text-[12px] text-slate-500">A programme has one coordinator. A coordinator who also supervises needs a separate lecturer account.</p>
+                  <p className="text-[12px] text-slate-500">A programme has one coordinator.</p>
                 </section>
               )}
 
@@ -286,7 +282,6 @@ export const StaffAccountForm: React.FC = () => {
                   <input type="checkbox" checked={sendNow} onChange={event => setSendNow(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0c1424]" />
                   <span>
                     <span className="block text-[14px] font-bold text-slate-800">Send the activation email now</span>
-                    <span className="block text-[13px] text-slate-500">Untick to send it later from their account page.</span>
                   </span>
                 </label>
               </section>
