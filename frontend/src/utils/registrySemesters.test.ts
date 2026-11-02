@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { StudentSemesters } from '../services/registrySemestersApi';
 import { APP_ROUTES } from '../constants/routes';
-import { findStudents, maximumNotice, parseMatricList, semesterCount, semesterMoveWaiting, shortSemester, studentCount, validSession } from './registrySemesters';
+import { findStudents, fixLink, maximumNotice, parseMatricList, semesterCount, semesterMoveWaiting, shortSemester, studentCount, validSession } from './registrySemesters';
 
 assert.equal(semesterCount(1), '1 semester');
 assert.equal(semesterCount(3), '3 semesters');
@@ -42,5 +42,12 @@ assert.equal(semesterMoveWaiting({ semester: null, waiting: 3, lastMove: null })
 assert.equal(semesterMoveWaiting({ semester: {}, waiting: 0, lastMove: null }), false);
 assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: {} }), false);
 assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: null }), true);
+
+assert.deepEqual(fixLink({ fix: 'record', recordId: null }, 'A/1'), { label: 'Open record', to: '/registry?student=A%2F1' });
+assert.deepEqual(fixLink({ fix: 'transfer', recordId: 7 }, 'M1'), { label: 'Open transfer', to: '/registry/transfers/7' });
+assert.equal(fixLink({ fix: 'transfer', recordId: null }, 'M1'), null);
+assert.equal(fixLink({ fix: '', recordId: null }, 'M1'), null);
+assert.equal(fixLink({ fix: 'marks', recordId: null }, 'M1')?.to, APP_ROUTES.marks);
+assert.equal(fixLink({ fix: 'documents', recordId: null }, 'M1')?.to, '/files?student=M1');
 
 console.log('registry semester helper tests passed');

@@ -17,9 +17,9 @@ import type { ImportDefaults, ImportFieldKey, ImportInspectResponse, ImportMappi
 export const IMPORT_STEPS = ['Upload', 'Match columns', 'Check rows', 'Import'] as const;
 
 /** Where the office is in the import: Upload, Match columns, Check rows, Import. */
-export const ImportSteps: React.FC<{ current: number }> = ({ current }) => (
-  <ol aria-label="Import steps" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 select-none">
-    {IMPORT_STEPS.map((step, index) => {
+export const ImportSteps: React.FC<{ current: number; steps?: readonly string[]; label?: string }> = ({ current, steps = IMPORT_STEPS, label = 'Import steps' }) => (
+  <ol aria-label={label} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 select-none">
+    {steps.map((step, index) => {
       const done = index < current;
       const active = index === current;
       return (

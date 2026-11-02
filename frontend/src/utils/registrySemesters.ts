@@ -1,5 +1,6 @@
-import type { SemesterOutcome, SemesterTerm, StudentSemesters } from '../services/registrySemestersApi';
+import type { GraduationItem, SemesterOutcome, SemesterTerm, StudentSemesters } from '../services/registrySemestersApi';
 import type { BadgeTone } from '../components/PortalPrimitives';
+import { APP_ROUTES, routeForProgrammeTransfer } from '../constants/routes';
 
 export const semesterCount = (count: number) => `${count} ${count === 1 ? 'semester' : 'semesters'}`;
 export const studentCount = (count: number) => `${count} ${count === 1 ? 'student' : 'students'}`;
@@ -63,3 +64,20 @@ export function findStudents<T extends { name: string; matric: string }>(student
 /** Whether the Students tab should offer to move students: a semester has started and nobody has been moved yet. */
 export const semesterMoveWaiting = (summary: { semester: unknown; waiting: number; lastMove: unknown } | null) =>
   Boolean(summary?.semester && summary.waiting > 0 && !summary.lastMove);
+
+/** Where to go to sort out something unfinished. */
+export function fixLink(item: Pick<GraduationItem, 'fix' | 'recordId'>, matric: string): { label: string; to: string } | null {
+  const encoded = encodeURIComponent(matric);
+  switch (item.fix) {
+    case 'record': return { label: 'Open record', to: `${APP_ROUTES.registry}?student=${encoded}` };
+    case 'marks': return { label: 'Open Marks', to: APP_ROUTES.marks };
+    case 'supervisor': return { label: 'Open requests', to: APP_ROUTES.supervisorAppointmentRequests };
+    case 'panel': return { label: 'Open requests', to: APP_ROUTES.panelAppointments };
+    case 'letters': return { label: 'Open requests', to: APP_ROUTES.lettersRequests };
+    case 'documents': return { label: 'View files', to: `${APP_ROUTES.files}?student=${encoded}` };
+    case 'research': return { label: 'Open request', to: APP_ROUTES.supervisorResearchChanges };
+    case 'programmes': return { label: 'Open Programmes', to: APP_ROUTES.registryProgrammes };
+    case 'transfer': return item.recordId ? { label: 'Open transfer', to: routeForProgrammeTransfer(item.recordId) } : null;
+    default: return null;
+  }
+}

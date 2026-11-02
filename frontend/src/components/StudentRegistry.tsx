@@ -57,7 +57,7 @@ import { historyTime } from '../utils/documentDisplay';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { APP_ROUTES, routeForNewProgrammeTransfer, routeForProgrammeTransfer } from '../constants/routes';
 import { getStudentTransfer, type StudentTransferSummary } from '../services/programmeTransfersApi';
-import { getSemesterMoveSummary, type MoveSummary } from '../services/registrySemestersApi';
+import { getSemesterMoveSummary, getStudentGraduationCheck, type GraduationStudent, type MoveSummary } from '../services/registrySemestersApi';
 import { semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
@@ -443,6 +443,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusBlockers, setStatusBlockers] = useState<string[]>([]);
+  const [graduationCheck, setGraduationCheck] = useState<GraduationStudent | null>(null);
+  const [earlyApproved, setEarlyApproved] = useState(false);
 
   const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', intakeDate: '' });
   const [detailsSaving, setDetailsSaving] = useState(false);
@@ -470,6 +472,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     });
   }, [viewingStudent?.id]);
 
+  // Choosing Graduated shows what the Graduate students page would say about this student.
+  useEffect(() => {
+    setGraduationCheck(null);
+    setEarlyApproved(false);
+    if (statusTarget !== 'Graduated' || !viewingStudent) return undefined;
+    let cancelled = false;
+    getStudentGraduationCheck(viewingStudent.id)
+      .then((found) => { if (!cancelled) setGraduationCheck(found); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [statusTarget, viewingStudent?.id]);
+
   // Semesters decide the current semester, so the record is read again after a change.
   const refreshViewingStudent = () => {
     if (!viewingStudent) return;
@@ -490,6 +504,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       const updated = await updateStudent(student.id, {
         academicStatus: statusTarget,
         statusReason: statusReason.trim(),
+        ...(earlyApproved ? { earlyCompletionApproved: true } : {}),
       });
       setViewingStudent(updated);
       setStatusTarget('');
@@ -2761,6 +2776,20 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         placeholder="Reason for the change (required)"
                         className="form-control form-control-sm resize-none"
                       />
+                      {graduationCheck && graduationCheck.items.length > 0 && (
+                        <div className={`space-y-1.5 rounded-lg border p-3 text-[11.5px] font-semibold ${graduationCheck.group === 'stop' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                          <p className="font-extrabold">{graduationCheck.group === 'stop' ? 'This student cannot graduate yet.' : 'Check before graduating this student.'}</p>
+                          <ul className="list-disc space-y-0.5 pl-4">
+                            {graduationCheck.items.map((item) => <li key={`${item.code}:${item.recordId ?? ''}`}>{item.text}</li>)}
+                          </ul>
+                          {graduationCheck.early && graduationCheck.group !== 'stop' && (
+                            <label className="flex items-center gap-2 pt-0.5 font-bold">
+                              <input type="checkbox" className="h-4 w-4" checked={earlyApproved} onChange={(event) => setEarlyApproved(event.target.checked)} />
+                              Approved to finish one semester early
+                            </label>
+                          )}
+                        </div>
+                      )}
                       {statusError && (
                         <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold space-y-1.5">
                           <p>{statusError}</p>
@@ -2784,7 +2813,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         <button
                           type="button"
                           onClick={handleStatusChange}
-                          disabled={statusSaving || !statusTarget || !statusReason.trim()}
+                          disabled={statusSaving || !statusTarget || !statusReason.trim() || graduationCheck?.group === 'stop' || (graduationCheck?.early === true && !earlyApproved)}
                           className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {statusSaving ? 'Saving…' : 'Apply Status Change'}

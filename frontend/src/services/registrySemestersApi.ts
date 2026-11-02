@@ -103,3 +103,56 @@ export const getSemesterMove = () => request<MoveState>(`${BASE}/semester-move/`
 
 export const moveStudents = (semesterId: number, matrics: string[]) =>
   request<{ semester: string; moved: number; leftOut: number; notActive: string[] }>(`${BASE}/semester-move/`, json('POST', { semesterId, matrics }));
+
+export interface GraduationItem {
+  level: 'check' | 'stop';
+  code: string;
+  text: string;
+  fix: string;
+  recordId: number | null;
+}
+
+export interface GraduationStudent {
+  matric: string;
+  name: string;
+  programme: string;
+  avatarText: string;
+  avatarBg: string;
+  studied: number;
+  minimum: number | null;
+  group: 'ready' | 'check' | 'stop';
+  tooEarly: boolean;
+  early: boolean;
+  items: GraduationItem[];
+}
+
+export interface GraduationGroups {
+  ready: GraduationStudent[];
+  check: GraduationStudent[];
+  stop: GraduationStudent[];
+}
+
+export interface GraduationOverview extends GraduationGroups {
+  tooEarly: number;
+}
+
+export interface GraduationListCheck extends GraduationGroups {
+  notFound: string[];
+  notActive: Array<{ matric: string; name: string; status: string }>;
+}
+
+export interface GraduationResult {
+  graduated: Array<{ matric: string; name: string }>;
+  skipped: Array<{ matric: string; name: string; why: string }>;
+}
+
+export const getGraduationOverview = () => request<GraduationOverview>(`${BASE}/graduation/`);
+
+export const checkGraduationList = (matrics: string[]) =>
+  request<GraduationListCheck>(`${BASE}/graduation/check/`, json('POST', { matrics }));
+
+export const graduateStudents = (input: { matrics: string[]; earlyApproved: string[]; reason: string }) =>
+  request<GraduationResult>(`${BASE}/graduation/`, json('POST', input));
+
+export const getStudentGraduationCheck = (matric: string) =>
+  request<GraduationStudent>(`${student(matric)}/graduation-check/`);
