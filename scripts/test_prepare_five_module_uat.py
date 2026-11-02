@@ -48,6 +48,17 @@ class UatPreparationGuards(unittest.TestCase):
         self.assertEqual(by_key['capacity']['supervisor'], 1)
         self.assertNotEqual(by_key['student-main']['id'], by_key['student-withdraw']['id'])
 
+    def test_lecturers_cover_same_and_cross_department_scenarios(self):
+        specs = self.helper().account_specs()
+        by_key = {item['key']: item for item in specs}
+        lecturers = [item for item in specs if item['role'] == 'Lecturer']
+        self.assertEqual(len({item['department'] for item in lecturers}), 3)
+        self.assertEqual(by_key['primary']['department'], by_key['support']['department'])
+        self.assertNotEqual(by_key['primary']['department'], by_key['outsider']['department'])
+        self.assertNotEqual(by_key['primary']['department'], by_key['panel']['department'])
+        self.assertNotEqual(by_key['panel']['department'], by_key['panel-new']['department'])
+        self.assertEqual(by_key['primary']['department'], by_key['coord-ai']['department'])
+
 
 if __name__ == '__main__':
     unittest.main()

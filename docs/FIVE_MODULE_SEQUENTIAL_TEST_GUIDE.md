@@ -1,6 +1,6 @@
 # Five-module testing guide: one semester, from setup to completion
 
-**29 October progress:** The sandbox now contains the [A07 core journey and native evidence](FULL_PORTAL_NATIVE_ACCEPTANCE_2026-10-29.md): active Semester I, S01 approved primary/Panel, Supervisor 85 and Panel 80 submitted, plus a future Draft first-event check. Initial-empty statements below describe preparation, not the current database. Do not reset/recreate these records to continue. This report establishes its named observations only; the 162-case plan is not blanket Passed.
+**30 October fresh manual run:** At the user's request, the isolated sandbox was backed up and cleared of academic/workflow records. All 31 original accounts, passwords, roles, duty profiles and Office Marks grants were restored. Start at A01: there should be no semester or active semester before you create one. Sign out and sign in again to refresh the portal. The [29 October A07 evidence](FULL_PORTAL_NATIVE_ACCEPTANCE_2026-10-29.md) is historical; its records are in the private backup, not the current sandbox. Record new manual results independently; the 162-case plan is not blanket Passed. Subsequent ordinary preparation/start commands still preserve your new records.
 
 Prepared 28 October 2026 for `codex/portal-consistency-and-toast`, HEAD `c062330`, including the pending working-tree acceptance fixes present when this guide was prepared. This is a new manual test plan, not a report that these tests have passed. The local sandbox records its preparation time and source fingerprint privately.
 
@@ -95,7 +95,7 @@ Use prefix **UAT-20261028** in names/reasons. Record the created IDs next to the
 - Main primary submission: **35/40 + 50/60 = 85/100**. Main Panel submission: **30/40 + 50/60 = 80/100**. These are two independent results; do not invent a combined final grade or classification.
 - Main research: title `UAT-20261028 S01 — Comparing synthetic workflow reminders`; area `Software Engineering`; abstract: `This fictional project compares two reminder approaches using synthetic postgraduate workflow records. It measures the number of completed steps, time spent waiting and missed actions without using real personal or academic data. The findings are for software testing only.`
 
-For each Supervisor application, use **Student-proposed title**, **No completed courses to declare**, the valid `research-proposal.pdf`, and accept the declaration at final review. Optional project course codes can be left blank. If testing course rows, fill course name, course code, semester/session and grade together.
+For each Supervisor application, use **Student-proposed title**, **No completed courses to declare**, the valid `research-proposal.pdf`, and accept the declaration at final review. Enter one required project course code. Title origin does not change which configured documents are required. If testing course rows, fill course name, course code, semester/session and grade together.
 
 The Research intent step requires **all nine answers**, not just the abstract. Use these fictional answers and adjust the student number in the title:
 
@@ -146,7 +146,7 @@ Use Calendar (`/dashboard/timeline`) and Periods & deadlines (`/dashboard/period
 | B08 | Review date-restriction state, coverage and enablement; give reason and confirm restrictions for both activities. | Restrictions are explicitly enabled with complete intended coverage. Publication alone did not enable them. |
 | B09 | Link a current unowned calendar event to a window; inspect linked dates. Try editing the linked event as an independent event. | Period owns the dates; Manage period is offered. Linking cannot claim another semester's or already-owned event. |
 | B10 | Try reversed/out-of-semester dates, empty Selected programmes, and overlapping published coverage for the same activity/cohort. | Clear blockers; no partial extra window/link. A stale save requires reloading. |
-| B11 | Supervisor Appointments → Tools → Document requirements. Create an active, required document with the exact label **Research Proposal**. | It receives code `research-proposal`, which this branch uses for Student-proposed titles. There is no separate proposal-mapping selector. No more than five requirements are active. |
+| B11 | Supervisor Appointments → Tools → Document requirements. Create an active, required document labelled **Research Proposal**. | It receives code `research-proposal`. Its configured Required setting applies to both Student- and Supervisor-proposed titles; no special proposal mapping is needed. No more than five requirements are active. |
 | B12 | Log in as S01, primary, coord-ai and office; compare dashboards/calendar. | Student sees intended public entries, Lecturer sees their entries, Office sees Office-only entries. Restricted users have no calendar mutation controls. |
 
 **Checkpoint:** open enforced Supervisor and Panel intake for the tested programmes, configured proposal requirement, correct shared calendar/audience.
@@ -430,3 +430,10 @@ Do not paste passwords, tokens or real student data into results/screenshots. Ke
 Use [FIVE_MODULE_ACCEPTANCE_CHECKLIST.md](FIVE_MODULE_ACCEPTANCE_CHECKLIST.md) for the existing 406-clause inventory, [PROJECT_REQUIREMENTS.md](../PROJECT_REQUIREMENTS.md), [ARCHITECTURE_AND_CODING_DESIGN.md](../ARCHITECTURE_AND_CODING_DESIGN.md), and [PROJECT_STATUS.md](../PROJECT_STATUS.md) for current rules and evidence. Later superseding rules and current implementation take priority over older append-only paragraphs/PDFs.
 
 The [brainstorm, roast and review record](FIVE_MODULE_TEST_PLAN_REVIEW_2026-10-28.md) explains the sequence and corrections to older guides. Existing A01–A05 acceptance reports are scoped historical evidence. A06 compound lifecycle/concurrency and A07 full-shell/native/environment cases remain separately accountable; this new plan does not mark them passed.
+
+### Same-department and cross-department UAT accounts
+- Artificial Intelligence: UAT Primary, UAT Support, UAT Capacity.
+- Data Science: UAT Replacement, UAT Support New, UAT Panel.
+- Cyber Security: UAT Outsider, UAT Panel New, UAT Retire.
+- Coordinators match their named programme departments. All department names are fictional UAT labels.
+- Use Primary + Support for same-department testing; Primary + Outsider (supervision) or Primary + Panel (Panel recommendation) for cross-department testing. Check current capacity and role conflicts before submitting. Approval belongs to the student programme Coordinator, regardless of lecturer department.

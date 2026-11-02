@@ -1,6 +1,6 @@
 # Start here: testing your five modules
 
-**29 October progress:** The sandbox now contains the [A07 core journey and native evidence](FULL_PORTAL_NATIVE_ACCEPTANCE_2026-10-29.md): active Semester I, S01 approved primary/Panel, Supervisor 85 and Panel 80 submitted, plus a future Draft first-event check. Initial-empty statements below describe preparation, not the current database. Do not reset/recreate these records to continue. This report establishes its named observations only; the 162-case plan is not blanket Passed.
+**30 October fresh manual run:** At the user's request, the isolated sandbox was backed up and cleared of academic/workflow records. All 31 original accounts, passwords, roles, duty profiles and Office Marks grants were restored. Start at A01: there should be no semester or active semester before you create one. Sign out and sign in again to refresh the portal. The [29 October A07 evidence](FULL_PORTAL_NATIVE_ACCEPTANCE_2026-10-29.md) is historical; its records are in the private backup, not the current sandbox. Record new manual results independently; the 162-case plan is not blanket Passed. Subsequent ordinary preparation/start commands still preserve your new records.
 
 Use **http://127.0.0.1:3003**, the separate local test portal. Your normal development database is not the test fixture.
 

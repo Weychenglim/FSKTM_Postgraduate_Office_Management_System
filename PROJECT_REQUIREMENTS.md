@@ -1,3 +1,43 @@
+## Phase six feedback scope (1 November 2026)
+
+Requirement saves publish one shared outcome and distinguish a committed write from a failed refresh. Participant and coordinator-delegation drafts require discard consent before replacement or exit; conflict/permission failures retain input and block stale resubmission until successful latest-record review. Seeded delegation dates are clean. Report, appointment-letter and announcement-attachment exports describe a prepared browser handoff; explicit notification read updates are quiet on success and expose failures. Existing permissions, academic transitions, reasons and Malaysia date rules remain authoritative.
+
+## Phase five Marks interaction scope (implemented, 1 November 2026)
+
+Rubric metadata and component drafts are independent and protected by affected scope. Evaluation-period editing protects initialized baselines, lifecycle reasons and conditional closure acknowledgment; publish/archive use one final shared review and close keeps the signed closure review. Generation reviews current saved scope/readiness and reports authoritative response counts. Lecturer submission reviews the exact score/feedback/comment snapshot. Office correction reviews its audited delta and protects Cancel/latest-read replacement. Completion-window grant/revoke drafts retain exact task identity and independent scope through failures and filtering. Confirmed writes clear only committed input before secondary reads; read recovery never repeats the write. Permissions, reasons, version checks, idempotency, Malaysia dates and the central deadline route remain authoritative. Final verification is recorded in PROJECT_STATUS.md; phase six still contains remaining development and phase seven contains full-shell/native acceptance.
+## Phase five Marks interaction requirements (31 October–1 November 2026)
+
+Approved implementation scope is package five of the five-module notification/confirmation audit. Rubric metadata and component drafts must be independent, period drafts/reasons must survive cancelled navigation or final review, and consequential period/component actions require one existing-policy final review. Missing-task generation must review the current selected period/scope/readiness; only its response supplies authoritative created counts. Completed writes clear only committed draft input before read recovery, with one truthful shared outcome. Existing permissions, reasons, recipient/closure review, role identities and Marks concurrency/idempotency remain authoritative. Full-shell native acceptance remains phase seven.
+
+The existing Marks action register also requires exact final review of Lecturer submission scores, component feedback, overall comments and total; Office correction review must show every changed score and overall comment even when the total is unchanged. Meaningful local correction/reopening and personal completion-window grant/revoke drafts require Keep or explicit discard before replacement. A conflict requires successful latest-record review and consent before replacing affected work. Completion-window review identifies the selected task, student, evaluator, role, academic scope and deadline. These are interaction requirements within the approved Marks package; server authorization, eligibility, reasons, version checks and submission receipts remain authoritative. Broader workflow/export migration belongs to phase six.
+## Calendar and setup consistency — phase four (30 October 2026)
+
+Approved package four protects calendar, semester, lecturer availability, capacity and operational-period drafts across applicable local dismissal, router navigation, refresh and voluntary logout. Nested editors report to one owner. Untouched or reverted defaults leave quietly; pending writes cannot be discarded. Saving one calendar method must preserve unsaved work in the other. Private transition and cancellation reasons require consent before disposal. Confirmed saves clear their own baseline before refresh and distinguish failed reads from failed writes. Existing signed handover, closure acknowledgment, version/fingerprint, role and audit requirements stay authoritative. Implementation and evidence are tracked in `docs/PHASE_FOUR_SETUP_FEEDBACK_PLAN_2026-10-30.md`.
+
+Template preparation must show current, honest feedback inside an open import modal without clearing unrelated preview errors or cancelling when the selected workbook changes. Failed-refresh recovery must block further setup writes until the latest record loads successfully. Successful capacity preparation must resolve the user's pending destination, including supported standalone/non-data-router hosts; an explicit completed-owner allowance retains its existing scoped behavior. No extra academic approval stage or persisted-file success claim is introduced.
+
+## Appointment feedback and retained drafts (30 October 2026)
+
+Supervisor application submission must publish one outcome that survives closing the application editor, including the standalone Student workspace. Contact and supporting nomination/replacement cancellation must protect changed values, allow Keep editing, and discard only the intended child editor after consent. Untouched/reverted editors stay quiet; saving remains protected and unrelated application work remains dirty.
+
+Research creation, audited correction and programme-transfer drafts must remain visible after forbidden/conflicting writes. Stale submission stays blocked until successful latest-record review with explicit consent before replacing local values. Failed recovery keeps input and the recovery action. Confirmed commits and subsequent failed reads must be reported separately without inviting duplicate creation. Existing authorization, revision, capacity and approval rules remain authoritative.
+
+Appointment record filters remain quiet. Appointment and Supervisor/Panel workload exports use honest prepared/no-results notices; empty results do not generate a file, and generation failure remains a persistent contextual error with safe retry. Browser file persistence is separate acceptance evidence. Scope: delivery package three in the five-module feedback audit; broader setup, Marks and workflow migration remain pending.
+
+## FYP testing report preparation (29 October 2026)
+
+Provide an editable academic testing chapter and a results register that map the 162 owned-module manual scenario groups to report sections without inventing outcomes. Preserve case IDs, preconditions, expected/actual distinction, actor/date/build/evidence and defect/retest history. Separate historical technical observations, new manual runs, automated unit/integration evidence and actual stakeholder UAT; no participant scores or performance thresholds are assumed. The supplied senior report guides structure only. Product workflow requirements are unchanged. See `docs/FYP_TESTING_REPORT_PREPARATION_2026-10-29.md`.
+
+## Shared feedback and session-exit foundation (29 October 2026)
+
+Migrated shared outcomes must queue without overlap, deliver new operations even when their text is identical, and deduplicate only a repeated explicit operation identity. Routine info/success notices receive four visible seconds with hover/focus pauses; warning/error outcomes remain dismissible. Native-modal or document inertness must defer body-level delivery, while unrelated inert retained workspaces must not suppress usable feedback. Outcomes survive descendant navigation but never an authenticated account/session boundary. Existing standalone/teammate toast calls retain their current behaviour until their separately scoped migration.
+
+Completed save navigation must resolve pending exit protection, while failures and fresh edits retain it. Late save/reload callbacks must not close or change a newer decision session. Completion, dismissal and confirmed discard have distinct owner callbacks; replacing private decision input during latest-record review requires consent. Voluntary logout must resolve registered page drafts before invoking authentication logout; in-flight writes cannot be discarded. Forced expiry remains immediate. Missing standalone editor registrations are covered by later audit packages, not implicitly certified by this foundation.
+
+## Phase-one completion and discarded drafts (29 October 2026)
+
+Successful backup-evaluator creation must retire its completed draft before refresh/navigation, acknowledge the committed result once and close through the existing shared decision outcome; a failed refresh must not require another creation. Failed saves and cancelling the final review retain the visible editor. Closing/discarding or completing a Panel nomination must dispose its candidate/notes/replacement reason; reopening is clean and drafts cannot carry across students or replacement appointments. Reconciliation acceptance protects private reason/acknowledgment and clears them on confirmed abandonment, while cancelling repair review retains its visible underlying draft. Deadline extensions compare edits with their initialized scope/date/selection baseline, so untouched selected-only recovery and reverted inputs do not cause discard warnings. Existing academic rules and role permissions remain authoritative. This implements the first four-defect phase; broader toast/guard migrations remain pending.
+
 ## Report summary readability (29 October 2026)
 
 Participant lifecycle summary cards must fit their available report container, including when the desktop sidebar reduces content width. All seven labels must remain readable with normal word spacing and wrapping; counts retain their existing values and scope. This is presentation cleanup of the existing report, with no new workflow or access rule.
@@ -690,7 +730,7 @@ Use the shared visible Requests/History controls for request lists and Current a
 
 The Research Intent requirement dated 2026-10-21 above extends this scope. Section A compatibility for older clients does not waive mandatory Research Intent on new student applications; historical stored requests remain readable.
 
-The user requested a final critical review and immediate implementation after the reference-form audit and five critiques. This expands the historical 13 October course-code-only scope: the Student reviews system-sourced particulars, enters research details and title origin, declares completed course results or explicitly none, chooses a Supervisor, supplies existing configured private documents and confirms a declaration. Student-proposed titles require the active research-proposal document for version-1 submissions; all globally required documents remain required. Course results are student declarations, separate from project-assessment Marks. Course codes remain manual; no course catalogue, grade scale or Dean/Office approval gate is introduced.
+The user requested a final critical review and immediate implementation after the reference-form audit and five critiques. This expands the historical 13 October course-code-only scope: the Student reviews system-sourced particulars, enters research details and title origin, declares completed course results or explicitly none, chooses a Supervisor, supplies existing configured private documents and confirms a declaration. Title origin records who proposed the title and does not change document requirements; Office-configured required documents apply equally to both origins. Course results are student declarations, separate from project-assessment Marks. Course codes remain manual; no course catalogue, grade scale or Dean/Office approval gate is introduced.
 
 Resolve name/email/phone from User, ID/programme from Student, NRIC/passport/address from StudentRegistry and semester/session from the effective application semester. Missing data is shown honestly; the appointment form does not become an identity-editing route or claim a live Maya integration. New portal submissions retain server-owned particulars and declaration actor/time as part of an immutable submitted Section A. Exact authorized Student/Supervisor/Coordinator/Office views show that record; ordinary lists/exports do not gain sensitive particulars. Historical applications and older clients omitting the additive Section A contract remain explicitly legacy, without invented snapshots, results or declarations. Existing approval, lifecycle, capacity, replacements, cancellation and private-download protections remain authoritative.
 
@@ -1654,3 +1694,297 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Office repair of an approved Panel request with a missing appointment must use the request's applicable semester policy, rather than the current semester's capacity limit. Detection, available repair actions and activation must agree.
 - If Office reassessment was consumed by the approval, retain that recorded target semester for repair even after the target closes; do not revert to the original semester or substitute a newer Active semester. Unconsumed grants still require a current, valid Active target.
 - Repair must continue to reject archived source/target semesters, missing or restricted policy, and capacity filled by active appointments or other accepted reservations. Recheck under transaction locks. Preserve original approval actor/date, request semester, reassessment history, idempotence and existing Office authorization.
+
+## Candidate capacity clarity (29 October 2026)
+
+Student Supervisor selection and Lecturer Panel nomination show role-specific remaining places before selection, with an amber last-place indicator. The selected lecturer summary distinguishes active appointments from accepted requests awaiting Coordinator approval. Submitted requests do not reserve places; acceptance reserves a place. Restricted, unconfigured and full candidates retain existing eligibility guards.
+
+## Capacity activity version context (30 October 2026)
+
+The Office capacity activity log remains a newest-first timeline within the selected semester. Each plan-related event identifies its capacity version; availability events are labelled Semester-wide. An immediately applied Version filter defaults to All versions and resets with Clear filters. Copy events identify their source version and distinguish cross-semester copies. Version lists and read-only version details provide shortcuts to that version's activity. Preserve audit reasons, authorization, chronological ordering and server-side pagination.
+
+## Archived semester working-selection boundary (30 October 2026)
+
+Office Lecturer capacity must exclude archived semesters from working choices and defaults, reject archived semester deep links without loading their capacity workspace, and invalidate a selected semester archived elsewhere when returning to the page. Retain archived semesters internally as eligible historical copy sources. Calendar, Periods & deadlines and Marks setup continue their existing lifecycle restrictions. Academic semester history and read-only reports may retain archived records; archived data must not become a working configuration target.
+
+## Consistent Office semester and status presentation (30 October 2026)
+
+Calendar, Lecturer capacity and Periods & deadlines must share the same working-semester selector presentation: sentence-case Academic semester label, dropdown sizing, selected-only menu options once chosen, date-range placement and effective-status badge colours. Keep caller lifecycle eligibility, archived exclusion and busy/navigation guards unchanged. Matching portal statuses use matching semantic tones: Active/Published/Open green, Draft amber, Upcoming blue, Closed/Archived neutral. Preserve historical read-only views and legitimate disabled choices.
+
+### Semester lifecycle confirmation surfaces (31 October 2026)
+- Extend end date, End semester and Archive use modal confirmation dialogs, retaining existing reasons, validation and closure acknowledgement requirements.
+
+### Calendar entry usability (31 October 2026)
+- Preserve every timeline entry column, provide clear destructive buttons and readable linked-window context, and open the exact linked submission/evaluation window from Manage period.
+
+
+### Calendar event editing consistency — 31 October 2026
+
+Calendar event editing remains available after linking to a submission window. Linked dates are controlled by that window; unlinked end-date extensions require a reason through the normal event editor.
+
+### Calendar import review usability — 31 October 2026
+
+Excel imports show full project category and schedule-source labels, spaced file actions and ten preview events per page. A successful preview replaces Preview import with a single event-count import action. Existing replacement warnings and acknowledgement remain required.
+
+### Guided Calendar Excel template — 31 October 2026
+
+Office staff receive a readable Timeline sheet and field-by-field Instructions covering required fields, P1/P2, audience codes, dates, replacement behavior and optional existing-period links. Examples use Panel terminology. Action responsibility text remains distinct from Target Roles visibility.
+
+### Simplified calendar-only Excel import — 31 October 2026
+
+Supersedes prior workbook link/Week Label guidance: generated templates contain seven calendar fields only, with no Week Label, Activity Code or Period ID. Import cannot create period links; linking belongs in Periods & deadlines. Preview omits schedule-source/link labels. Replacement must continue protecting existing linked events. Instructions must scroll freely.
+
+### Editable calendar responsibility — 31 October 2026
+
+Create and Edit event expose Responsible parties as responsibility text independent from Target Roles. Imported Action values must remain visible and editable. Include an Office Staff responsibility/audience example in the downloadable template.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+Submission-window overview separates window names from programme scope. Timeline-link details stay in Manage window; submission-rule copy is concise. Multiple draft windows remain supported; publication rejects overlapping dates for the same activity and programme scope.
+
+
+## Window-table alignment correction — 31 October 2026
+
+Replaced obsolete five-column widths with scoped six-column sizing for appointment and Marks windows. Desktop tables scroll inside their container if needed; mobile retains labelled cards. Opens and Closes use identical two-line date/time presentation with explicit MYT. Status and action retain separate space. Validation: TypeScript passed; focused mounted browser checks passed at 1440, 1280, 390 and 320px for both appointment and Marks tables, including column separation, date structure and page overflow.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+Submission-window overview separates window names from programme scope. Timeline-link details stay in Manage window; submission-rule copy is concise. Multiple draft windows remain supported; publication rejects overlapping dates for the same activity and programme scope.
+
+
+## Submission-window overview cleanup — 31 October 2026
+
+Submission-window overview separates window names from programme scope. Timeline-link details stay in Manage window; submission-rule copy is concise. Multiple draft windows remain supported; publication rejects overlapping dates for the same activity and programme scope.
+
+### Submission window detail cleanup - 31 October 2026
+- Window details separate settings, calendar connection and expandable history. Once linked, hide link/create controls; retain existing connections. Archive uses the solid red destructive button.
+
+### Submission schedule and readable history revision - 31 October 2026
+- Submission-window details use one lifecycle badge, a readable opening/closing schedule with a shared Malaysia-time label, and the same expandable history pattern as appointment records. History reports actual field changes and omits empty personal-extra-time notices.
+
+
+### Linked calendar schedule warning — 31 October 2026
+Linked submission-window schedule editors must show a persistent warning before the date/time fields explaining that saving also updates linked calendar event dates, with the affected event names.
+
+
+### Compact linked calendar notice - 31 October 2026
+Refinement: linked schedule impact must remain visible as a compact, calm information note rather than a prominent warning card.
+
+
+### Window table status clarity - 31 October 2026
+Window overview tables show one schedule status: Draft, Upcoming, Open, Closed or Archived. Publication and scheduling are not stacked as separate status messages.
+
+
+### Window status spacing - 31 October 2026
+Window status and action columns need clear visual separation.
+
+
+### Date restriction review layout and discard - 31 October 2026
+Date restriction review must show shared published windows once with their covered programmes, clearly labelled schedules and visible coverage gaps. Acknowledgement aligns with its text; dirty dialog dismissal uses a separate discard modal.
+
+
+### Submission access labels - 31 October 2026
+Appointment window tables describe submission access rather than schedule alone; published windows with restrictions off show Dates unrestricted.
+
+### Submission availability and entry actions - 31 October 2026
+- Student New application actions wait for the availability check and are disabled when the enforced Supervisor window blocks submissions, including retry after capacity cancellation. Existing saved drafts remain accessible; final submission follows the same check.
+- Panel recommendations wait for their student-specific availability check before submission. Personal extra time and unrestricted dates continue to follow server permissions.
+- Supervisor, Panel and Marks use a quiet availability notice with a readable title and relevant date or explanation; the student workspace notice sits below its heading rather than inside the heading actions.
+- Marks with no edit permission remain read only; approved active completion windows continue to allow marking.
+
+### Dashboard timeline event details - 1 November 2026
+- Dashboard event previews omit submission status entirely when linked operational dates are unrestricted.
+- Restricted linked events use one plain-language schedule status, without publication or enforcement administration labels. Marks uses marking wording without asserting personal task eligibility.
+- Event details show dates first, followed by the full project phase name, responsible parties and description, with consistent spacing across role dashboards.
+
+### Office attention empty preview - 1 November 2026
+- The Needs attention card uses a compact left-aligned empty message and decorative check icon when no preview items exist. No unrelated Office-tools hint or empty-list footer action is shown. Populated previews retain all attention navigation.
+
+### Compact application availability - 1 November 2026
+- Student Supervisor availability should sit with New application, without a separate banner above workspace tabs. Keep the opening time and recheck accessible.
+
+### Supervisor application availability modal - 1 November 2026
+- Student Supervisor New application remains clickable when dates block intake. Show a brief Not open yet/Closed label beside it; clicking rechecks current access and either opens the application or explains the restriction in a modal. A failed check offers retry without navigating.
+
+### Supervisor availability presentation refinement - 1 November 2026
+- Do not show availability text beside student New application. Explain restricted intake only in the click-triggered modal.
+
+### Supervisor application progress layout - 1 November 2026
+- Omit the routine Applications open notice from the application editor toolbar. Keep loading, failed-check and restricted-intake guidance, and existing submission guards.
+- Align the desktop progress indicator's first and last markers with the outer edges of the form cards. Keep labels readable and the compact phone progress display.
+- Put Draft details and Save draft beside the current step heading above the cards, with wrapping on phones, rather than in a separate row above progress.
+- Keep restoration/reselection guidance inside Draft details without a separate visible reminder row; retain accessible restoration announcements and visible actionable errors.
+
+### Concise draft details - 1 November 2026
+Draft details uses one short file reminder and last-saved time; omit repeated restoration and saved-state explanations.
+
+Draft details briefly explains automatic reopening and explicit saving before the file reattachment reminder.
+
+### Single required project course code - 1 November 2026
+- A new student Supervisor application requires exactly one project course code. Remove the optional label and course-code Add/Remove controls. Incomplete drafts remain saveable; existing records retain their stored codes.
+
+
+### Document requirement controls — 1 November 2026
+- Supervisor document requirements use a larger, clearly selected Active / Inactive / All switch consistent with existing portal controls.
+- Add and Edit requirement open a shared modal over the checklist, with unsaved-change confirmation and saving protection. Existing validation and future-submission scope remain unchanged.
+
+
+### Title origin independent of uploads — 1 November 2026
+- Removed the conditional proposal upload and proposal-configuration warning for student-proposed titles. Office-configured required/optional documents apply equally to Student and Supervisor title origins.
+- Existing requirement setup, upload security and declaration validation remain enforced.
+
+
+### Office document setup reminder — 1 November 2026
+- Office dashboard Needs attention shows one faculty-wide Configure supervisor document requirements action when no active requirement exists and Office has not explicitly chosen No documents required. It links directly to configuration and disappears for either valid setup.
+- Inactive-only configuration without an explicit no-documents choice remains incomplete; students, lecturers and Coordinators do not receive this Office setup reminder.
+
+
+### Document setup attention row clarity — 1 November 2026
+- Show the setup title once, a distinct missing-configuration reason and a Setup required badge. Faculty-wide belongs in the Programme column rather than duplicated beneath the record.
+
+
+### Explicit no-documents setup — 1 November 2026
+- Office may explicitly choose No documents required, with a reason, for future Supervisor applications. This is a valid setup and permits submission without uploads for either title origin.
+- Unconfigured setup still blocks submission. Any active checklist item also constitutes valid setup; its required/optional rule remains enforced. No-documents mode and active items are mutually exclusive.
+- Students see No supporting documents required in guidance and the application form. The Office setup reminder disappears for either valid setup and returns if neither remains configured. Existing submissions and documents are unchanged.
+
+
+### Document requirements workspace — 1 November 2026
+- Office manages document policy and checklist within one card. Policy changes require an explicit selection, reason and save; existing setup and active-item safeguards remain.
+- Configuration history is collapsed by default with 10 changes per page and access to every recorded entry.
+
+
+### Document requirements visual hierarchy — 1 November 2026
+- Use one workspace heading with a compact policy summary and Change policy action. Active/Inactive/All use underline tabs with counts and contextual empty states.
+
+Office Supervisor and Panel attention pages omit the explanatory paragraph above their category cards.
+
+### UAT department coverage
+- Manual appointment testing must include same-department and cross-department fictional lecturers; department diversity must not change programme-based Coordinator authority or capacity rules.
+
+### Co-supervisor nomination interaction
+- Co-supervisor nomination and replacement open in the shared modal, retaining supervision-page context. Closing an edited form requires discard confirmation; submission remains blocked while busy or ineligible.
+
+- Co-supervisor selection omits the student's current primary supervisor instead of presenting an unusable option.
+
+- Co-supervisor selection supports search by lecturer name, staff number and department, shows availability and marks the selected lecturer in the list. The selected name remains in the field without a duplicate summary card.
+
+- The co-supervisor picker uses a single editable field for both search and the selected lecturer, matching the appointment candidate selection pattern; no nested search field.
+
+
+### Pending co-supervisor nomination guard — 2026-11-01
+Co-supervisor nominations are sequential per student: while any new/replacement nomination awaits co-supervisor or Coordinator review, another cannot be submitted. The existing two-active-co-supervisor limit remains. Pending staff summaries link to the full nomination request instead of embedding its details.
+
+Pending co-supervisor summary action: align View nomination request to the right using a wrapping flex row; workflow rules remain unchanged (2026-11-01).
+
+
+### Integrated pending team members — 2026-11-01
+Pending co-supervisor requests appear directly under Supporting supervisors, without a separate Pending nominations heading or a contradictory unassigned message. Panel summaries similarly show the proposed member and review-stage badge while pending, and avoid duplicate empty-state sentences. Pending Panel names are projected only when the actor may view that recommendation. Existing active members remain visible during replacement.
+
+
+### Unified request tables — 2026-11-02
+Supervisor, Panel and research-change request lists use one table per Requests/History view for all applicable roles. Remove stage-group result headings; review permissions remain role-specific. Requests needing a decision take priority by default before pagination, without overriding explicit Panel sort choices. Final History shows Outcome and omits waiting time; a Panel lecturer’s personal review history retains current stage because acceptance may still await final approval.
+
+### Supporting supervision detail clarity — 2026-11-02
+- Separate primary and supporting supervisors with a clear divider; supporting appointment management actions have their own footer.
+- Team details show compact completed nomination records linking to the existing request page, where approval progress and audit history remain available.
+- Do not repeat activation-only audit history beneath active supporting supervisors; retain subsequent lifecycle changes.
+
+- 2026-11-02: Supporting appointment history belongs below Appointment record in the detail sidebar, with a black and white View nomination request action.
+
+- 2026-11-02: Supersedes the sidebar history placement: omit the Supporting appointment history card from supervision details. Preserve pending nomination access and standalone history/request routes.
+
+- 2026-11-02: Panel review sidebars omit routine capacity count summaries, matching Supervisor review. Show a concise explanation only when acceptance is blocked.
+
+- 2026-11-02: Appointment detail action buttons use the established uppercase labels consistently, including pending request access, Panel recommendations and review decisions.
+
+- 2026-11-02: Related appointment review and nomination actions use shared button font weight, font size, padding and shape as well as uppercase casing.
+
+- 2026-11-02: The co-supervisor candidate picker hides non-selectable lecturers. Supporting and Panel replacement controls show the same Replace label and standard secondary styling.
+
+- 2026-11-02: Primary and supporting supervisors use a visible divider and consistent section spacing across Panel assignment details, supervision details and the Student supervisor overview.
+
+- 2026-11-02: Panel student details show the current appointment and pending nomination without an embedded completed nomination history card. Historical requests remain available through Nomination records → History.
+
+
+### 2026-11-02 — Rubric family creation modal
+
+Rubric family creation uses one persistent + New rubric family action in the page header, including the empty state. Creation opens a shared modal with cancel and unsaved-change protection; saving selects the new family for component configuration.
+
+
+### 2026-11-02 — Assessment component workspace
+
+Rubric management prioritises assessment components in a full-width workspace. A compact family/version selector and saved rubric summary replace the sidebar and permanent metadata form. Edit details and Add/Edit component use shared modals; locked versions retain clone-only editing rules. Empty component lists show guidance instead of unused table headings.
+
+
+### 2026-11-02 — Rubric hierarchy and row actions
+Rubric selection must show the selected name once, with compact family/version selection. Assessment marks/readiness belong with the component heading, and row actions must be clearly labelled Edit and Deactivate.
+
+
+### 2026-11-02 — Rubric placement and column widths
+Rubric selection sits below the rubric identity, while Edit details aligns with the title. The component name column receives more width than secondary numeric/state columns.
+
+### Rubric families and archive — 2026-11-02
+- Office enters rubric management through a searchable, paginated family table, then opens one family workspace. Family and version selection are no longer combined in a picker.
+- Distinguish the current version within each family from actual evaluation-period usage. Multiple families may be available at once; each evaluation period keeps its assigned version.
+- Office can archive/restore an entire family with confirmation, including locked versions. Archived families cannot be selected for new evaluation setup or edited/cloned; existing periods, tasks, criteria and marks are retained.
+- A Status dropdown (Available / Archived / All), rather than another tab switch, provides access to archived families.
+
+### Rubric version clarity — 2026-11-02
+Unarchived rubric versions offer NEW VERSION whether locked or editable. Confirmation explains copying criteria, selecting the new current version and retaining existing evaluation references.
+
+### Rubric action spacing — 2026-11-02
+Rubric actions are separated by purpose: NEW VERSION in the page header, EDIT DETAILS in the summary header, ARCHIVE/RESTORE FAMILY in the summary footer.
+
+Placement correction: ARCHIVE/RESTORE FAMILY stays beside EDIT DETAILS in the summary header; NEW VERSION remains separate in the page header.
+
+
+### Mark Entry Periods entrance — 2026-11-02
+Mark Entry Periods entrance follows the rubric-family list structure: page-header New period action, search, current/archived status filter, paginated table and Manage period action. Remove the Manage semesters shortcut. Deeper period configuration remains unchanged.
+
+
+### Period editor spacing and navigation — 2026-11-02
+Period editor uses distinct details, recipients and schedule sections with shared dropdown dimensions. New period appears only on the entrance; editor navigation is a single back link above the title. Existing archive remains restricted to closed periods with its required reason and confirmation.
+
+
+### Period preview and history — 2026-11-02
+Recipient estimates open on demand in a modal; period configuration history is a separate collapsed card.
+
+
+### Rubric total feedback — 2026-11-02
+Rubric total badges distinguish below-target, over-target and ready totals.
+
+
+### Rubric reactivation and code case — 2026-11-02
+Inactive editable rubric components expose Reactivate with confirmation. Newly entered family codes retain capitalisation; case-only duplicate family codes are rejected.
+
+### Period configuration layout refinement — 2026-11-02
+Period configuration keeps recipient settings in the Recipients section, separates recipient preview from save/publish actions, and provides a distinct collapsible configuration history.
+
+### Scalable recipient preview — 2026-11-02
+Recipient preview supports search, evaluator-role filtering and ten tasks per page, with compact totals and optional exclusion counts.
+
+### Recipient preview pagination visibility — 2026-11-02
+Recipient preview hides pagination controls when filtered results fit on one page; the result count remains visible.
+
+### Period publication confirmation clarity — 2026-11-02
+Publication confirmation separates period identity, programme scope, evaluator roles and recipient estimate. Counts use singular/plural labels and publishing uses an informational confirmation.
+
+### Period closure workflow and reuse review — 2026-11-02
+Published mark entry periods show an explicit Close period early action. Reason, unfinished-task review and acknowledgement are shown together in a modal only after opening the action; discarding entered details requires confirmation. Remove the deadline shortcut from the configuration schedule.
+
+### Published period footer navigation — 2026-11-02
+Published period footer places Manage periods & deadlines immediately before Close period early.
+
+
+### Marks overview and period monitoring — 2026-11-02
+Marks overview uses an explicit academic semester scope, aggregated open-period/task/submitted/overdue metrics, and a paginated comparison of period progress with evaluator roles. Student records remain on the dedicated records page. Overview links preserve semester, period and status filters.
+
+Marks overview semester context (2026-11-02): Show the selected academic semester's start/end dates beneath its selector, with 24px separation before summary cards. Dates use the existing academic semester API and Malaysia date formatter; unavailable date metadata does not block marks content.
+
+
+
+### Evaluation task workspace — 2026-11-02
+Evaluation task generation offers published Open/Scheduled periods with concise name and evaluator-role labels; closed and archived records remain accessible in Mark Records.

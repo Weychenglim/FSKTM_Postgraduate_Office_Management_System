@@ -24,6 +24,17 @@ CONFIG = PRIVATE / "sandbox.json"
 AI = "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)"
 DS = "MASTER OF DATA SCIENCE (COURSEWORK)"
 CYBER = "MASTER OF CYBER SECURITY (COURSEWORK)"
+UAT_AI_DEPARTMENT = "Fictional UAT Artificial Intelligence Department"
+UAT_DS_DEPARTMENT = "Fictional UAT Data Science Department"
+UAT_CYBER_DEPARTMENT = "Fictional UAT Cyber Security Department"
+LECTURER_DEPARTMENTS = {
+    "primary": UAT_AI_DEPARTMENT, "support": UAT_AI_DEPARTMENT,
+    "capacity": UAT_AI_DEPARTMENT,
+    "replacement": UAT_DS_DEPARTMENT, "support-new": UAT_DS_DEPARTMENT,
+    "panel": UAT_DS_DEPARTMENT,
+    "outsider": UAT_CYBER_DEPARTMENT, "panel-new": UAT_CYBER_DEPARTMENT,
+    "retire": UAT_CYBER_DEPARTMENT,
+}
 
 
 def validate_target(name, host):
@@ -54,13 +65,13 @@ def account_specs():
     add("office", "UAT-OFFICE", "Office Staff/Admin", "Office", marks_permission=True)
     add("office-view", "UAT-OFFICE-VIEW", "Office Staff/Admin", "Office without Marks correction", marks_permission=False)
     for key, programme in [("ai", AI), ("ds", DS), ("cyber", CYBER)]:
-        add(f"coord-{key}", f"UAT-COORD-{key.upper()}", "Programme Coordinator", f"Coordinator {key.upper()}", programme=programme)
+        add(f"coord-{key}", f"UAT-COORD-{key.upper()}", "Programme Coordinator", f"Coordinator {key.upper()}", programme=programme, department={"ai": UAT_AI_DEPARTMENT, "ds": UAT_DS_DEPARTMENT, "cyber": UAT_CYBER_DEPARTMENT}[key])
     for key, supervisor, panel in [
         ("primary", 20, 20), ("replacement", 20, 20), ("support", 20, 20),
         ("support-new", 20, 20), ("panel", None, 20), ("panel-new", None, 20),
         ("outsider", 20, 20), ("capacity", 1, None), ("retire", 20, 20),
     ]:
-        add(key, f"UAT-{key.upper()}", "Lecturer", key.replace('-', ' ').title(), supervisor=supervisor, panel=panel)
+        add(key, f"UAT-{key.upper()}", "Lecturer", key.replace('-', ' ').title(), supervisor=supervisor, panel=panel, department=LECTURER_DEPARTMENTS[key])
     students = [
         ("main", AI), ("reject", AI), ("replace", AI), ("support", AI),
         ("research", AI), ("window", AI), ("defer", AI), ("withdraw", AI),
@@ -173,7 +184,7 @@ def prepare():
             elif row["role"] == User.Role.STUDENT:
                 Student.objects.create(user=user, matric_no=row["id"], programme=row["programme"], intake_semester="2026/2027 Semester 1")
             elif row["role"] in {User.Role.LECTURER, User.Role.COORDINATOR}:
-                lecturer = Lecturer.objects.create(user=user, staff_no=row["id"], title="Dr.", department="Fictional UAT Department", specialization="Synthetic workflow testing")
+                lecturer = Lecturer.objects.create(user=user, staff_no=row["id"], title="Dr.", department=row["department"], specialization="Synthetic workflow testing")
                 if row["role"] == User.Role.COORDINATOR:
                     Coordinator.objects.create(lecturer=lecturer, programme_managed=row["programme"])
                 else:
