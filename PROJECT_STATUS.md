@@ -1,3 +1,7 @@
+## Student upload box opens the file explorer (2 November 2026)
+
+On a student's My files tab, the dashed box now opens the file explorer when clicked, as well as taking a dragged file. Both go to the same upload page. It also works from the keyboard and at phone width.
+
 ## Semesters and graduation in Student Registry (2 November 2026)
 
 Staff no longer change students one by one, and a student cannot graduate too early. Based on the 2026/2027 handbook and the UM Master's Regulations 2024. Plan: `docs/superpowers/plans/2026-11-02-semesters-and-graduation.md`.
