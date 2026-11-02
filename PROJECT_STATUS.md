@@ -1,3 +1,18 @@
+## Semesters and graduation in Student Registry (2 November 2026)
+
+Staff no longer change students one by one, and a student cannot graduate too early. Based on the 2026/2027 handbook and the UM Master's Regulations 2024. Plan: `docs/superpowers/plans/2026-11-02-semesters-and-graduation.md`.
+
+- **Programmes tab:** minimum 3 (2 semesters + 1 Special) and maximum 8 for the three coursework programmes, editable by the office, with edits kept.
+- **Semesters card on the Student Record:** semesters studied, minimum and maximum. The current semester now comes from these rows instead of being typed. Existing students got rows from their intake and current semester.
+- **Move students:** a summary page and a banner when a semester starts. Everyone Active moves except anyone left out; for a Special Semester, only the students added. Running it twice is safe.
+- **Graduate students:** three steps: paste the Senate's list, see who is ready, to check or can't graduate yet, then confirm with a reason. Step 1 also lists who still has something unfinished. Each student is re-checked and graduated separately.
+- **The minimum is enforced on every route,** including Manage Participants. One semester below needs an approval tick (Regulation 20(3)); further below is refused.
+- **Letters:** "semesters left" fills in from the rule and no longer goes blank for a Special Semester. Supervisor and panel letters stay valid after a normal completion.
+- **Notices:** students are told when their academic status changes.
+- **Maximum:** extensions on the Semesters card, and a notice on the Students tab for anyone on their last allowed semester or past it.
+
+Verified on a private database copy with disposable students: 73 browser checks across office and coordinator, including phone width. To raise with the supervisor or office: Regulation 16(1) says a candidate may not change programme, which conflicts with programme transfers.
+
 ## System-wide README (28 October 2026)
 
 Replaced the five-owned-module introduction with a whole-system overview covering the combined team project: roles, all portal modules, the appointment-to-evaluation workflow, Registry, Letters, File Repository, Announcements/Notifications, FAQ/chatbot, and Settings. Expanded the stack and repository map, retained development/demo guidance, and documented backend-integrated frontend configuration, verification commands, and operational references. Module ownership boundaries remain separate. Requirements and architecture documents were reviewed; no product requirements, runtime architecture, or application code changed.

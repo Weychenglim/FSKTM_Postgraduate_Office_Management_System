@@ -30,7 +30,7 @@ def _item(level, code, text, fix="", record_id=None):
 def _semester_items(progress):
     """What the semesters studied say about graduating."""
     if progress.rule is None:
-        return [_item(CHECK, "NO_RULE", "No semester rule for this programme.", "programmes")]
+        return [_item(CHECK, "NO_RULE", "No semester rule for this programme.")]
     if not progress.has_record:
         return [_item(STOP, "NO_RECORD", "No semester record.", "record")]
     short = progress.short_of_minimum

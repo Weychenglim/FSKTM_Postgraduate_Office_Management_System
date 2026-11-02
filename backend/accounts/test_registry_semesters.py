@@ -343,6 +343,13 @@ class MoveStudentsApiTests(APITestCase):
         self.assertEqual([row["matric"] for row in state["students"]], ["MV3"])
         self.assertEqual(state["lastMove"]["by"], "Office Person")
 
+    def test_a_student_already_on_a_later_semester_keeps_it_as_current(self):
+        StudentRegistry.objects.filter(student=self.one).update(current_semester="Semester I, 2027/2028 Session")
+        self.client.force_authenticate(self.office)
+        self.client.post(self.url, self.body("MV1"), format="json")
+        self.assertEqual(self.one.semesters.count(), 2)
+        self.assertEqual(StudentRegistry.objects.get(student=self.one).current_semester, "Semester I, 2027/2028 Session")
+
     def test_a_deferred_student_gets_leave_and_nobody_else_moves(self):
         self.client.force_authenticate(self.office)
         response = self.client.post(self.url, self.body("MV1", "MV4", "MV5", "NOPE"), format="json")

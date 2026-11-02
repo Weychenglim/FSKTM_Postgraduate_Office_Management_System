@@ -24,6 +24,7 @@ from accounts.models import (
     Supervisor,
     User,
 )
+from accounts.semester_rules import seed_student
 from appointments.models import (
     StudentResearchProfile,
     SupervisorApplication,
@@ -395,6 +396,7 @@ class Command(BaseCommand):
                     StudentRegistry.objects.update_or_create(
                         student=student_obj, defaults=student_registry
                     )
+                seed_student(student_obj)
 
             if office_staff is not None:
                 OfficeStaff.objects.update_or_create(user=user, defaults=office_staff)

@@ -309,7 +309,9 @@ def _put_on_semester(students, semester, *, outcome, actor, note=""):
         registry = registries.get(student.pk)
         if registry is None:
             missing.append(StudentRegistry(student=student, current_semester=semester.label))
-        elif registry.current_semester != semester.label:
+            continue
+        current = read_semester(registry.current_semester)
+        if current is None or current.key < semester.key:
             registry.current_semester = semester.label
             changed.append(registry)
     StudentRegistry.objects.bulk_create(missing)

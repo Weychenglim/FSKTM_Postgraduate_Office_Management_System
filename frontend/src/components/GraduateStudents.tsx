@@ -182,8 +182,8 @@ export const GraduateStudents: React.FC = () => {
             <h3 className="text-[15.5px] font-extrabold text-brand-navy">Still unfinished</h3>
             <p className="mt-0.5 text-[13.5px] text-slate-500">
               {unfinished.length
-                ? `${studentCount(unfinished.length)} who reached the minimum still ${unfinished.length === 1 ? 'has' : 'have'} something to sort out.`
-                : 'Nothing is unfinished for students who reached the minimum.'}
+                ? `${studentCount(unfinished.length)} near or past the minimum still ${unfinished.length === 1 ? 'has' : 'have'} something to sort out.`
+                : 'Nothing is unfinished for students near or past the minimum.'}
             </p>
           </div>
           {shown.length > 0 && (
