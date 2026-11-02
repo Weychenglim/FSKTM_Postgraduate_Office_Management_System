@@ -11,6 +11,7 @@ from accounts.models import (
     User,
 )
 from accounts.semester_rules import minimum_problem, progress_of
+from announcements.models import Notification
 from accounts.semesters import SPECIAL, Semester, nth_normal, read, seeded_semesters, steps_to
 
 DS = "MASTER OF DATA SCIENCE (COURSEWORK)"
@@ -534,3 +535,70 @@ class GraduationApiTests(APITestCase):
         row = self.early.semesters.get(term="SEMESTER_II")
         self.assertEqual(row.outcome, StudentSemester.Outcome.LEAVE)
         self.assertEqual(self.early.semesters.get(term="SEMESTER_I").outcome, StudentSemester.Outcome.STUDIED)
+
+
+@override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
+class StatusNoticeTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.office = User.objects.create_user(
+            email="office@example.test", password="pw", full_name="Office Person", role=User.Role.OFFICE_ADMIN,
+        )
+        cls.student = make_student("SN1")
+        semesters_for(cls.student, "Semester I, 2026/2027", "Semester II, 2026/2027", "Special Semester, 2026/2027")
+
+    def change(self, status, reason="Senate meeting"):
+        self.client.force_authenticate(self.office)
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.patch(
+                "/api/registry/students/SN1/", {"academicStatus": status, "statusReason": reason}, format="json",
+            )
+
+    def notices(self):
+        return list(Notification.objects.filter(recipient=self.student.user, record_type="STUDENT_STATUS").order_by("pk"))
+
+    def test_the_student_is_told_when_their_status_changes(self):
+        self.assertEqual(self.change("Deferred", "Family reasons").status_code, 200)
+        self.assertEqual(self.change("Active", "Back from leave").status_code, 200)
+        self.assertEqual(self.change("Graduated").status_code, 200)
+        notices = self.notices()
+        self.assertEqual(
+            [notice.title for notice in notices],
+            ["Your studies are now deferred", "You are Active again", "You have graduated"],
+        )
+        self.assertIn("Family reasons", notices[0].message)
+        self.assertEqual((notices[2].target_module, notices[2].is_read), ("DASHBOARD", False))
+        self.assertEqual(notices[2].summary, "Your status is now Graduated.")
+
+    def test_graduating_many_tells_each_of_them(self):
+        self.client.force_authenticate(self.office)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                "/api/registry/graduation/", {"matrics": ["SN1"], "reason": "Senate meeting"}, format="json",
+            )
+        self.assertEqual(len(response.data["graduated"]), 1)
+        self.assertEqual([notice.title for notice in self.notices()], ["You have graduated"])
+
+    def test_a_suspended_account_is_not_told(self):
+        User.objects.filter(pk=self.student.user.pk).update(is_active=False)
+        self.change("Graduated")
+        self.assertEqual(self.notices(), [])
+
+
+class MaximumFlagTests(APITestCase):
+    def test_the_list_flags_the_last_semester_and_past_the_maximum(self):
+        office = User.objects.create_user(
+            email="office@example.test", password="pw", full_name="Office Person", role=User.Role.OFFICE_ADMIN,
+        )
+        last = make_student("MX1", intake="Semester I, 2020/2021")
+        semesters_for(last, "Semester II, 2023/2024")
+        past = make_student("MX2", intake="Semester I, 2020/2021")
+        semesters_for(past, "Semester I, 2024/2025")
+        fine = make_student("MX3")
+        semesters_for(fine, "Semester I, 2026/2027")
+        done = make_student("MX4", intake="Semester I, 2020/2021", status=Student.Status.GRADUATED)
+        semesters_for(done, "Semester I, 2024/2025")
+        self.client.force_authenticate(office)
+        flags = {row["id"]: row["maximumFlag"] for row in self.client.get("/api/registry/students/").data}
+        self.assertEqual(flags, {"MX1": "last", "MX2": "past", "MX3": "", "MX4": ""})
+        self.assertEqual(self.client.get("/api/registry/students/MX2/").data["maximumFlag"], "past")

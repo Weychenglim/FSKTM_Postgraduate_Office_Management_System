@@ -47,7 +47,7 @@ from .registry_import import (
 from .registry_profiles import remember_layout
 from .registry_template import TEMPLATE_FILE_NAME, XLSX_CONTENT_TYPE, build_template
 from .registry_programmes import programme_values, remember_choices
-from .semester_rules import record_semester, seed_student
+from .semester_rules import maximum_flag, record_semester, rules_by_programme, seed_student
 from .semesters import read as read_semester
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
@@ -142,7 +142,7 @@ def _supervisor_of(student):
     return supervision[0].supervisor if supervision else None
 
 
-def to_record(student) -> dict:
+def to_record(student, rules=None) -> dict:
     """Shape a Student (+ optional registry row) as the frontend expects."""
     user = student.user
     registry = _registry_or_none(student)
@@ -164,6 +164,7 @@ def to_record(student) -> dict:
         "supervisor": supervisor.full_name if supervisor else "",
         "supervisorStaffNo": supervisor_profile.staff_no if supervisor_profile else "",
         "intakeDate": student.intake_semester,
+        "maximumFlag": maximum_flag(student, rules, registry),
         # Lets the office spot accounts that were registered but never
         # activated, e.g. because the invitation bounced.
         "activated": user.has_usable_password(),
@@ -280,7 +281,7 @@ def student_records_view(request):
 
     queryset = _require_registry_reader(request).select_related(
         "user", "registry"
-    ).prefetch_related(_active_supervision())
+    ).prefetch_related(_active_supervision(), "semesters")
     search = (request.query_params.get("search") or "").strip()
     if search:
         queryset = queryset.filter(
@@ -305,7 +306,8 @@ def student_records_view(request):
             )
         ).distinct()
 
-    return Response([to_record(student) for student in queryset])
+    rules = rules_by_programme()
+    return Response([to_record(student, rules) for student in queryset])
 
 
 def send_activation_email(user, connection=None) -> bool:

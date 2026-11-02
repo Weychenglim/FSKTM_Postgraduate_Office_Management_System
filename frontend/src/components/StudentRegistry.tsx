@@ -306,6 +306,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // Modals Dialog States
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
   const [moveSummary, setMoveSummary] = useState<MoveSummary | null>(null);
+  const [onlyNearMaximum, setOnlyNearMaximum] = useState(false);
 
   useEffect(() => {
     if (readOnly) return undefined;
@@ -1107,11 +1108,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     const matchesSupervisor = selectedSupervisor === 'All'
       || (selectedSupervisor === NO_SUPERVISOR ? !student.supervisor : student.supervisor === selectedSupervisor);
 
-    return matchesSearch && matchesProgramme && matchesSemester && matchesAcademic && matchesSupervisor;
+    const matchesMaximum = !onlyNearMaximum || Boolean(student.maximumFlag);
+
+    return matchesSearch && matchesProgramme && matchesSemester && matchesAcademic && matchesSupervisor && matchesMaximum;
   });
 
   const summary = summariseRegistry(students);
   const semesterOptions = distinctValues(students.map(s => s.semester));
+  const nearMaximum = students.filter((student) => student.maximumFlag).length;
   const supervisorOptions = distinctValues(students.map(s => s.supervisor));
   const columnCount = 6;
 
@@ -1213,6 +1217,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} to move.`}
               </span>
               <PortalButton size="sm" variant="primary" onClick={() => navigate(APP_ROUTES.registryMoveStudents)}>Move students</PortalButton>
+            </div>
+          )}
+
+          {!readOnly && nearMaximum > 0 && (
+            <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3.5 text-[13.5px] font-semibold text-amber-900">
+              <span>{studentCount(nearMaximum)} {nearMaximum === 1 ? 'is' : 'are'} on the last allowed semester or past the maximum.</span>
+              <PortalButton size="sm" onClick={() => setOnlyNearMaximum((value) => !value)}>{onlyNearMaximum ? 'Show everyone' : 'Show them'}</PortalButton>
             </div>
           )}
 
@@ -1417,6 +1428,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                           {/* Academic status column */}
                           <td className="data-td text-center">
                             <StatusChip status={student.academicStatus} />
+                            {!readOnly && student.maximumFlag && (
+                              <span className={`mt-1 block text-[11px] font-bold ${student.maximumFlag === 'past' ? 'text-rose-700' : 'text-amber-700'}`}>
+                                {student.maximumFlag === 'past' ? 'Past the maximum' : 'Last semester'}
+                              </span>
+                            )}
                           </td>
 
                           {/* Account status column */}

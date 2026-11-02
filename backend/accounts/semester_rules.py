@@ -72,10 +72,10 @@ class Progress:
         return bool(self.current and self.maximum_semester and self.current.key == self.maximum_semester.key)
 
 
-def progress_of(student, rules=None, rows=None, registry=None):
+def progress_of(student, rules=None, rows=None, registry=...):
     rule = rule_for(student.programme, rules)
     rows = rows_of(student) if rows is None else rows
-    registry = registry or _registry(student)
+    registry = _registry(student) if registry is ... else registry
     studied = 0
     exempt = 0
     current = None
@@ -102,6 +102,14 @@ def progress_of(student, rules=None, rows=None, registry=None):
         current=current,
         maximum_semester=maximum_semester,
     )
+
+
+def maximum_flag(student, rules=None, registry=...):
+    """Whether an Active student is on their last allowed semester, or past it."""
+    if student.status != student.Status.ACTIVE:
+        return ""
+    progress = progress_of(student, rules, registry=registry)
+    return "past" if progress.past_maximum else "last" if progress.last_semester else ""
 
 
 def minimum_problem(student, *, early_approved=False, rules=None):
