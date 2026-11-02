@@ -1,3 +1,4 @@
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 import { PortalSelect } from './PortalSelect';
 import { AlertMessage } from './AlertMessage';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,7 +34,6 @@ import {
   PageHeader,
   PortalButton,
   PortalCard,
-  PortalToast,
   StatusBadge,
 } from './PortalPrimitives';
 
@@ -168,7 +168,7 @@ export function LecturerReportSummary({ report, onNavigateToRoute }: {
   );
 }
 
-export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
+const WorkflowReportsContent: React.FC<WorkflowReportsProps> = ({
   currentUserRole,
   onBack,
   onNavigateToRoute,
@@ -187,8 +187,8 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   const reportQuery = buildWorkflowReportQuery(filters);
   const reportPending = loading || (!validationError && !error && loadedQuery !== reportQuery);
   const [exporting, setExporting] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const [toastTone, setToastTone] = useState<'success' | 'danger'>('success');
+  const publish = useDecisionFeedback()!;
+  const exportInFlight = useRef(false);
   const [attentionPage, setAttentionPage] = useReportViewState(office, 'attentionPage', 1);
   const [officeSection, setOfficeSection] = useReportViewState(office, 'section', 'attention');
   const attentionView = getOfficeReportAttentionPage(report?.attention ?? [], attentionPage);
@@ -228,18 +228,16 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
   };
 
   const exportWorkbook = async () => {
-    if (!report || reportPending || validationError || error || exporting) return;
+    if (exportInFlight.current || !report || reportPending || validationError || error || exporting) return;
+    exportInFlight.current = true;
     setExporting(true);
     try {
       await downloadWorkflowReport(filters);
-      setToastTone('success');
-      setToast('Downloaded workflow_analytics_report.xlsx');
-      window.setTimeout(() => setToast(null), 3200);
+      publish('Workflow report prepared. Your browser will handle the download.', 'success');
     } catch (reason) {
-      setToastTone('danger');
-      setToast(reason instanceof Error ? reason.message : 'Unable to download the workbook.');
-      window.setTimeout(() => setToast(null), 3200);
+      publish(reason instanceof Error ? reason.message : 'Unable to prepare the workbook.', 'danger');
     } finally {
+      exportInFlight.current = false;
       setExporting(false);
     }
   };
@@ -324,7 +322,6 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
 
   return (
     <div id="workflow-reports-workspace" className="space-y-6 pb-16 text-left">
-      <PortalToast message={toast} tone={toastTone} />
       <PageHeader
         title={office ? 'Workflow reports' : 'Workflow Analytics'}
         subtitle={currentUserRole === 'Lecturer' ? 'Review waiting requests and assigned evaluation work, then explore workflow outcomes.' : 'Current persisted state across authorised workflow, marks, and timeline records.'}
@@ -513,3 +510,5 @@ export const WorkflowReports: React.FC<WorkflowReportsProps> = ({
     </div>
   );
 };
+
+export const WorkflowReports: React.FC<WorkflowReportsProps> = props => <DecisionFeedbackProvider scopeKey="workflow-reports"><WorkflowReportsContent {...props}/></DecisionFeedbackProvider>;

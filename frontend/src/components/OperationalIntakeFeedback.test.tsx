@@ -27,6 +27,7 @@ test('open submissions show one deadline and no routine check action or card hea
   assert.match(html,/Closes /);
   assert.match(html,/Malaysia, UTC\+08:00/);
   assert.doesNotMatch(html,/<h3|Check period|<button|Opens /);
+  assert.doesNotMatch(html,/bg-amber-50|rounded-full/);
 });
 
 test('unrestricted intake does not invent or imply a configured deadline', () => {
@@ -84,4 +85,11 @@ test('loading, failed and absent checks never show stale open availability', () 
   assert.match(error,/Retry/);
   assert.doesNotMatch(error,/Applications open|Network unavailable|server/);
   assert.match(render(null),/Availability is checked when you submit/);
+});
+
+test('blocked availability uses a separate readable title, date and recheck action', () => {
+  const html=render({...open,canSubmit:false,status:'UPCOMING'});
+  assert.match(html,/<p[^>]*>Applications not open yet<\/p>/);
+  assert.match(html,/sm:flex-row/);
+  assert.doesNotMatch(html,/bg-amber-50|text-amber-900|rounded-full/);
 });

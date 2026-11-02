@@ -1,3 +1,4 @@
+import { useSearchParams } from 'react-router';
 import { WorkspaceFilterCard } from './RequestWorkspacePrimitives';
 import { MarksHeading } from './MarksPrimitives';
 import { PortalSelect } from './PortalSelect';
@@ -11,11 +12,8 @@ import { useListState } from './ListState';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  UserRound,
   Search,
   Files,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { PageHeader, PortalButton } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
@@ -26,7 +24,6 @@ import {
   MarkRecordStatusTab,
 } from '../utils/markRecords';
 import { formatDeadlineText } from '../utils/workflowAgeing';
-import { pageWindow } from '../utils/pageWindow';
 
 interface MarkEntryRecordsProps {
   onBack: () => void;
@@ -43,10 +40,14 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   onNavigateToDossier,
   initialStatusTab: requestedStatusTab = 'All Records',
 }) => {
+  const [scopeParams, setScopeParams] = useSearchParams();
+  const periodScope = scopeParams.get('period');
+  const semesterScope = scopeParams.get('semester');
+  const statusScope = scopeParams.get('status');
   const [allRecords, setRecords] = useState<MarkRecord[]>([]);
   const monitoring = useOfficeMonitoring();
-  const initialStatusTab = monitoring ? 'All Records' : requestedStatusTab;
-  const records = useMemo(() => filterMonitoringMarks(allRecords, monitoring?.view ?? null), [allRecords, monitoring?.view]);
+  const initialStatusTab = monitoring ? 'All Records' : (['All Records', 'Submitted', 'Draft Saved', 'Not Started', 'Overdue'].includes(statusScope ?? '') ? statusScope as MarkRecordStatusTab : requestedStatusTab);
+  const records = useMemo(() => filterMonitoringMarks(allRecords, monitoring?.view ?? null).filter(record => (!periodScope || String(record.periodId) === periodScope) && (!semesterScope || record.semester === semesterScope) && (!(periodScope || semesterScope) || ((!record.taskLifecycleStatus || record.taskLifecycleStatus === 'ACTIVE') && !['DRAFT', 'ARCHIVED'].includes(record.periodLifecycleStatus ?? '')))), [allRecords, monitoring?.view, periodScope, semesterScope]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,6 +86,19 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
     setRouteStatus(initialStatusTab);
   }, [initialStatusTab, routeStatus, setActiveTab, setCurrentPage, setRouteStatus]);
 
+  const scopeKey = `${periodScope ?? ''}|${semesterScope ?? ''}|${statusScope ?? ''}`;
+  const [lastScope, setLastScope] = useListState('MarkEntryRecords', 'overviewScope', '');
+  useEffect(() => {
+    if (lastScope === scopeKey) return;
+    if (periodScope || semesterScope || statusScope) {
+      setSearchQuery(''); setProgrammeFilter('All Programmes'); setSemesterFilter('All Semesters');
+      setPanelFilter('All Members'); setActiveTab(initialStatusTab); setCurrentPage(1);
+      setLegacyFilters({ status: 'All Statuses' });
+    }
+    setLastScope(scopeKey);
+  }, [scopeKey, lastScope, periodScope, semesterScope, statusScope, initialStatusTab, setLastScope,
+    setSearchQuery, setProgrammeFilter, setSemesterFilter, setPanelFilter, setActiveTab, setCurrentPage, setLegacyFilters]);
+
   // Preserve a previously applied dropdown status when returning from older list state.
   const selectedStatus: MarkRecordStatusTab = activeTab !== 'All Records' ? activeTab
     : legacyFilters.status === 'Draft' ? 'Draft Saved'
@@ -92,13 +106,14 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
       ? legacyFilters.status as MarkRecordStatusTab : 'All Records';
   const statusFilters = (['All Records', 'Submitted', 'Draft Saved', 'Not Started', 'Overdue'] as const)
     .map(key => ({ key, count: filterMarkRecordsByStatusTab(records, key).length }));
-  const hasFilters = selectedStatus !== 'All Records' || !!searchQuery
+  const hasFilters = !!periodScope || !!semesterScope || selectedStatus !== 'All Records' || !!searchQuery
     || programmeFilter !== 'All Programmes' || semesterFilter !== 'All Semesters'
     || panelFilter !== 'All Members';
   const clearFilters = () => {
     setSearchQuery(''); setProgrammeFilter('All Programmes'); setSemesterFilter('All Semesters');
     setPanelFilter('All Members'); setActiveTab('All Records'); setCurrentPage(1);
     setLegacyFilters({ status: 'All Statuses' });
+    setScopeParams({ status: 'All Records' });
   };
   const programmeOptions = useMemo(
     () => Array.from(new Set(records.map((record) => record.programme))).filter(Boolean).sort(),
@@ -152,7 +167,6 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   useEffect(() => {
     if (!loading && !error && currentPage > totalPages) setCurrentPage(totalPages);
   }, [loading, error, currentPage, totalPages, setCurrentPage]);
-  const paginationPages = pageWindow(currentPage, totalPages);
   const paginatedRecords = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     return filteredRecords.slice(startIndex, startIndex + itemsPerPage);
@@ -160,7 +174,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
 
   return (
     <div id="mark-entry-records-dashboard" className="marks-workspace space-y-5 text-left relative">
-      
+
       {/* Breadcrumb back link & Title header */}
       <PageHeader
         title="Mark Entry Records"
@@ -175,6 +189,7 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
       <div id="mark-records-table-container" className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-3xs">
         <div id="records-filters-card" className="space-y-4 p-5 md:p-6">
           <MarksHeading icon={Files}>Mark records</MarksHeading>
+          {periodScope && <p className="card-description">Period: {records.find(record => record.periodName)?.periodName ?? 'Selected period'}</p>}
           <WorkspaceFilterCard onReset={clearFilters}
             fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <label htmlFor="records-search" className="form-label min-w-0 sm:col-span-2">Search records
@@ -209,7 +224,6 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                 </PortalSelect>
               </label>
           </WorkspaceFilterCard>
-          {!loading && !error && (monitoring || records.length > 0) ? <p className="card-caption">{monitoring ? 'Counts for this dashboard monitoring view, before search filters.' : 'Status counts before search filters; paused and retired assignments included.'}</p> : null}
         </div>
 
         {loading ? (
@@ -229,85 +243,50 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
           {hasFilters && <span className="card-caption">Filters applied</span>}
         </div>
         <div className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600" role="region" aria-label="Mark record results" tabIndex={0}>
-          <table className="data-table min-w-[980px]">
+          <table data-mark-record-table className="data-table mark-record-results">
             <caption className="sr-only">Mark records matching the selected status and search filters</caption>
             <thead>
               <tr className="data-thead bg-slate-50/30">
                 <th scope="col" className="data-th">Student</th>
-                <th scope="col" className="data-th">Research Title</th>
+                <th scope="col" className="data-th">Research title</th>
+
                 <th scope="col" className="data-th">Evaluator</th>
-                <th scope="col" className="data-th">Semester</th>
                 <th scope="col" className="data-th">Deadline</th>
-                <th scope="col" className="data-th text-center">Total Mark</th>
-                <th scope="col" className="data-th text-center">Status</th>
-                <th scope="col" className="data-th text-right">Action</th>
+
+                <th scope="col" className="data-th text-center">Mark &amp; status</th>
+                <th scope="col" className="data-th">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-sans">
               {paginatedRecords.map((rec) => (
                   <tr key={rec.id} className="hover:bg-slate-55/40 transition-colors">
-                    
-                    {/* Student details with initial circle badge */}
-                    <td className="data-td min-w-[180px] py-4 px-5">
-                      <div className="flex items-center gap-3">
-                        <div aria-hidden="true" className="w-8 h-8 rounded-full bg-blue-100/70 border border-blue-200/50 flex items-center justify-center text-blue-700 text-xs font-extrabold shrink-0">
-                          {rec.studentInitials || rec.studentName.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="flex flex-col text-left">
-                          <span className="card-value text-blue-900 leading-tight">
-                            {rec.studentName}
-                          </span>
-                          <span className="text-xs text-slate-400 font-mono mt-0.5 leading-none">
-                            {rec.studentId}
-                          </span>
-                          <button onClick={() => onViewRecordDetail(rec.id)} aria-label={`View mark record ${rec.id}`}
-                            className="mt-1 text-left text-xs font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600">{rec.id}</button>
-                        </div>
-                      </div>
-                    </td>
 
-                    {/* Thesis title */}
-                    <td className="data-td min-w-[200px] max-w-[240px] whitespace-normal break-words" title={rec.researchTitle}>
-                      {rec.researchTitle}
+                    <td className="data-td">
+                      <span className="mark-record-student">{rec.studentName}</span>
+                      <span className="mark-record-secondary">{rec.studentId}</span>
+                    </td>
+                    <td className="data-td">
+                      <p className="mark-record-research" title={rec.researchTitle}>{rec.researchTitle}</p>
                     </td>
 
                     {/* Panel member examiner */}
                     <td className="data-td">
-                      {rec.panelMember}
-                      {rec.evaluatorRoleLabel && <span className="card-caption mt-1 block">{rec.evaluatorRoleLabel}</span>}
-                    </td>
-
-                    {/* Academic semester */}
-                    <td className="data-td">
-                      {rec.semester}
+                      <span className="mark-record-main-line">{rec.panelMember}</span>
+                      {rec.evaluatorRoleLabel && <span className="mark-record-sub-line">{rec.evaluatorRoleLabel}</span>}
                     </td>
 
                     <td className={`data-td ${rec.deadlineState === 'OVERDUE' ? 'text-rose-600' : ''}`}>
-                      <span className="card-value text-inherit block">{formatDeadlineText(rec)}</span>
+                      <span className="mark-record-main-line">{formatDeadlineText(rec)}</span>
                       {rec.dueAt && (
-                        <span className="card-caption text-slate-400 block mt-0.5">
+                        <span className="mark-record-sub-line">
                           {new Date(rec.dueAt).toLocaleDateString()}
                         </span>
                       )}
                     </td>
 
-                    {/* Total Mark weighting */}
-                    <td className="data-td py-4 px-5 text-center font-sans">
-                      {rec.totalMark === 'Draft' ? (
-                        <span className="card-value text-slate-500 italic block">
-                          Draft
-                        </span>
-                      ) : rec.totalMark !== null ? (
-                        <span className="card-value text-brand-navy">
-                          {rec.totalMark}
-                        </span>
-                      ) : (
-                        <span className="card-value text-slate-300 block">-</span>
-                      )}
-                    </td>
-
                     {/* Styled Status badge */}
-                    <td className="data-td py-4 px-5 text-center">
+                    <td className="data-td py-5 px-6 text-center whitespace-nowrap">
+                      {typeof rec.totalMark === 'number' && <span className="mark-record-score">{rec.totalMark}</span>}
                       {rec.taskLifecycleStatus === 'RETIRED' ? (
                         <span className="inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-xs font-extrabold tracking-wider text-slate-600 uppercase border border-slate-200" title={rec.retirementReason || undefined}>
                           Retired
@@ -341,19 +320,9 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
                     </td>
 
                     {/* Row inspection trigger button */}
-                    <td className="data-td py-4 px-5 text-right whitespace-nowrap">
-                      <div className="flex flex-col items-end gap-1.5">
-                        {onNavigateToDossier && <PortalButton variant="primary" icon={UserRound} className="min-h-11" size="sm"
-                          aria-label={`View student record for ${rec.studentName}`}
-                          onClick={() => onNavigateToDossier(rec.studentId)}
-                        >View student record</PortalButton>}
-                        <button
-                          aria-label={`Open mark record ${rec.id}`}
-                          onClick={() => onViewRecordDetail(rec.id)}
-                          className="min-h-11 py-1.5 px-3 bg-white hover:bg-slate-50 text-brand-navy border border-slate-205 rounded-lg text-xs font-extrabold tracking-wide uppercase transition duration-150 cursor-pointer shadow-2xs"
-                        >
-                          View
-                        </button>
+                    <td className="data-td whitespace-nowrap">
+                      <div className="mark-record-actions">
+                        <PortalButton variant="primary" size="sm" aria-label={`Open mark record ${rec.id}`} onClick={() => onViewRecordDetail(rec.id)}>View marks</PortalButton>
                       </div>
                     </td>
 
@@ -363,48 +332,15 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
           </table>
         </div>
 
-        {/* Pagination bar block row */}
-        <div id="records-pagination-footer" className="px-6 py-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
-          <span className="card-description text-slate-500 font-sans text-left">
-            Showing {filteredRecords.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredRecords.length)} of {filteredRecords.length} filtered records ({records.length} loaded).
-          </span>
-
-          <div className="flex flex-wrap items-center justify-center gap-1.5 font-sans">
-            <button
-              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              aria-label="Previous page"
-              disabled={currentPage === 1}
-              className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-white hover:text-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-
-            {paginationPages.map((pageNum, index) => (
-              <React.Fragment key={pageNum ?? `gap-${index}`}>
-              {pageNum === null ? <span aria-hidden="true" className="px-1 text-slate-400">…</span> : <button
-                aria-label={`Page ${pageNum}`}
-                aria-current={currentPage === pageNum ? 'page' : undefined}
-                onClick={() => setCurrentPage(pageNum)}
-                className={`w-8 h-8 rounded-lg text-xs font-extrabold transition-all cursor-pointer ${
-                  currentPage === pageNum
-                    ? 'bg-black text-white'
-                    : 'border border-slate-200 hover:bg-white text-slate-600'
-                }`}
-              >
-                {pageNum}
-              </button>}
-              </React.Fragment>
-            ))}
-
-            <button
-              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              aria-label="Next page"
-              disabled={currentPage === totalPages}
-              className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-white hover:text-slate-800 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
+        <div id="records-pagination-footer" className="mark-record-pagination">
+          <p className="mark-record-pagination-count">
+            {filteredRecords.length === 1 ? '1 record' : `${(currentPage - 1) * itemsPerPage + 1}–${Math.min(currentPage * itemsPerPage, filteredRecords.length)} of ${filteredRecords.length} records`}
+          </p>
+          <nav aria-label="Mark records pagination" className="mark-record-pagination-controls">
+            <PortalButton size="sm" variant="secondary" aria-label="Previous page" disabled={currentPage === 1} onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}>Previous</PortalButton>
+            <span aria-live="polite" className="mark-record-page-count">Page {currentPage} of {totalPages}</span>
+            <PortalButton size="sm" variant="secondary" aria-label="Next page" disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}>Next</PortalButton>
+          </nav>
         </div>
         </>}
         </>

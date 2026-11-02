@@ -13,8 +13,9 @@ function menuOptions(children: React.ReactNode, groupDisabled = false): SelectMe
     if (!isValidElement<React.OptionHTMLAttributes<HTMLOptionElement> & { children?: React.ReactNode }>(child)) return [];
     if (child.type === Fragment || child.type === 'optgroup') return menuOptions(child.props.children, groupDisabled || !!child.props.disabled);
     if (child.type !== 'option') return [];
+    if (child.props.hidden) return [];
     const label = textContent(child.props.children);
-    return [{ value: String(child.props.value ?? label), label, disabled: groupDisabled || child.props.disabled || child.props.hidden }];
+    return [{ value: String(child.props.value ?? label), label, disabled: groupDisabled || child.props.disabled }];
   });
 }
 

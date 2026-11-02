@@ -1,4 +1,5 @@
 import {DecisionDialog} from './DecisionDialog';
+import {DecisionFeedbackProvider} from './DecisionFeedback';
 import { useReturnToFocusReload } from '../utils/returnToFocus';
 import { RecordPage } from './RecordPage';
 /**
@@ -7,7 +8,6 @@ import { RecordPage } from './RecordPage';
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
 import {
   FileText,
   Plus, 
@@ -30,7 +30,7 @@ import { LecturerResearchWorkspace } from './LecturerResearchWorkspace';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { StudentSupervisorApplications } from './StudentSupervisorApplications';
 import { partitionSupervisorApplications, supervisorResearchPage } from '../utils/supervisorWorkspace';
-import { OperationalIntakeFeedback, useOperationalIntake } from './OperationalIntakeFeedback';
+import { ApplicationAvailabilityModal, isOperationalIntakeBlocked, useOperationalIntake } from './OperationalIntakeFeedback';
 
 interface StudentSupervisorAppointmentProps {
   onShowFAQChatbot?: () => void;
@@ -65,7 +65,11 @@ type SupervisorApplicationDetail = StudentSupervisorApplication & {
   documents: StudentSupervisorApplication['documents'];
 };
 
-export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointmentProps> = ({
+export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointmentProps> = props => (
+  <DecisionFeedbackProvider scopeKey="student-supervisor-workspace"><StudentSupervisorAppointmentContent {...props}/></DecisionFeedbackProvider>
+);
+
+const StudentSupervisorAppointmentContent: React.FC<StudentSupervisorAppointmentProps> = ({
   onShowFAQChatbot,
   initialApplicationId,
   routeView = 'overview',
@@ -77,7 +81,6 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   researchView = 'list', researchRequestId,
   onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile, onNavigateToResearchNew,
 }) => {
-  const [params] = useSearchParams();
   const workflowEligible = !lifecycleStatus || lifecycleStatus === 'ACTIVE';
   const [applications, setApplications] = useState<StudentSupervisorApplication[]>([]);
   const [approvedApplication, setApprovedApplication] = useState<SupervisorApplicationRecord | null>(null);
@@ -87,9 +90,16 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   const [loadingApplications, setLoadingApplications] = useState(true);
   const [applicationsError, setApplicationsError] = useState<string | null>(null);
   const [workspaceBusy, setWorkspaceBusy] = useState(false);
-  const showApplicationAvailability = !initialApplicationId && (routeView === 'overview' || routeView === 'applications')
-    && !approvedApplication && workflowEligible && !(routeView === 'applications' && params.get('view') === 'history');
-  const intake = useOperationalIntake('SUPERVISOR_APPLICATION', undefined, showApplicationAvailability && !loadingApplications && !applicationsError);
+  const [availabilityModalOpen, setAvailabilityModalOpen] = useState(false);
+  const checkingApplication = useRef(false);
+  const applicationActions = useRef<HTMLDivElement>(null);
+  const availabilityWasOpen = useRef(false);
+  useEffect(() => {
+    if (availabilityWasOpen.current && !availabilityModalOpen) applicationActions.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    availabilityWasOpen.current = availabilityModalOpen;
+  }, [availabilityModalOpen]);
+  const closeAvailabilityModal = () => setAvailabilityModalOpen(false);
+  const intake = useOperationalIntake('SUPERVISOR_APPLICATION', undefined, routeView !== 'research' && routeView !== 'newApplication' && !approvedApplication && workflowEligible && !loadingApplications && !applicationsError);
 
   const loadApplications = useCallback((strict=false) => {
     setLoadingApplications(true);
@@ -156,8 +166,18 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
   };
   const handleCancelRequest = () => {setCancellationReason('');setIsCancelConfirmOpen(true);};
 
-  const handleCreateNewApplication = () => {
-    onNavigateToNewApplication?.();
+  const handleCreateNewApplication = async () => {
+    if (checkingApplication.current || intake.loading || loadingApplications || applicationsError || workspaceBusy || !workflowEligible || approvedApplication || partitionSupervisorApplications(applications).pending.length) return;
+    checkingApplication.current = true;
+    try {
+      const current = await intake.refresh();
+      if (!current || isOperationalIntakeBlocked(current)) {
+        setAvailabilityModalOpen(true);
+        return;
+      }
+      setAvailabilityModalOpen(false);
+      onNavigateToNewApplication?.();
+    } finally { checkingApplication.current = false; }
   };
 
   const closeActiveDetail = () => {
@@ -199,18 +219,19 @@ export const StudentSupervisorAppointment: React.FC<StudentSupervisorAppointment
     && capacity.availableSlots <= 0 && capacity.activeLoad + capacity.reservedLoad >= capacity.limit;
   const finalPlaceReserved = !!capacity && capacity.limit != null && capacity.activeLoad < capacity.limit && capacity.reservedLoad > 0;
   const officeManagedReplacement = !!(activeDetailAp?.initiatedByOffice || activeDetailAp?.replacesAppointmentId);
-  const canStartAnotherApplication = workflowEligible && !approvedApplication && !pending.length && !officeManagedReplacement;
+  const canStartAnotherApplication = !intake.loading && !intake.blocked && workflowEligible && !approvedApplication && !pending.length && !officeManagedReplacement;
   const researchPage = routeView === 'research' && researchView !== 'list' ? supervisorResearchPage(researchView) : null;
   const pageHeader = <>
     <PageHeader title={initialApplicationId ? 'Appointment request' : researchPage?.title ?? 'Supervisor Appointments'} subtitle={researchPage?.subtitle ?? (routeView === 'research' ? 'Review your research profile and manage permitted research changes.' : routeView === 'applications' ? 'Track pending requests and review completed applications.' : 'Your current supervisory team and appointment status.')}
       backLabel={initialApplicationId ? backLabel : researchPage ? 'Back to research changes' : undefined} onBack={initialApplicationId ? onNavigateToList : researchPage ? onNavigateToResearchList : undefined}
       actions={!initialApplicationId && !researchPage ? <>
 
-        {routeView !== 'research' && !approvedApplication && workflowEligible ? <div className="flex min-w-0 flex-col items-start gap-3 sm:items-end">
-          {showApplicationAvailability && !loadingApplications && !applicationsError ? <OperationalIntakeFeedback {...intake} onRetry={() => void intake.refresh()} /> : null}
-          <PortalButton variant="primary" className="min-h-11" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0} onClick={handleCreateNewApplication}>New application</PortalButton>
+        {routeView !== 'research' && !approvedApplication && workflowEligible ? <div ref={applicationActions} className="flex min-w-0 flex-wrap items-center gap-3">
+          <PortalButton variant="primary" className="min-h-11" icon={Plus} disabled={loadingApplications || workspaceBusy || pending.length > 0 || intake.loading || !!applicationsError} onClick={handleCreateNewApplication}>New application</PortalButton>
+
         </div> : null}
       </> : undefined} />
+    <ApplicationAvailabilityModal isOpen={availabilityModalOpen} onClose={closeAvailabilityModal} onRetry={() => void handleCreateNewApplication()} {...intake} />
     {!researchPage && !initialApplicationId ? <SupervisorWorkspaceNavigation role="Student" /> : null}
   </>;
 

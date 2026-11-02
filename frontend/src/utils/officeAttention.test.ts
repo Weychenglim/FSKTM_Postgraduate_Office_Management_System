@@ -21,3 +21,8 @@ test('attention opens exact records and the appropriate existing workspaces',()=
   assert.equal(officeAttentionRecordRoute(row('RECONCILIATION_ISSUE')),'/dashboard/workflow-reconciliation');
   assert.equal(officeAttentionRecordRoute({id:'task_upload'} as OfficeAttentionRecord),'/dashboard/timeline');
 });
+
+test('document setup summary and record link directly to requirements',()=>{
+  assert.equal(officeAttentionCategoryRoute({category:'documents',responsibility:'review'} as OfficeAttentionSummary),'/supervisor-appointments/requirements');
+  assert.equal(officeAttentionRecordRoute({recordType:'SUPERVISOR_DOCUMENT_REQUIREMENTS',category:'documents'} as OfficeAttentionRecord),'/supervisor-appointments/requirements');
+});

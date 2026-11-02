@@ -22,10 +22,10 @@ export function AlertListCard({ periods, rubrics, onViewRecords, onManageRubrics
   const items = buildMarksAttentionItems(periods, rubrics).filter(item => item.count > 0);
   const hasTasks = periods.some(period => period.lifecycleStatus !== 'ARCHIVED' && period.taskTotals.total > 0);
   const missingPeriod = !periods.some(period => period.lifecycleStatus !== 'ARCHIVED');
-  const missingSetup = missingPeriod || !rubrics.some(rubric => rubric.isActive && rubric.isReady);
+  const missingSetup = missingPeriod || !rubrics.some(rubric => rubric.isActive && !rubric.isArchived && rubric.isReady);
   return <aside id="attention-needed-card" aria-label="Evaluation checks" className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
     <MarksHeading icon={CircleAlert}>Evaluation checks</MarksHeading>
-    <p className="card-description mt-2"><span className="font-semibold">All non-archived periods</span> and active rubrics.</p>
+    <p className="card-description mt-2"><span className="font-semibold">All non-archived periods</span> and available rubric families.</p>
     {missingSetup ? <div className="mt-4 rounded-lg bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
       <p>{missingPeriod ? 'Start by configuring a mark entry period.' : 'Prepare an active rubric before lecturers begin mark entry.'}</p>
       {missingPeriod ? <Link to={APP_ROUTES.marksConfig} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded px-1 font-semibold text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">Configure period<ChevronRight aria-hidden="true" focusable="false" className="h-4 w-4" /></Link> : null}

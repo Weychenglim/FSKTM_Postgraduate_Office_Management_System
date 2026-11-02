@@ -3,10 +3,14 @@ import { Plus, Trash2 } from 'lucide-react';
 import type { SupervisorCourseResult, SupervisorStudentParticularsData, SupervisorTitleOrigin } from '../types/supervisorSectionA';
 import { appointmentDetailTypography as typography } from './AppointmentPrimitives';
 import { PortalButton } from './PortalPrimitives';
-import { validateProjectCourseCodes } from '../utils/projectCourseCodes';
+import { serializeProjectCourseCodes, validateProjectCourseCodes } from '../utils/projectCourseCodes';
 
 const sectionClass = 'application-section scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7 space-y-5';
 export type ApplicationControlError = { field?: string; message: string } | null;
+
+export function ApplicationRequiredMark() {
+  return <><span className="text-rose-600" aria-hidden="true">*</span><span className="sr-only"> (required)</span></>;
+}
 
 export function ApplicationFieldError({ id, message }: { id: string; message?: string }) {
   return message ? <p id={id} role="alert" className="mt-2 text-xs text-rose-700">{message}</p> : null;
@@ -33,37 +37,31 @@ export function SupervisorStudentParticulars({ particulars, correctionGuidance =
 export function ProjectCourseCodeEntries({ entries, onChange, disabled = false, serverError }: {
   entries: string[]; onChange: (entries: string[]) => void; disabled?: boolean; serverError?: string;
 }) {
-  const error = serverError || validateProjectCourseCodes(entries);
-  const focusAdded = useRef(false);
-  return <fieldset disabled={disabled} className="space-y-3">
-    <legend className="card-label block mb-2">Project course codes <span className="font-normal text-slate-500">(optional)</span></legend>
-    <div className="space-y-3 max-w-xl">{entries.map((code, index) => <div key={index} className="flex items-start gap-2">
-      <div className="min-w-0 flex-1">
-        <label className="sr-only" htmlFor={index === 0 ? 'project-course-codes-input' : `project-course-code-${index}`}>Project course code {index + 1}</label>
-        <input id={index === 0 ? 'project-course-codes-input' : `project-course-code-${index}`} type="text" maxLength={255}
-          className="form-control form-control-md" value={code} placeholder="e.g. WQD7002" aria-invalid={Boolean(error)} aria-describedby={error ? 'project-course-codes-error' : undefined}
-          ref={node => { if (node && focusAdded.current && index === entries.length - 1) { node.focus(); focusAdded.current = false; } }}
-          onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }}
-          onChange={event => onChange(entries.map((entry, row) => row === index ? event.target.value : entry))} />
-      </div>
-      {entries.length > 1 || code ? <PortalButton variant="danger" icon={Trash2} aria-label={`Remove project course code ${index + 1}`} onClick={() => onChange(entries.length === 1 ? [''] : entries.filter((_, row) => row !== index))}>Remove</PortalButton> : null}
-    </div>)}</div>
+  const [touched, setTouched] = useState(false);
+  const value = serializeProjectCourseCodes(entries);
+  const error = serverError || (touched || value ? validateProjectCourseCodes(entries) : null);
+  return <div className="max-w-xl space-y-2">
+    <label className="card-label block" htmlFor="project-course-codes-input">Project course code <ApplicationRequiredMark /></label>
+    <input id="project-course-codes-input" type="text" maxLength={255} required disabled={disabled}
+      className="form-control form-control-md" value={value} placeholder="e.g. WQD7002"
+      aria-invalid={Boolean(error)} aria-describedby={error ? 'project-course-codes-error' : undefined}
+      onBlur={() => setTouched(true)}
+      onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }}
+      onChange={event => onChange([event.target.value])} />
     {error ? <p id="project-course-codes-error" role="alert" className="text-xs text-rose-700">{error}</p> : null}
-    <PortalButton icon={Plus} disabled={disabled || entries.length >= 50 || entries.some(entry => !entry.trim()) || Boolean(error)} onClick={() => { focusAdded.current = true; onChange([...entries, '']); }}>Add course code</PortalButton>
-  </fieldset>;
+  </div>;
 }
 
-export function ResearchTitleOriginFields({ value, onChange, proposalRequirementCode, disabled = false, error }: {
-  value: SupervisorTitleOrigin | ''; onChange: (value: SupervisorTitleOrigin) => void; proposalRequirementCode: string | null; disabled?: boolean; error?: string;
+export function ResearchTitleOriginFields({ value, onChange, disabled = false, error }: {
+  value: SupervisorTitleOrigin | ''; onChange: (value: SupervisorTitleOrigin) => void; disabled?: boolean; error?: string;
 }) {
   return <fieldset className="space-y-2" disabled={disabled}>
-    <legend className="card-label block mb-2">Title proposed by</legend>
+    <legend className="card-label block mb-2">Title proposed by <ApplicationRequiredMark /></legend>
     <div className="flex flex-wrap gap-x-6 gap-y-2">{(['STUDENT', 'SUPERVISOR'] as const).map(origin => <label key={origin} className="flex min-h-11 cursor-pointer items-center gap-2 text-xs text-slate-800">
       <input id={`research-title-origin-${origin}`} type="radio" name="research-title-origin" value={origin} checked={value === origin} onChange={() => onChange(origin)} required aria-invalid={Boolean(error)} aria-describedby={error ? 'research-title-origin-error' : undefined} className="h-4 w-4 accent-indigo-600" />
       {origin === 'STUDENT' ? 'Me' : 'My supervisor'}
     </label>)}</div>
     <ApplicationFieldError id="research-title-origin-error" message={error} />
-    {value === 'STUDENT' && !proposalRequirementCode ? <p role="alert" className="text-xs text-rose-700">The research proposal requirement is not configured. Contact the Postgraduate Office.</p> : null}
   </fieldset>;
 }
 
@@ -88,7 +86,7 @@ export function CoursesTakenSection({ rows, noCoursesTaken, onRowsChange, onNoCo
   return <section id="courses-taken" className={sectionClass} aria-labelledby="courses-taken-title">
     <h3 id="courses-taken-title" tabIndex={-1} className={typography.heading}>Courses taken</h3>
     <fieldset disabled={disabled}>
-      <legend className="card-label block mb-2">Have you completed any courses?</legend>
+      <legend className="card-label block mb-2">Have you completed any courses? <ApplicationRequiredMark /></legend>
       <div className="flex gap-6">{(['yes', 'no'] as const).map(choice => <label key={choice} className="flex min-h-11 cursor-pointer items-center gap-2 text-xs">
         <input id={`completed-courses-${choice}`} type="radio" name="completed-courses" value={choice} required checked={answer === choice} onChange={() => choose(choice)} aria-invalid={Boolean(error && (!error.field || error.field.startsWith('completed-courses-')))} aria-describedby={error && (!error.field || error.field.startsWith('completed-courses-')) ? 'completed-courses-error' : undefined} className="h-4 w-4 accent-indigo-600" />{choice === 'yes' ? 'Yes' : 'No'}
       </label>)}</div>
@@ -109,7 +107,7 @@ export function CoursesTakenSection({ rows, noCoursesTaken, onRowsChange, onNoCo
           ['courseName', 'Course name', 255, 'e.g. Research methods'], ['courseCode', 'Course code', 64, 'e.g. WQD7001'],
           ['semesterSession', 'Semester/session', 64, 'e.g. S1 2026/2027'], ['grade', 'Grade', 32, 'e.g. A'],
         ] as const).map(([field, label, maxLength, placeholder]) => <div key={field} className="min-w-0 space-y-2">
-          <label className="card-label block" htmlFor={`course-${index}-${field}`}>{label}</label>
+          <label className="card-label block" htmlFor={`course-${index}-${field}`}>{label} <ApplicationRequiredMark /></label>
           <input id={`course-${index}-${field}`} className="form-control form-control-md" type="text" required maxLength={maxLength} placeholder={placeholder} value={row[field]}
             aria-invalid={error?.field === `course-${index}-${field}`} aria-describedby={error?.field === `course-${index}-${field}` ? `course-${index}-${field}-error` : undefined}
             ref={node => { if (node && field === 'courseName' && focusAdded.current && index === rows.length - 1) { node.focus(); focusAdded.current = false; } }}
@@ -123,9 +121,9 @@ export function CoursesTakenSection({ rows, noCoursesTaken, onRowsChange, onNoCo
   </section>;
 }
 
-export function SupervisorApplicationReviewSection({ researchTitle, projectCourseCodes, researchArea, researchAbstract, supervisorName, titleOrigin, rows, noCoursesTaken, filenames, declarationText, declarationAccepted, onDeclarationAcceptedChange, disabled = false, particulars, onEdit, declarationError }: {
+export function SupervisorApplicationReviewSection({ researchTitle, projectCourseCodes, researchArea, researchAbstract, supervisorName, titleOrigin, rows, noCoursesTaken, filenames, noDocumentsRequired = false, declarationText, declarationAccepted, onDeclarationAcceptedChange, disabled = false, particulars, onEdit, declarationError }: {
   researchTitle: string; projectCourseCodes: string; researchArea: string; researchAbstract: string; supervisorName: string;
-  titleOrigin: SupervisorTitleOrigin | ''; rows: SupervisorCourseResult[]; noCoursesTaken: boolean; filenames: string[];
+  titleOrigin: SupervisorTitleOrigin | ''; rows: SupervisorCourseResult[]; noCoursesTaken: boolean; filenames: string[]; noDocumentsRequired?: boolean;
   declarationText: string; declarationAccepted: boolean; onDeclarationAcceptedChange: (value: boolean) => void; disabled?: boolean;
   particulars?: SupervisorStudentParticularsData; onEdit?: (target: string) => void;
   declarationError?: string;
@@ -135,7 +133,7 @@ export function SupervisorApplicationReviewSection({ researchTitle, projectCours
     ['Research', researchTitle.trim() || 'Research title missing', 'project-details'],
     ['Courses', noCoursesTaken ? 'No completed courses' : rows.length ? `${rows.length} completed course${rows.length === 1 ? '' : 's'}` : 'Choose Yes or No above', 'courses-taken'],
     ['Supervisor', supervisorName || 'Choose a supervisor', 'supervisor-selection'],
-    ['Documents', filenames.length ? filenames.join(', ') : 'No files selected', 'supporting-documents'],
+    ['Documents', filenames.length ? filenames.join(', ') : noDocumentsRequired ? 'No supporting documents required' : 'No files selected', 'supporting-documents'],
   ];
   return <section id="review-declaration" className={sectionClass} aria-labelledby="review-declaration-title">
     <h3 id="review-declaration-title" tabIndex={-1} className={typography.heading}>Review and declaration</h3>
@@ -155,7 +153,7 @@ export function SupervisorApplicationReviewSection({ researchTitle, projectCours
       <legend className="sr-only">Student declaration</legend>
       <label className="flex cursor-pointer items-start gap-3 text-xs leading-5 text-slate-800">
         <input id="supervisor-declaration" type="checkbox" required checked={declarationAccepted} onChange={event => onDeclarationAcceptedChange(event.target.checked)} aria-invalid={Boolean(declarationError)} aria-describedby={declarationError ? 'supervisor-declaration-error' : undefined} className="mt-0.5 h-4 w-4 shrink-0 accent-indigo-600" />
-        <span id="supervisor-declaration-text">{declarationText || 'Load student particulars to view the declaration.'}</span>
+        <span id="supervisor-declaration-text">{declarationText || 'Load student particulars to view the declaration.'} <ApplicationRequiredMark /></span>
       </label>
       <ApplicationFieldError id="supervisor-declaration-error" message={declarationError} />
     </fieldset>

@@ -10,7 +10,7 @@ export function InformationalEventExtension({entry,onClose,onReload,busy=false}:
   const [reason,setReason]=useState('');
   useEffect(()=>{setDeadline(entry?.deadlineEnd.slice(0,10)??'');setReason('');},[entry?.id,entry?.deadlineEnd]);
   const independent=!!entry&&!entry.operationalPeriodId&&!entry.marksPeriodId;
-  return <DecisionDialog isOpen={independent} decisionKey={entry?`informational-event:${entry.id}:${entry.deadlineEnd}`:undefined} title="Extend calendar date" context={entry?.title} message="Extend this informational calendar event through a complete Malaysia day (UTC+08:00). Record a reason for the calendar audit history." confirmLabel="Save extension" successMessage="Calendar date extended." busy={busy} dirty={!!reason.trim()||deadline!==(entry?.deadlineEnd.slice(0,10)??'')} canConfirm={independent&&!!deadline&&!!reason.trim()} onClose={onClose} onReload={onReload} onConfirm={async()=>{
+  return <DecisionDialog standaloneGuard isOpen={independent} decisionKey={entry?`informational-event:${entry.id}:${entry.deadlineEnd}`:undefined} title="Extend calendar date" context={entry?.title} message="Extend this informational calendar event through a complete Malaysia day (UTC+08:00). Record a reason for the calendar audit history." confirmLabel="Save extension" successMessage="Calendar date extended." busy={busy} dirty={!!reason.trim()||deadline!==(entry?.deadlineEnd.slice(0,10)??'')} canConfirm={independent&&!!deadline&&!!reason.trim()} onClose={onClose} onReload={onReload} onConfirm={async()=>{
     if(!entry||!independent)return false;
     return completeDecision(()=>submitDeadlineExtension({kind:'event',id:entry.id,closesAt:entry.deadlineEnd},'everyone',deadline,reason,{}),onReload);
   }}>

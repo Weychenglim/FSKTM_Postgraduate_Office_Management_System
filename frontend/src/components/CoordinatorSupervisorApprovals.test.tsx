@@ -37,7 +37,10 @@ assert.doesNotMatch(current, />Approve<|>Reject<|Full abstract|Expertise justifi
 const closed = render({ view: 'history' });
 for (const name of ['Rejected applicant', 'Cancelled applicant', 'Approved applicant', 'Ended supporting request']) assert.ok(closed.includes(name));
 assert.doesNotMatch(closed, /Primary applicant|Supporting applicant|>Review request</);
-for (const outcome of ['Completed', 'Rejected', 'Cancelled']) assert.ok(closed.includes(`Waiting at this stage</span>${outcome}</td>`));
+assert.match(closed, /<th[^>]*>Outcome<\/th>/);
+assert.doesNotMatch(closed, /Waiting at this stage|Current stage/);
+assert.equal((current.match(/<table/g)||[]).length,1);
+assert.equal((closed.match(/<table/g)||[]).length,1);
 assert.doesNotMatch(closed, /aria-label="Not applicable"/);
 assert.match(render({ type: 'supporting' }), /Supporting applicant/);
 assert.doesNotMatch(render({ type: 'supporting' }), /Primary applicant/);

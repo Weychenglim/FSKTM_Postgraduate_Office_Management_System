@@ -8,7 +8,7 @@ assert.match(markup, /Semester II 2099\/2100/);
 assert.match(markup, />Preview import<\/span>/);
 assert.doesNotMatch(markup, />Confirm Import<|Validate and Import|were committed/);
 assert.match(markup, /Previewing makes no changes/);
-assert.match(markup, /Activity Code and Period ID/);
+assert.doesNotMatch(markup, /Activity Code|Period ID|Calendar only|Schedule source/);
 const ended = renderToStaticMarkup(<TimelineBar label="Ended event" gridStart={1} gridSpan={1} status="Ended" />);
 assert.match(ended, /bg-slate-200/);
 assert.match(ended, /Ended/);

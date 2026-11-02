@@ -8,7 +8,7 @@ import {SupervisorRequestDetail,toSupervisorRequestPresentation} from '../src/co
 import {officeRequestPresentation} from '../src/components/SupervisorAppointmentManagement';
 import {officeApplicationRecord} from '../src/components/OfficeSupervisorWorkspace';
 import {CoordinatorPrimaryRequestActions} from '../src/components/CoordinatorSupervisorApprovals';
-import {SupervisorCandidateOption} from '../src/components/SupervisorAppointmentApplicationPage';
+import {SupervisorCandidateOption,SupervisorSelectionSummary} from '../src/components/SupervisorAppointmentApplicationPage';
 import {StudentSupervisorApplications} from '../src/components/StudentSupervisorApplications';
 import {toStudentSupervisorApplication} from '../src/services/appointmentsApi';
 import type {SupervisorApplicationRecord,SupervisorAcceptanceCapacity,SupervisorWorkloadSummary,SupervisorRequest} from '../src/types';
@@ -69,10 +69,10 @@ await scenario('supporting acceptance does not promise a primary capacity reserv
  }finally{supportingMode=false;}
 });
 await scenario('full request disables only acceptance and keeps rejection operable',async()=>{
- record={...base,acceptanceCapacity:full};await lecturer();check(button('Accept request')!.disabled,'Full request permits acceptance');check(!button('Reject request')!.disabled,'Full request blocks rejection');check(text().includes('4 active')&&text().includes('1 reserved')&&text().includes('0 available'),'Request capacity breakdown missing');button('Reject request')!.click();await until(()=>document.querySelector('dialog[open] textarea'));check(document.querySelector('dialog[open]')?.textContent?.includes('Reject request'),'Reject dialog unavailable');
+ record={...base,acceptanceCapacity:full};await lecturer();check(button('Accept request')!.disabled,'Full request permits acceptance');check(!button('Reject request')!.disabled,'Full request blocks rejection');check(!document.querySelector('[aria-label="Current request capacity"]'),'Redundant request capacity summary remains');button('Reject request')!.click();await until(()=>document.querySelector('dialog[open] textarea'));check(document.querySelector('dialog[open]')?.textContent?.includes('Reject request'),'Reject dialog unavailable');
 });
 await scenario('existing Supervisory load distinguishes active reserved and available',async()=>{
- await lecturer(false);const card=document.querySelector('[aria-label="Supervisory load"]')!;check(card.textContent?.includes('4 active')&&card.textContent?.includes('1 reserved')&&card.textContent?.includes('0 available'),'Load counts conflate active and reserved');
+ await lecturer(false);const card=document.querySelector('[aria-label="Supervisory load"]')!;check(card.textContent?.includes('awaiting approval')&&!card.querySelector('dl'),'Workload card should have one compact capacity line');
 });
 await scenario('one remaining place warns in the existing load card before review',async()=>{
  await lecturer(false,lastPlaceWorkload);const card=document.querySelector('[aria-label="Supervisory load"]')!;check(card.textContent?.includes('1 place remaining'),'Last place is indistinguishable from ordinary availability');check(card.querySelector('.text-amber-700,.text-amber-800'),'Last place has no warning emphasis');
@@ -102,8 +102,13 @@ await scenario('mobile and desktop review surfaces fit the viewport',async()=>{
 await scenario('capacity-full requests appear in Student history with neutral wording',async()=>{
  let viewed='';await mount(<StudentSupervisorApplications applications={[toStudentSupervisorApplication(closed())]} onViewApplication={id=>viewed=id}/>);check(text().includes('No ongoing supervisor requests'),'Capacity closure appears ongoing');button('History')!.click();await until(()=>document.querySelector('tbody'));check(document.querySelector('tbody')?.textContent?.includes('Capacity full'),'History hides closure outcome');check(!document.querySelector('tbody')?.textContent?.includes('Rejected'),'History invents rejection');button('View request')!.click();check(viewed==='701','History loses request navigation');
 });
-await scenario('candidate control separates reservations and remains selectable without overflow',async()=>{
- let toggles=0;await mount(<SupervisorCandidateOption candidate={{id:'L1',name:'Synthetic Supervisor',initials:'SS',domain:'Computing',filled:5,total:6,activeLoad:4,reservedLoad:1,availableSlots:1,capacityState:'AVAILABLE',selectable:true}} selected={false} onToggle={()=>toggles++}/>);check(text().includes('4 active')&&text().includes('1 reserved')&&text().includes('1 available'),'Candidate capacity is misleading');host.querySelector('button')!.click();check(toggles===1,'Available candidate cannot be selected');check(document.documentElement.scrollWidth<=innerWidth+1,'Candidate card overflows');
+await scenario('candidate choice shows remaining places and selected summary explains reservations',async()=>{
+ const candidate={id:'L1',name:'Synthetic Supervisor',initials:'SS',domain:'Computing',filled:5,total:6,activeLoad:4,reservedLoad:1,availableSlots:1,capacityState:'AVAILABLE' as const,selectable:true};
+ let toggles=0;await mount(<SupervisorCandidateOption candidate={candidate} selected={false} onToggle={()=>toggles++}/>);
+ check(text().includes('1 Supervisor place remaining'),'Candidate does not show its remaining place');host.querySelector('button')!.click();check(toggles===1,'Available candidate cannot be selected');check(document.documentElement.scrollWidth<=innerWidth+1,'Candidate card overflows');
+ await mount(<SupervisorSelectionSummary candidate={candidate} busy={false} onClear={()=>{}}/>);
+ check(text().includes('4 active supervisees')&&text().includes('1 place held pending approval')&&!text().includes('Limit 6'),`Selected supervisor does not explain active and reserved capacity: ${text()}`);
+ check(text().includes('1 Supervisor place remaining')&&document.documentElement.scrollWidth<=innerWidth+1,'Selected supervisor availability or layout is misleading');
 });
 const preview=new URLSearchParams(location.search).get('preview');
 if(preview==='last-place'){record={...base};await lecturer();button('Accept request')!.click();await until(()=>document.querySelector('dialog[open]'));}

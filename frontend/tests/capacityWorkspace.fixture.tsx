@@ -3,6 +3,8 @@ import {createRoot,type Root} from 'react-dom/client';
 import {LecturerCapacityManagement} from '../src/components/LecturerCapacityManagement';
 import {OfficeDashboardLayout} from '../src/components/OfficeDashboardLayout';
 import {RecordPageProvider} from '../src/components/RecordPage';
+import {RecordPage} from '../src/components/RecordPage';
+import {CapacityReassessments} from '../src/components/CapacityReassessments';
 import {createMemoryRouter,RouterProvider} from 'react-router';
 
 const results:{name:string;error?:string}[]=[];
@@ -30,8 +32,12 @@ const newDraft=async(source:string)=>{document.querySelector<HTMLInputElement>('
 const input=(node:HTMLInputElement,value:string)=>{Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(node,value);node.dispatchEvent(new Event('input',{bubbles:true}));};
 const scenario=async(name:string,work:()=>Promise<void>)=>{try{await work();results.push({name});}catch(error){results.push({name,error:String(error)});}};
 const semester={id:9,label:'Semester I 2026/2027',code:'2026-S1',startsOn:'2026-09-01',endsOn:'2027-02-28',lifecycleStatus:'ACTIVE',isActive:true};
+const archivedSemester={...semester,id:77,label:'Archived semester',code:'2028-S1',startsOn:'2028-09-01',endsOn:'2029-02-28',lifecycleStatus:'ARCHIVED',isActive:false};
+let archiveCurrentSemester=false;
 const role={semesterId:9,planId:1,planVersion:1,limit:5,activeLoad:2,reservedLoad:0,availableSlots:3,state:'AVAILABLE',unavailableUntil:null};
 const roster=Array.from({length:27},(_,index)=>({id:index+1,lecturerId:index+1,staffNo:`STAFF-${String(index+1).padStart(2,'0')}`,lecturerName:`Synthetic Lecturer ${String(index+1).padStart(2,'0')}`,participantLifecycle:'ACTIVE',supervisorLimit:5,panelLimit:5,supervisor:role,panel:{...role,activeLoad:1,reservedLoad:1},activeStudentCount:3,primaryStudentCount:1,supportingStudentCount:1,panelStudentCount:1}));
+const reassessment={id:7,kind:'SUPERVISOR',status:'PENDING_OFFICE',latestEventId:3,student:{id:8,name:'Student One',matricNo:'PG001',programme:'Computing'},candidate:{id:9,name:'Dr Candidate'},originalSemester:{id:1,label:'Previous semester',lifecycleStatus:'CLOSED'},originalCapacity:null,currentCapacity:null,authorization:null,history:[],canAuthorize:true,canRevoke:false};
+function NestedReassessment(){const [busy,setBusy]=React.useState(false);return <RecordPage pageKey="office-capacity-record:SUPERVISOR:7" title="Capacity reassessment" backLabel="Back to capacity" onBack={()=>{}} busy={busy}><CapacityReassessments role="Office Staff/Admin" onBusyChange={setBusy}/></RecordPage>;}
 const makePlan=(id:number,status:string,entries:typeof roster)=>({id,semesterId:9,semesterLabel:semester.label,semesterCode:semester.code,version:id,lifecycleStatus:status,isCurrentPublished:status==='PUBLISHED',origin:'CREATED',supersedesId:id>1?1:null,isComplete:entries.length===27,readinessErrors:roster.filter(row=>!entries.some(entry=>entry.lecturerId===row.lecturerId)).map(row=>`${row.staffNo}: capacity entry is required for this Lecturer.`),contentFingerprint:`fingerprint-${id}`,entries,createdAt:'2026-10-01T10:00:00Z',createdBy:{id:99,name:'Synthetic Office'},publicationReason:null});
 let reads:URL[]=[];
 let failAvailability=false;
@@ -41,14 +47,16 @@ restrictions.push({...restrictions[0],id:99,isEffective:false,isCancelled:true,r
 let holdEntryWrites=false,releaseEntryWrite:(()=>void)|null=null,entryFailure=0;
 let holdBulk=false,releaseBulk:(()=>void)|null=null,bulkFailure=0;
 let holdPublish=false,releasePublish:(()=>void)|null=null,publishFailure=0,failAfterPublish=false;
+let holdCreate=false,releaseCreate:(()=>void)|null=null,failAfterCreate=false;
+let holdClone=false,releaseClone:(()=>void)|null=null;
 let plans=[makePlan(2,'DRAFT',roster.slice(0,1)),makePlan(1,'PUBLISHED',roster)],writes:{path:string;body:any}[]=[],failRoster=false,failDiscard=0,failAfterDiscard=false,root:Root|null=null,router:ReturnType<typeof createMemoryRouter>|null=null;
 window.fetch=async(inputValue,init)=>{
   const url=new URL(String(inputValue),location.origin),path=url.pathname;
   if(init?.method&&init.method!=='GET'){
     const body=JSON.parse(String(init.body||'{}'));writes.push({path,body});
-    if(path.endsWith('/capacity-plans/')){const plan=makePlan(Math.max(...plans.map(row=>row.id))+1,'DRAFT',[]);plans=[plan,...plans];return Response.json(plan,{status:201});}
+    if(path.endsWith('/capacity-plans/')){if(holdCreate)await new Promise<void>(resolve=>{releaseCreate=resolve;});const plan=makePlan(Math.max(...plans.map(row=>row.id))+1,'DRAFT',[]);plans=[plan,...plans];if(failAfterCreate)failRoster=true;return Response.json(plan,{status:201});}
     const cloneMatch=path.match(/capacity-plans\/(\d+)\/clone\//);
-    if(cloneMatch){const source=plans.find(row=>row.id===Number(cloneMatch[1]))!;const plan=makePlan(Math.max(...plans.map(row=>row.id))+1,'DRAFT',source.entries);plans=[plan,...plans];return Response.json(plan,{status:201});}
+    if(cloneMatch){if(holdClone)await new Promise<void>(resolve=>{releaseClone=resolve;});const source=plans.find(row=>row.id===Number(cloneMatch[1]))!;const plan=makePlan(Math.max(...plans.map(row=>row.id))+1,'DRAFT',source.entries);plans=[plan,...plans];return Response.json(plan,{status:201});}
     const discardMatch=path.match(/capacity-plans\/(\d+)\/discard\//);
     if(discardMatch){if(failDiscard)return Response.json({error:'Synthetic discard failed'},{status:failDiscard});const plan=plans.find(row=>row.id===Number(discardMatch[1]))!;plans=plans.map(row=>row.id===plan.id?{...row,lifecycleStatus:'DISCARDED'}:row);if(failAfterDiscard)failRoster=true;return Response.json(plans.find(row=>row.id===plan.id));}
     const publishMatch=path.match(/capacity-plans\/(\d+)\/publish\//);
@@ -62,15 +70,17 @@ window.fetch=async(inputValue,init)=>{
     throw new Error(`Unexpected write ${path}`);
   }
   reads.push(url);
-  if(path==='/api/academics/semesters/')return Response.json([semester]);
+  if(path==='/api/appointments/capacity-reassessments/')return Response.json({activeSemester:{id:9,label:semester.label,lifecycleStatus:'ACTIVE'},requests:[reassessment]});
+  if(path==='/api/academics/semesters/')return Response.json([{...semester,...(archiveCurrentSemester?{lifecycleStatus:'ARCHIVED',isActive:false}:{})},archivedSemester]);
   if(path.endsWith('/capacity-workspace/'))return failRoster?Response.json({error:'Synthetic roster unavailable'},{status:503}):Response.json({lecturers:roster,baseline:{activeStudents:54,eligibleLecturers:27,studentsPerLecturer:2}});
   const collection=path.endsWith('/capacity-plans/')?'plans':path.endsWith('/availability/')?'availability':path.endsWith('/capacity-audits/')?'audits':null;
   if(collection){
    if(collection==='availability'&&failAvailability)return Response.json({error:'Synthetic availability failure'},{status:503});
-   let rows:any[]=collection==='plans'?[...plans]:collection==='availability'?[...restrictions]:[{id:1,actor:{id:99,name:'Synthetic Office'},action:'PLAN_CREATED',reason:'Research planning',createdAt:'2026-10-01T10:00:00Z'}];
+   let rows:any[]=collection==='plans'?[...plans]:collection==='availability'?[...restrictions]:[{id:1,semesterId:9,planId:2,planVersion:2,actor:{id:99,name:'Synthetic Office'},action:'PLAN_COPY',beforeValues:{version:1,semesterId:9},reason:'Research planning',createdAt:'2026-10-01T10:00:00Z'},{id:2,semesterId:9,planId:null,planVersion:null,actor:{id:99,name:'Synthetic Office'},action:'AVAILABILITY_CREATE',beforeValues:{},reason:'Availability updated',createdAt:'2026-10-01T09:00:00Z'}];
    const state=url.searchParams.get('status'),q=url.searchParams.get('q')?.toLowerCase();
    if(url.searchParams.get('scope')==='working')rows=rows.filter(row=>['PUBLISHED','DRAFT'].includes(row.lifecycleStatus));
    if(collection==='plans'&&state&&state!=='ALL')rows=rows.filter(row=>row.lifecycleStatus===state);
+   if(collection==='audits'&&url.searchParams.has('version'))rows=rows.filter(row=>row.planVersion===Number(url.searchParams.get('version')));
    if(collection==='availability'){
     if(state==='CURRENT')rows=rows.filter(row=>!row.isCancelled);
     if(state==='CANCELLED')rows=rows.filter(row=>row.isCancelled);
@@ -79,14 +89,29 @@ window.fetch=async(inputValue,init)=>{
    }
    if(q)rows=rows.filter(row=>JSON.stringify(row).toLowerCase().includes(q));
    const total=rows.length,limit=Number(url.searchParams.get('limit')??25),offset=Number(url.searchParams.get('offset')??0);rows=rows.slice(offset,offset+limit);
-   return Response.json(url.searchParams.get('pageResult')==='true'?{rows,total,limit,offset}:rows);
+   return Response.json(url.searchParams.get('pageResult')==='true'?{rows,total,limit,offset,...(collection==='audits'?{versions:plans.map(row=>row.version)}:{})}:rows);
   }
   throw new Error(`Unexpected read ${path}`);
 };
-const mount=async()=>{root?.unmount();router?.dispose();document.getElementById('root')!.innerHTML='';root=createRoot(document.getElementById('root')!);router=createMemoryRouter([{path:'/dashboard/lecturer-capacity',element:<OfficeDashboardLayout enabled><LecturerCapacityManagement onBack={()=>{}}/></OfficeDashboardLayout>},{path:'/elsewhere',element:<p>Other workspace</p>}],{initialEntries:['/elsewhere','/dashboard/lecturer-capacity']});root.render(<RouterProvider router={router}/>);await until(()=>document.querySelector('h1'));await until(()=>!text().includes('Loading Lecturer capacity'));};
+const mount=async()=>{root?.unmount();router?.dispose();document.getElementById('root')!.innerHTML='';root=createRoot(document.getElementById('root')!);router=createMemoryRouter([{path:'/dashboard/lecturer-capacity',element:<OfficeDashboardLayout enabled><LecturerCapacityManagement onBack={()=>{}}/></OfficeDashboardLayout>},{path:'/reassessment',element:<RecordPageProvider><NestedReassessment/></RecordPageProvider>},{path:'/elsewhere',element:<p>Other workspace</p>}],{initialEntries:['/elsewhere','/dashboard/lecturer-capacity']});root.render(<RouterProvider router={router}/>);await until(()=>document.querySelector('h1'));await until(()=>!text().includes('Loading Lecturer capacity'));};
 
 const preview = new URL(parent.location.href).searchParams.get('preview');
 if (!preview) {
+await scenario('archived semesters are excluded from capacity working choices',async()=>{
+ await mount();document.getElementById('capacity-academic-semester')!.click();await until(()=>document.querySelector('[role="listbox"]'));
+ check(![...document.querySelectorAll('[role="option"]')].some(node=>node.textContent?.includes('Archived semester')),'Archived semester is selectable');
+ document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+});
+await scenario('archived semester deep links do not load capacity data',async()=>{
+ const original=location.href;const target=new URL(original);target.searchParams.set('semester','77');history.replaceState(null,'',target);const before=reads.length;
+ try {await mount();await until(()=>text().includes('This semester has been archived'));check(!reads.slice(before).some(url=>url.pathname.includes('/semesters/77/')),'Archived deep link loaded a working collection');check(!text().includes('Synthetic Lecturer 01'),'Archived workspace remains visible');}
+ finally {history.replaceState(null,'',original);}
+});
+await scenario('returning after semester archival removes stale capacity context',async()=>{
+ await mount();await until(()=>text().includes('Synthetic Lecturer 01'));archiveCurrentSemester=true;
+ try {window.dispatchEvent(new Event('blur'));window.dispatchEvent(new Event('focus'));await until(()=>text().includes('This semester has been archived'));check(!text().includes('Synthetic Lecturer 01'),'Archived lecturer workspace remains visible');check((document.getElementById('capacity-academic-semester') as HTMLButtonElement).disabled,'All-archived semester selector is enabled');check(!buttons().some(button=>button.textContent?.trim()==='Start new draft'),'Archived semester still offers draft creation');}
+ finally {archiveCurrentSemester=false;}
+});
 await scenario('overview shows published workload, baseline and responsive paginated roster',async()=>{
  await mount();await until(()=>text().includes('Synthetic Lecturer 01'));
  check(document.querySelector('h1')?.textContent==='Lecturer capacity','Missing workload-first page');
@@ -157,7 +182,7 @@ await scenario('lecturer view modal preserves filters page scroll and trigger fo
 await scenario('dirty edit modal protects cancel escape navigation and browser refresh',async()=>{
  await mount();await click('Continue draft v3');await until(()=>text().includes('Editing draft v3'));await click('Edit limits');await until(()=>document.querySelector('dialog[open] input[type="number"]'));const field=document.querySelector<HTMLInputElement>('dialog input[type="number"]')!;input(field,'7');await new Promise(resolve=>setTimeout(resolve,20));const before=writes.length;
  const unload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(unload);check(unload.defaultPrevented,'Dirty edits lack refresh protection');await click('Cancel');await until(()=>document.querySelectorAll('dialog[open]').length===2);await click('Keep editing');await until(()=>document.querySelectorAll('dialog[open]').length===1);check(field.value==='7','Closing confirmation lost edits');
- void router!.navigate(-1);await until(()=>document.querySelectorAll('dialog[open]').length===2);check(router!.state.location.pathname==='/dashboard/lecturer-capacity','Dirty Back navigation escaped guard');await click('Keep editing');await until(()=>document.querySelectorAll('dialog[open]').length===1);
+ void router!.navigate(-1);await until(()=>document.querySelectorAll('dialog[open]').length===2);check(router!.state.location.pathname==='/dashboard/lecturer-capacity','Dirty Back navigation escaped guard');await click('Stay on this page');await until(()=>document.querySelectorAll('dialog[open]').length===1);
  document.querySelector('dialog[open]')!.dispatchEvent(new Event('cancel',{cancelable:true}));await until(()=>document.querySelectorAll('dialog[open]').length===2);await click('Discard changes');await until(()=>!document.querySelector('dialog[open]'));check(writes.length===before,'Discarding unsaved inputs wrote data');
  await click('Edit limits');await until(()=>document.querySelector('dialog[open] input'));input(document.querySelector<HTMLInputElement>('dialog input[type="number"]')!,'9');await new Promise(resolve=>setTimeout(resolve,20));void router!.navigate('/elsewhere');await until(()=>document.querySelectorAll('dialog[open]').length===2);await click('Discard changes');await until(()=>text().includes('Other workspace'));check(writes.length===before,'Navigation wrote discarded input');
 });
@@ -199,15 +224,15 @@ await scenario('publication modal preserves editor context and protects dirty ca
  check(!document.querySelector('[data-record-page]'),'Publication still replaces the page');check(document.querySelector('[aria-label="Lecturer capacity roster"]')?.isConnected,'Publication unmounted roster');check(document.querySelector('dialog[open]')?.textContent?.includes(semester.label),'Publication lacks semester');
  const before=writes.length;const trigger=buttons().find(node=>node.textContent?.trim()==='Review and publish')!;await click('Cancel');await until(()=>!document.querySelector('dialog[open]'));await until(()=>document.activeElement===trigger);check(document.activeElement===trigger,'Cancel lost trigger focus');
  await click('Review and publish');await until(()=>document.querySelector('dialog[open] textarea'));publicationReason();await new Promise(resolve=>setTimeout(resolve,20));const unload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(unload);check(unload.defaultPrevented,'Publication lacks refresh protection');
- await click('Cancel');await until(()=>text().includes('Discard the information entered'));await click('Keep editing');check(document.querySelector<HTMLTextAreaElement>('dialog textarea')?.value==='Reviewed staffing plan','Cancel lost reason');
- void router!.navigate(-1);await until(()=>document.querySelectorAll('dialog[open]').length===2);check(router!.state.location.pathname==='/dashboard/lecturer-capacity','Publication navigation escaped guard');await click('Keep editing');await until(()=>document.querySelectorAll('dialog[open]').length===1);
- document.querySelector('dialog[open]')!.dispatchEvent(new Event('cancel',{cancelable:true}));await until(()=>text().includes('Discard the information entered'));await click('Discard changes');await until(()=>!document.querySelector('dialog[open]'));check(writes.length===before,'Cancel published limits');
+ await click('Cancel');await until(()=>text().includes('Discard unsaved changes?'));await click('Keep editing');check(document.querySelector<HTMLTextAreaElement>('dialog textarea')?.value==='Reviewed staffing plan','Cancel lost reason');
+ void router!.navigate(-1);await until(()=>document.querySelectorAll('dialog[open]').length===2);check(router!.state.location.pathname==='/dashboard/lecturer-capacity','Publication navigation escaped guard');await click('Stay on this page');await until(()=>document.querySelectorAll('dialog[open]').length===1);
+ document.querySelector('dialog[open]')!.dispatchEvent(new Event('cancel',{cancelable:true}));await until(()=>text().includes('Discard unsaved changes?'));await click('Discard changes');await until(()=>!document.querySelector('dialog[open]'));check(writes.length===before,'Cancel published limits');
  }finally{plans=plans.filter(row=>row.id!==88);}
 });
 await scenario('publication conflict preserves reason and requires reviewing latest draft',async()=>{
  plans=[makePlan(88,'DRAFT',roster),...plans];try{await mount();await openPublication();publicationReason();document.querySelector<HTMLInputElement>('dialog input[type="checkbox"]')!.click();await new Promise(resolve=>setTimeout(resolve,20));publishFailure=409;const before=writes.length;await click('Publish limits');await until(()=>text().includes('Synthetic publication conflict'));
  check(document.querySelector<HTMLTextAreaElement>('dialog textarea')?.value==='Reviewed staffing plan','Conflict lost reason');check(!buttons().some(node=>node.textContent?.trim()==='Publish limits'),'Conflict allows stale retry');check(writes.length===before+1,'Conflict duplicated publication');
- await click('Review latest record');await until(()=>!document.querySelector('dialog[open]'));await click('Review and publish');await until(()=>document.querySelector('dialog[open] textarea'));check(!document.querySelector<HTMLInputElement>('dialog input[type="checkbox"]')?.checked,'Stale review kept consent');check(buttons().find(node=>node.textContent?.trim()==='Publish limits')?.disabled,'Fresh review bypassed confirmation');
+ await click('Review latest record');await until(()=>text().includes('Replace the information entered'));check(document.querySelector<HTMLTextAreaElement>('dialog textarea')?.value==='Reviewed staffing plan','Review prompt erased reason');await click('Keep editing');check(document.querySelector<HTMLTextAreaElement>('dialog textarea')?.value==='Reviewed staffing plan','Keep editing erased reason');await click('Review latest record');await click('Replace and review');await until(()=>!document.querySelector('dialog[open]'));await click('Review and publish');await until(()=>document.querySelector('dialog[open] textarea'));check(!document.querySelector<HTMLInputElement>('dialog input[type="checkbox"]')?.checked,'Stale review kept consent');check(buttons().find(node=>node.textContent?.trim()==='Publish limits')?.disabled,'Fresh review bypassed confirmation');
  }finally{publishFailure=0;plans=plans.filter(row=>row.id!==88);}
 });
 await scenario('publication blocks duplicates and closes safely after committed save with failed refresh',async()=>{
@@ -269,6 +294,13 @@ await scenario('versions and activity are separate collections and filters updat
  check(!buttons().some(button=>button.textContent?.includes('Apply')),'Apply button introduced');
  await click('View activity log');await until(()=>document.querySelector('[aria-label="Capacity activity log"]'));
  check(document.querySelector('h1')?.textContent==='Capacity activity log','Activity heading missing');check(!document.querySelector('[aria-label="Capacity versions"]'),'Versions remains stacked');check(text().includes('Research planning'),'Audit reason missing');
+ check(text().includes('Created from Version 1')&&text().includes('Semester-wide'),'Version/source labels missing');
+ await choose('capacity-activity-version','Version 2');await until(()=>reads.filter(url=>url.pathname.endsWith('/capacity-audits/')).at(-1)?.searchParams.get('version')==='2'&&!text().includes('Semester-wide'));
+ check(text().includes('Research planning'),'Version filter removed the matching event');
+ await click('Clear filters');await until(()=>text().includes('Semester-wide'));
+ await click('Back to Lecturer capacity');await click('Capacity versions');await until(()=>document.querySelector('[aria-label="Capacity versions"]'));
+ buttons().find(button=>button.getAttribute('aria-label')==='View activity for version 2')!.click();await until(()=>document.querySelector('#capacity-activity-version')?.textContent?.trim()==='Version 2'&&!!document.querySelector('[aria-label="Capacity activity log"]'));
+ check(!text().includes('Semester-wide'),'Version shortcut did not filter the audit list');
 });
 await scenario('availability failure is local and retry reloads only its page',async()=>{
  await mount();failAvailability=true;await click('View availability');await until(()=>text().includes('Synthetic availability failure'));check(!document.querySelector('[aria-label="Lecturer availability"]'),'Stale rows shown after failed load');failAvailability=false;await click('Retry');await until(()=>document.querySelector('[aria-label="Lecturer availability"]'));check(document.documentElement.scrollWidth<=innerWidth+1,'Availability overflows viewport');
@@ -310,7 +342,7 @@ await scenario('bulk defaults preserve existing limits and explicit replacement 
  }finally{plans=old;}
 });
 await scenario('bulk dirty cancellation conflict and busy guards protect the reviewed draft',async()=>{
- const old=plans;plans=[makePlan(94,'DRAFT',[]),...plans];try{await mount();await click('Continue draft v94');await until(()=>text().includes('Editing draft v94'));await openBulk();await bulkValues('6','9');const before=writes.length;await click('Cancel');await until(()=>text().includes('Discard the information entered'));await click('Keep editing');check(document.querySelector<HTMLInputElement>('dialog[open] input[type="number"]')?.value==='6','Dirty cancel erased bulk values');await click('Preview changes');bulkFailure=409;await click('Save draft limits');await until(()=>text().includes('Synthetic bulk conflict'));check(!buttons().some(node=>node.textContent?.trim()==='Save draft limits'),'Stale batch can retry without review');await click('Review latest record');await until(()=>!document.querySelector('dialog[open]'));bulkFailure=0;
+ const old=plans;plans=[makePlan(94,'DRAFT',[]),...plans];try{await mount();await click('Continue draft v94');await until(()=>text().includes('Editing draft v94'));await openBulk();await bulkValues('6','9');const before=writes.length;await click('Cancel');await until(()=>text().includes('Discard unsaved changes?'));await click('Keep editing');check(document.querySelector<HTMLInputElement>('dialog[open] input[type="number"]')?.value==='6','Dirty cancel erased bulk values');await click('Preview changes');bulkFailure=409;await click('Save draft limits');await until(()=>text().includes('Synthetic bulk conflict'));check(!buttons().some(node=>node.textContent?.trim()==='Save draft limits'),'Stale batch can retry without review');await click('Review latest record');await until(()=>text().includes('Replace the information entered'));check(document.querySelector('[aria-label="Bulk capacity preview"]')?.textContent?.includes('Not set → 6'),'Review prompt erased bulk preview');await click('Keep editing');check(document.querySelector('[aria-label="Bulk capacity preview"]')?.textContent?.includes('Not set → 6'),'Keep editing erased bulk preview');await click('Review latest record');await click('Replace and review');await until(()=>!document.querySelector('dialog[open]'));bulkFailure=0;
  await openBulk();await bulkValues('6','9');await click('Preview changes');holdBulk=true;await click('Save draft limits');await until(()=>releaseBulk);await click('Save draft limits');await click('Cancel');document.querySelector('dialog[open]')!.dispatchEvent(new Event('cancel',{cancelable:true}));check(document.querySelector('dialog[open]'),'Busy bulk dismissed');check(writes.length===before+2,'Bulk submitted twice');releaseBulk!();releaseBulk=null;await until(()=>!document.querySelector('dialog[open]'));check(plans.find(row=>row.id===94)?.entries.length===27,'Matching selection stopped at current page');
  }finally{bulkFailure=0;holdBulk=false;releaseBulk?.();releaseBulk=null;plans=old;}
 });
@@ -333,6 +365,21 @@ await scenario('bulk filter changes clear prior selection and a failed save reta
 await scenario('lecturer availability navigation starts at top and historical comparison remains available',async()=>{
  await mount();window.scrollTo({top:300,behavior:'instant'});await click('View');await until(()=>document.querySelector('dialog[open]'));await click('View availability');await until(()=>document.querySelector('[aria-label="Lecturer availability"]'));await until(()=>scrollY===0);
  await click('Back to Lecturer capacity');await click('Capacity versions');await until(()=>document.querySelector('[aria-label="Capacity versions"]'));await click('View version');await until(()=>text().includes('Viewing version'));const before=writes.length;await click('Compare versions');await until(()=>text().includes('Capacity version comparison')||document.querySelector('[aria-label="Capacity version comparison"]'));check(writes.length===before,'Comparison wrote data');
+});
+await scenario('dirty lecturer edit protects route navigation and keeps entered limits',async()=>{
+ await mount();await click('Continue draft v2');await click('Edit limits');await until(()=>document.querySelector('dialog[open] input[type="number"]'));const field=document.querySelector<HTMLInputElement>('dialog[open] input[type="number"]')!;input(field,'8');await new Promise(resolve=>setTimeout(resolve,20));await router!.navigate('/elsewhere');await until(()=>text().includes('Discard unsaved changes?'));check(field.value==='8','Navigation prompt lost edit');await click('Stay on this page');check(router!.state.location.pathname==='/dashboard/lecturer-capacity','Keep editing allowed route');check(field.value==='8','Keep editing lost input');
+});
+await scenario('nested reassessment reason is discardable instead of reported as a write',async()=>{
+ await mount();await router!.navigate('/reassessment');await until(()=>buttons().some(node=>node.textContent?.trim()==='Authorize reassessment'));await click('Authorize reassessment');await until(()=>document.querySelector('dialog[open] textarea'));const field=document.querySelector<HTMLTextAreaElement>('dialog[open] textarea')!;Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')!.set!.call(field,'Evaluate carryover');field.dispatchEvent(new Event('input',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,20));await router!.navigate('/elsewhere');await until(()=>text().includes('Discard unsaved changes?')||text().includes('Saving changes'));check(text().includes('Discard unsaved changes?'),'Typed reason was misclassified as a pending write');check(!buttons().find(node=>node.textContent?.trim()==='Discard changes')?.disabled,'Dirty nested reason cannot be discarded');await click('Stay on this page');check(router!.state.location.pathname==='/reassessment','Keep editing allowed route');check(field.value==='Evaluate carryover','Keep editing lost reason');
+});
+await scenario('pending draft creation continues requested route after committed save',async()=>{
+ const old=plans;try{await mount();await click('Prepare limits');await until(()=>text().includes('What would you like to do?'));await newDraft('Blank draft');holdCreate=true;await click('Create draft');await until(()=>releaseCreate);void router!.navigate('/elsewhere');await until(()=>text().includes('Saving changes'));releaseCreate!();releaseCreate=null;await until(()=>router!.state.location.pathname==='/elsewhere');check(plans.length===old.length+1,'Pending route lost committed draft');}finally{holdCreate=false;releaseCreate?.();releaseCreate=null;plans=old;}
+});
+await scenario('committed draft creation with failed refresh remains selected and prevents duplicate creation',async()=>{
+ const old=plans;try{await mount();await click('Prepare limits');await newDraft('Blank draft');failAfterCreate=true;const before=writes.length;await click('Create draft');await until(()=>text().includes('Draft created; refresh needed'));check(writes.length===before+1,'Failed refresh duplicated creation');check(text().includes('Editing draft v'),'Committed draft was lost');check(buttons().find(node=>node.textContent?.trim()==='Review and publish')?.disabled,'Unrefreshed draft allows another action');failRoster=false;await click('Reload limits');await until(()=>!text().includes('Draft created; refresh needed'));}finally{failAfterCreate=false;failRoster=false;plans=old;}
+});
+await scenario('pending published-plan clone continues requested route after committed save',async()=>{
+ const old=plans;try{await mount();await click('Prepare limits');await newDraft('Current published limits');holdClone=true;await click('Create draft');await until(()=>releaseClone);void router!.navigate('/elsewhere');await until(()=>text().includes('Saving changes'));releaseClone!();releaseClone=null;await until(()=>router!.state.location.pathname==='/elsewhere');check(plans.length===old.length+1,'Pending route lost cloned draft');}finally{holdClone=false;releaseClone?.();releaseClone=null;plans=old;}
 });
 
 }

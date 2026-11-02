@@ -54,9 +54,9 @@ window.fetch=async(inputValue,init)=>{
  throw new Error(`Unexpected read ${path}`);
 };
 function MarksContext(){const location=useLocation();return <MarkEntryPeriodConfig contextSearch={location.search} onBack={()=>{}} onManageSemesters={()=>{}}/>;}
-const mount=async(path='/dashboard/periods?semester=9',options:{empty?:boolean;missing?:boolean;closed?:boolean;draft?:boolean;draftMarks?:boolean;many?:boolean;linked?:boolean;enforced?:boolean}={})=>{
+const mount=async(path='/dashboard/periods?semester=9',options:{empty?:boolean;missing?:boolean;closed?:boolean;draft?:boolean;draftMarks?:boolean;many?:boolean;linked?:boolean;linkedMarks?:boolean;enforced?:boolean}={})=>{
  root?.unmount();router?.dispose();document.getElementById('root')!.innerHTML='';
- periods=options.empty?[]:[{...base,...(options.draft?{lifecycleStatus:'DRAFT' as const,effectiveStatus:'DRAFT'}:{})},...(options.closed?[{...base,id:8,semesterId:8,lifecycleStatus:'CLOSED' as const,effectiveStatus:'CLOSED'}]:[])];enforcement={SUPERVISOR_APPLICATION:!!options.enforced,PANEL_RECOMMENDATION:false};entries=options.many?Array.from({length:80},(_,index)=>({...entry,id:12+index,title:`Semester event ${index+1}`})):[{...entry,...(options.linked?{operationalPeriodId:1}:{})}];hasTimeline=!options.missing;calendarFailure=false;failAfterWrite=false;periodFailure=false;failPeriodAfterWrite=false;holdMarksDetail=false;releaseMarksDetail=null;holdMarksWrite=false;releaseMarksWrite=null;failCreationLink=false;holdWindowWrite=false;releaseWindowWrite=null;writes=[];
+ periods=options.empty?[]:[{...base,...(options.draft?{lifecycleStatus:'DRAFT' as const,effectiveStatus:'DRAFT'}:{})},...(options.closed?[{...base,id:8,semesterId:8,lifecycleStatus:'CLOSED' as const,effectiveStatus:'CLOSED'}]:[])];enforcement={SUPERVISOR_APPLICATION:!!options.enforced,PANEL_RECOMMENDATION:false};entries=options.many?Array.from({length:80},(_,index)=>({...entry,id:12+index,title:`Semester event ${index+1}`})):[{...entry,...(options.linked?{operationalPeriodId:1}:options.linkedMarks?{marksPeriodId:4}:{})}];hasTimeline=!options.missing;calendarFailure=false;failAfterWrite=false;periodFailure=false;failPeriodAfterWrite=false;holdMarksDetail=false;releaseMarksDetail=null;holdMarksWrite=false;releaseMarksWrite=null;failCreationLink=false;holdWindowWrite=false;releaseWindowWrite=null;writes=[];
  marksPeriods=[{...marksBase,...(options.draftMarks?{lifecycleStatus:'DRAFT',effectiveStatus:'DRAFT'}:{})},{...marksBase,id:5,name:'Other semester evaluation',semesterId:10},...(options.closed?[{...marksBase,id:6,name:'Closed semester evaluation',semesterId:8,lifecycleStatus:'CLOSED',effectiveStatus:'CLOSED'}]:[])];
  root=createRoot(document.getElementById('root')!);router=createMemoryRouter([{path:'/dashboard/periods',element:<OfficeDashboardLayout enabled><OfficePeriodsManagement onBack={()=>{}} onManageSemesters={()=>{}}/></OfficeDashboardLayout>},{path:'/marks/config',element:<MarksContext/>}],{initialEntries:[path]});root.render(<RouterProvider router={router}/>);await until(()=>document.querySelector('h1'));await until(()=>!text().includes('Loading submission windows')&&!text().includes('Loading academic semesters')&&!text().includes('Loading evaluation periods'));
 };
@@ -65,7 +65,7 @@ if(!preview){
 await scenario('overview replaces tabs and explains actual submission rules',async()=>{
  await mount();await until(()=>document.querySelector('[aria-label="Submission activity overview"]'));
  check(!document.querySelector('[role="tablist"]'),'Button tabs remain');check(document.querySelectorAll('[aria-label="Submission activity overview"] tbody tr').length===3,'Need all three activities');
- check(!document.querySelector('.office-tool-context'),'Semester selection is still a card');check(text().includes('Window dates do not restrict new submissions'),'Disabled rules unclear');check(text().includes('approval or rejection after'),'Pending decisions not explained');
+ check([...document.querySelectorAll('[aria-label="Supervisor applications windows"] th')].map(node=>node.textContent).join('|')==='Window|Programmes|Opens|Closes|Submission access|Action','Window and programme hierarchy unclear');check(document.querySelector('.period-rules')!.querySelectorAll('p').length===1,'Rules repeat hints');check(!document.querySelector('[id="operational-period-1"]')?.textContent?.includes('Timeline:'),'Timeline summary crowds window name');check(!document.querySelector('.office-tool-context'),'Semester selection is still a card');check(text().includes('Dates are unrestricted'),'Disabled rules unclear');check(text().includes('approval or rejection after'),'Pending decisions not explained');
  await click('View Marks evaluations');await until(()=>document.querySelector('#period-panel-MARKS'));
  check(!buttons().some(node=>node.textContent?.trim()==='Add submission window'),'Appointment action leaked into Marks');
  check(document.querySelector<HTMLAnchorElement>('a[href="/marks/config?semester=9"]'),'Marks loses selected semester');check(document.documentElement.scrollWidth<=innerWidth+1,'Page overflows');
@@ -86,8 +86,8 @@ await scenario('empty state and draft form make publication separate from restri
 });
 await scenario('window management keeps dates timeline and audited history together',async()=>{
  await mount();await click('Manage window');await until(()=>document.querySelector('[data-record-page]'));check(text().includes('Main Supervisor intake'),'Window identity lost');check(text().includes('Dates are not enforced'),'Published mistaken for enforced');
- await click('View changes and extra time history');await until(()=>text().includes('No personal extra time granted.'));check(document.querySelector('[aria-label="Extra time history"]'),'History detached from window');
- await click('Back to periods & deadlines');await until(()=>!document.querySelector('[data-record-page]'));check(!document.querySelector('[aria-label="Extra time history"]'),'Record history leaked into overview');
+ document.querySelector<HTMLDetailsElement>('[data-record-page] details')!.open=true;await until(()=>document.querySelector('[aria-label="Window history"]'));check(!text().includes('No personal extra time granted.'),'Empty extra time hint remains');
+ await click('Back to periods & deadlines');await until(()=>!document.querySelector('[data-record-page]'));check(!document.querySelector('[aria-label="Window history"]'),'Record history leaked into overview');
 });
 await scenario('missing timeline offers setup while period access remains available',async()=>{
  await mount('/dashboard/periods?semester=9',{missing:true});await click('Manage window');await until(()=>text().includes('No semester timeline exists yet'));
@@ -108,6 +108,8 @@ await scenario('committed linked event with failed refresh cannot be resubmitted
 await scenario('period anchors still reveal the owning activity',async()=>{
  await mount('/dashboard/periods?semester=9#marks-period-4');await until(()=>document.querySelector('#marks-period-4'));check(document.querySelector('#period-panel-MARKS'),'Marks anchor selected wrong activity');
  await mount('/dashboard/periods?semester=9#operational-period-1');await until(()=>document.activeElement?.id==='operational-period-1');
+ await mount('/dashboard/periods?semester=9&manage=window#operational-period-1');await until(()=>document.querySelector('[data-record-page]'));check(buttons().some(node=>node.textContent?.trim()==='Back to periods & deadlines'),'Linked appointment window not opened');
+ await mount('/dashboard/periods?semester=9&manage=window#marks-period-4');await until(()=>document.querySelector('[data-record-page]'));check(buttons().some(node=>node.textContent?.trim()==='Back to periods & deadlines'),'Linked Marks window not opened');
 });
 await scenario('closed semester keeps appointment edits disabled and Marks recovery available',async()=>{
  await mount('/dashboard/periods?semester=8',{closed:true});check(buttons().find(node=>node.textContent?.trim()==='Add submission window')?.disabled,'Closed semester editable');await click('Manage window');await until(()=>document.querySelector('[data-record-page]'));check(buttons().find(node=>node.textContent?.trim()==='Archive window')?.disabled,'Closed archive enabled');check(!buttons().some(node=>node.textContent?.trim()==='Create linked event'),'Closed calendar editable');await click('Back to periods & deadlines');await until(()=>!document.querySelector('[data-record-page]'));await click('View Marks evaluations');await click('Manage window');await click('Extend deadline');await until(()=>document.querySelector('dialog[open]'));check(text().includes('Selected cases / tasks'),'Closed Marks has no selected-task recovery');check(text().includes('Synthetic Student'),'Eligible unfinished task missing');const everyone=[...document.querySelectorAll<HTMLOptionElement>('dialog option')].find(node=>node.value==='everyone');check(everyone?.disabled,'Closed semester permits blanket extension');
@@ -143,13 +145,13 @@ await scenario('late Marks selection cannot overwrite a newly selected semester 
 await scenario('late Marks save cannot insert an old record into a new semester context',async()=>{
  await mount('/marks/config?semester=9',{draftMarks:true});buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>text().includes('Period configuration'));
  input(document.querySelector<HTMLInputElement>('input[required]')!,'Updated prior semester');await new Promise(resolve=>setTimeout(resolve,20));holdMarksWrite=true;await click('Save changes');await until(()=>releaseMarksWrite!==null);
- await router!.navigate('/marks/config?semester=10');await until(()=>[...document.querySelectorAll('p.card-value')].some(node=>node.textContent==='Semester II 2026/2027'));await until(()=>!text().includes('Loading evaluation periods'));
- holdMarksWrite=false;releaseMarksWrite!();await new Promise(resolve=>setTimeout(resolve,60));check(!text().includes('Updated prior semester'),'Old save inserted into new list');check(!document.querySelector('form'),'Old save reopened editor');
+ void router!.navigate('/marks/config?semester=10');await until(()=>text().includes('Saving changes'));check(router!.state.location.search==='?semester=9','Pending save allowed context replacement');
+ holdMarksWrite=false;releaseMarksWrite!();await until(()=>[...document.querySelectorAll('p.card-value')].some(node=>node.textContent==='Semester II 2026/2027'));await until(()=>!text().includes('Loading evaluation periods'));check(!text().includes('Updated prior semester'),'Old save inserted into new list');check(!document.querySelector('form'),'Old save reopened editor');
 });
 await scenario('creation modal links an existing event in the same draft request',async()=>{
  await mount('/dashboard/periods?semester=9',{empty:true});await click('Add submission window');await until(()=>document.querySelector('dialog[open]'));await choose('submission-window-calendar-event','Existing calendar event');
- check(text().includes('After linking, manage dates through this submission window'),'Date ownership consequence hidden');const form=document.querySelector<HTMLFormElement>('dialog form')!;input(form.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,'Linked intake');await fillSchedule('2026-10-01T08:00','2026-10-20T17:00');await new Promise(resolve=>setTimeout(resolve,20));await click('Create draft');await until(()=>writes.length===1&&!document.querySelector('dialog[open]'));
- check(writes[0].body.timelineEntryId===12,'Event missing from atomic creation');check(writes[0].path==='/api/academics/operational-periods/','Extra link write used');await until(()=>text().includes('Timeline: Linked to Existing calendar event'));check(!enforcement.SUPERVISOR_APPLICATION,'Linking enabled date restrictions');
+ check(text().includes('Saving these dates also updates the calendar'),'Date ownership consequence hidden');const form=document.querySelector<HTMLFormElement>('dialog form')!;input(form.querySelector<HTMLInputElement>('input:not([type="datetime-local"])')!,'Linked intake');await fillSchedule('2026-10-01T08:00','2026-10-20T17:00');await new Promise(resolve=>setTimeout(resolve,20));await click('Create draft');await until(()=>writes.length===1&&!document.querySelector('dialog[open]'));
+ check(writes[0].body.timelineEntryId===12,'Event missing from atomic creation');check(writes[0].path==='/api/academics/operational-periods/','Extra link write used');await click('Manage window');await until(()=>text().includes('Linked: Existing calendar event'));check(!enforcement.SUPERVISOR_APPLICATION,'Linking enabled date restrictions');
 });
 await scenario('creation modal guards dirty dismissal and missing timeline remains optional',async()=>{
  await mount('/dashboard/periods?semester=9',{empty:true,missing:true});const trigger=buttons().find(node=>node.textContent?.trim()==='Add submission window')!;trigger.focus();trigger.click();await until(()=>document.querySelector('dialog[open]'));check(text().includes('No semester timeline exists'),'Missing timeline unexplained');
@@ -195,15 +197,131 @@ await scenario('modal keeps header and footer visible while only its body scroll
  const before=[header.getBoundingClientRect().top,footer.getBoundingClientRect().bottom];body.scrollTop=body.scrollHeight;await new Promise(resolve=>setTimeout(resolve,20));check(Math.abs(header.getBoundingClientRect().top-before[0])<1&&Math.abs(footer.getBoundingClientRect().bottom-before[1])<1,'Shell moved with body scroll');check(footer.getBoundingClientRect().bottom<=window.innerHeight,'Footer outside viewport');check(dialog.scrollWidth<=dialog.clientWidth+1,'Modal overflows horizontally');check(dialog.scrollHeight<=dialog.clientHeight+1,'Outer dialog has a second scrollbar');check(parseFloat(getComputedStyle(dialog.querySelector('.form-label')!).fontSize)>=13,'Labels too small');
 });
 await scenario('linked draft editing explains timeline impact and keeps restrictions separate',async()=>{
- await mount('/dashboard/periods?semester=9',{draft:true,linked:true});await click('Manage window');await until(()=>text().includes('Draft dates do not control submission access'));await click('Edit draft');await until(()=>document.querySelector('dialog[open]'));check(text().includes('Linked timeline event: Existing calendar event'),'Linked edit target missing');check(text().includes('Saving these dates will also update'),'Linked edit impact missing');
+ await mount('/dashboard/periods?semester=9',{draft:true,linked:true});await click('Manage window');await until(()=>text().includes('Publish this draft before its dates can control submissions.'));await click('Edit draft');await until(()=>document.querySelector('dialog[open]'));check(text().includes('calendar event: Existing calendar event'),'Linked edit target missing');check(text().includes('Saving these dates also updates'),'Linked edit impact missing');
 });
 await scenario('extension confirms common timeline changes and personal extra time separately',async()=>{
  await mount('/dashboard/periods?semester=9',{linked:true,enforced:true});await click('Manage window');await click('Extend deadline');await until(()=>document.querySelector('dialog[open]'));const date=document.querySelector<HTMLInputElement>('dialog input[type="datetime-local"]')!;const future=new Date(Date.now()+86400000).toISOString().slice(0,16);input(date,future);await until(()=>text().includes('reopen submissions'));check(text().includes('Saving will also update the displayed event dates'),'Common extension hides timeline effect');const combo=document.querySelector<HTMLButtonElement>('dialog button[role="combobox"]')!;combo.click();await until(()=>document.querySelector('[role="listbox"]'));const selected=[...document.querySelectorAll<HTMLElement>('[role="option"]')].find(node=>node.textContent?.includes('Selected cases'))!;selected.click();await until(()=>text().includes('general deadline and linked timeline remain unchanged'));check(!document.querySelector('[aria-label="Extension impact"]')?.textContent?.includes('reopen submissions'),'Personal extra time claims to reopen common window');
+});
+await scenario('overview enforcement reason protects route navigation and preserves Keep editing',async()=>{
+ await mount('/dashboard/periods?semester=9',{enforced:true});await click('Turn off date restrictions');await until(()=>document.querySelector('dialog[open] textarea'));const field=document.querySelector<HTMLTextAreaElement>('dialog[open] textarea')!;input(field,'Keep my rationale');await new Promise(resolve=>setTimeout(resolve,20));await router!.navigate('/marks/config?semester=9');await until(()=>text().includes('Discard unsaved changes?'));check(field.value==='Keep my rationale','Route prompt lost reason');await click('Stay on this page');check(router!.state.location.pathname==='/dashboard/periods','Keep editing allowed navigation');check(field.value==='Keep my rationale','Keep editing discarded reason');
+});
+await scenario('pending window save continues requested route after commit',async()=>{
+ await mount('/dashboard/periods?semester=9',{empty:true});await click('Add submission window');input(document.querySelector<HTMLInputElement>('dialog input:not([type="datetime-local"])')!,'Pending intake');await fillSchedule('2026-10-01T08:00','2026-10-20T17:00');holdWindowWrite=true;await click('Create draft');await until(()=>releaseWindowWrite);void router!.navigate('/marks/config?semester=9');await until(()=>text().includes('Saving changes')||text().includes('Saving submission window'));releaseWindowWrite!();releaseWindowWrite=null;await until(()=>router!.state.location.pathname==='/marks/config');check(periods.length===1,'Pending route lost committed window');
 });
 
 window.parent.postMessage({type:'periods-workspace-results',results},location.origin);
 } else {
  await mount();
+ if(preview==='restriction-review') {
+  await scenario('shared window is readable once and discard uses a nested modal',async()=>{
+   const prior={scope:base.programmeScope,programmes:base.programmes};base.programmeScope='ALL';base.programmes=[];
+   await mount();base.programmeScope=prior.scope;base.programmes=prior.programmes;
+   await click('Review and enable');await until(()=>document.querySelector('dialog[open]'));
+   const dialog=document.querySelector<HTMLDialogElement>('dialog[open]')!;
+   const review=dialog.querySelector<HTMLElement>('[aria-label="Programme coverage review"]')!;
+   check(review.querySelectorAll('article').length===1,'Shared window repeated for each programme');
+   check(review.querySelectorAll('article ul li').length===PROGRAMME_OPTIONS.length,'Programme coverage lost');
+   check(review.querySelectorAll('dl time').length===2,'Opening/closing schedule not separated');
+   check(dialog.scrollWidth<=dialog.clientWidth+1,'Review overflows horizontally');
+   if(innerWidth>=1024)check(dialog.getBoundingClientRect().width>=700,'Review modal is still too narrow');
+   const checkbox=dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+   const checkboxBounds=checkbox.getBoundingClientRect(),labelBounds=checkbox.nextElementSibling!.getBoundingClientRect();
+   check(Math.abs(checkboxBounds.top-labelBounds.top)<=6,'Acknowledgement checkbox misaligned');
+   checkbox.click();const reason=dialog.querySelector<HTMLTextAreaElement>('textarea')!;input(reason,'Preserve my review');await new Promise(resolve=>setTimeout(resolve,20));
+   await click('Close dialog');await until(()=>document.querySelectorAll('dialog[open]').length===2);
+   const prompt=[...document.querySelectorAll<HTMLDialogElement>('dialog[open]')].at(-1)!;
+   check(prompt.textContent?.includes('Discard unsaved changes?'),'Discard is not a separate modal');
+   check(!dialog.querySelector('[role="alert"]'),'Inline discard box remains');
+   check(prompt.contains(document.activeElement),'Discard modal does not trap focus');
+   await click('Keep editing');await until(()=>document.querySelectorAll('dialog[open]').length===1);
+   check(reason.value==='Preserve my review'&&checkbox.checked,'Keep editing lost input');
+   await click('Close dialog');await until(()=>document.querySelectorAll('dialog[open]').length===2);
+   await click('Discard changes');await until(()=>!document.querySelector('dialog[open]'));
+   check(writes.length===0,'Discard mutated restrictions');
+  });
+  await scenario('coverage gaps remain visible and acknowledgement still gates submission',async()=>{
+   await mount();await click('Review and enable');await until(()=>document.querySelector('dialog[open]'));
+   check(text().includes('No published window. New submissions will be blocked.'),'Coverage gaps hidden');
+   const dialog=document.querySelector<HTMLDialogElement>('dialog[open]')!;
+   check(dialog.scrollWidth<=dialog.clientWidth+1,'Coverage gaps overflow');
+   const confirm=buttons().find(node=>node.textContent?.trim()==='Confirm change')!;
+   input(dialog.querySelector<HTMLTextAreaElement>('textarea')!,'Reviewed programme coverage');await new Promise(resolve=>setTimeout(resolve,20));
+   check(confirm.disabled,'Reason bypassed acknowledgement');dialog.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();await new Promise(resolve=>setTimeout(resolve,20));
+   await click('Confirm change');await until(()=>writes.length===1&&!document.querySelector('dialog[open]'));
+   check(writes[0].body.enabled===true&&writes[0].body.reason==='Reviewed programme coverage','Restriction request changed');
+  });
+  // Leave the populated review visible for the browser runner's screenshot.
+  await mount();await click('Review and enable');await until(()=>document.querySelector('dialog[open]'));
+  window.parent.postMessage({type:'periods-workspace-results',results},location.origin);
+ }
+ if(preview==='window-detail') {
+  await scenario('linked draft has separated cards, clear archive action and expandable history',async()=>{
+   base.history=[{id:1,action:'CREATE',actorName:'Office reviewer',createdAt:'2026-10-01T00:00:00Z',reason:'',before:{},after:{closesAt:base.closesAt}}];
+   await mount('/dashboard/periods?semester=9',{draft:true,linked:true});base.history=[];
+   await click('Manage window');await until(()=>document.querySelector('[data-record-page]'));
+   check(!buttons().some(node=>['Link existing event','Create linked event','Close history'].includes(node.textContent?.trim()??'')),'Redundant link or close controls remain');
+   const record=document.querySelector('[data-record-page]')!;
+   const archive=buttons().find(node=>node.textContent?.trim()==='Archive window')!;
+   check(archive.classList.contains('bg-rose-600')&&archive.classList.contains('text-white'),'Archive is not solid red');
+   check(record.querySelectorAll('dl time').length===2,'Opening/closing dates are missing');
+   check(record.querySelectorAll('dl time > span').length===0,'Schedule still splits date and time into tiny lines');
+   check(record.querySelectorAll('[aria-label="Submission schedule status"] > span').length===1,'Window has duplicate status badges');
+   check(record.textContent?.includes('Malaysia time (UTC+08:00)'),'Schedule timezone missing');
+   const history=record.querySelector<HTMLDetailsElement>('details')!;
+   check(!history.open,'History starts expanded');history.open=true;
+   await until(()=>text().includes('Window created'));
+   check(!text().includes('New deadline:'),'Creation repeats current deadline');
+   check(!text().includes('CREATE ·'),'Raw audit action exposed');
+   history.open=false;await new Promise(resolve=>setTimeout(resolve,30));check(!history.open,'History cannot collapse');
+   await click('Edit draft');await until(()=>document.querySelector('dialog[open]'));
+   const impact=document.querySelector<HTMLElement>('[aria-label="Linked date impact"]')!;
+   check(impact.textContent?.includes('Saving these dates also updates the calendar')&&impact.textContent?.includes('Existing calendar event'),'Linked schedule warning missing');
+   check(!!impact.querySelector('svg')&&impact.classList.contains('bg-blue-50'),'Compact information styling and icon missing');
+   check(!!(impact.compareDocumentPosition(document.getElementById('submission-opens-date')||document.querySelector('dialog input[type="date"]')!)&Node.DOCUMENT_POSITION_FOLLOWING),'Warning must precede schedule inputs');
+   check(document.querySelector('dialog[open]')!.scrollWidth<=document.querySelector('dialog[open]')!.clientWidth+1,'Warning causes modal overflow');
+   await click('Cancel');await until(()=>!document.querySelector('dialog[open]'));
+   await click('Manage window');await until(()=>document.querySelector('[data-record-page]'));
+   await click('Archive window');await until(()=>document.querySelector('dialog[open]'));
+   check(writes.length===0,'Opening archive confirmation mutated data');
+   check(document.documentElement.scrollWidth<=innerWidth+1,'Page overflows');
+  });
+  await scenario('Marks windows use the same connection and history sections',async()=>{
+   await mount('/dashboard/periods?semester=9',{linkedMarks:true});await click('View Marks evaluations');await click('Manage window');
+   await until(()=>document.querySelector('[data-record-page]'));
+   check(!buttons().some(node=>['Link existing event','Create linked event'].includes(node.textContent?.trim()??'')),'Marks offers another link');
+   const history=document.querySelector<HTMLDetailsElement>('[data-record-page] details')!;history.open=true;
+   await until(()=>text().includes('No window changes recorded.'));
+   check(!buttons().some(node=>node.textContent?.trim()==='Close history'),'Marks retains Close history');
+  });
+  window.parent.postMessage({type:'periods-workspace-results',results},location.origin);
+ }
+ if(preview==='window-layout') {
+  await scenario('window dates and status/action columns remain distinct',async()=>{
+   for(const label of ['Supervisor applications windows','Marks evaluation windows']) {
+    if(label==='Marks evaluation windows')await click('View Marks evaluations');
+    const table=document.querySelector<HTMLTableElement>(`table[aria-label="${label}"]`)!;
+    check(table,'Window table missing');
+    const row=table.querySelector('tbody tr')!;
+    const cells=row.querySelectorAll('td');
+    check(cells.length===6,'Six columns required');
+    check(cells[4].children.length===2&&!cells[4].querySelector('p'),'Status must be one badge without a second line');
+    check(cells[4].lastElementChild?.textContent?.trim()===(label==='Supervisor applications windows'?'Dates unrestricted':'OPEN'),'Window status should describe its schedule');
+    for(const index of [2,3]) {
+     check(cells[index].querySelectorAll('time > span').length===2,'Date/time line structure inconsistent');
+     check(cells[index].textContent?.includes('MYT'),'Timezone missing');
+    }
+    if(innerWidth>=1024) {
+     const status=cells[4].getBoundingClientRect(),action=cells[5].getBoundingClientRect();
+     check(status.width>=85&&action.width>=120,'Status/action columns collapsed');
+     check(status.right<=action.left+1,'Status overlaps action');
+     const badge=cells[4].querySelector('span')!.getBoundingClientRect();
+     check(badge.right<=action.left,'Status badge overlaps action');
+    }
+    check(document.documentElement.scrollWidth<=innerWidth+1,'Whole page overflows');
+   }
+  });
+  window.parent.postMessage({type:'periods-workspace-results',results},location.origin);
+ }
  if(preview==='marks')await click('View Marks evaluations');
  if(preview==='window'||preview==='calendar')await click('Manage window');
  if(preview==='calendar')await click('Create linked event');

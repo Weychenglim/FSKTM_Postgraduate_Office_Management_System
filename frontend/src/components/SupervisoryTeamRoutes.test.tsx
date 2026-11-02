@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router';
 import assert from 'node:assert/strict';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -18,7 +19,7 @@ const workspace: SupervisoryWorkspace = {
 };
 
 assert.ok('SupervisoryTeamRouteContent' in supervision, 'Loaded supervisory content supports routed views');
-const render = (view: string, overrides: Record<string, unknown> = {}) => renderToStaticMarkup(React.createElement((supervision as any).SupervisoryTeamRouteContent, { workspace, view, busy: false, lecturerId: '4', search: '', page: 1, onSearch: () => {}, onPage: () => {}, onNavigateToStudent: () => {}, onNominate: () => {}, onEnd: () => {}, onReplace: () => {}, onNominationAction: () => {}, ...overrides }));
+const render = (view: string, overrides: Record<string, unknown> = {}) => renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement((supervision as any).SupervisoryTeamRouteContent, { workspace, view, busy: false, lecturerId: '4', search: '', page: 1, onSearch: () => {}, onPage: () => {}, onNavigateToStudent: () => {}, onNominate: () => {}, onEnd: () => {}, onReplace: () => {}, onNominationAction: () => {}, ...overrides })));
 
 const roster = render('roster');
 for (const text of ['Primary Student', 'PG007', 'Computing MSc', 'Primary supervisor', 'Supporting Student', 'PG008', 'Computing PhD', 'Supporting supervisor', 'View supervision']) assert.ok(roster.includes(text), `Roster missing ${text}`);
@@ -49,8 +50,8 @@ assert.match(history, /Pending another reviewer/, 'Accepted nominations remain r
 assert.doesNotMatch(history, /Actionable nomination justification|Prospective nomination justification|>Accept<|>Reject<|End appointment|Nominate co-supervisor/);
 
 const detail = render('detail', { routeStudentId: 'PG007' });
-for (const text of ['Primary full abstract', 'Current team ended appointment', 'Closed current team nomination', '>Accept<', '>Reject<', 'Nominate co-supervisor', 'End appointment', '>Replace<']) assert.ok(detail.includes(text), `Detail missing ${text}`);
-assert.doesNotMatch(detail, /Supporting Student|Supporting full abstract|Prospective nomination justification|Previous team ended appointment/);
+for (const text of ['Primary full abstract', 'View nomination request', 'End appointment']) assert.ok(detail.includes(text), `Detail missing ${text}`);
+assert.doesNotMatch(detail, /Nominate co-supervisor|>Replace<|>Accept<|>Reject<|Supporting Student|Supporting full abstract|Prospective nomination justification|Previous team ended appointment/);
 assert.match(detail, /<article/,'A shared student card lives inside the consistent detail layout');
 assert.match(render('detail', { routeStudentId: 'PG008' }), /Supporting full abstract/);
 assert.doesNotMatch(render('detail', { routeStudentId: 'PG008' }), /Nominate co-supervisor|>Replace<|End appointment|>Accept</);

@@ -126,7 +126,8 @@ const lecturerRequests = renderRoute({ role: 'Lecturer', rows: researchQueue, re
 assert.match(lecturerRequests, /<table/);
 assert.match(lecturerRequests, /<th[^>]*>Waiting at this stage<\/th>/);
 assert.doesNotMatch(lecturerRequests, /Research request #| · Waiting/, 'Research request lists omit references and separate stage from age');
-assert.match(lecturerRequests, /Needs your review|Awaiting Coordinator approval/);
+assert.equal((lecturerRequests.match(/<table/g)||[]).length,1);
+assert.doesNotMatch(lecturerRequests, /Other ongoing requests|<h3[^>]*>Needs your review/);
 assert.doesNotMatch(lecturerRequests, />Awaiting Coordinator approval</, 'Legacy research requests await the primary Supervisor');
 const researchFilters = renderToStaticMarkup(<research.CoordinatorResearchFilters
   query={{}} onFilter={() => {}}
@@ -141,7 +142,8 @@ assert.doesNotMatch(lecturerRequests, /Current research profile/, 'Profiles do n
 const lecturerHistory = renderRoute({ role: 'Lecturer', rows: researchQueue, requestView: 'history' });
 assert.match(lecturerHistory, /Final Outcome Student/);
 assert.doesNotMatch(lecturerHistory, /Awaiting Lecturer Student|Awaiting Coordinator Student/);
-assert.match(lecturerHistory, /Waiting at this stage<\/span>Completed<\/td>/);
+assert.match(lecturerHistory, /<th[^>]*>Outcome<\/th>/);
+assert.doesNotMatch(lecturerHistory, /Waiting at this stage|Final request outcomes/);
 const manyResearchRows = Array.from({ length: 26 }, (_, index) => ({ ...researchQueue[0], id: 100 + index, studentName: `Paged research student ${index}` }));
 assert.equal((renderRoute({ role: 'Lecturer', rows: manyResearchRows, requestPageSize: 25 }).match(/>Review request</g) ?? []).length, 25);
 const lastResearchPage = renderRoute({ role: 'Lecturer', rows: manyResearchRows, requestPageSize: 25, requestPage: 2 });

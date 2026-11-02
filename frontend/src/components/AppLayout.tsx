@@ -22,6 +22,7 @@ interface AppLayoutProps {
   onNotificationsTrigger: () => void;
   userName: string;
   userRole: string;
+  feedbackScopeKey?: string;
   
   // Handlers for modal interactions
   activeModal: 'help' | null;
@@ -36,6 +37,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   onNotificationsTrigger,
   userName,
   userRole,
+  feedbackScopeKey,
   activeModal,
   setActiveModal
 }) => {
@@ -46,7 +48,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   );
 
   return (
-    <DecisionFeedbackProvider scopeKey={`${userName}:${userRole}`}>
+    <DecisionFeedbackProvider scopeKey={feedbackScopeKey ?? `${userName}:${userRole}`}>
     <div id="master-portal-viewport" className="min-h-screen w-full flex bg-[#f1f5f9] text-left">
       {/* 1. Left navigation sidebar (collapsible drawer) */}
       <Sidebar

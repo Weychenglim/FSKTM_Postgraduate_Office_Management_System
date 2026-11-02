@@ -1,3 +1,4 @@
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 import { PortalModal } from './PortalModal';
 /**
  * @license
@@ -26,7 +27,7 @@ import {
   BellOff
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalToast, SegmentedControl, StatusDot } from './PortalPrimitives';
+import { PageHeader, PortalButton, SegmentedControl, StatusDot } from './PortalPrimitives';
 
 type FeedTab = 'announcements' | 'notifications';
 const FEED_TABS: readonly FeedTab[] = ['announcements', 'notifications'];
@@ -194,7 +195,7 @@ interface NotificationsAnnouncementsProps {
   onOpenWorkflowRecord?: (notification: NotificationItem) => void;
 }
 
-export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProps> = ({
+const NotificationsContent: React.FC<NotificationsAnnouncementsProps> = ({
   onBack,
   onOpenWorkflowRecord,
 }) => {
@@ -205,7 +206,7 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   // Interactive dialog visibility states
   const [selectedNotification, setSelectedNotification] = useState<NotificationItem | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [toast, setToast] = useState<string | null>(null);
+  const publish = useDecisionFeedback()!;
 
   // Bell view is split into two tabs. Announcements are the broadcast feed
   // (already built); Notifications are personal system events (supervisor
@@ -213,10 +214,6 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   // modules publish non-announcement notifications.
   const [activeTab, setActiveTab] = useState<'announcements' | 'notifications'>('announcements');
 
-  const triggerToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3500);
-  };
 
   const priorityLabel = (priority: string) =>
     priority === 'high' ? 'High Priority' : priority === 'medium' ? 'Medium Priority' : 'General';
@@ -224,9 +221,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   const handleMarkAllRead = async () => {
     try {
       await markAllRead();
-      triggerToast('All notifications marked as read.');
+
     } catch (err) {
-      triggerToast(`Error: ${err instanceof Error ? err.message : 'Failed to update.'}`);
+      publish(err instanceof Error ? err.message : 'Failed to update notifications.', 'danger');
     }
   };
 
@@ -237,9 +234,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
     const nextUnread = !target.isUnread;
     try {
       await markRead(id, !nextUnread);
-      triggerToast(`Marked notification as ${nextUnread ? 'unread' : 'read'}.`);
+
     } catch (err) {
-      triggerToast(`Error: ${err instanceof Error ? err.message : 'Failed to update.'}`);
+      publish(err instanceof Error ? err.message : 'Failed to update notifications.', 'danger');
     }
   };
 
@@ -247,9 +244,9 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
     if (!notif.announcementId || !notif.attachmentName) return;
     try {
       await downloadAnnouncementAttachment(notif.announcementId, notif.attachmentName);
-      triggerToast(`Downloading ${notif.attachmentName}…`);
+      publish(`Attachment prepared: ${notif.attachmentName}. Your browser will handle the download.`, 'success');
     } catch (err) {
-      triggerToast(`Error: ${err instanceof Error ? err.message : 'Download failed.'}`);
+      publish(err instanceof Error ? err.message : 'Could not prepare the attachment.', 'danger');
     }
   };
 
@@ -308,7 +305,6 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
   return (
     <div id="notifications-announcements-root" className="space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
-      <PortalToast message={toast} />
 
       <PageHeader
         title="Notifications & Announcements"
@@ -548,3 +544,5 @@ export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProp
     </div>
   );
 };
+
+export const NotificationsAnnouncements: React.FC<NotificationsAnnouncementsProps> = props => <DecisionFeedbackProvider scopeKey="notifications"><NotificationsContent {...props}/></DecisionFeedbackProvider>;

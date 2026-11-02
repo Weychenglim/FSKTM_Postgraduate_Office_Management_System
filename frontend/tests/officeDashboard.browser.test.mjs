@@ -25,6 +25,6 @@ test('Office Dashboard integration at desktop and narrow viewports',{timeout:240
     const encoded=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];assert.ok(encoded&&encoded!=='RUNNING',stdout.slice(-2000));
     const result=JSON.parse(encoded.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
     console.log(result.results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
-    assert.equal(result.results.length,16);assert.deepEqual(result.results.filter(row=>row.error),[]);
+    assert.equal(result.results.length,17);assert.deepEqual(result.results.filter(row=>row.error),[]);
   }}finally{await server.close();const resolved=await realpath(directory),within=relative(await realpath(tmpdir()),resolved);assert.ok(!isAbsolute(within)&&!within.startsWith('..')&&basename(resolved).startsWith('office-dashboard-ux-'));await rm(resolved,{recursive:true,force:true,maxRetries:5,retryDelay:200});}
 });

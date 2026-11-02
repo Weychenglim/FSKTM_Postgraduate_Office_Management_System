@@ -1,5 +1,5 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
-import {Archive, CheckCircle2, Clock3, Gauge} from 'lucide-react';
+import {Archive, CheckCircle2, Clock3, Gauge, RefreshCw} from 'lucide-react';
 import type {AcademicSemester, SemesterActivationReadiness} from '../types/academicSemester';
 import type {ClosurePreview} from '../types/marks';
 import {activateAcademicSemester, getSemesterActivationReadiness} from '../services/academicSemestersApi';
@@ -77,7 +77,7 @@ export function SemesterActivationSection({semester, dirty, busy, onCapacity, on
 
   return <>
     {isDraft ? <OfficeToolSection title="Activation readiness" description="Prepare this semester now. Activate it only when all checks are ready."
-      actions={<StatusBadge tone={checking?'neutral':readiness?.canActivate?'success':'warning'}>{checking?'Checking':readiness?.canActivate?'Ready':'Not ready'}</StatusBadge>}>
+      actions={<><StatusBadge tone={checking?'neutral':readiness?.canActivate?'success':'warning'}>{checking?'Checking':readiness?.canActivate?'Ready':'Not ready'}</StatusBadge><PortalButton size="sm" variant="secondary" icon={RefreshCw} isLoading={checking} disabled={busy||dirty||checking} onClick={()=>{void refresh().catch(()=>{});}}>Refresh checks</PortalButton></>}>
       <div className="px-5">
         {checking&&!open ? <p role="status" className="py-5 text-sm text-slate-600">Checking semester dates and lecturer limits…</p> : null}
         {error ? <div role="alert" className="space-y-3 py-5"><p className="text-sm text-rose-700">{error}</p><PortalButton size="sm" onClick={()=>{void refresh().catch(()=>{});}}>Retry checks</PortalButton></div> : null}
@@ -95,7 +95,7 @@ export function SemesterActivationSection({semester, dirty, busy, onCapacity, on
       <div className="space-y-3 border-t border-slate-200 px-5 py-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <PortalButton variant="primary" disabled={busy||dirty||checking||!!error||!readiness?.canActivate} onClick={()=>{setReason('');setOpen(true);}}>Review activation</PortalButton>
-          <div className="flex flex-wrap gap-2"><PortalButton size="sm" variant="ghost" disabled={busy||dirty||checking} onClick={()=>{void refresh().catch(()=>{});}}>Refresh checks</PortalButton><PortalButton size="sm" variant="ghost" icon={Archive} disabled={busy||dirty} onClick={onArchive}>Archive draft</PortalButton></div>
+          <PortalButton size="sm" variant="dangerSolid" icon={Archive} disabled={busy||dirty} onClick={onArchive}>Archive draft</PortalButton>
         </div>
         <p className="text-xs leading-relaxed text-slate-600">{dirty?'Save your changes before reviewing activation or opening lecturer capacity.':readiness&&!readiness.canActivate?'Resolve the checks above before activation.':'Activation uses Malaysia time (UTC+08:00). All checks run again when you confirm.'}</p>
       </div>

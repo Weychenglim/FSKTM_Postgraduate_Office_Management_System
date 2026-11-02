@@ -308,6 +308,21 @@ export async function createSupervisorApplication(
   );
 }
 
+export interface SupervisorDocumentSetup {
+  noDocumentsRequired: boolean;
+  configured: boolean;
+}
+
+export async function getSupervisorDocumentSetup(): Promise<SupervisorDocumentSetup> {
+  return request<SupervisorDocumentSetup>('/appointments/supervisor/document-requirements/setup/');
+}
+
+export async function updateSupervisorDocumentSetup(noDocumentsRequired: boolean, reason: string): Promise<SupervisorDocumentSetup> {
+  return request<SupervisorDocumentSetup>('/appointments/supervisor/document-requirements/setup/', {
+    method: 'PATCH', body: JSON.stringify({ noDocumentsRequired, reason }),
+  });
+}
+
 export async function getActiveSupervisorDocumentRequirements(): Promise<SupervisorDocumentRequirement[]> {
   return request<SupervisorDocumentRequirement[]>(
     '/appointments/supervisor/document-requirements/active/',

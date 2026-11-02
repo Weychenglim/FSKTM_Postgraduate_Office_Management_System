@@ -1,3 +1,4 @@
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 import {PanelAcceptanceMessage} from './PanelCapacityNotice';
 import type {AppointmentMarkingTarget} from '../utils/appointmentMarking';
 import {PanelSuperviseesWorkspace,PanelNominationRecords} from "./PanelSuperviseesWorkspace";
@@ -57,9 +58,9 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalToast, ProgressBar, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, ProgressBar, StatusBadge } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
-import { AppointmentSection, AppointmentSummaryCard, AppointmentMemberCard } from './AppointmentPrimitives';
+import { AppointmentSection, AppointmentSummaryCard, AppointmentMemberCard, AppointmentWorkloadDetails } from './AppointmentPrimitives';
 import { LecturerAppointmentGuidance } from './LecturerAppointmentGuidance';
 import { RecommendPanelMemberDrawer } from './RecommendPanelMemberDrawer';
 import { SubmittedRecommendationsPage } from './SubmittedRecommendationsPage';
@@ -355,6 +356,7 @@ export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReview
   return <RecordPage title={appointmentView?'Panel appointment':'Panel recommendation'} metadata={appointmentView?undefined:<RequestMetadata {...panelRecordMetadata(recommendation)}/>} backLabel={sourceRequest?'Back to Panel appointment':backLabel} onBack={sourceRequest?()=>setSourceRequest(false):onClose} pageKey={routed ? undefined : `panel-review:${recommendation.id}`} dirty={!!rejectionReason.trim()} busy={busy}>
     {appointmentView?<PanelAssignmentDetails busy={busy} onViewRequest={()=>setSourceRequest(true)} record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={lifecycleActions}/>:<PanelRecommendationDetail record={recommendation} contextAction={<ViewStudentRecordAction studentId={recommendation.studentId} onOpen={onOpenStudent} disabled={busy}/>} actions={canAct||recommendation.participantEligible===false?<>
       {recommendation.participantEligible===false?<p className="card-description text-amber-800">This Student is {recommendation.participantLifecycleStatus?.toLowerCase()}; decisions require an eligible Student.</p>:null}
+      {canAct&&capacityBlocked?<p className="card-description text-amber-800">{capacity&&['FULL','OVER_CAPACITY'].includes(capacity.state)?'No places available. You can still reject this request.':'Acceptance is unavailable under the current capacity policy. You can still reject this request.'}</p>:null}
       {canAct?<PrimaryRequestDecisionButtons positiveLabel={reviewerRole==='SELECTED_PANEL'?'Accept request':'Approve request'} disabled={busy} positiveDisabled={capacityBlocked} onPositive={()=>setConfirmingAcceptance(true)} onReject={()=>setRejecting(true)}/>:null}
     </>:undefined} administration={<PanelAppointmentRecordCard compact record={recommendation} actions={lifecycleActions}/>}/>}
             <DecisionDialog isOpen={rejecting || confirmingAcceptance} decisionKey={recommendation.id}
@@ -397,7 +399,7 @@ interface LecturerPanelAppointmentsProps {
   onNavigateToDossier?: (studentId: string) => void;
 }
 
-export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = ({
+const LecturerPanelContent: React.FC<LecturerPanelAppointmentsProps> = ({
   currentUser,
   detailBackLabel = 'Back to Panel Appointments',
   initialRecommendationId,
@@ -426,15 +428,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   }, [initialRecommendationId]);
   const isCoordinator = currentUser?.role === 'Programme Coordinator';
 
-  // Toast Notification
-  const [toastText, setToastText] = useState<string | null>(null);
-
-  const triggerToast = (msg: string) => {
-    setToastText(msg);
-    setTimeout(() => {
-      setToastText(null);
-    }, 4500);
-  };
+  const publishFeedback = useDecisionFeedback()!;
 
   // Panel assignments, recommendation drafts, and the submitted-recommendation
   // History is loaded from the persisted appointment API.
@@ -712,7 +706,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
       setSubmittedRecs([newRec, ...submittedRecs]);
       setIsRecommendDrawerOpen(false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-      triggerToast(`Recommendation submitted to Panel member ${newRec.recommendedMember}.`);
+      publishFeedback(`Recommendation submitted to Panel member ${newRec.recommendedMember}.`, 'success');
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : 'Failed to save panel recommendation.');
     } finally { mutation.current = false; setMutationBusy(false); }
@@ -789,7 +783,6 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
   return (
     <div id="lecturer-panel-module-container" className="space-y-6 text-left pb-12">
 
-      <PortalToast message={toastText} />
 
       {selectedSuperviseeId&&!isCoordinator ? selectedSubmittedId!==null||isRecommendDrawerOpen ? null : <RecordPage title="Student Panel details" backLabel="Back to My supervisees" onBack={returnToSupervisees}>
         {loading ? <LoadingState message="Loading student Panel details…"/> : error ? <ErrorState message={error} onRetry={()=>void loadData()}/> : selectedSupervisee ?
@@ -805,7 +798,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             <PanelSuperviseesWorkspace students={eligibleSupervisees} recommendations={submittedRecs} onOpenStudent={openSupervisee} onOpenRecords={openNominationRecords}/>
           </>:null}
           {section==='appointments'?<>
-            {!isCoordinator?<AppointmentSummaryCard icon={Users} title="Panel workload" value={activeAssignmentsCount} progress={ownPanelCapacity?.capacityState!=='NOT_CONFIGURED'&&workloadLimit>0?{current:activeAssignmentsCount,max:workloadLimit}:undefined} badge={ownPanelCapacity?.capacityState==='AVAILABLE'&&ownPanelCapacity.availableSlots===1?'1 place remaining':ownPanelCapacity?.capacityState?capacityStateLabel(ownPanelCapacity.capacityState):'Not configured'} tone={ownPanelCapacity?.selectable&&ownPanelCapacity.availableSlots!==1?'success':'warning'} description={`${ownPanelCapacity?.semesterCode??'No active semester'} · Includes active assignments and reserved nominations.`}/>:null}
+            {!isCoordinator?<AppointmentSummaryCard icon={Users} title="Panel workload" value={activeAssignmentsCount} progress={ownPanelCapacity?.capacityState!=='NOT_CONFIGURED'&&workloadLimit>0?{current:activeAssignmentsCount,max:workloadLimit}:undefined} badge={ownPanelCapacity?.capacityState==='AVAILABLE'&&ownPanelCapacity.availableSlots===1?'1 place remaining':ownPanelCapacity?.capacityState?capacityStateLabel(ownPanelCapacity.capacityState):'Not configured'} tone={ownPanelCapacity?.selectable&&ownPanelCapacity.availableSlots!==1?'success':'warning'} supportingContent={<AppointmentWorkloadDetails active={ownPanelCapacity?.confirmedAppointments??0} reserved={ownPanelCapacity?.pendingNominations??0} available={ownPanelCapacity?.capacityState==='NOT_CONFIGURED'?undefined:ownPanelCapacity?.availableSlots} unavailable={ownPanelCapacity?.capacityState==='TEMPORARILY_UNAVAILABLE'?'Temporarily unavailable':undefined}/>}/>:null}
             {isCoordinator?<PanelAssignmentsWorkspace role="coordinator" records={coordinatorWorkspace?.records??[]} suspended={!!selectedRecommendation}
               onOpen={row=>{setSelectedReviewerRole('PROGRAMME_COORDINATOR');setSelectedRecommendationReadOnly(true);setSelectedRecommendation(row as PanelRecommendationDraft);}}/>
               :<PanelBrowse scope="lecturer-appointments" title="My Panel students" appointments records={assignments.map(toAssignmentPanelPresentation)} onOpen={row=>onNavigateToAssignment?.(row.studentId,row.appointmentLifecycle?.appointmentId)}/>}
@@ -828,6 +821,7 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
             (candidate) => candidate.staffId !== replacementAssignment?.currentPanelMemberId,
           )}
           replacementMember={replacementAssignment?.currentPanelMember}
+          replacementAppointmentId={replacementAssignment?.panelAppointmentId}
           onSubmit={(notes, candidateId, replacementReason) => {
             createRecommendation(notes, candidateId, replacementReason);
           }}
@@ -860,3 +854,5 @@ export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps>
     </div>
   );
 };
+
+export const LecturerPanelAppointments: React.FC<LecturerPanelAppointmentsProps> = props => <DecisionFeedbackProvider scopeKey="panel-appointments"><LecturerPanelContent {...props}/></DecisionFeedbackProvider>;

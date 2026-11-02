@@ -1,4 +1,3 @@
-import {PanelCapacityNotice} from './PanelCapacityNotice';
 import {AppointmentRecordSection} from './AppointmentSidebar';
 import React from 'react';
 import {BookOpen, ListChecks, UserRound} from 'lucide-react';
@@ -65,7 +64,6 @@ export function PanelRecommendationDetail({record,actions,administration,context
       {hasSidebar?<aside data-panel-review aria-label="Recommendation review and appointment" className="min-w-0 space-y-7">{hasReview?<SupervisionDetailSection title="Review and outcome" icon={ListChecks}>
         {started?<ApprovalProcess steps={progress} headingAs="h3"/>:null}
         {record.rejectionReason||record.cancellationReason?<dl className="border-t border-slate-100 pt-6">{fact(record.rejectionReason?'Rejection reason':'Cancellation reason',record.rejectionReason||record.cancellationReason)}</dl>:null}
-        {['SUBMITTED_TO_PANEL','PENDING_COORDINATOR'].includes(record.status)?<PanelCapacityNotice capacity={record.acceptanceCapacity}/>:null}
         {actions?<div className="border-t border-slate-100 pt-6"><RequestDetailActions>{actions}</RequestDetailActions></div>:null}
       </SupervisionDetailSection>:null}
       {administration}

@@ -10,22 +10,22 @@ import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 
 // Actual components, production CSS and isolated HTTP fixture. Never calls live APIs.
-test('Capacity workspace interactions and responsive layout',{timeout:240000},async()=>{
+test('Capacity workspace interactions and responsive layout',{timeout:420000},async()=>{
   let executable;
   for(const path of [process.env.CHROME_PATH,join(process.env.PROGRAMFILES||'C:/Program Files','Google/Chrome/Application/chrome.exe'),join(process.env['PROGRAMFILES(X86)']||'C:/Program Files (x86)','Microsoft/Edge/Application/msedge.exe')].filter(Boolean))try{await access(path);executable=path;break;}catch{}
   assert.ok(executable,'Chrome/Edge required');
   const directory=await mkdtemp(join(tmpdir(),'capacity-workspace-'));
-  const server=await createServer({configFile:false,root:fileURLToPath(new URL('../',import.meta.url)),logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null},plugins:[{name:'capacity-workspace-fixture',configureServer(vite){vite.middlewares.use((req,res,next)=>{
+  const server=await createServer({configFile:false,root:fileURLToPath(new URL('../',import.meta.url)),cacheDir:join(directory,'vite-cache'),logLevel:'error',server:{host:'127.0.0.1',port:0,hmr:false,watch:null},plugins:[{name:'capacity-workspace-fixture',configureServer(vite){vite.middlewares.use((req,res,next)=>{
     const url=new URL(req.url,'http://localhost');if(url.pathname!=='/capacity-workspace-test')return next();res.setHeader('Content-Type','text/html');
     if(url.searchParams.has('frame'))res.end('<!doctype html><html><head><link rel="stylesheet" href="/src/index.css"></head><body style="padding:16px"><div id="root"></div><script type="module" src="/tests/capacityWorkspace.fixture.tsx"></script></body></html>');
     else res.end(`<!doctype html><html><body style="margin:0;background:#e2e8f0;display:flex;justify-content:center"><iframe title="Capacity workspace fixture" style="border:0;width:${Number(url.searchParams.get('width'))}px;height:1200px" src="/capacity-workspace-test?frame"></iframe><pre id="test-results" style="display:none">RUNNING</pre><script>addEventListener('message',event=>{if(event.origin===location.origin&&event.data.type==='capacity-workspace-results')document.getElementById('test-results').textContent=JSON.stringify(event.data)});</script></body></html>`);
   });}},tailwindcss()]});
   try{await server.listen();for(const width of [1440,1280,390,320]){
-    const {stdout}=await promisify(execFile)(executable,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',`--user-data-dir=${join(directory,`profile-${width}`)}`,'--window-size=1400,1250','--dump-dom','--virtual-time-budget=60000',`--screenshot=${join(tmpdir(),`capacity-workspace-${width}.png`)}`,`${server.resolvedUrls.local[0]}capacity-workspace-test?width=${width}`],{timeout:75000,maxBuffer:3*1024*1024,windowsHide:true});
+    const {stdout}=await promisify(execFile)(executable,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',`--user-data-dir=${join(directory,`profile-${width}`)}`,'--window-size=1400,1250','--dump-dom','--virtual-time-budget=60000',`--screenshot=${join(directory,`capacity-workspace-${width}.png`)}`,`${server.resolvedUrls.local[0]}capacity-workspace-test?width=${width}`],{timeout:75000,maxBuffer:3*1024*1024,windowsHide:true});
     const encoded=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];assert.ok(encoded&&encoded!=='RUNNING',stdout.slice(-2000));
     const result=JSON.parse(encoded.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
     console.log(result.results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
-    assert.equal(result.results.length,38);assert.deepEqual(result.results.filter(row=>row.error),[]);
+    assert.equal(result.results.length,46);assert.deepEqual(result.results.filter(row=>row.error),[]);
   }
   for(const width of [1440,390]) for(const view of ['overview','availability','history','editor','editor-selected','editor-footer','details','edit','publish','bulk','bulk-settings']) {
     await promisify(execFile)(executable,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',`--user-data-dir=${join(directory,`preview-${view}-${width}`)}`,'--window-size=1400,1250','--dump-dom','--virtual-time-budget=10000',`--screenshot=${join(tmpdir(),`capacity-${view==='history'?'versions':view}-${width}.png`)}`,`${server.resolvedUrls.local[0]}capacity-workspace-test?width=${width}&preview=${view}`],{timeout:30000,maxBuffer:3*1024*1024,windowsHide:true});

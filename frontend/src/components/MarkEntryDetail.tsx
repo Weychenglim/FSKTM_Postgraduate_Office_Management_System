@@ -1,3 +1,5 @@
+import {formatMalaysiaDateTime} from '../utils/malaysiaDateTime';
+import {SubmissionAvailabilityNotice} from './OperationalIntakeFeedback';
 import { MarksHeading } from './MarksPrimitives';
 import { DecisionDialog } from './DecisionDialog';
 import type { DecisionOutcome } from '../utils/decisionSubmission';
@@ -59,6 +61,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   const [showValidation, setShowValidation] = useState(false);
   const [submitted, setSubmitted] = useState(task.status === 'SUBMITTED');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [reviewedTask, setReviewedTask] = useState<EvaluationTask | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveFeedback, setSaveFeedback] = useState<FormFeedbackState | null>(null);
   const [draftSaved, setDraftSaved] = useState(false);
@@ -83,13 +86,13 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
     setDraftConflict(false);
     submissionAttempt.current = null;
   } : undefined;
-  const save = async (submit: boolean) => {
-    if (savingRef.current || draftConflict) return false;
+  const save = async (submit: boolean, reviewed?: EvaluationTask) => {
+    if (savingRef.current || draftConflict || submitted || task.canEdit !== true || (submit && task.canSubmit !== true)) return false;
     savingRef.current = true;
     setSaving(true);
     setSaveFeedback(null);
     try {
-      const payload = buildTask(submit ? 'SUBMITTED' : 'DRAFT SAVED');
+      const payload = submit && reviewed ? reviewed : buildTask(submit ? 'SUBMITTED' : 'DRAFT SAVED');
       if (submit) {
         const snapshot = JSON.stringify({ taskId: payload.id, version: payload.writeVersion, components: payload.components, comments: payload.comments });
         if (submissionAttempt.current?.snapshot !== snapshot) submissionAttempt.current = { snapshot, id: crypto.randomUUID() };
@@ -151,7 +154,10 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
 
   const requestSubmission = () => {
     setShowValidation(true);
-    if (!isReadOnly && !draftConflict && task.canSubmit === true && errors.length === 0) setConfirmOpen(true);
+    if (!isReadOnly && !draftConflict && task.canSubmit === true && errors.length === 0) {
+      setReviewedTask(buildTask('SUBMITTED'));
+      setConfirmOpen(true);
+    }
   };
 
   return (
@@ -172,15 +178,22 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
 
     <fieldset id="mark-entry-detail-page" disabled={saving} className="marks-workspace space-y-6 text-left">
       <DecisionDialog isOpen={confirmOpen} decisionKey={task.id} kind="confirmation"
-        title="Submit and lock marks?" context={<p>{task.studentName} · {task.studentId} · {evaluatorRoleLabel(task)}</p>}
-        message="Submitted marks lock immediately. Authorized Office staff can reopen them only while the period is open."
+        title="Submit and lock marks?" context={<p>{task.studentName} · {task.studentId} · Task #{task.id} · {evaluatorRoleLabel(task)}</p>}
+        message={<div className="space-y-3"><p>Submitted marks lock immediately. Authorized Office staff can reopen them only while the period is open.</p>
+          <ul>{reviewedTask?.components.map(component => <li key={component.id} className="border-t border-slate-100 py-2">
+            <strong>{component.name}: {component.marksAwarded ?? '—'} / {component.maxMarks}</strong>
+            <p className="whitespace-pre-wrap">Feedback: {component.feedback || 'None'}</p>
+          </li>)}</ul>
+          <p className="whitespace-pre-wrap">Overall comments: {reviewedTask?.comments || 'None'}</p>
+          <p className="font-semibold">Total: {(reviewedTask?.components || []).reduce((sum, component) => sum + Number(component.marksAwarded || 0), 0).toFixed(2)} / {maximum.toFixed(2)}</p>
+        </div>}
         confirmLabel="Submit and lock marks" cancelLabel="Review again" tone="warning"
-        canConfirm={!isReadOnly && task.canSubmit === true && errors.length === 0} busy={saving}
-        successMessage="Marks submitted and locked." onReload={reload} onConfirm={() => save(true)} onClose={() => setConfirmOpen(false)} />
+        canConfirm={!!reviewedTask && !isReadOnly && task.canSubmit === true && errors.length === 0} busy={saving}
+        recoveryDirty={dirty} successMessage="Marks submitted and locked." onReload={reload} onConfirm={() => save(true, reviewedTask!)} onClose={() => {setConfirmOpen(false); setReviewedTask(null);}} />
 
-      {task.periodEffectiveStatus ? <p className="card-description text-slate-600">Period: {task.periodEffectiveStatus}</p> : null}
-      {task.completionWindow ? <p className="card-description text-sky-800">Completion window · {task.completionWindow.status} · Due {new Date(task.effectiveDueAt || task.completionWindow.deadline).toLocaleString('en-MY', { timeZone: 'Asia/Kuala_Lumpur' })} (Malaysia)</p> : null}
-      {isReadOnly && !submitted ? <p className="card-description text-slate-600">This task is currently read only.</p> : null}
+      {!submitted && (isReadOnly || task.completionWindow?.status === 'ACTIVE') ? <SubmissionAvailabilityNotice ariaLabel="Marking availability"
+        title={isReadOnly ? (['SCHEDULED', 'UPCOMING'].includes(task.periodEffectiveStatus || '') ? 'Marking not open yet' : ['CLOSED', 'ENDED', 'ARCHIVED'].includes(task.periodEffectiveStatus || '') ? 'Marking closed' : 'Marking unavailable') : 'Extra time available'}
+        description={isReadOnly ? 'This task is read only. Marks cannot be saved or submitted.' : <>Your deadline: {formatMalaysiaDateTime(task.effectiveDueAt || task.completionWindow!.deadline)}</>} /> : null}
       {components.length === 0 ? (
         <PortalCard padding="lg" className="rounded-lg">
           <div className="card-description flex items-start gap-3 text-amber-800">

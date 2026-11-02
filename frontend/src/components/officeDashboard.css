@@ -199,10 +199,17 @@
  [data-office-dashboard] .period-overview-table th:nth-child(2) { width:28%; }
  [data-office-dashboard] .period-overview-table th:nth-child(3) { width:25%; }
  [data-office-dashboard] .period-overview-table th:last-child { width:13%; }
- [data-office-dashboard] .period-workspace .data-th:first-child { width:26%; }
- [data-office-dashboard] .period-workspace .data-th:nth-child(2),[data-office-dashboard] .period-workspace .data-th:nth-child(3) { width:20%; }
- [data-office-dashboard] .period-workspace .data-th:nth-child(4) { width:14%; }
- [data-office-dashboard] .period-workspace .data-th:last-child { width:20%; }
+ [data-office-dashboard] .period-window-table { overflow-x:auto; }
+ [data-office-dashboard] .period-window-table .data-table { min-width:900px; }
+ [data-office-dashboard] .period-window-table .data-th:first-child { width:20%; }
+ [data-office-dashboard] .period-window-table .data-th:nth-child(2) { width:17%; }
+ [data-office-dashboard] .period-window-table .data-th:nth-child(3),[data-office-dashboard] .period-window-table .data-th:nth-child(4) { width:17%; }
+ [data-office-dashboard] .period-window-table .data-th:nth-child(4) { width:14%; }
+ [data-office-dashboard] .period-window-table .data-th:nth-child(5) { width:18%; }
+ [data-office-dashboard] .period-window-table .data-th:last-child { width:14%; }
+ [data-office-dashboard] .period-window-table :is(.data-th,.data-td,.data-td-strong) { padding-left:12px; padding-right:12px; vertical-align:top; }
+ [data-office-dashboard] .period-window-table .data-td:nth-child(5) { white-space:nowrap; }
+
 }
 @media(max-width:639px) { [data-office-dashboard] .period-rules { align-items:flex-start; flex-direction:column; gap:16px; } }
 @media(max-width:639px) {
@@ -625,17 +632,17 @@
  [data-office-dashboard] .capacity-publication-footer > button { margin-top:0; width:100%; }
 }
 [data-office-dashboard] .capacity-history-row { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:16px; padding-bottom:16px; border-bottom:1px solid #e2e8f0; font-size:13px; line-height:1.6; }
-[data-office-dashboard] .capacity-preparation-form { color:#334155; }
-[data-office-dashboard] .capacity-preparation-intro { max-width:72ch; font-size:14px; line-height:1.65; margin-bottom:24px; }
+[data-office-dashboard] .capacity-preparation-form { display:grid; gap:28px; padding:12px; color:#334155; }
+[data-office-dashboard] .capacity-preparation-intro { max-width:none; margin:0; font-size:14px; line-height:1.65; }
 [data-office-dashboard] .capacity-preparation-fields { min-width:0; }
-[data-office-dashboard] .capacity-preparation-modes { display:flex; flex-wrap:wrap; gap:16px 28px; margin:20px 0 24px; }
+[data-office-dashboard] .capacity-preparation-modes { display:flex; flex-wrap:wrap; gap:20px 32px; margin:24px 0 28px; }
 [data-office-dashboard] .capacity-preparation-modes label { display:flex; align-items:flex-start; gap:10px; font-size:14px; line-height:20px; font-weight:600; cursor:pointer; }
 [data-office-dashboard] .capacity-preparation-modes input { width:16px; height:16px; margin-top:2px; accent-color:#0c1424; }
 [data-office-dashboard] .capacity-preparation-modes label:has(input:disabled) { color:#64748b; cursor:default; }
 [data-office-dashboard] .capacity-preparation-modes small { display:block; font-size:12px; font-weight:400; }
 [data-office-dashboard] .capacity-preparation-choice { display:grid; gap:10px; max-width:600px; }
 [data-office-dashboard] .capacity-preparation-description { color:#475569; font-size:14px; line-height:1.65; }
-[data-office-dashboard] .capacity-preparation-footer { display:flex; justify-content:flex-end; margin-top:28px; padding-top:20px; border-top:1px solid #e2e8f0; }
+[data-office-dashboard] .capacity-preparation-footer { display:flex; justify-content:flex-end; margin-top:4px; padding-top:24px; border-top:1px solid #e2e8f0; }
 [data-office-dashboard] .capacity-version-filter { display:grid; gap:8px; padding:16px 20px 0; max-width:300px; }
 [data-office-dashboard] .capacity-versions-section { overflow:visible; }
 [data-office-dashboard] .capacity-versions-table :is(.data-td,.data-td-strong) { vertical-align:top; font-size:13px; color:#334155; line-height:1.6; }
@@ -674,18 +681,21 @@
 
 /* Timeline uses the shared responsive tables with the capacity text scale. */
 [data-office-dashboard] .timeline-workspace-table :is(.data-td,.data-td-strong) { vertical-align:top; color:#334155; font-size:13px; line-height:1.6; }
+[data-office-dashboard] #timeline-records-box td { padding:20px 16px; }
+[data-office-dashboard] #timeline-records-box .timeline-entry-actions { align-items:center; }
 @media (min-width:1024px) {
- [data-office-dashboard] #timeline-records-box :is(th,td) { padding-left:12px; padding-right:12px; }
- [data-office-dashboard] #timeline-records-box th:first-child { width:22%; }
+ [data-office-dashboard] #timeline-records-box { overflow-x:auto; }
+ [data-office-dashboard] #timeline-records-box table { min-width:1120px; }
+ [data-office-dashboard] #timeline-records-box th { padding:14px 16px; }
+ [data-office-dashboard] #timeline-records-box th:first-child { width:18%; }
  [data-office-dashboard] #timeline-records-box th:nth-child(2) { width:12%; }
  [data-office-dashboard] #timeline-records-box th:nth-child(3),
  [data-office-dashboard] #timeline-records-box th:nth-child(4) { width:11%; }
- [data-office-dashboard] #timeline-records-box th:nth-child(6) { width:13%; }
- [data-office-dashboard] #timeline-records-box th:nth-child(5) { width:10%; }
- [data-office-dashboard] #timeline-records-box td:nth-child(5) span,
- [data-office-dashboard] #timeline-records-box td:nth-child(6) > span { white-space:nowrap; }
- [data-office-dashboard] #timeline-records-box :is(th,td):last-child { width:21%; text-align:left; }
- [data-office-dashboard] #timeline-records-box td:last-child > div { justify-content:flex-start; flex-wrap:wrap; }
+ [data-office-dashboard] #timeline-records-box th:nth-child(5) { width:13%; }
+ [data-office-dashboard] #timeline-records-box th:nth-child(6) { width:17%; }
+ [data-office-dashboard] #timeline-records-box th:last-child { width:18%; }
+ [data-office-dashboard] #timeline-records-box :is(th,td):last-child { text-align:left; }
+ [data-office-dashboard] #timeline-records-box .timeline-entry-actions { flex-wrap:nowrap; }
  [data-office-dashboard] #recent-timeline-updates-card th:last-child { width:42%; }
 }
 
@@ -696,7 +706,7 @@
 [data-office-dashboard] .capacity-policy-value { margin-top:4px; font-size:18px; line-height:1.4; font-weight:700; color:#0f172a; }
 [data-office-dashboard] .capacity-policy-draft { border-top:1px solid #e2e8f0; background:#f8fafc; border-radius:0 0 16px 16px; }
 [data-office-dashboard] .capacity-policy-draft p + p { margin-top:4px; }
-[data-office-dashboard] .capacity-planning-reference { padding:16px; border:1px solid #e2e8f0; border-radius:12px; font-size:14px; line-height:1.6; }
+[data-office-dashboard] .capacity-planning-reference { margin:0; padding:20px; border:1px solid #e2e8f0; border-radius:12px; font-size:14px; line-height:1.6; }
 [data-office-dashboard] .capacity-planning-reference summary { cursor:pointer; font-weight:600; color:#334155; }
 @media(max-width:639px) {
  [data-office-dashboard] .capacity-policy-published, [data-office-dashboard] .capacity-policy-draft { flex-wrap:wrap; padding-left:16px; padding-right:16px; }
@@ -722,3 +732,32 @@
  [data-office-dashboard] .reconciliation-workspace table[aria-label="Reconciliation issues"] th:last-child { width:14%; }
 }
 [data-office-dashboard] [data-record-page]:has(.reconciliation-review) h1[tabindex="-1"]:focus { outline: none; }
+
+/* Compact calendar status and secondary row actions. */
+[data-office-dashboard] #timeline-records-box .timeline-linked-status { display:grid; justify-items:start; gap:6px; }
+[data-office-dashboard] #timeline-records-box .timeline-entry-actions > a { white-space:nowrap; }
+[data-office-dashboard] #timeline-records-box .timeline-delete-button { width:34px; height:34px; padding:0; flex-shrink:0; gap:0; }
+
+/* Keep the destructive action aligned regardless of the management label. */
+[data-office-dashboard] #timeline-records-box .timeline-entry-actions > :first-child { width:100px; min-width:100px; justify-content:center; white-space:nowrap; }
+
+/* The narrow home preview needs a compact, left-aligned empty state. */
+:where(.office-home) .home-attention-empty {
+  display: flex;
+  grid-column: 2 / -1;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 20px 22px;
+  font-size: 12px;
+  line-height: 20px;
+  color: #64748b;
+}
+:where(.office-home) .home-attention-empty svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #059669;
+}
+:where(.office-home) .home-attention-empty p { margin: 0; }
+@container (max-width:1039px) and (min-width:680px) {
+  :where(.office-home) .home-attention-empty { align-self: center; padding: 20px; }
+}

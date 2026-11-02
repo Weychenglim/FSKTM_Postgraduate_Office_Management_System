@@ -74,6 +74,7 @@ type SetupPeriod = {
 };
 
 type SetupRubric = {
+  isArchived?: boolean;
   isReady: boolean;
   isActive: boolean;
 };
@@ -113,7 +114,7 @@ export function buildMarksSetupChecklist(
   const currentPeriods = periods.filter(period => period.lifecycleStatus !== 'ARCHIVED');
   const hasPeriod = currentPeriods.length > 0;
   const hasReadyRubric = rubrics.some(
-    (rubric) => rubric.isActive && rubric.isReady,
+    (rubric) => rubric.isActive && !rubric.isArchived && rubric.isReady,
   );
   const totalTasks = currentPeriods.reduce(
     (total, period) => total + period.taskTotals.total,
@@ -173,7 +174,7 @@ export function buildMarksAttentionItems(
     0,
   );
   const unreadyRubrics = rubrics.filter(
-    (rubric) => rubric.isActive && !rubric.isReady,
+    (rubric) => rubric.isActive && !rubric.isArchived && !rubric.isReady,
   ).length;
   return [
     {

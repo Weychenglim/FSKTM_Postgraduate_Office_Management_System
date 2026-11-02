@@ -60,7 +60,7 @@ function StudentApplicationWorkspace({ applications, onViewApplication }: Studen
     <RequestFilters onReset={()=>setParams(current=>clearAppointmentFilterParams(current),{replace:true,state:location.state})} search={search} onSearch={value => setFilter('q', value)} searchPlaceholder="Supervisor name, research title or request reference" status={status} statuses={statuses} onStatus={value => setFilter('status', value)} from={from} onFrom={value => setFilter('from', value)}>
       <label className="form-label">Request type<PortalSelect className="form-control form-control-sm mt-1" value={type} onChange={event => setFilter('type', event.target.value)}><option value="all">All types</option><option value="primary">Primary supervisor</option><option value="replacement">Replacement supervisor</option></PortalSelect></label>
     </RequestFilters>
-    {visible.length ? <WorkspaceRecordTable identityLabel="Supervisor" label="Supervisor application records" rows={visible.slice((page - 1) * pageSize, page * pageSize).map(app => ({
+    {visible.length ? <WorkspaceRecordTable history={view === 'history'} identityLabel="Supervisor" label="Supervisor application records" rows={visible.slice((page - 1) * pageSize, page * pageSize).map(app => ({
       key: app.id, studentName: app.supervisor,
       matricNo: app.unavailableUntil ? `Unavailable for new appointments until ${app.unavailableUntil}` : '',
       kind: app.replacesAppointmentId ? 'Replacement supervisor' : 'Primary supervisor', submittedAt: applicationDate(app.date),

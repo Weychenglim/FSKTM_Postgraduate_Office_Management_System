@@ -58,8 +58,10 @@ export function OfficeAttentionPage({onBack,onOpen}:{onBack:()=>void;onOpen:(rou
       <div className="p-4 sm:p-5 space-y-5">
         {result.loading||searchPending?<LoadingState message="Loading attention records…"/>:result.error?<ErrorState message={result.error} onRetry={result.reload}/>:!data?.results.length?<EmptyState title="No matching attention records" description="Try another category or clear the filters."/>:<>
           <div className="office-attention-records"><CoordinatorDataTable label="Office attention records" columns={['Record','Reason for attention','Responsibility','Programme','Action']} rows={data.results.map(row=>({key:row.id,cells:[
-            <><p>{row.name}</p><p className="card-caption mt-1">{row.semester||'Faculty-wide'}{row.recordId&&row.recordType!=='RECONCILIATION_ISSUE'?` · ${row.category==='capacity'?'Staff':'Record'} ${row.recordId}`:''}</p></>,
-            <div className="space-y-2"><p>{categoryLabel(row.category)}</p><StatusBadge tone={row.urgency==='overdue'||row.urgency==='blocking'?'danger':row.urgency==='due'?'warning':'neutral'}>{row.urgency==='overdue'?'Overdue':row.urgency==='due'?'Due today':row.urgency==='blocking'?'Blocking issue':row.responsibility==='waiting'?'Awaiting review':row.category==='calendar'?'Setup required':row.statusText||'Review required'}</StatusBadge></div>,
+            <><p>{row.name}</p>{row.category!=='documents'&&<p className="card-caption mt-1">{row.semester||'Faculty-wide'}{row.recordId&&row.recordType!=='RECONCILIATION_ISSUE'?` · ${row.category==='capacity'?'Staff':'Record'} ${row.recordId}`:''}</p>}</>,
+            row.category==='documents'
+              ? <div className="space-y-2"><p>No active document requirements.</p><StatusBadge tone="warning">Setup required</StatusBadge></div>
+              : <div className="space-y-2"><p>{categoryLabel(row.category)}</p><StatusBadge tone={row.urgency==='overdue'||row.urgency==='blocking'?'danger':row.urgency==='due'?'warning':'neutral'}>{row.urgency==='overdue'?'Overdue':row.urgency==='due'?'Due today':row.urgency==='blocking'?'Blocking issue':row.responsibility==='waiting'?'Awaiting review':row.category==='calendar'?'Setup required':row.statusText||'Review required'}</StatusBadge></div>,
             <><p>{row.responsibility==='waiting'?'Waiting on others':'For Office review'}</p>{row.waitingOn&&<p className="card-description mt-1">{formatWaitingText(row)}</p>}</>,row.programme,
             <PortalButton size="sm" onClick={()=>onOpen(officeAttentionRecordRoute(row))}>Open</PortalButton>,
           ]}))}/></div>

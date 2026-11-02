@@ -590,12 +590,12 @@ export interface SupervisorApplicationDocument {
 
 export interface SupervisorDocumentRequirementAudit {
   id: number;
-  requirementId: number;
+  requirementId: number | null;
   requirementCode: string;
   requirementLabel: string;
   actorName: string;
   actorRole: string;
-  action: 'CREATE' | 'UPDATE';
+  action: 'CREATE' | 'UPDATE' | 'SETUP';
   reason: string;
   beforeValues: Record<string, unknown>;
   afterValues: Record<string, unknown>;

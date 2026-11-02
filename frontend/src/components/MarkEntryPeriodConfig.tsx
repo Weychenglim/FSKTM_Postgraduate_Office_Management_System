@@ -1,3 +1,6 @@
+import { MarkEntryRecipientPreview } from './MarkEntryRecipientPreview';
+export { MarkEntryRecipientPreview } from './MarkEntryRecipientPreview';
+import { PortalModal } from './PortalModal';
 import { MarksHeading } from './MarksPrimitives';
 import { PortalSelect } from './PortalSelect';
 import { ClosureReview } from './ClosureReview';
@@ -8,18 +11,19 @@ import type { ClosureApproval } from '../types/marks';
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {flushSync} from 'react-dom';
 import { Link } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
 import {
   Archive,
-  ArrowLeft,
   CalendarClock,
+  History,
   CheckCircle2,
-  Clock3,
   Plus,
   Save,
-  Settings2,
   XCircle,
+  X,
+  Users,
 } from 'lucide-react';
 
 import {
@@ -46,7 +50,6 @@ import {
   marksMutationErrorMessage,
   toDateTimeLocalValue,
   validatePeriodTargeting,
-  formatPeriodTargeting,
   canPublishPeriodPreview,
   type PeriodPreviewApproval,
 } from '../utils/marksProductionManagement';
@@ -54,7 +57,7 @@ import {
   PageHeader,
   PortalButton,
   PortalCard,
-  PortalToast,
+  PortalConfirmModal,
   StatusBadge,
   getStatusBadgeTone,
 } from './PortalPrimitives';
@@ -65,6 +68,9 @@ import {ApiError} from '../services/apiClient';
 import {AlertMessage} from './AlertMessage';
 import {FieldError,FormFeedback} from './FormFeedback';
 import {clearFeedbackFields,focusFeedback,readFormFeedback,type FormFeedbackState} from '../utils/formFeedback';
+import {DraftNavigationGuard} from './DraftNavigationGuard';
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
+import {MarkEntryPeriodList} from './MarkEntryPeriodList';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
@@ -109,45 +115,17 @@ const periodToForm = (period: EvaluationPeriodOption): PeriodForm => ({
   evaluatorRoles: period.evaluatorRoles || ['SUPERVISOR', 'PANEL'],
 });
 
-export const MarkEntryRecipientPreview: React.FC<{ preview: EvaluationRecipientPreview }> = ({ preview }) => (
-  <section aria-label="Recipient preview" className="mt-5 space-y-3 border-t border-slate-200 pt-5 text-xs text-slate-700">
-    <h3 className="section-label">Recipient preview</h3>
-    <p className="card-description">Recipient estimate as of {displayDateTime(preview.generatedAt)}; tasks are created when you publish.</p>
-    <p className="card-description">Eligible students and appointments added later are included automatically while the published period remains scheduled or open.</p>
-    <p className="card-description">{preview.totals.students} students · {preview.totals.supervisor} Supervisor · {preview.totals.panel} Panel · {preview.totals.total} tasks ({preview.totals.existing} existing, {preview.totals.new} new)</p>
-    {preview.missingAppointments.supervisor > 0 || preview.missingAppointments.panel > 0 ? <>
-      <p className="card-description">{preview.missingAppointments.supervisor} students missing a supervisor · {preview.missingAppointments.panel} students missing a panel</p>
-      <p className="card-description">Missing counts include students without an eligible appointment or required research profile, for the selected programmes and roles.</p>
-    </> : null}
-    {preview.totals.total === 0 ? <p role="alert" className="card-description rounded border border-amber-200 bg-amber-50 p-3 text-amber-900">No recipients currently match this period. Publishing will create no tasks now; later eligible appointments may add tasks automatically.</p> : null}
-    {preview.recipients.length > 0 ? <div role="region" aria-label="Recipient preview results" tabIndex={0} className="max-h-80 overflow-auto focus-visible:outline-2 focus-visible:outline-blue-600">
-      <table className="w-full text-left">
-        <caption className="sr-only">Estimated evaluation recipients before publication</caption>
-        <thead><tr>{['Student', 'Programme', 'Evaluator', 'Role', 'Task'].map((label) => <th scope="col" key={label} className="p-2 text-xs font-extrabold">{label}</th>)}</tr></thead>
-        <tbody>{preview.recipients.map((recipient, index) => <tr key={`${recipient.matricNo}-${recipient.evaluatorId}-${recipient.evaluatorRole}-${index}`} className="border-t border-slate-100">
-          <td className="p-2 text-xs font-semibold">{recipient.studentName}<span className="card-description block">{recipient.matricNo}</span></td>
-          <td className="p-2 text-xs font-semibold">{recipient.programme || 'Unspecified'}</td>
-          <td className="p-2 text-xs font-semibold">{recipient.evaluatorName}</td>
-          <td className="p-2 text-xs font-semibold">{recipient.evaluatorRole === 'SUPERVISOR' ? 'Supervisor' : 'Panel'}</td>
-          <td className="p-2 text-xs font-semibold">{recipient.taskStatus === 'EXISTING' ? 'Existing' : 'New'}</td>
-        </tr>)}</tbody>
-      </table>
-    </div> : null}
-  </section>
-);
-
-export function MarksPeriodDeadlineControls({value,onChange,editable,onManageTimeline,error}: {
+export function MarksPeriodDeadlineControls({value,onChange,editable,error}: {
   value:string;onChange:(value:string)=>void;editable:boolean;onManageTimeline?:()=>void;error?:string;
 }) {
   return <div className="space-y-3"><label className="form-label block">Closes at (Malaysia, UTC+08:00)
-    <input id="marks-period-closesAt" aria-invalid={!!error} aria-describedby={error?'marks-period-closesAt-error':undefined} required type="datetime-local" disabled={!editable} value={value} onChange={event=>onChange(event.target.value)} className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"/>
+    <input id="marks-period-closesAt" aria-invalid={!!error} aria-describedby={error?'marks-period-closesAt-error':undefined} required type="datetime-local" disabled={!editable} value={value} onChange={event=>onChange(event.target.value)} className="form-control form-control-md mt-2 w-full disabled:bg-slate-100"/>
     <FieldError id="marks-period-closesAt-error" message={error}/>
-  </label>{!editable?<><p className="card-description">Manage period extensions and personal extra time from Periods &amp; deadlines.</p>{onManageTimeline?<PortalButton onClick={onManageTimeline}>Manage deadlines in Periods &amp; deadlines</PortalButton>:null}</>:null}</div>;
+  </label></div>;
 }
 
-export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
+const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
   onBack,
-  onManageSemesters,
   onManageTimeline,
   contextSearch='',
 }) => {
@@ -161,17 +139,20 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   const [semesters, setSemesters] = useState<AcademicSemester[]>([]);
   const [selected, setSelected] = useState<EvaluationPeriodOption | null>(null);
   const [form, setForm] = useState<PeriodForm>(EMPTY_FORM);
+  const [newBaseline,setNewBaseline]=useState<PeriodForm>(EMPTY_FORM);
   const [programmeOptions, setProgrammeOptions] = useState<string[]>([]);
   const [preview, setPreview] = useState<(EvaluationRecipientPreview & PeriodPreviewApproval) | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [selecting, setSelecting] = useState(false);
   const selectionRequest = useRef(0);
   const previewRequest = useRef(0);
-  const invalidatePreview = () => { previewRequest.current += 1; setPreview(null); setPreviewLoading(false); setPreviewError(null); };
+  const invalidatePreview = () => { setPreviewOpen(false); previewRequest.current += 1; setPreview(null); setPreviewLoading(false); setPreviewError(null); setFinalReview(null); };
   const updateForm = (change: React.SetStateAction<PeriodForm>) => { invalidatePreview();const next=typeof change==='function'?change(form):change;setForm(next);const changed=Object.keys(next).filter(key=>JSON.stringify(next[key as keyof PeriodForm])!==JSON.stringify(form[key as keyof PeriodForm]));setFormFeedback(current=>clearFeedbackFields(current,changed)); };
   const [reason, setReason] = useState('');
   const [includeArchived, setIncludeArchived] = useState(false);
+  const [listFilters, setListFilters] = useState({search: '', status: 'current', page: 1});
   const [archivedAvailable, setArchivedAvailable] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const editorHeading = useRef<HTMLDivElement>(null);
@@ -188,15 +169,20 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   const [formFeedback,setFormFeedback]=useState<FormFeedbackState|null>(null);
   const [actionError,setActionError]=useState<string|null>(null);
   const [savedReadBlocked,setSavedReadBlocked]=useState(false);
+  const [conflictBlocked,setConflictBlocked]=useState(false);
+  const [replacement,setReplacement]=useState<null|(()=>void)>(null);
+  const [recoveryPeriod,setRecoveryPeriod]=useState<EvaluationPeriodOption|null>(null);
+  const [finalReview,setFinalReview]=useState<'publish'|'archive'|null>(null);
+  const finalReviewIdentity=useRef<{contextSearch:string;periodId:number}|null>(null);
+  const [acknowledged,setAcknowledged]=useState(false);
+  const [closureContext,setClosureContext]=useState<{periodId:number;search:string}|null>(null);
+  const [discardClosure,setDiscardClosure]=useState(false);
+  const pendingWrite=useRef(false);
+  const feedback=useDecisionFeedback();
   const fieldProps=(key:string)=>({id:PERIOD_FIELDS[key].id,'aria-invalid':!!formFeedback?.fields[key],'aria-describedby':formFeedback?.fields[key]?`${PERIOD_FIELDS[key].id}-error`:undefined});
   const fieldError=(key:string)=><FieldError id={`${PERIOD_FIELDS[key].id}-error`} message={formFeedback?.fields[key]}/>;
   const report=(feedback:FormFeedbackState)=>{setFormFeedback(feedback);focusFeedback(feedback,PERIOD_IDS,'marks-period-save-feedback');};
-  const [toast, setToast] = useState<string | null>(null);
-
-  const showToast = (message: string) => {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 3500);
-  };
+  const notify=(message:string,tone:'success'|'warning')=>feedback?.(message,tone);
 
   const loadWorkspace = useCallback(async () => {
     const requestId=++contextRequest.current;
@@ -273,17 +259,19 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   }, [includeArchived,contextSearch]);
 
   const readyRubrics = useMemo(
-    () => rubrics.filter((rubric) => rubric.isActive && rubric.isReady),
+    () => rubrics.filter((rubric) => rubric.isActive && !rubric.isArchived && rubric.isReady),
     [rubrics],
   );
 
-  const beginNew = () => {
+  const beginNew = (force=false) => {
+    if(pendingWrite.current||saving||selecting||conflictBlocked||savedReadBlocked)return;
+    if(!force&&editorOpen&&draftDirty){setReplacement(()=>()=>beginNew(true));return;}
     setFormFeedback(null);setActionError(null);setSelectionError(null);setSelectionTarget(null);setSavedReadBlocked(false);
     selectionRequest.current += 1;
     setSelecting(false);
     invalidatePreview();
     setSelected(null);
-    setForm({
+    const initial={
       ...EMPTY_FORM,
       semesterId: String(
         context.semesterId??semesters.find((semester) => semester.effectiveStatus === 'ACTIVE')?.id
@@ -291,7 +279,8 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
         ?? '',
       ),
       rubricId: readyRubrics[0] ? String(readyRubrics[0].id) : '',
-    });
+    };
+    setForm(initial);setNewBaseline(initial);
     setReason('');
     setError(null);
     setEditorOpen(true);
@@ -310,7 +299,9 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     editorHeading.current?.focus({ preventScroll: true });
   }, [detailFocusRequest]);
 
-  const returnToList = () => {
+  const returnToList = (force=false) => {
+    if(pendingWrite.current||saving||selecting)return;
+    if(!force&&draftDirty){setReplacement(()=>()=>returnToList(true));return;}
     invalidatePreview();
     setEditorOpen(false);
     setListFocusRequest(request => request + 1);
@@ -321,7 +312,9 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     listRegion.current?.focus();
   }, [listFocusRequest]);
 
-  const selectPeriod = async (period: EvaluationPeriodOption) => {
+  const selectPeriod = async (period: EvaluationPeriodOption, force=false) => {
+    if(pendingWrite.current||saving||selecting)return;
+    if(!force&&editorOpen&&draftDirty){setReplacement(()=>()=>void selectPeriod(period,true));return;}
     setSelectionTarget(period);
     const requestId = ++selectionRequest.current;
     const requestedScope=contextSearch;
@@ -334,6 +327,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
       if(context.semesterId&&detail.semesterId!==context.semesterId){const message='The evaluation period no longer belongs to the selected semester. Return to Periods & deadlines and reload.';setContextBlocked(true);setError(message);throw new ApiError(message,409);}
       setSelected(detail);
       setSavedReadBlocked(false);
+      setConflictBlocked(false);
       setForm(periodToForm(detail));
       setReason('');
       setEditorOpen(true);
@@ -348,6 +342,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   const replacePeriod = (updated: EvaluationPeriodOption) => {
     invalidatePreview();
     setPeriods((current) => {
+      if(updated.lifecycleStatus==='ARCHIVED'&&!includeArchived)return current.filter(period=>period.id!==updated.id);
       const exists = current.some((period) => period.id === updated.id);
       return exists
         ? current.map((period) => period.id === updated.id ? updated : period)
@@ -355,17 +350,35 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     });
     setSelected(updated);
     setForm(periodToForm(updated));
+    setNewBaseline(periodToForm(updated));
     setEditorOpen(true);
     if (updated.lifecycleStatus === 'ARCHIVED') setArchivedAvailable(true);
   };
 
+  const recoverLatest = async () => {
+    if(!selected||pendingWrite.current||selecting)return;
+    const requestId=++selectionRequest.current;
+    const requestedScope=contextSearch;
+    setSelecting(true);setSelectionError(null);
+    try {
+      const detail=await getEvaluationPeriod(selected.id);
+      if(requestId!==selectionRequest.current||requestedScope!==contextScope.current)return;
+      if(context.semesterId&&detail.semesterId!==context.semesterId)throw new ApiError('The evaluation period context changed. Return to Periods & deadlines and reload.',409);
+      if(draftDirty)setRecoveryPeriod(detail);
+      else {replacePeriod(detail);setSavedReadBlocked(false);setConflictBlocked(false);setFormFeedback(null);setActionError(null);}
+    } catch(readError) {
+      if(requestId===selectionRequest.current)setSelectionError(marksMutationErrorMessage(readError));
+    } finally {if(requestId===selectionRequest.current)setSelecting(false);}
+  };
+
   const savePeriod = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (saving || selecting || loading || contextBlocked || savedReadBlocked || (selected && selected.lifecycleStatus !== 'DRAFT')) return;
+    if (pendingWrite.current || saving || selecting || loading || contextBlocked || savedReadBlocked || conflictBlocked || (selected && selected.lifecycleStatus !== 'DRAFT')) return;
     const requestedScope=contextSearch;
     const targetingError = validatePeriodTargeting(form);
     if (targetingError) { const key=!form.programmeScope?'programmeScope':form.programmeScope==='SELECTED'&&!form.programmes.length?'programmes':'evaluatorRoles';report({message:'Correct the highlighted fields, then save again.',fields:{[key]:targetingError}});return; }
     invalidatePreview();
+    pendingWrite.current=true;
     setSaving(true);
     setFormFeedback(null);setActionError(null);
     let committed=false;
@@ -390,15 +403,19 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
       replacePeriod(updated);
       committed=true;
       setSavedReadBlocked(true);
+      setConflictBlocked(false);
       const detail=await getEvaluationPeriod(updated.id);
       if(requestedScope!==contextScope.current)return;
       replacePeriod(detail);
       setSavedReadBlocked(false);
-      setReason('');
-      showToast(selected ? 'Period changes saved.' : 'Draft period created.');
+      notify(selected ? 'Period changes saved.' : 'Draft period created.','success');
     } catch (saveError) {
-      if(requestedScope===contextScope.current&&!committed)report(readFormFeedback(saveError,marksMutationErrorMessage(saveError),PERIOD_FIELD_MAP));
+      if(requestedScope===contextScope.current){
+        if(committed)notify('Period saved. The latest record could not be loaded. Reload it before another action.','warning');
+        else {if(saveError instanceof ApiError&&(saveError.status===403||saveError.status===409))setConflictBlocked(true);report(readFormFeedback(saveError,marksMutationErrorMessage(saveError),PERIOD_FIELD_MAP));}
+      }
     } finally {
+      pendingWrite.current=false;
       setSaving(false);
     }
   };
@@ -407,32 +424,42 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     action: 'publish' | 'close' | 'archive',
     approval?: ClosureApproval,
   ) => {
-    if (!selected || saving || selecting || savedReadBlocked) return;
+    if (!selected || pendingWrite.current || saving || selecting || savedReadBlocked || conflictBlocked) return;
     const requestedScope=contextSearch;
     if (action === 'publish' && !canPublish) return;
+    const reviewedPreview=preview;
     invalidatePreview();
+    pendingWrite.current=true;
     setSaving(true);
     setActionError(null);
     let committed=false;
     try {
+      if(action==='publish'){
+        const latest=await getEvaluationPeriod(selected.id);
+        if(requestedScope!==contextScope.current)return;
+        if(!reviewedPreview||JSON.stringify(latest)!==reviewedPreview.periodSnapshot){
+          replacePeriod(latest);
+          setActionError('The saved period changed. Review its current configuration and recipient preview before publishing.');
+          return;
+        }
+      }
       const updated = action === 'publish'
         ? await publishEvaluationPeriod(selected.id)
         : action === 'close'
           ? await closeEvaluationPeriod(selected.id, reason, approval)
           : await archiveEvaluationPeriod(selected.id, reason);
       if(requestedScope!==contextScope.current)return;
-      replacePeriod(updated);committed=true;setSavedReadBlocked(true);
+      replacePeriod(updated);committed=true;setClosureContext(null);setDiscardClosure(false);setSavedReadBlocked(true);setConflictBlocked(false);setReason('');setAcknowledged(false);
       const detail=await getEvaluationPeriod(updated.id);
       if(requestedScope!==contextScope.current)return;
       replacePeriod(detail);
       setSavedReadBlocked(false);
-      setReason('');
-      showToast(
+      notify(
         action === 'publish'
           ? 'Period published.'
           : action === 'close'
             ? 'Period closed.'
-            : 'Period archived.',
+            : 'Period archived.','success',
       );
       if (action === 'archive' && !includeArchived) {
         setPeriods((current) => current.filter((period) => period.id !== updated.id));
@@ -441,9 +468,13 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
         setForm({...EMPTY_FORM,semesterId:context.semesterId?String(context.semesterId):''});
       }
     } catch (transitionError) {
-      if(requestedScope===contextScope.current&&!approval&&!committed)setActionError(marksMutationErrorMessage(transitionError));
+      if(requestedScope===contextScope.current){
+        if(committed)notify('Period changed. The latest record could not be loaded. Reload it before another action.','warning');
+        else {if(transitionError instanceof ApiError&&(transitionError.status===403||transitionError.status===409))setConflictBlocked(true);if(!approval)setActionError(marksMutationErrorMessage(transitionError));}
+      }
       if (approval&&!committed) throw transitionError;
     } finally {
+      pendingWrite.current=false;
       setSaving(false);
     }
   };
@@ -451,10 +482,14 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   const draftEditable = (!selected || selected.lifecycleStatus === 'DRAFT')&&(!contextSemester||['DRAFT','ACTIVE'].includes(contextSemester.lifecycleStatus));
   const published = selected?.lifecycleStatus === 'PUBLISHED';
   const closed = selected?.lifecycleStatus === 'CLOSED';
+  const closureOpen = !!published && closureContext?.periodId === selected?.id && closureContext?.search === contextSearch;
+  const closeClosure = () => { setClosureContext(null); setReason(''); setAcknowledged(false); setDiscardClosure(false); };
+  const requestCloseClosure = () => { if (saving) return; if (reason.trim() || acknowledged) setDiscardClosure(true); else closeClosure(); };
   const formSnapshot = JSON.stringify(form);
-  const savedFormSnapshot = selected ? JSON.stringify(periodToForm(selected)) : '';
+  const savedFormSnapshot = JSON.stringify(selected ? periodToForm(selected) : newBaseline);
   const hasUnsavedChanges = formSnapshot !== savedFormSnapshot;
-  const canPublish = !saving && !selecting && !previewLoading && canPublishPeriodPreview(selected, formSnapshot, savedFormSnapshot, preview);
+  const draftDirty=editorOpen&&(hasUnsavedChanges||!!reason.trim()||acknowledged);
+  const canPublish = !saving && !selecting && !previewLoading && !conflictBlocked && !savedReadBlocked && canPublishPeriodPreview(selected, formSnapshot, savedFormSnapshot, preview);
   const selectableProgrammes = [...new Set([...programmeOptions, ...form.programmes])].sort();
 
   const loadRecipientPreview = async () => {
@@ -490,50 +525,96 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
   }, [editorOpen, selected, formSnapshot, hasUnsavedChanges, saving, selecting, loading, includeArchived]);
 
   const emptyList = !editorOpen && !loading && !error && !contextBlocked && periods.length === 0;
-  const newPeriodDisabled = saving || loading || contextBlocked || savedReadBlocked || !!contextSemester && !['DRAFT', 'ACTIVE'].includes(contextSemester.lifecycleStatus);
+  const newPeriodDisabled = saving || loading || contextBlocked || savedReadBlocked || conflictBlocked || !!contextSemester && !['DRAFT', 'ACTIVE'].includes(contextSemester.lifecycleStatus);
+
+  const leaveTo=(action:()=>void)=>{
+    if(pendingWrite.current||saving||selecting)return;
+    if(draftDirty){setReplacement(()=>action);return;}
+    action();
+  };
+  const discardAndRun=()=>{
+    const next=replacement;
+    flushSync(()=>{setReplacement(null);setForm(selected?periodToForm(selected):newBaseline);setReason('');setAcknowledged(false);});
+    next?.();
+  };
+  const openFinalReview=(action:'publish'|'archive')=>{
+    if(!selected||pendingWrite.current)return;
+    finalReviewIdentity.current={contextSearch,periodId:selected.id};
+    setFinalReview(action);
+  };
+  const finalReviewCurrent=finalReview!==null&&finalReviewIdentity.current?.contextSearch===contextSearch&&finalReviewIdentity.current?.periodId===selected?.id&&(finalReview!=='publish'||!!preview);
 
   return (
     <div id="mark-entry-period-configuration" className="marks-workspace space-y-7 animate-fade-in">
-      <PortalToast message={toast} tone="success" />
+      <DraftNavigationGuard dirty={draftDirty} busy={saving||selecting} />
+      <PortalConfirmModal isOpen={replacement!==null} title="Discard unsaved period changes?" message="Leave this period and discard the unsaved changes?" confirmLabel="Discard changes" cancelLabel="Stay on this page" onCancel={()=>setReplacement(null)} onConfirm={discardAndRun}/>
+      <PortalConfirmModal isOpen={recoveryPeriod!==null} title="Review latest period" message="The latest saved period is available. Replace the visible unsaved changes with it?" confirmLabel="Discard changes" cancelLabel="Stay on this page" onCancel={()=>setRecoveryPeriod(null)} onConfirm={()=>{if(!recoveryPeriod)return;replacePeriod(recoveryPeriod);setRecoveryPeriod(null);setSavedReadBlocked(false);setConflictBlocked(false);setFormFeedback(null);setActionError(null);setReason('');setAcknowledged(false);}}/>
+      <PortalModal isOpen={previewOpen && !!preview && canPublish} onClose={() => setPreviewOpen(false)} labelledBy="period-recipient-preview-title" className="max-w-6xl p-0">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div><h2 id="period-recipient-preview-title" className="text-base font-bold text-slate-900">Recipient preview</h2><p className="card-description mt-1">{selected?.name}</p></div>
+          <PortalButton icon={X} aria-label="Close recipient preview" onClick={() => setPreviewOpen(false)} />
+        </div>
+        <div className="px-6 py-6">{preview ? <MarkEntryRecipientPreview preview={preview} /> : null}</div>
+        <div className="flex justify-end border-t border-slate-200 px-6 py-4"><PortalButton variant="primary" onClick={() => setPreviewOpen(false)}>Done</PortalButton></div>
+      </PortalModal>
+      <PortalConfirmModal
+        isOpen={finalReviewCurrent && finalReview === 'publish'}
+        title={finalReview === 'publish' ? 'Publish evaluation period?' : 'Archive evaluation period'}
+        tone={finalReview === 'publish' ? 'info' : 'danger'}
+        icon={finalReview === 'publish' ? CheckCircle2 : Archive}
+        message={finalReview === 'publish' ? <div className="space-y-4">
+          <div><p className="text-sm font-semibold text-slate-900">{selected?.name}</p><p className="mt-1">{selected?.semester}</p></div>
+          <dl className="space-y-3 border-y border-slate-200 py-4">
+            <div><dt className="text-xs text-slate-500">Programmes</dt><dd className="mt-1 text-slate-800">{selected?.programmeScope === 'SELECTED' ? selected.programmes?.join(', ') : 'All programmes'}</dd></div>
+            <div><dt className="text-xs text-slate-500">Evaluators</dt><dd className="mt-1 text-slate-800">{(selected?.evaluatorRoles || ['SUPERVISOR', 'PANEL']).map(role => role === 'SUPERVISOR' ? 'Supervisor' : 'Panel').join(' and ')}</dd></div>
+          </dl>
+          {preview?.totals.total === 0 ? <p>No recipients matched this preview. Publishing may create no tasks now; later eligible appointments may add tasks automatically.</p> : <p className="text-sm font-semibold text-slate-900">{preview?.totals.total ?? 0} {(preview?.totals.total ?? 0) === 1 ? 'task' : 'tasks'} for {preview?.totals.students ?? 0} {(preview?.totals.students ?? 0) === 1 ? 'student' : 'students'}</p>}
+          <div className="space-y-1 text-xs text-slate-500"><p>Estimate as of {preview?.generatedAt ? displayDateTime(preview.generatedAt) : 'the last available preview'}.</p><p>Recipients may change before publication.</p></div>
+        </div> : <>Archive {selected?.name} for {selected?.semester}? Reason: {reason}</>}
+        confirmLabel={finalReview === 'publish' ? 'Publish period' : 'Archive period'}
+        cancelLabel="Cancel" isLoading={saving} onCancel={() => setFinalReview(null)}
+        onConfirm={() => { const action = finalReview; if (!action || !finalReviewCurrent) return; setFinalReview(null); void runTransition(action); }}
+      />
+      <PortalModal isOpen={finalReviewCurrent && finalReview === 'archive'} onClose={() => { if (!saving) setFinalReview(null); }} busy={saving} labelledBy="period-archive-title" className="max-w-2xl p-0">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div><h2 id="period-archive-title" className="text-base font-bold text-slate-900">Archive evaluation period</h2><p className="card-description mt-1">{selected?.name}</p></div>
+          <PortalButton icon={X} aria-label="Close archive dialog" disabled={saving} onClick={() => setFinalReview(null)} />
+        </div>
+        <div className="px-6 py-6">
+          <label htmlFor="marks-period-archive-reason" className="form-label block">Reason for archiving</label>
+          <textarea id="marks-period-archive-reason" required value={reason} onChange={event => setReason(event.target.value)} rows={4} placeholder="Enter a reason for archiving this period" className="mt-3 w-full rounded-lg border border-slate-200 p-3 text-sm leading-6" disabled={saving} />
+        </div>
+        <div className="flex justify-end gap-3 border-t border-slate-200 px-6 py-5">
+          <PortalButton disabled={saving} onClick={() => setFinalReview(null)}>Cancel</PortalButton>
+          <PortalButton variant="dangerSolid" icon={Archive} isLoading={saving} disabled={!reason.trim() || conflictBlocked || savedReadBlocked} onClick={() => { if (!finalReviewCurrent) return; setFinalReview(null); void runTransition('archive'); }}>Archive period</PortalButton>
+        </div>
+      </PortalModal>
+      <PortalModal isOpen={closureOpen} onClose={requestCloseClosure} busy={saving} labelledBy="period-closure-title" className="max-w-5xl p-0">
+        <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5">
+          <div><h2 id="period-closure-title" className="text-base font-bold text-slate-900">Close mark entry period</h2><p className="card-description mt-1">{selected?.name}</p></div>
+          <PortalButton icon={X} aria-label="Close period closure review" disabled={saving} onClick={requestCloseClosure} />
+        </div>
+        <div className="space-y-5 px-6 py-6">
+          {closureOpen && selected ? <ClosureReview key={`${selected.id}-${contextSearch}`} kind="period" id={selected.id} confirmLabel="Close period" disabled={saving || selecting || conflictBlocked || savedReadBlocked || !reason.trim() || hasUnsavedChanges} onAcknowledgementChange={setAcknowledged} onBlocked={()=>setConflictBlocked(true)} onConfirm={approval => runTransition('close', approval)}>
+            <label className="form-label block">Reason for closure
+              <textarea id="marks-period-reason" value={reason} onChange={event => setReason(event.target.value)} disabled={saving} rows={3} className="form-control mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-3 text-sm" />
+            </label>
+          </ClosureReview> : null}
+        </div>
+        <div className="flex justify-end border-t border-slate-200 px-6 py-4"><PortalButton disabled={saving} onClick={requestCloseClosure}>Cancel</PortalButton></div>
+      </PortalModal>
+      <PortalConfirmModal isOpen={closureOpen && discardClosure} title="Discard closure details?" message="Discard the reason and acknowledgement entered for this closure?" confirmLabel="Discard changes" cancelLabel="Keep editing" onCancel={() => setDiscardClosure(false)} onConfirm={closeClosure} />
       <PageHeader
-        title="Mark Entry Periods"
+        title={editorOpen ? selected?.name || 'New mark entry period' : 'Mark Entry Periods'}
         subtitle="Set evaluation dates, rubrics and recipients."
-        backLabel="Back to Marks overview"
-        onBack={onBack}
-        actions={(
-          <>
-            <PortalButton
-              icon={Settings2}
-              variant="secondary"
-              onClick={onManageSemesters}
-            >
-              Manage semesters
-            </PortalButton>
-            {!emptyList ? <PortalButton icon={Plus} variant="primary" onClick={beginNew} disabled={newPeriodDisabled}>
-              New period
-            </PortalButton> : null}
-          </>
-        )}
+        backLabel={editorOpen ? "Back to Mark Entry Periods" : "Back to Marks overview"}
+        onBack={()=>editorOpen ? returnToList() : leaveTo(onBack)}
+        actions={!editorOpen ? <PortalButton icon={Plus} variant="primary" onClick={()=>beginNew()} disabled={newPeriodDisabled}>New period</PortalButton> : undefined}
       />
 
       {error ? <ErrorState compact title={contextBlocked?'Evaluation context needs review':'Couldn’t load evaluation configuration'} message={error} onRetry={loadWorkspace} /> : null}
 
       {contextSemester?<div className="rounded-lg border border-slate-200 bg-white p-4"><p className="card-value">{contextSemester.label}</p><p className="card-description mt-1">Opened from Periods &amp; deadlines. Evaluation periods below are limited to this semester.</p></div>:null}
-
-      {!editorOpen && (!emptyList || archivedAvailable) ? <div id="evaluation-period-list-toolbar" role="group" aria-label="Evaluation period list options" className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <h2 className="section-label">Evaluation periods</h2>
-        {archivedAvailable ? <label className="card-description flex min-h-10 cursor-pointer items-center gap-2">
-          <input
-            type="checkbox"
-            checked={includeArchived}
-            disabled={saving || selecting}
-            onChange={(event) => setIncludeArchived(event.target.checked)}
-            className="h-4 w-4 accent-brand-navy"
-          />
-          Include archived periods
-        </label> : null}
-        {includeArchived ? <p className="card-caption">Archived periods are read-only.</p> : null}
-      </div> : null}
 
       {loading ? (
         <LoadingState message="Loading evaluation periods..." />
@@ -542,72 +623,20 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
           {!editorOpen ? <section ref={listRegion} tabIndex={-1} className="space-y-3" aria-label="Configured evaluation periods">
             {selecting ? <p role="status" className="card-description">Opening period…</p> : null}
             {selectionError?<ErrorState compact title="Couldn’t open the selected period" message={selectionError} onRetry={selectionTarget?()=>void selectPeriod(selectionTarget):undefined}/>:null}
-            {periods.length === 0 ? (
-              <PortalCard data-period-empty padding="none" className="rounded-lg">
-                <EmptyState
-                  icon={CalendarClock}
-                  title={archivedAvailable ? 'No current evaluation periods' : 'No evaluation periods yet'}
-                  description={archivedAvailable ? 'Include archived periods to view previous configurations.' : newPeriodDisabled ? 'No periods are configured. This semester is read-only.' : 'Create your first period to prepare marks entry.'}
-                  actionLabel={newPeriodDisabled ? undefined : 'New period'}
-                  onAction={beginNew}
-                  className="px-6"
-                />
-              </PortalCard>
-            ) : periods.map((period) => (
-              <button
-                key={period.id}
-                type="button"
-                disabled={saving}
-                aria-busy={selecting && selectionTarget?.id === period.id}
-                onClick={() => void selectPeriod(period)}
-                className={`w-full text-left border bg-white p-5 shadow-3xs transition-colors ${
-                  selected?.id === period.id
-                    ? 'border-brand-navy ring-2 ring-brand-navy/10'
-                    : 'border-slate-200 hover:border-slate-300'
-                } rounded-lg`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="font-extrabold text-brand-navy">{period.name}</p>
-                    <p className="card-description mt-1">
-                      {period.semester} · {period.rubricName}
-                    </p>
-                    <p className="card-description mt-1">{formatPeriodTargeting(period)}</p>
-                  </div>
-                  <StatusBadge tone={getStatusBadgeTone(period.effectiveStatus)} dot>
-                    {period.lifecycleStatus === 'PUBLISHED' ? `Published · ${formatPeriodStatus(period.effectiveStatus)}` : formatPeriodStatus(period.lifecycleStatus)}
-                  </StatusBadge>
-                </div>
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                  <div>
-                    <span className="block card-label">Opens</span>
-                    <span className="font-semibold text-slate-700">{displayDateTime(period.opensAt)}</span>
-                  </div>
-                  <div>
-                    <span className="block card-label">Closes</span>
-                    <span className="font-semibold text-slate-700">{displayDateTime(period.closesAt)}</span>
-                  </div>
-                  <div>
-                    <span className="block card-label">Tasks</span>
-                    <span className="font-semibold text-slate-700">{period.taskTotals.total}</span>
-                  </div>
-                  <div>
-                    <span className="block card-label">Submitted</span>
-                    <span className="font-semibold text-slate-700">{period.taskTotals.submitted}</span>
-                  </div>
-                </div>
-              </button>
-            ))}
+            {emptyList && !archivedAvailable && !listFilters.search && listFilters.status === 'current' ? <PortalCard data-period-empty padding="lg">
+              <EmptyState icon={CalendarClock} title="No evaluation periods yet" description={newPeriodDisabled ? 'No periods are configured. This semester is read-only.' : 'Create your first period to prepare marks entry.'} />
+            </PortalCard> : <MarkEntryPeriodList periods={periods} filters={listFilters} busy={saving || selecting} onManage={period => void selectPeriod(period)} onFiltersChange={next => {setListFilters(next);setIncludeArchived(next.status !== 'current');}} />}
+
           </section> : (
 
-          <PortalCard padding="lg" className="period-config-editor min-w-0 rounded-lg">
+          <div className="period-config-workspace">
+          <PortalCard padding="lg" className="period-config-editor min-w-0 rounded-2xl">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
               <div ref={editorHeading} tabIndex={-1}>
                 <MarksHeading icon={CalendarClock}>{selected ? 'Period configuration' : 'New draft period'}</MarksHeading>
                 <p className="card-description mt-1">
                   {selected && !draftEditable ? 'Published periods lock their dates, recipients and rubric. Manage extensions in Periods & deadlines.' : 'Saving a draft does not open marks entry.'}
                 </p>
-                {selected ? <p className="card-value mt-2">{formatPeriodTargeting(selected)}</p> : null}
               </div>
               <div className="flex flex-wrap items-center gap-3">
               {selected ? (
@@ -615,14 +644,15 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                   {formatPeriodStatus(selected.effectiveStatus)}
                 </StatusBadge>
               ) : null}
-              <PortalButton icon={ArrowLeft} variant="secondary" disabled={saving || selecting} onClick={returnToList}>Back to period list</PortalButton>
               </div>
             </div>
 
-            {savedReadBlocked?<AlertMessage type="warning" title="Changes saved; refresh required" message="The saved period could not be refreshed. Reload its current configuration before another change." actions={selected?<PortalButton disabled={selecting} onClick={()=>void selectPeriod(selected)}>Reload saved period</PortalButton>:undefined}/>:null}
+            {savedReadBlocked?<AlertMessage type="warning" title="Changes saved; refresh required" message="The saved period could not be refreshed. Reload its current configuration before another change." actions={selected?<PortalButton disabled={selecting} onClick={()=>void recoverLatest()}>Reload saved period</PortalButton>:undefined}/>:null}
+            {conflictBlocked?<AlertMessage type="warning" title="Review latest period" message="The saved period changed or access was denied. Review its latest record before trying another write." actions={selected?<PortalButton disabled={selecting} onClick={()=>void recoverLatest()}>Review latest period</PortalButton>:undefined}/>:null}
+            {selectionError?<AlertMessage type="error" title="Couldn’t reload period" message={selectionError}/>:null}
             <form onSubmit={savePeriod} className="feedback-fields space-y-4">
-              <fieldset disabled={saving || selecting || savedReadBlocked} className="space-y-6">
-              <div className="period-config-identity">
+              <fieldset disabled={saving || selecting || savedReadBlocked || conflictBlocked} className="period-config-sections">
+              <section aria-labelledby="period-details-heading" className="period-config-section"><h3 id="period-details-heading" className="section-label mb-5">Period details</h3><div className="period-config-identity">
               <label className="form-label block">
                 Period name
                 <input
@@ -632,7 +662,7 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                   disabled={!draftEditable}
                   value={form.name}
                   onChange={(event) => updateForm((current) => ({ ...current, name: event.target.value }))}
-                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                  className="form-control form-control-md mt-2 w-full disabled:bg-slate-100"
                 />
                 {fieldError('name')}
               </label>
@@ -644,9 +674,9 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                   required
                   value={form.semesterId}
                   onChange={(event) => updateForm((current) => ({ ...current, semesterId: event.target.value }))}
-                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                  className="form-control form-control-md mt-2 w-full disabled:bg-slate-100"
                 >
-                  <option value="">Select a Draft or Active semester</option>
+                  <option value="" disabled hidden={!!form.semesterId}>Select a semester</option>
                   {contextSemester&&!semesters.some(row=>row.id===contextSemester.id)?<option value={contextSemester.id}>{contextSemester.label}</option>:null}
                   {semesters.map((semester) => (
                     <option key={semester.id} value={semester.id}>
@@ -664,9 +694,10 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                   disabled={!draftEditable}
                   value={form.rubricId}
                   onChange={(event) => updateForm((current) => ({ ...current, rubricId: event.target.value }))}
-                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                  className="form-control form-control-md mt-2 w-full disabled:bg-slate-100"
                 >
-                  <option value="">Select a ready rubric</option>
+                  <option value="" disabled hidden={!!form.rubricId}>Select a ready rubric</option>
+                  {selected && !readyRubrics.some(rubric => String(rubric.id) === form.rubricId) ? rubrics.filter(rubric => String(rubric.id) === form.rubricId).map(rubric => <option key={rubric.id} value={rubric.id} disabled>{rubric.name} · v{rubric.version} · Existing assignment</option>) : null}
                   {readyRubrics.map((rubric) => (
                     <option key={rubric.id} value={rubric.id}>
                       {rubric.name} · v{rubric.version} · {rubric.targetMark} marks
@@ -677,7 +708,8 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                 {draftEditable && readyRubrics.length === 0 ? <span className="card-description mt-2 block">No ready rubric available. <Link to={APP_ROUTES.marksRubrics} className="font-semibold text-blue-700 hover:underline">Configure a rubric</Link> before creating this period.</span> : null}
               </label>
               </div>
-              <div className="period-config-targets">
+              </section>
+              <section aria-labelledby="period-recipients-heading" className="period-config-section"><h3 id="period-recipients-heading" className="section-label mb-5">Recipients</h3><div className="period-config-targets">
               <fieldset {...fieldProps('programmeScope')} tabIndex={-1} disabled={!draftEditable} className="space-y-3 rounded-lg border border-slate-200 p-3">
                 <legend className="px-1 text-xs font-bold text-slate-700">Programme scope</legend>
                 {(['ALL', 'SELECTED'] as const).map((scope) => <label key={scope} className="card-description flex items-center gap-2">
@@ -705,7 +737,8 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                 {fieldError('evaluatorRoles')}
               </fieldset>
               </div>
-              <div className="period-config-dates">
+              </section>
+              <section aria-labelledby="period-schedule-heading" className="period-config-section"><h3 id="period-schedule-heading" className="section-label mb-2">Schedule</h3><p className="card-description mb-5">Malaysia time (UTC+08:00).</p><div className="period-config-dates">
                 <label className="form-label block">
                   Opens at (Malaysia, UTC+08:00)
                   <input
@@ -715,44 +748,33 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                     disabled={!draftEditable}
                     value={form.opensAt}
                     onChange={(event) => updateForm((current) => ({ ...current, opensAt: event.target.value }))}
-                    className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2.5 disabled:bg-slate-100 font-sans not-italic normal-case tracking-normal text-xs font-bold"
+                    className="form-control form-control-md mt-2 w-full disabled:bg-slate-100"
                   />
                   {fieldError('opensAt')}
                 </label>
                 <MarksPeriodDeadlineControls error={formFeedback?.fields.closesAt} value={form.closesAt} editable={draftEditable} onChange={value=>updateForm(current=>({...current,closesAt:value}))} onManageTimeline={onManageTimeline?()=>onManageTimeline(selected??undefined):undefined}/>
               </div>
 
-              {published || closed ? (
-                <label className="form-label block">
-                  Reason
-                  <textarea
-                    value={reason}
-                    onChange={(event) => setReason(event.target.value)}
-                    rows={3}
-                    placeholder={published ? 'Required for early closure' : 'Required to archive this period'}
-                    className="mt-2 w-full resize-none rounded-lg border border-slate-200 px-3 py-2.5 font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                  />
-                </label>
-              ) : null}
+              </section>
 
-              {selected?.lifecycleStatus === 'DRAFT' ? <div className="space-y-3 border-t border-slate-100 pt-4">
+              {selected?.lifecycleStatus === 'DRAFT' && (hasUnsavedChanges || previewLoading || previewError) ? <div className="space-y-3">
                 {hasUnsavedChanges ? <p role="status" className="card-value text-amber-800">Save your unsaved changes before reviewing recipients.</p> : null}
                 {previewLoading ? <p role="status" className="card-description">Loading recipient preview…</p> : null}
                 {previewError ? <ErrorState compact title="Couldn’t verify recipients" message={previewError} onRetry={() => void loadRecipientPreview()} /> : null}
-                {preview && canPublish ? <MarkEntryRecipientPreview preview={preview} /> : null}
               </div> : null}
 
               <FormFeedback id="marks-period-save-feedback" feedback={formFeedback} fields={PERIOD_FIELDS}/>
               {actionError?<AlertMessage type="error" title="Period wasn’t changed" message={actionError}/>:null}
-              {selected?.lifecycleStatus === 'DRAFT' ? <p className="card-description">Publishing opens mark entry only during the configured dates.</p> : null}
-              <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-5">
+              <div className="period-config-footer">
+                <div>{selected?.lifecycleStatus === 'DRAFT' && preview && canPublish ? <PortalButton icon={Users} onClick={() => setPreviewOpen(true)}>Preview recipients</PortalButton> : null}</div>
+                <div className="period-config-write-actions">
                 {draftEditable ? (
                   <PortalButton
                     type="submit"
                     icon={Save}
                     variant="primary"
                     isLoading={saving}
-                    disabled={!form.rubricId}
+                    disabled={!form.rubricId||conflictBlocked||savedReadBlocked}
                   >
                     {selected ? 'Save changes' : 'Create draft'}
                   </PortalButton>
@@ -763,47 +785,46 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
                     variant="success"
                     isLoading={saving}
                     disabled={!canPublish}
-                    onClick={() => void runTransition('publish')}
+                    onClick={() => openFinalReview('publish')}
                   >
                     Confirm and publish
                   </PortalButton>
                 ) : null}
+                {published && selected && onManageTimeline ? <PortalButton icon={CalendarClock} disabled={saving || selecting} onClick={() => leaveTo(() => onManageTimeline(selected))}>Manage periods &amp; deadlines</PortalButton> : null}
+                {published ? <PortalButton variant="danger" icon={XCircle} disabled={saving || selecting || conflictBlocked || savedReadBlocked || hasUnsavedChanges} onClick={() => { if (selected) { setReason(''); setAcknowledged(false); setClosureContext({periodId:selected.id,search:contextSearch}); } }}>Close period early</PortalButton> : null}
                 {closed ? (
                   <PortalButton
                     icon={Archive}
-                    variant="secondary"
+                    variant="danger"
                     isLoading={saving}
-                    disabled={!reason.trim()}
-                    onClick={() => void runTransition('archive')}
+                    disabled={conflictBlocked||savedReadBlocked}
+                    onClick={() => { setReason(''); openFinalReview('archive'); }}
                   >
                     Archive
                   </PortalButton>
                 ) : null}
+                </div>
               </div>
               </fieldset>
             </form>
 
-            {published && selected ? <ClosureReview key={selected.id} kind="period" id={selected.id} disabled={saving || selecting || !reason.trim() || hasUnsavedChanges} onConfirm={approval => runTransition('close', approval)} /> : null}
-            {selected?.auditEvents?.length ? (
-              <div className="mt-7 border-t border-slate-100 pt-5">
-                <h3 className="section-label flex items-center gap-2">
-                  <Clock3 className="h-4 w-4" />
-                  Configuration history
-                </h3>
-                <div className="mt-3 space-y-3">
-                  {selected.auditEvents.map((event) => (
-                    <div key={event.id} className="border-l-2 border-slate-200 pl-3 text-xs">
-                      <p className="card-value">{event.action}</p>
-                      <p className="card-description mt-0.5">
-                        {event.actorName} · {displayDateTime(event.createdAt)}
-                      </p>
-                      {event.reason ? <p className="card-description mt-1">{event.reason}</p> : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </PortalCard>
+          {selected?.auditEvents?.length ? <PortalCard padding="lg" className="period-config-history rounded-2xl">
+            <details>
+              <summary className="cursor-pointer"><span className="inline-flex items-center gap-3 align-middle"><History size={18} aria-hidden="true" className="text-blue-600" /><span className="section-label">Configuration history</span><span className="card-description">{selected.auditEvents.length} {selected.auditEvents.length === 1 ? 'change' : 'changes'}</span></span></summary>
+              <ol className="period-config-history-list">
+                {[...selected.auditEvents].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)).map(event => <li key={event.id} className="period-config-history-entry">
+                  <div className="period-config-history-heading">
+                    <p className="card-value">{({CREATE: 'Period created', UPDATE: 'Configuration updated', PUBLISH: 'Period published', CLOSE: 'Period closed', ARCHIVE: 'Period archived', EXTEND: 'Deadline extended'} as Record<string, string>)[event.action] || event.action.replaceAll('_', ' ').toLowerCase().replace(/^./, letter => letter.toUpperCase())}</p>
+                    <time dateTime={event.createdAt} className="card-description">{displayDateTime(event.createdAt)}</time>
+                  </div>
+                  <p className="card-description mt-1">{event.actorName || 'System'}</p>
+                  {event.reason ? <p className="period-config-history-reason">{event.reason}</p> : null}
+                </li>)}
+              </ol>
+            </details>
+          </PortalCard> : null}
+          </div>
           )}
         </div>
       )}
@@ -811,3 +832,6 @@ export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = ({
     </div>
   );
 };
+
+export const MarkEntryPeriodConfig: React.FC<MarkEntryPeriodConfigProps> = props =>
+  <DecisionFeedbackProvider scopeKey="marks-period-configuration"><MarkEntryPeriodContent {...props}/></DecisionFeedbackProvider>;

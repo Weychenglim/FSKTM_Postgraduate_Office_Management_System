@@ -3,6 +3,7 @@ import { RequestStatusBadge } from './RequestStatusBadge';
 import {completeDecision} from '../utils/decisionSubmission';
 import { useListState } from './ListState';
 import { RecordPage } from './RecordPage';
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -14,12 +15,12 @@ import {
   UserRoundPen,
   Users,
   UserX,
-  FileText, 
-  AlertTriangle, 
-  CheckCircle, 
-  Search, 
-  SlidersHorizontal, 
-  Download, 
+  FileText,
+  AlertTriangle,
+  CheckCircle,
+  Search,
+  SlidersHorizontal,
+  Download,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -31,7 +32,7 @@ import {
   Eye,
   AlertCircle
 } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast, StatusBadge, StatusDot } from './PortalPrimitives';
+import { PageHeader, PortalButton, StatusBadge, StatusDot } from './PortalPrimitives';
 import { EmptyState, LoadingState, ErrorState } from './StateViews';
 import { SupervisorWorkloadMonitoring } from './SupervisorWorkloadMonitoring';
 import { SupervisorDocumentsList } from './SupervisorDocumentsList';
@@ -141,7 +142,11 @@ interface SupervisorAppointmentManagementProps {
   onOpenCapacity?: () => void;
 }
 
-export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentManagementProps> = ({ 
+export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentManagementProps> = props => (
+  <DecisionFeedbackProvider scopeKey="supervisor-management"><SupervisorAppointmentManagementContent {...props}/></DecisionFeedbackProvider>
+);
+
+const SupervisorAppointmentManagementContent: React.FC<SupervisorAppointmentManagementProps> = ({
   routeView = 'list',providedRecord,onProvidedRecordRefresh,administrationMode=false,backLabel='Back to Appointment requests',
   routeRecordId, routeTeamStudentId, onNavigateToTeam, onNavigateToTeams,
   onNavigateToList,
@@ -151,16 +156,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   onNavigateToRequirements,
   onOpenCapacity,
 }) => {
-  // Toast notifications
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const publishFeedback = useDecisionFeedback()!;
   const [primaryReplacement,setPrimaryReplacement]=useState<{appointmentId:number;studentId:string}|null>(null);
   const [replacementNotice,setReplacementNotice]=useState<string|null>(null);
   useEffect(()=>{setPrimaryReplacement(null);setReplacementNotice(null);},[routeTeamStudentId,routeView,routeRecordId,providedRecord?.studentId]);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
-  };
 
   // Supervisor appointment records are loaded from the persisted Django API.
   const [records, setRecords] = useState<SupervisorRecord[]>([]);
@@ -208,7 +207,6 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     setAppliedProg(programmeFilter);
     setAppliedSem(semesterFilter);
     setCurrentPage(1);
-    showToast("Filters applied for supervisor records.");
   };
 
   const handleResetFilters = () => {
@@ -221,7 +219,6 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     setActiveTab('All Records');
     setSortOrder('default');
     setCurrentPage(1);
-    showToast("Filters reset to default.");
   };
 
   // Process filters
@@ -255,6 +252,10 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   // Handles export interaction
   const excel = useExcelExport();
   const handleExportData = async () => {
+    if (!orderedFilteredRecords.length) {
+      publishFeedback('No supervisor appointment records match the current filters.', 'info');
+      return;
+    }
     const exported = await excel.download('supervisor_appointments_report.xlsx', orderedFilteredRecords, [
       { header: 'Student ID', value: (record) => record.studentId },
       { header: 'Student Name', value: (record) => record.studentName },
@@ -275,8 +276,8 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       { header: 'Replacement Reason', value: (record) => record.replacementReason || '' },
       { header: 'Updated Date', value: (record) => record.updatedDate },
     ]);
-    if (!exported) { showToast('Excel export could not be completed. Try again.'); return; }
-    showToast(`Downloaded supervisor_appointments_report.xlsx with ${orderedFilteredRecords.length} records.`);
+    if (!exported) return;
+    publishFeedback(`supervisor_appointments_report.xlsx prepared with ${orderedFilteredRecords.length} records. Check your browser downloads.`, 'info');
   };
 
   if (routeView === 'workload') {
@@ -308,7 +309,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
       appointmentId={primaryReplacement.appointmentId} backLabel="Back to appointment request" onBack={()=>setPrimaryReplacement(null)}
       onSubmitted={()=>{
         setPrimaryReplacement(null);setReplacementNotice('Replacement requested. The proposed supervisor will review it next.');setTeamRefresh(value=>value+1);
-        Promise.resolve(providedRecord?onProvidedRecordRefresh?.():loadRecords(true)).catch(()=>showToast('Replacement requested, but the record could not be refreshed. Reload to check its status.'));
+        Promise.resolve(providedRecord?onProvidedRecordRefresh?.():loadRecords(true)).catch(()=>publishFeedback('Replacement requested, but the record could not be refreshed. Reload to check its status.', 'warning'));
       }}/>;
     const request=officeRequestPresentation(r);
     const hasRequest=r.applicationId!=null||!!r.workflow?.length;
@@ -322,7 +323,6 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
     return <RecordPage title={ended?'Supervisor appointment record':hasRequest?'Appointment request':'Supervision record'}
       metadata={<RequestMetadata {...supervisorRequestMetadata(request)} statusLabel={ended?'Appointment ended':hasRequest?supervisorRequestMetadata(request).statusLabel:r.status} statusTone={ended||!hasRequest?'neutral':supervisorRequestMetadata(request).statusTone}/>}
       backLabel={backLabel} onBack={navigateToList}>
-      <PortalToast message={toastMessage}/>
       {replacementNotice?<p role="status" className="card-description rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">{replacementNotice}</p>:null}
       <SupervisorRequestDetail request={request} showApproval={hasRequest} contextAction={onNavigateToDossier?<ViewStudentRecordAction studentId={r.studentId} onOpen={onNavigateToDossier}/>:undefined} administration={administration}/>
     </RecordPage>;
@@ -337,7 +337,6 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
   const programmes = [...new Set(records.map(row => row.programme).filter(Boolean))];
   const semesters = [...new Set(records.map(row => row.semester).filter((value): value is string => !!value))];
   return <div id="supervisor-mgmt-viewport" className="space-y-6 text-left font-sans pb-12">
-    <PortalToast message={toastMessage} />
     {!administrationMode?<PageHeader title="Supervisor Appointments" subtitle="Monitor appointment records, manage supervisory teams and follow research changes."  />:null}
     {!administrationMode?<SupervisorWorkspaceNavigation role="Office Staff/Admin" />:null}
     {routeView === 'teams' ? <SupervisoryTeamManagement role="Office Staff/Admin" view="roster" showResearchChanges={false} showRefresh={false} refreshVersion={teamRefresh} onBusyChange={setTeamBusy} onNavigateToStudent={onNavigateToTeam} /> : <>
@@ -348,6 +347,7 @@ export const SupervisorAppointmentManagement: React.FC<SupervisorAppointmentMana
         <AppointmentSummaryCard icon={AlertTriangle} title="Workload alerts" value={recordSummary.workloadAlerts} description="Lecturers near their supervision limit." />
       </div> : null}
       <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" aria-label="Appointment records">
+        {excel.error ? <p role="alert" className="card-description text-rose-700">{excel.error}</p> : null}
         <WorkspaceSectionHeader title="Appointment records" description="View appointment records across students and lecturers." actions={<><PortalButton size="sm" disabled={loading || !!error} variant="primary" isLoading={excel.busy} onClick={()=>void handleExportData()}>Export Excel</PortalButton><PortalButton size="sm" onClick={onNavigateToRequirements}>Document requirements</PortalButton><PortalButton size="sm" onClick={onNavigateToWorkload}>View workload</PortalButton></>} />
         <RequestFilters onReset={handleResetFilters} search={searchQuery} onSearch={setSearchQuery} searchLabel="Find a record" searchPlaceholder="Student name, matric number, supervisor or research title">
           <label className="form-label">Programme<PortalSelect className="form-control form-control-sm mt-1" value={programmeFilter} onChange={event => setProgrammeFilter(event.target.value)}><option>All Programmes</option>{programmes.map(value => <option key={value}>{value}</option>)}</PortalSelect></label>

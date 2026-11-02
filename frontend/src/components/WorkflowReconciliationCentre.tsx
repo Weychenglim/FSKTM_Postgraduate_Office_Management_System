@@ -233,7 +233,10 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
         message={decisionMode === 'accept' ? <><p>This records your review without correcting the underlying record. The warning returns if the evidence changes.</p></> : <><p>{selectedResolution?.label} will change this record and create permanent repair audit history.</p>
           <ReconciliationRepairSummary details={repairDetails} /><p>Reason: {reason}</p></>}
         confirmLabel={decisionMode === 'accept' ? 'Accept as intentional' : 'Apply audited repair'} successMessage={decisionMode === 'accept' ? 'Warning accepted and recorded in history.' : 'Repair completed and recorded in audit history.'}
-        canConfirm={decisionMode === 'accept' ? canAccept : canApply} busy={saving} onConfirm={decisionMode === 'accept' ? acceptWarning : applyRepair} onClose={() => setConfirmOpen(false)}
+        canConfirm={decisionMode === 'accept' ? canAccept : canApply} busy={saving} dirty={decisionMode === 'accept' && (!!reason.trim() || confirmed)} onConfirm={decisionMode === 'accept' ? acceptWarning : applyRepair} onClose={() => {
+          setConfirmOpen(false);
+          if (decisionMode === 'accept') { setReason(''); setConfirmed(false); }
+        }}
         onReload={async () => { if (preview) await openIssue(preview.issue, true); }}>
         {decisionMode === 'accept' && <div className="space-y-5">
           <label className="form-label">Reason for acceptance<textarea className="form-control form-control-md mt-2 min-h-24" placeholder="Explain what you verified and why no correction is needed." value={reason} onChange={event => setReason(event.target.value)} /></label>

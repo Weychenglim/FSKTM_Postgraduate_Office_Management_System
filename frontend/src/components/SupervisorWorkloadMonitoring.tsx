@@ -3,7 +3,8 @@ import { PortalSelect } from './PortalSelect';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Download, Eye, Gauge, UsersRound } from 'lucide-react';
 import { RecordPage } from './RecordPage';
-import { PortalButton, PortalToast, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
+import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
+import { PortalButton, StatusBadge, getStatusBadgeTone } from './PortalPrimitives';
 import { ErrorState, LoadingState, EmptyState } from './StateViews';
 import { getSupervisorWorkloads } from '../services';
 import type { SupervisorWorkloadRecord } from '../types';
@@ -62,9 +63,9 @@ export function SupervisorWorkloadDetails({ record }: { record: SupervisorWorklo
   </div>;
 }
 
-export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoringProps> = ({ onBack, onOpenCapacity, initialLecturerId, backLabel = 'Back to Supervisor Appointments' }) => {
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoringProps> = props => <DecisionFeedbackProvider scopeKey="supervisor-workload"><SupervisorWorkloadMonitoringContent {...props}/></DecisionFeedbackProvider>;
+
+const SupervisorWorkloadMonitoringContent: React.FC<SupervisorWorkloadMonitoringProps> = ({ onBack, onOpenCapacity, initialLecturerId, backLabel = 'Back to Supervisor Appointments' }) => {
   const [records, setRecords] = useState<SupervisorWorkloadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,11 +77,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
   const [page, setPage] = useListState('SupervisorWorkloadMonitoring', 'page', 1);
   const [pageSize, setPageSize] = useListState('SupervisorWorkloadMonitoring', 'size', 10);
   const generation = useRef(0);
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastMessage(null), 2500);
-  };
+  const publishFeedback = useDecisionFeedback()!;
   const loadWorkloads = useCallback(async () => {
     const token = ++generation.current;
     setLoading(true); setError(null);
@@ -88,7 +85,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
     catch (reason) { if (token === generation.current) setError(reason instanceof Error ? reason.message : 'Failed to load supervisor workload records.'); }
     finally { if (token === generation.current) setLoading(false); }
   }, []);
-  useEffect(() => { void loadWorkloads(); return () => { generation.current += 1; if (toastTimer.current) clearTimeout(toastTimer.current); }; }, [loadWorkloads]);
+  useEffect(() => { void loadWorkloads(); return () => { generation.current += 1; }; }, [loadWorkloads]);
   useEffect(() => { if (initialLecturerId || queryLecturer) setSelectedId(initialLecturerId || queryLecturer); }, [initialLecturerId, queryLecturer]);
   useReturnToFocusReload(() => { void loadWorkloads(); }, !loading);
   const browse = useMemo(() => getSupervisorWorkloadPage(records, { search, department, status }, page, pageSize), [records, search, department, status, page, pageSize]);
@@ -100,7 +97,7 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
   const excel = useExcelExport();
   const handleExportExcel = async () => {
     if (browse.filtered.length === 0) {
-      showToast('No supervisor workload records match the current filters.');
+      publishFeedback('No supervisor workload records match the current filters.', 'info');
       return;
     }
 
@@ -130,8 +127,8 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
           .join(' | '),
       },
     ]);
-    if (!exported) { showToast('Excel export could not be completed. Try again.'); return; }
-    showToast(`Downloaded supervisor-workload-monitoring.xlsx with ${browse.filtered.length} lecturers.`);
+    if (!exported) return;
+    publishFeedback(`supervisor-workload-monitoring.xlsx prepared with ${browse.filtered.length} lecturers. Check your browser downloads.`, 'info');
   };
 
   if (selectedId) return <RecordPage title="Supervisor workload details" backLabel={initialLecturerId || queryLecturer ? backLabel : 'Back to Supervisor Workload Monitoring'} onBack={() => { setSelectedId(''); if (initialLecturerId || queryLecturer) onBack(); }} pageKey={initialLecturerId || queryLecturer ? undefined : `supervisor-workload:${selectedId}`} actions={actions}>
@@ -139,7 +136,6 @@ export const SupervisorWorkloadMonitoring: React.FC<SupervisorWorkloadMonitoring
   </RecordPage>;
 
   return <RecordPage title="Supervisor Workload Monitoring" subtitle="Current effective semester capacity and active primary and supporting appointments." backLabel={backLabel} onBack={onBack} actions={actions}>
-    <PortalToast message={toastMessage} />
     {!loading && !error ? <WorkloadMonitoringSummary kind="supervisor" records={browse.filtered} /> : null}
     <section aria-label="Supervisor workload workspace" className="office-workload-records min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-5">
       {excel.error?<p role="alert" className="card-description text-rose-700">{excel.error}</p>:null}

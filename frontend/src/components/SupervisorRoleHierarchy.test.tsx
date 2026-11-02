@@ -26,10 +26,13 @@ const options:any = {students:[],profile:{title:'Current title',abstract:'Curren
 const row:any = {id:1,kind:'RESEARCH',status:'PENDING_SUPERVISOR',studentName:'Ongoing student',matricNo:'M1',createdAt:'2026-10-10T00:00:00Z',before:{title:'Title',abstract:'Old',programme:'Programme'},after:{title:'Title',abstract:'New',programme:'Programme'},canDecide:false,canCancel:false,events:[]};
 for (const role of ['Student','Office Staff/Admin','Programme Coordinator'] as const) {
   const render=(requestView:'requests'|'history')=>renderToStaticMarkup(<ResearchAmendmentRouteContent role={role} routeView="list" options={options} rows={[row,{...row,id:2,status:'REJECTED_BY_COORDINATOR',studentName:'Final student'}]} revisions={[]} busy={false} requestView={requestView} requestPageSize={10} onRequestPageSize={()=>{}} requestForm={null} onAction={()=>{}} />);
-  assert.match(render('requests'), /<table/);
+  assert.equal((render('requests').match(/<table/g)||[]).length,1);
+  assert.equal((render('history').match(/<table/g)||[]).length,1);
+  assert.doesNotMatch(render('requests'), /Other ongoing requests|<h3[^>]*>Needs your review/);
   assert.doesNotMatch(render('requests'), /Final student/);
   assert.doesNotMatch(render('history'), /Ongoing student/);
-  assert.match(render('history'), /Waiting at this stage<\/span>Rejected<\/td>/);
+  assert.match(render('history'), /<th[^>]*>Outcome<\/th>/);
+  assert.doesNotMatch(render('history'), /Waiting at this stage/);
   assert.doesNotMatch(render('requests'), /Old|>New<|>Approve</);
 }
 console.log('All roles share navigation, request tables and terminal research history without comparisons in lists');

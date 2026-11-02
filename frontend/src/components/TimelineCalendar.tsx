@@ -8,7 +8,7 @@ import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, ListTodo, X } from 'lucide-react';
 import { StatusBadge } from './PortalPrimitives';
-import { LinkedPeriodStatus } from './LinkedPeriodStatus';
+import { TimelineSubmissionStatus } from './LinkedPeriodStatus';
 import { SemesterTimelineEntry, TimelineLevel } from '../types';
 
 export interface TimelineCalendarGroup {
@@ -250,56 +250,36 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
         )}
       </div>
 
-      {selectedEntry && <PortalModal isOpen onClose={() => setSelectedEntry(null)} labelledBy="timeline-preview-title" className="max-w-lg p-0">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
-              <div>
-                <h3 id="timeline-preview-title" className="section-label leading-snug">
-                  {selectedEntry.title || selectedEntry.detail}
-                </h3>
-                <div className="mt-2">
-                  {selectedEntry.linkedPeriodStatus?<LinkedPeriodStatus status={selectedEntry.linkedPeriodStatus}/>:<StatusBadge tone={statusTone(selectedEntry.status)} dot>
-                    {selectedEntry.status}
-                  </StatusBadge>}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedEntry(null)}
-                className="icon-button w-9 h-9"
-                aria-label="Close timeline details"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-4 text-left">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <span className="card-description form-label block">Phase</span>
-                  <p className="card-value">{selectedEntry.level}</p>
-                </div>
-                <div>
-                  <span className="card-description form-label block">Action</span>
-                  <p className="card-value">{selectedEntry.action}</p>
-                </div>
-                <div>
-                  <span className="card-description form-label block">Start Date</span>
-                  <p className="card-value">{formatDisplayDate(selectedEntry.deadlineStart)}</p>
-                </div>
-                <div>
-                  <span className="card-description form-label block">End Date</span>
-                  <p className="card-value">{formatDisplayDate(selectedEntry.deadlineEnd)}</p>
-                </div>
-              </div>
-
-              <div>
-                <span className="card-description form-label block">Description</span>
-                <p className="card-description mt-1 rounded-2xl bg-slate-50 border border-slate-200 p-4">
-                  {selectedEntry.detail}
-                </p>
-              </div>
-            </div>
-          </PortalModal>}
+      {selectedEntry && <PortalModal isOpen onClose={() => setSelectedEntry(null)} labelledBy="timeline-preview-title" className="max-w-xl p-0">
+        <TimelineEventDetails entry={selectedEntry} onClose={() => setSelectedEntry(null)} />
+      </PortalModal>}
     </div>
   );
 };
+
+
+export function TimelineEventDetails({entry,onClose}:{entry:SemesterTimelineEntry;onClose:()=>void}) {
+  const linked = entry.linkedPeriodStatus;
+  const showStatus = linked ? linked.datesEnforced !== false : true;
+  return <>
+    <div className="flex items-start justify-between gap-5 border-b border-slate-100 px-6 py-5 sm:px-7 sm:py-6">
+      <div className="min-w-0 space-y-3 text-left">
+        <h3 id="timeline-preview-title" className="text-sm font-semibold leading-6 text-slate-900 [overflow-wrap:anywhere]">{entry.title || entry.detail}</h3>
+        {showStatus ? <div>{linked ? <TimelineSubmissionStatus status={linked} marks={!!entry.marksPeriodId}/>
+          : <StatusBadge tone={statusTone(entry.status)} dot>{entry.status}</StatusBadge>}</div> : null}
+      </div>
+      <button type="button" onClick={onClose} className="icon-button h-9 w-9 shrink-0" aria-label="Close timeline details"><X aria-hidden="true" className="h-4 w-4" /></button>
+    </div>
+    <div className="space-y-6 px-6 py-6 text-left sm:px-7">
+      <dl className="grid grid-cols-1 gap-5 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 sm:p-5">
+        <div className="space-y-2"><dt className="text-xs leading-5 text-slate-500">Starts on</dt><dd className="text-sm font-medium leading-6 text-slate-800"><time dateTime={entry.deadlineStart}>{formatDisplayDate(entry.deadlineStart)}</time></dd></div>
+        <div className="space-y-2"><dt className="text-xs leading-5 text-slate-500">Ends on</dt><dd className="text-sm font-medium leading-6 text-slate-800"><time dateTime={entry.deadlineEnd}>{formatDisplayDate(entry.deadlineEnd)}</time></dd></div>
+      </dl>
+      <dl className="grid grid-cols-1 gap-x-8 gap-y-5 sm:grid-cols-2">
+        <div className="space-y-2"><dt className="text-xs leading-5 text-slate-500">Project phase</dt><dd className="text-xs font-normal leading-6 text-slate-800">{levelLabels[entry.level]}</dd></div>
+        {entry.action ? <div className="space-y-2"><dt className="text-xs leading-5 text-slate-500">Responsible parties</dt><dd className="text-xs font-normal leading-6 text-slate-800 [overflow-wrap:anywhere]">{entry.action}</dd></div> : null}
+      </dl>
+      {entry.detail ? <section className="space-y-3 border-t border-slate-100 pt-5" aria-label="Event description"><h4 className="text-xs font-semibold leading-5 text-slate-800">Description</h4><p className="whitespace-pre-wrap text-xs font-normal leading-6 text-slate-600 [overflow-wrap:anywhere]">{entry.detail}</p></section> : null}
+    </div>
+  </>;
+}

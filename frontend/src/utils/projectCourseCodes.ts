@@ -1,4 +1,4 @@
-/** Keep the existing text API while giving students one input per code. */
+/** Preserve historical text values and the existing API field name. */
 export function parseProjectCourseCodes(value: string): string[] {
   const codes = value.split(',').map(code => code.trim()).filter(Boolean);
   return codes.length ? codes : [''];
@@ -9,13 +9,8 @@ export function serializeProjectCourseCodes(codes: string[]): string {
 }
 
 export function validateProjectCourseCodes(codes: string[]): string | null {
-  const seen = new Set<string>();
-  for (const entry of codes) {
-    const code = entry.trim();
-    if (!code) continue;
-    if (code.includes(',')) return 'Use one course code per entry.';
-    if (seen.has(code.toLowerCase())) return `${code} is already entered. Remove the duplicate.`;
-    seen.add(code.toLowerCase());
-  }
-  return serializeProjectCourseCodes(codes).length > 255 ? 'Course codes must fit within 255 characters combined.' : null;
+  const populated = codes.map(code => code.trim()).filter(Boolean);
+  if (!populated.length) return 'Enter your project course code.';
+  if (populated.length !== 1 || /[,;\r\n]/.test(populated[0])) return 'Enter only one project course code.';
+  return populated[0].length > 255 ? 'Project course code must not exceed 255 characters.' : null;
 }

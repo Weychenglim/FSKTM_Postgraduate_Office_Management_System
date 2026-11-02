@@ -164,6 +164,12 @@ export async function updateRubricVersion(
   });
 }
 
+export async function setRubricFamilyArchived(rubricId: number, archived: boolean): Promise<RubricVersion> {
+  return request<RubricVersion>(`/marks/rubrics/${rubricId}/archive/`, {
+    method: 'POST', body: JSON.stringify({archived}),
+  });
+}
+
 export async function cloneRubricVersion(
   rubricId: number,
 ): Promise<RubricVersion> {
