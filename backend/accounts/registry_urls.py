@@ -1,7 +1,7 @@
 """Student Registry and staff account routes, mounted under /api/registry/ by the project URLconf."""
 from django.urls import path
 
-from . import registry_semesters, registry_transfers, registry_views, staff_views
+from . import registry_graduation, registry_semesters, registry_transfers, registry_views, staff_views
 
 urlpatterns = [
     path("students/", registry_views.student_records_view, name="registry-students"),
@@ -12,6 +12,8 @@ urlpatterns = [
     ),
     path("programme-rules/", registry_semesters.programme_rules_view, name="registry-programme-rules"),
     path("semester-move/", registry_semesters.semester_move_view, name="registry-semester-move"),
+    path("graduation/", registry_graduation.graduation_view, name="registry-graduation"),
+    path("graduation/check/", registry_graduation.graduation_check_view, name="registry-graduation-check"),
     path(
         "students/import/",
         registry_views.student_import_view,
@@ -46,6 +48,11 @@ urlpatterns = [
         "students/<str:matric_no>/semesters/<int:row_id>/",
         registry_semesters.student_semester_detail_view,
         name="registry-student-semester",
+    ),
+    path(
+        "students/<str:matric_no>/graduation-check/",
+        registry_graduation.student_graduation_check_view,
+        name="registry-student-graduation-check",
     ),
     path(
         "students/<str:matric_no>/semester-extension/",

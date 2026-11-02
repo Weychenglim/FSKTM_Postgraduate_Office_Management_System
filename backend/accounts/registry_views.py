@@ -239,6 +239,7 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     statusReason = serializers.CharField(
         max_length=1000, allow_blank=True, required=False
     )
+    earlyCompletionApproved = serializers.BooleanField(required=False, default=False)
     accountStatus = serializers.ChoiceField(
         choices=["Verified", "Suspended"], required=False
     )
@@ -813,6 +814,7 @@ def student_record_detail_view(request, matric_no):
                     actor=request.user,
                     target_status=data["academicStatus"].upper(),
                     reason=reason,
+                    early_approved=data.get("earlyCompletionApproved", False),
                 )
             except PermissionError as exc:
                 return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
