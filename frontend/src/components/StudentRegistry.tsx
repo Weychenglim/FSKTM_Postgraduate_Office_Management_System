@@ -55,7 +55,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { APP_ROUTES, routeForNewProgrammeTransfer, routeForProgrammeTransfer } from '../constants/routes';
 import { getStudentTransfer, type StudentTransferSummary } from '../services/programmeTransfersApi';
 import { getSemesterMoveSummary, getStudentGraduationCheck, type GraduationStudent, type MoveSummary } from '../services/registrySemestersApi';
-import { semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
+import { canonicalSemester, intakeFilterOptions, matchesIntake, semesterChoices, semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
 import { StudentSemestersCard } from './StudentSemestersCard';
@@ -279,6 +279,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [selectedProgramme, setSelectedProgramme] = useListState<string>('StudentRegistry', 'selectedProgramme', 'All');
   const [selectedSemester, setSelectedSemester] = useListState<string>('StudentRegistry', 'selectedSemester', 'All');
   const [statusView, setStatusView] = useListState<RegistryView>('StudentRegistry', 'statusView', 'All');
+  const [selectedIntake, setSelectedIntake] = useListState<string>('StudentRegistry', 'selectedIntake', 'All');
   const [selectedSupervisor, setSelectedSupervisor] = useListState<string>('StudentRegistry', 'selectedSupervisor', 'All');
   
   // Modals Dialog States
@@ -447,11 +448,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       email: viewingStudent?.email ?? '',
       phone: viewingStudent?.phone ?? '',
       programme: viewingStudent?.programme ?? '',
-      intakeDate: viewingStudent?.intakeDate ?? '',
+      intakeDate: canonicalSemester(viewingStudent?.intakeDate ?? ''),
     });
   }, [viewingStudent?.id]);
 
-  // Choosing Graduated shows what the Graduate students page would say about this student.
+  // Choosing Graduated shows what Record graduations would say about this student.
   useEffect(() => {
     setGraduationCheck(null);
     setEarlyApproved(false);
@@ -515,7 +516,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     if (detailsDraft.email.trim().toLowerCase() !== student.email.toLowerCase()) changes.email = detailsDraft.email.trim();
     if (detailsDraft.phone.trim() !== student.phone) changes.phone = detailsDraft.phone.trim();
     if (detailsDraft.programme !== student.programme) changes.programme = detailsDraft.programme;
-    if (detailsDraft.intakeDate.trim() !== student.intakeDate) changes.intakeDate = detailsDraft.intakeDate.trim();
+    if (detailsDraft.intakeDate !== canonicalSemester(student.intakeDate)) changes.intakeDate = detailsDraft.intakeDate;
     if (Object.keys(changes).length === 0) {
       setDetailsError('Nothing has changed yet.');
       return;
@@ -1085,13 +1086,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     const matchesSupervisor = selectedSupervisor === 'All'
       || (selectedSupervisor === NO_SUPERVISOR ? !student.supervisor : student.supervisor === selectedSupervisor);
 
-    return matchesSearch && matchesProgramme && matchesSemester && matchesSupervisor && inRegistryView(student, statusView);
+    return matchesSearch && matchesProgramme && matchesSemester && matchesSupervisor && matchesIntake(student.intakeLabel, selectedIntake) && inRegistryView(student, statusView);
   });
 
   const summary = summariseRegistry(students);
   const semesterOptions = distinctValues(students.map(s => s.semester));
   const supervisorOptions = distinctValues(students.map(s => s.supervisor));
-  const activeFilters = [selectedProgramme, selectedSemester, selectedSupervisor].filter((value) => value !== 'All').length;
+  const intakeOptions = intakeFilterOptions(students.map((student) => student.intakeLabel ?? ''));
+  const activeFilters = [selectedProgramme, selectedIntake, selectedSemester, selectedSupervisor].filter((value) => value !== 'All').length;
   const columnCount = 5;
 
   // Paginated students records
@@ -1119,7 +1121,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     || detailsDraft.email.trim().toLowerCase() !== viewingStudent.email.toLowerCase()
     || detailsDraft.phone.trim() !== viewingStudent.phone
     || detailsDraft.programme !== viewingStudent.programme
-    || detailsDraft.intakeDate.trim() !== viewingStudent.intakeDate
+    || detailsDraft.intakeDate !== canonicalSemester(viewingStudent.intakeDate)
     || statusTarget !== ''
     || statusReason.trim() !== ''
   );
@@ -1162,8 +1164,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     triggerLabel="More"
                     triggerSize="md"
                     actions={[
-                      { label: 'Move students', onSelect: () => navigate(APP_ROUTES.registryMoveStudents) },
-                      { label: 'Graduate students', onSelect: () => navigate(APP_ROUTES.registryGraduate) },
+                      { label: 'Update current semester', onSelect: () => navigate(APP_ROUTES.registryUpdateSemester) },
+                      { label: 'Record graduations', onSelect: () => navigate(APP_ROUTES.registryGraduations) },
                       { label: 'Export CSV', onSelect: handleExportCSV },
                     ]}
                   />
@@ -1191,10 +1193,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-[13.5px] font-semibold text-blue-900">
               <span>
                 {moveSummary.semester.isSpecial
-                  ? `The ${shortSemester(moveSummary.semester.label)} has started. Move the students taking it.`
-                  : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} to move.`}
+                  ? `The ${shortSemester(moveSummary.semester.label)} has started. Choose who is taking it.`
+                  : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} updating.`}
               </span>
-              <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.registryMoveStudents)}>Move students</PortalButton>
+              <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.registryUpdateSemester)}>Update current semester</PortalButton>
             </div>
           )}
 
@@ -1271,6 +1273,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                   <SelectMenu
                     variant="filter"
+                    prefix="Intake"
+                    aria-label="Filter by intake"
+                    value={selectedIntake}
+                    options={[{ value: 'All', label: 'All intakes', triggerLabel: 'All' }, ...intakeOptions]}
+                    onChange={(intake) => {
+                      setSelectedIntake(intake);
+                      setCurrentPage(1);
+                    }}
+                  />
+
+                  <SelectMenu
+                    variant="filter"
                     prefix="Semester"
                     aria-label="Filter by semester"
                     value={selectedSemester}
@@ -1306,6 +1320,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       size="md"
                       onClick={() => {
                         setSelectedProgramme('All');
+                        setSelectedIntake('All');
                         setSelectedSemester('All');
                         setSelectedSupervisor('All');
                         setCurrentPage(1);
@@ -1828,42 +1843,36 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         />
                       </div>
 
-                      {/* Intake Batch & Current Semester */}
+                      {/* Intake & Current Semester */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {/* Intake Batch */}
+                        {/* Intake */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="intake-batch" className="form-label block">
-                            Intake Batch
-                          </label>
-                          <input
+                          <span id="intake-batch-label" className="form-label block">
+                            Intake
+                          </span>
+                          <SelectMenu
                             id="intake-batch"
-                            type="text"
-                            placeholder="e.g. 2023/2024"
+                            aria-labelledby="intake-batch-label"
+                            placeholder="Choose an intake"
                             value={manualFormData.intakeBatch}
-                            onChange={(e) => setManualFormData({ ...manualFormData, intakeBatch: e.target.value })}
-                            className="form-control form-control-md"
+                            options={semesterChoices()}
+                            onChange={(intakeBatch) => setManualFormData({ ...manualFormData, intakeBatch })}
                           />
                         </div>
 
                         {/* Current Semester */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="current-semester" className="form-label block">
+                          <span id="current-semester-label" className="form-label block">
                             Current Semester
-                          </label>
-                          <input
+                          </span>
+                          <SelectMenu
                             id="current-semester"
-                            type="text"
-                            list="registry-semester-options"
-                            placeholder="e.g. Semester I, 2026/2027 Session"
+                            aria-labelledby="current-semester-label"
+                            placeholder="Choose a semester"
                             value={manualFormData.semester}
-                            onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
-                            className="form-control form-control-md"
+                            options={semesterChoices({ special: true })}
+                            onChange={(semester) => setManualFormData({ ...manualFormData, semester })}
                           />
-                          <datalist id="registry-semester-options">
-                            {semesterOptions.map((semester) => (
-                              <option key={semester} value={semester} />
-                            ))}
-                          </datalist>
                         </div>
                       </div>
 
@@ -1978,7 +1987,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     busy={isProcessingCsv}
                     onMappingChange={setImportMapping}
                     defaults={importDefaults}
-                    semesterSuggestions={semesterOptions}
                     onDefaultsChange={setImportDefaults}
                     onSheetChange={(sheet) => void reinspectImport({ sheet })}
                     onHeaderRowChange={(row) => {
@@ -2705,14 +2713,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     )}
                     <label className="flex flex-col gap-1 form-label">
                       Intake
-                      <input
-                        type="text"
+                      <SelectMenu
+                        size="sm"
+                        aria-label="Intake"
+                        placeholder="Not recorded"
                         value={detailsDraft.intakeDate}
-                        onChange={(e) => editDetails({ intakeDate: e.target.value })}
+                        options={[{ value: '', label: 'Not recorded' }, ...semesterChoices({ keep: detailsDraft.intakeDate })]}
+                        onChange={(intakeDate) => editDetails({ intakeDate })}
                         disabled={detailsSaving}
-                        maxLength={32}
-                        placeholder="e.g. 2026/2027 Semester I"
-                        className="form-control form-control-sm normal-case tracking-normal"
                       />
                     </label>
                   </div>

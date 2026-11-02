@@ -13,6 +13,8 @@ import {
   saveStudentExtension,
 } from '../services/registrySemestersApi';
 import {
+  intakeNotice,
+  type SemesterNotice,
   maximumNotice,
   OUTCOME_OPTIONS,
   OUTCOME_TONE,
@@ -108,7 +110,7 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
   if (loadError) return <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-[12px] font-bold text-rose-700">{loadError}</p>;
   if (!progress) return <p className="rounded-xl border border-slate-200 bg-white p-4 text-[12px] font-semibold text-slate-500">Loading the semesters...</p>;
 
-  const notice = maximumNotice(progress);
+  const notices = [maximumNotice(progress), intakeNotice(progress)].filter(Boolean) as SemesterNotice[];
   return (
     <section aria-label="Semesters" className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <h4 className="section-label">Semesters</h4>
@@ -138,11 +140,11 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
           )}
         </div>
       </div>
-      {notice && (
-        <p role="status" className={`rounded-lg border px-3 py-2 text-[12px] font-semibold ${notice.tone === 'rose' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+      {notices.map(notice => (
+        <p key={notice.text} role="status" className={`rounded-lg border px-3 py-2 text-[12px] font-semibold ${notice.tone === 'rose' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
           {notice.text}
         </p>
-      )}
+      ))}
       {progress.rows.length === 0 ? (
         <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-3 py-3 text-[12.5px] font-semibold text-slate-600">
           No semesters on record yet. They can't graduate until they have them.

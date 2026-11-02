@@ -1,3 +1,7 @@
+## Intakes, tick lists and new names in Student Registry (2 November 2026)
+
+Move students is now Update current semester, and Graduate students is now Record graduations. Staff tick students from the portal's list, with no typing or pasting. Students on a later intake can't be updated or graduated early. Rules can apply to new intakes only. The intake is picked from a list, and the Students tab, Record graduations and Update current semester can all filter by it. Verified with backend tests and 55 browser checks on a private database copy. Dev database at accounts.0017.
+
 ## Student Registry list simplified (2 November 2026)
 
 The Students tab now has one main button, Register New Students. Move students, Graduate students and Export CSV sit in a More menu. The five big cards became small status filters above the list, and empty statuses stay hidden. Programme, Semester and Supervisor sit behind a Filters button. The list has four columns: a row opens the student's record, and Awaiting activation, Suspended, Last semester and Past the maximum show only when they apply. No inside scrollbar at any width.

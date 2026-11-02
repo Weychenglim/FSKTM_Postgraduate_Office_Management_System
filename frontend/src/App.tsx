@@ -119,8 +119,8 @@ const ProgrammeTransfers = lazyNamed('ProgrammeTransfers', () => import('./compo
 const ProgrammeTransferPage = lazyNamed('ProgrammeTransferPage', () => import('./components/ProgrammeTransferPage'));
 const ProgrammeTransferForm = lazyNamed('ProgrammeTransferForm', () => import('./components/ProgrammeTransferForm'));
 const ProgrammeRules = lazyNamed('ProgrammeRules', () => import('./components/ProgrammeRules'));
-const MoveStudents = lazyNamed('MoveStudents', () => import('./components/MoveStudents'));
-const GraduateStudents = lazyNamed('GraduateStudents', () => import('./components/GraduateStudents'));
+const UpdateCurrentSemester = lazyNamed('UpdateCurrentSemester', () => import('./components/UpdateCurrentSemester'));
+const RecordGraduations = lazyNamed('RecordGraduations', () => import('./components/RecordGraduations'));
 const StaffLecturersRegistry = lazyNamed('StaffLecturersRegistry', () => import('./components/StaffLecturersRegistry'));
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
@@ -756,10 +756,10 @@ export default function App() {
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryProgrammes ? (
               currentUser.role === 'Office Staff/Admin' ? <ProgrammeRules /> : <Navigate to={APP_ROUTES.registry} replace />
-            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryMoveStudents ? (
-              currentUser.role === 'Office Staff/Admin' ? <MoveStudents /> : <Navigate to={APP_ROUTES.registry} replace />
-            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryGraduate ? (
-              currentUser.role === 'Office Staff/Admin' ? <GraduateStudents /> : <Navigate to={APP_ROUTES.registry} replace />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryUpdateSemester ? (
+              currentUser.role === 'Office Staff/Admin' ? <UpdateCurrentSemester /> : <Navigate to={APP_ROUTES.registry} replace />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryGraduations ? (
+              currentUser.role === 'Office Staff/Admin' ? <RecordGraduations /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isTransferRoute && currentUser.role !== 'Office Staff/Admin' && currentUser.role !== 'Programme Coordinator' ? (
               <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryTransferNew ? (

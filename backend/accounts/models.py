@@ -687,9 +687,12 @@ class AccountChange(models.Model):
 
 class ProgrammeRule(models.Model):
     """How long a programme takes, in semesters. Filled in from the faculty's
-    handbook; the office can change it."""
+    handbook; the office can change it. A rule with no starting intake covers every
+    intake until a later rule for the same programme takes over."""
 
-    programme = models.CharField(max_length=255, unique=True)
+    programme = models.CharField(max_length=255)
+    from_session = models.CharField(max_length=9, blank=True, default="")
+    from_term = models.CharField(max_length=16, blank=True, default="")
     min_semesters = models.PositiveSmallIntegerField()
     # UM counts a Special Semester when the programme's offer states it (Regulation 20(2)).
     special_counts = models.BooleanField(default=True)
@@ -705,7 +708,13 @@ class ProgrammeRule(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["programme"]
+        ordering = ["programme", "from_session", "from_term"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["programme", "from_session", "from_term"],
+                name="accounts_programme_rule_one_per_intake",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.programme}: {self.min_semesters} to {self.max_semesters} semesters"
@@ -714,7 +723,7 @@ class ProgrammeRule(models.Model):
 class ProgrammeRuleChange(models.Model):
     """One edit of a programme rule, kept because it changes who can graduate."""
 
-    rule = models.ForeignKey(ProgrammeRule, on_delete=models.CASCADE, related_name="changes")
+    rule = models.ForeignKey(ProgrammeRule, on_delete=models.SET_NULL, null=True, blank=True, related_name="changes")
     actor = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

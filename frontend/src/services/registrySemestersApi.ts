@@ -14,6 +14,18 @@ export interface ProgrammeRule {
   changedBy: string;
   changedAt: string | null;
   activeStudents: number;
+  laterRules: LaterProgrammeRule[];
+}
+
+export interface LaterProgrammeRule {
+  id: number;
+  fromLabel: string;
+  minSemesters: number;
+  maxSemesters: number;
+  specialCounts: boolean;
+  changedBy: string;
+  changedAt: string | null;
+  activeStudents: number;
 }
 
 export interface ProgrammeRuleInput {
@@ -21,6 +33,8 @@ export interface ProgrammeRuleInput {
   minSemesters: number;
   maxSemesters: number;
   specialCounts: boolean;
+  fromSession: string;
+  fromTerm: string;
 }
 
 export const getProgrammeRules = () =>
@@ -28,6 +42,9 @@ export const getProgrammeRules = () =>
 
 export const saveProgrammeRule = (input: ProgrammeRuleInput) =>
   request<{ rules: ProgrammeRule[] }>(`${BASE}/programme-rules/`, json('PUT', input)).then(data => data.rules);
+
+export const removeProgrammeRule = (id: number) =>
+  request<{ rules: ProgrammeRule[] }>(`${BASE}/programme-rules/${id}/`, { method: 'DELETE' }).then(data => data.rules);
 
 export type SemesterTerm = 'SEMESTER_I' | 'SEMESTER_II' | 'SPECIAL';
 export type SemesterOutcome = 'STUDIED' | 'LEAVE' | 'LEAVE_EXEMPT';
@@ -55,6 +72,9 @@ export interface StudentSemesters {
   currentSemester: string;
   lastSemester: boolean;
   pastMaximum: boolean;
+  intake: string;
+  beforeIntake: string[];
+  startsAfterIntake: boolean;
   extensionSemesters: number;
   extensionReason: string;
   rows: StudentSemesterRow[];
@@ -80,6 +100,7 @@ export interface MoveStudent {
   matric: string;
   name: string;
   programme: string;
+  intake: string;
   avatarText: string;
   avatarBg: string;
   current: string;
@@ -88,6 +109,7 @@ export interface MoveStudent {
 export interface MoveSummary {
   semester: { id: number; label: string; session: string; term: SemesterTerm; isSpecial: boolean } | null;
   waiting: number;
+  notStarted: number;
   lastMove: { by: string; at: string; moved: number; leftOut: number } | null;
 }
 
@@ -116,6 +138,7 @@ export interface GraduationStudent {
   matric: string;
   name: string;
   programme: string;
+  intake: string;
   avatarText: string;
   avatarBg: string;
   studied: number;
@@ -136,20 +159,12 @@ export interface GraduationOverview extends GraduationGroups {
   tooEarly: number;
 }
 
-export interface GraduationListCheck extends GraduationGroups {
-  notFound: string[];
-  notActive: Array<{ matric: string; name: string; status: string }>;
-}
-
 export interface GraduationResult {
   graduated: Array<{ matric: string; name: string }>;
   skipped: Array<{ matric: string; name: string; why: string }>;
 }
 
 export const getGraduationOverview = () => request<GraduationOverview>(`${BASE}/graduation/`);
-
-export const checkGraduationList = (matrics: string[]) =>
-  request<GraduationListCheck>(`${BASE}/graduation/check/`, json('POST', { matrics }));
 
 export const graduateStudents = (input: { matrics: string[]; earlyApproved: string[]; reason: string }) =>
   request<GraduationResult>(`${BASE}/graduation/`, json('POST', input));

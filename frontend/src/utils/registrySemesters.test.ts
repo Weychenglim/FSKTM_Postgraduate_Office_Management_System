@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { StudentSemesters } from '../services/registrySemestersApi';
 import { APP_ROUTES } from '../constants/routes';
-import { findStudents, fixLink, maximumNotice, parseMatricList, semesterCount, semesterMoveWaiting, shortSemester, studentCount, validSession } from './registrySemesters';
+import { canonicalSemester, filterPeople, findStudents, fixLink, intakeFilterOptions, intakeNotice, matchesIntake, NO_INTAKE, semesterChoices, semesterParts, maximumNotice, semesterCount, semesterMoveWaiting, shortSemester, studentCount, validSession } from './registrySemesters';
 
 assert.equal(semesterCount(1), '1 semester');
 assert.equal(semesterCount(3), '3 semesters');
@@ -14,13 +14,10 @@ assert.ok(!validSession('2026/2028'));
 assert.ok(!validSession('2026'));
 assert.ok(!validSession(''));
 
-assert.deepEqual(parseMatricList(''), []);
-assert.deepEqual(parseMatricList('25990011\n25990012\t25990013, 25990014'), ['25990011', '25990012', '25990013', '25990014']);
-assert.deepEqual(parseMatricList('25990011 25990011 DEMO-STUDENT-003 demo-student-003'), ['25990011', 'DEMO-STUDENT-003']);
 
 const progress = (change: Partial<StudentSemesters>): StudentSemesters => ({
   matric: 'M1', studied: 3, minimum: 3, maximum: 8, specialCounts: true, hasRule: true, hasRecord: true, shortOfMinimum: 0,
-  maximumSemester: 'Semester II, 2029/2030 Session', currentSemester: '', lastSemester: false, pastMaximum: false,
+  maximumSemester: 'Semester II, 2029/2030 Session', currentSemester: '', lastSemester: false, pastMaximum: false, intake: '', beforeIntake: [], startsAfterIntake: false,
   extensionSemesters: 0, extensionReason: '', rows: [], ...change,
 });
 assert.equal(maximumNotice(progress({})), null);
@@ -29,8 +26,8 @@ assert.equal(maximumNotice(progress({ pastMaximum: true }))?.tone, 'rose');
 assert.match(maximumNotice(progress({ pastMaximum: true }))?.text ?? '', /Semester II, 2029\/2030/);
 
 assert.equal(APP_ROUTES.registryProgrammes, '/registry/programmes');
-assert.equal(APP_ROUTES.registryMoveStudents, '/registry/move-students');
-assert.equal(APP_ROUTES.registryGraduate, '/registry/graduate');
+assert.equal(APP_ROUTES.registryUpdateSemester, '/registry/update-semester');
+assert.equal(APP_ROUTES.registryGraduations, '/registry/graduations');
 
 assert.equal(shortSemester('Semester II, 2026/2027 Session'), 'Semester II, 2026/2027');
 const found = [{ name: 'Aisyah binti Rahman', matric: '26990001' }, { name: 'Lim Wei Jie', matric: '26990002' }];
@@ -49,5 +46,54 @@ assert.equal(fixLink({ fix: 'transfer', recordId: null }, 'M1'), null);
 assert.equal(fixLink({ fix: '', recordId: null }, 'M1'), null);
 assert.equal(fixLink({ fix: 'marks', recordId: null }, 'M1')?.to, APP_ROUTES.marks);
 assert.equal(fixLink({ fix: 'documents', recordId: null }, 'M1')?.to, '/files?student=M1');
+
+assert.equal(canonicalSemester('2024/2025 Semester 1'), '2024/2025 Semester I');
+assert.equal(canonicalSemester('Semester II, 2026/2027 Session'), '2026/2027 Semester II');
+assert.equal(canonicalSemester('Semester III, 2024/2025'), '2024/2025 Special Semester');
+assert.equal(canonicalSemester('Special Semester, 2024/2025'), '2024/2025 Special Semester');
+assert.equal(canonicalSemester(' next year '), 'next year');
+assert.equal(canonicalSemester('2024/2026 Semester I'), '2024/2026 Semester I');
+
+const choices = semesterChoices({ now: new Date('2026-11-02') });
+assert.equal(choices[0].value, '2027/2028 Semester II');
+assert.equal(choices[1].value, '2027/2028 Semester I');
+assert.equal(choices.at(-1)?.value, '2018/2019 Semester I');
+assert.ok(!choices.some(choice => choice.value.includes('Special')));
+assert.ok(semesterChoices({ special: true, now: new Date('2026-11-02') }).some(choice => choice.value === '2026/2027 Special Semester'));
+assert.equal(semesterChoices({ keep: '2001/2002 Semester I', now: new Date('2026-11-02') }).at(-1)?.value, '2001/2002 Semester I');
+assert.equal(semesterChoices({ keep: '2026/2027 Semester I', now: new Date('2026-11-02') }).length, choices.length);
+
+assert.deepEqual(semesterParts('Semester II, 2026/2027 Session'), { session: '2026/2027', term: 'SEMESTER_II' });
+assert.deepEqual(semesterParts('2026/2027 Special Semester'), { session: '2026/2027', term: 'SPECIAL' });
+assert.equal(semesterParts('soon'), null);
+
+assert.deepEqual(
+  intakeFilterOptions(['Semester I, 2024/2025 Session', '', 'Semester II, 2026/2027 Session', 'Semester I, 2026/2027 Session', 'Semester I, 2024/2025 Session']).map(option => option.label),
+  ['Semester II, 2026/2027', 'Semester I, 2026/2027', 'Semester I, 2024/2025', 'No intake recorded'],
+);
+assert.deepEqual(intakeFilterOptions(['Semester I, 2024/2025 Session']).map(option => option.value), ['Semester I, 2024/2025 Session']);
+assert.equal(matchesIntake('A', 'All'), true);
+assert.equal(matchesIntake('A', 'A'), true);
+assert.equal(matchesIntake('A', 'B'), false);
+assert.equal(matchesIntake('', NO_INTAKE), true);
+assert.equal(matchesIntake('A', NO_INTAKE), false);
+
+const people = [
+  { name: 'Aisyah', matric: '1', programme: 'DS', intake: 'Semester I, 2026/2027 Session' },
+  { name: 'Lim', matric: '2', programme: 'CS', intake: 'Semester II, 2026/2027 Session' },
+  { name: 'Tan', matric: '3', programme: 'DS', intake: 'Semester II, 2026/2027 Session' },
+];
+const names = (filters: { programme?: string; intake?: string; query?: string }) =>
+  filterPeople(people, { programme: 'All', intake: 'All', query: '', ...filters }).map(person => person.name);
+assert.deepEqual(names({}), ['Aisyah', 'Lim', 'Tan']);
+assert.deepEqual(names({ programme: 'DS' }), ['Aisyah', 'Tan']);
+assert.deepEqual(names({ intake: 'Semester II, 2026/2027 Session' }), ['Lim', 'Tan']);
+assert.deepEqual(names({ programme: 'DS', intake: 'Semester II, 2026/2027 Session' }), ['Tan']);
+assert.deepEqual(names({ query: 'lim' }), ['Lim']);
+assert.deepEqual(names({ programme: 'DS', query: 'lim' }), []);
+
+assert.equal(intakeNotice({ intake: 'Semester I, 2026/2027 Session', beforeIntake: [], startsAfterIntake: false }), null);
+assert.match(intakeNotice({ intake: 'Semester I, 2026/2027 Session', beforeIntake: ['Semester II, 2025/2026 Session'], startsAfterIntake: false })?.text ?? '', /Semester II, 2025\/2026 is before the intake/);
+assert.match(intakeNotice({ intake: 'Semester I, 2025/2026 Session', beforeIntake: [], startsAfterIntake: true })?.text ?? '', /start later/);
 
 console.log('registry semester helper tests passed');

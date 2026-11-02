@@ -17,13 +17,61 @@ LEAVE = StudentSemester.Outcome.LEAVE
 LEAVE_EXEMPT = StudentSemester.Outcome.LEAVE_EXEMPT
 
 
+def _rule_start(rule):
+    start = from_parts(rule.from_session, rule.from_term)
+    return start.key if start else (0, 0)
+
+
 def rules_by_programme():
-    return {programme_key(rule.programme): rule for rule in ProgrammeRule.objects.all()}
+    """Each programme's rules, earliest first."""
+    rules = {}
+    for rule in ProgrammeRule.objects.all():
+        rules.setdefault(programme_key(rule.programme), []).append(rule)
+    for group in rules.values():
+        group.sort(key=_rule_start)
+    return rules
 
 
-def rule_for(programme, rules=None):
-    rules = rules_by_programme() if rules is None else rules
-    return rules.get(programme_key(programme))
+def rule_for(programme, rules=None, intake=None):
+    """The rule for a student on this intake: the latest one that had started by
+    then. A student whose intake is unknown follows the newest rule."""
+    group = (rules_by_programme() if rules is None else rules).get(programme_key(programme), [])
+    if not group:
+        return None
+    if intake is None:
+        return group[-1]
+    chosen = group[0]
+    for rule in group:
+        if _rule_start(rule) <= intake.key:
+            chosen = rule
+    return chosen
+
+
+def start_of(student, rows):
+    """The semester a student began: their intake, or their first semester on record."""
+    start = read(student.intake_semester)
+    if start is None and rows:
+        start = from_parts(rows[0].session, rows[0].term)
+    return start
+
+
+def intake_label(text):
+    """An intake in the portal's own wording, or as written when it cannot be read."""
+    intake = read(text)
+    return intake.label if intake else (text or "")
+
+
+def active_semester():
+    from academics.services import current_effective_semester
+
+    portal = current_effective_semester()
+    return from_parts(portal.academic_session, portal.term) if portal else None
+
+
+def starts_later(student, semester):
+    """Whether a student's intake comes after this semester, so they have not started by then."""
+    intake = read(student.intake_semester)
+    return bool(intake and semester and intake.key > semester.key)
 
 
 def _registry(student):
@@ -46,6 +94,22 @@ class Progress:
     extension_reason: str
     current: Semester | None
     maximum_semester: Semester | None
+    intake: Semester | None = None
+
+    @property
+    def _semesters(self):
+        return [semester for semester in (from_parts(row.session, row.term) for row in self.rows) if semester]
+
+    @property
+    def before_intake(self):
+        """Semesters on the record from before the intake, which should not be counted."""
+        return [s for s in self._semesters if self.intake and s.key < self.intake.key]
+
+    @property
+    def starts_after_intake(self):
+        """Whether the record begins later than the intake, so semesters may be missing."""
+        semesters = self._semesters
+        return bool(self.intake and semesters and semesters[0].key > self.intake.key)
 
     @property
     def has_record(self):
@@ -73,8 +137,9 @@ class Progress:
 
 
 def progress_of(student, rules=None, rows=None, registry=...):
-    rule = rule_for(student.programme, rules)
     rows = rows_of(student) if rows is None else rows
+    start = start_of(student, rows)
+    rule = rule_for(student.programme, rules, start)
     registry = _registry(student) if registry is ... else registry
     studied = 0
     exempt = 0
@@ -89,9 +154,6 @@ def progress_of(student, rules=None, rows=None, registry=...):
         if row.outcome == LEAVE_EXEMPT and not semester.is_special:
             exempt += 1
     extension = registry.extension_semesters if registry else 0
-    start = read(student.intake_semester)
-    if start is None and rows:
-        start = from_parts(rows[0].session, rows[0].term)
     maximum_semester = nth_normal(start, rule.max_semesters + exempt + extension) if rule and start else None
     return Progress(
         rule=rule,
@@ -101,6 +163,7 @@ def progress_of(student, rules=None, rows=None, registry=...):
         extension_reason=registry.extension_reason if registry else "",
         current=current,
         maximum_semester=maximum_semester,
+        intake=read(student.intake_semester),
     )
 
 
@@ -218,6 +281,9 @@ def serialize_progress(student, rules=None):
         "currentSemester": progress.current.label if progress.current else "",
         "lastSemester": progress.last_semester,
         "pastMaximum": progress.past_maximum,
+        "intake": intake_label(student.intake_semester),
+        "beforeIntake": [semester.label for semester in progress.before_intake],
+        "startsAfterIntake": progress.starts_after_intake,
         "extensionSemesters": progress.extension,
         "extensionReason": progress.extension_reason,
         "rows": [serialize_row(row) for row in progress.rows],

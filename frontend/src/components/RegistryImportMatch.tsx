@@ -7,6 +7,7 @@ import { IconHeading } from './IconHeading';
 import React from 'react';
 import { AlertTriangle, ArrowRight, AtSign, Check, Columns3, History, Info, Rows3 } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
+import { semesterChoices } from '../utils/registrySemesters';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
@@ -17,9 +18,9 @@ import type { ImportDefaults, ImportFieldKey, ImportInspectResponse, ImportMappi
 export const IMPORT_STEPS = ['Upload', 'Match columns', 'Check rows', 'Import'] as const;
 
 /** Where the office is in the import: Upload, Match columns, Check rows, Import. */
-export const ImportSteps: React.FC<{ current: number; steps?: readonly string[]; label?: string }> = ({ current, steps = IMPORT_STEPS, label = 'Import steps' }) => (
-  <ol aria-label={label} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 select-none">
-    {steps.map((step, index) => {
+export const ImportSteps: React.FC<{ current: number }> = ({ current }) => (
+  <ol aria-label="Import steps" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 select-none">
+    {IMPORT_STEPS.map((step, index) => {
       const done = index < current;
       const active = index === current;
       return (
@@ -59,8 +60,6 @@ interface RegistryImportMatchProps {
   layout: ImportInspectResponse;
   mapping: ImportMapping;
   defaults: ImportDefaults;
-  /** Semesters already in the registry, offered while typing. */
-  semesterSuggestions: string[];
   error?: string | null;
   busy: boolean;
   onMappingChange: (mapping: ImportMapping) => void;
@@ -89,7 +88,6 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
   layout,
   mapping,
   defaults,
-  semesterSuggestions,
   error,
   busy,
   onMappingChange,
@@ -290,36 +288,28 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
               disabled={busy}
             />
           </div>
-          <label className="flex flex-col">
+          <div className="flex flex-col">
             <span className="form-label">Intake</span>
-            <input
-              type="text"
-              value={defaults.intake ?? ''}
-              onChange={(event) => setDefault('intake', event.target.value)}
-              maxLength={32}
-              placeholder="e.g. 2026/2027 Semester I"
+            <SelectMenu
+              size="sm"
+              aria-label="Intake for every row"
+              value={defaults.intake ?? FROM_FILE}
+              options={[{ value: FROM_FILE, label: "Use the file's intake column" }, ...semesterChoices()]}
+              onChange={(value) => setDefault('intake', value)}
               disabled={busy}
-              className="form-control form-control-sm"
             />
-          </label>
-          <label className="flex flex-col">
+          </div>
+          <div className="flex flex-col">
             <span className="form-label">Current semester</span>
-            <input
-              type="text"
-              list="registry-import-semester-options"
-              value={defaults.semester ?? ''}
-              onChange={(event) => setDefault('semester', event.target.value)}
-              maxLength={64}
-              placeholder="e.g. Semester I, 2026/2027 Session"
+            <SelectMenu
+              size="sm"
+              aria-label="Current semester for every row"
+              value={defaults.semester ?? FROM_FILE}
+              options={[{ value: FROM_FILE, label: "Use the file's semester column" }, ...semesterChoices({ special: true })]}
+              onChange={(value) => setDefault('semester', value)}
               disabled={busy}
-              className="form-control form-control-sm"
             />
-            <datalist id="registry-import-semester-options">
-              {semesterSuggestions.map((semester) => (
-                <option key={semester} value={semester} />
-              ))}
-            </datalist>
-          </label>
+          </div>
         </div>
       </div>
 

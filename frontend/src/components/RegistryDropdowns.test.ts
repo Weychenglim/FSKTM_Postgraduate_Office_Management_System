@@ -15,7 +15,7 @@ assert.match(
   /<SelectMenu\s+id="programme-selection"[\s\S]{0,300}placeholder="Select registered programme"/,
   'the registration form must use SelectMenu for the programme',
 );
-assert.equal((registry.match(/<SelectMenu\b/g) ?? []).length, 6, 'three filters, the form and two record fields');
+assert.equal((registry.match(/<SelectMenu\b/g) ?? []).length, 10, 'four filters, three in the form and three record fields');
 assert.match(registry, /programme: '',/, 'the programme field starts empty so the placeholder shows');
 
 // WAI-ARIA select-only combobox: focus stays on the button.

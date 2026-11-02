@@ -26,23 +26,60 @@ from .registry_views import (
     _require_office_admin,
     _require_registry_reader,
 )
-from .semester_rules import record_semester, serialize_progress, sync_current
-from .semesters import from_parts
+from .semester_rules import (
+    intake_label,
+    record_semester,
+    rows_of,
+    rule_for,
+    rules_by_programme,
+    serialize_progress,
+    start_of,
+    starts_later,
+    sync_current,
+)
+from .semesters import SEMESTER_I, SEMESTER_II, from_parts
 from .semesters import read as read_semester
 
 MAX_EXTENSION = 3
 
 
+def _rule_from(rule):
+    start = from_parts(rule.from_session, rule.from_term)
+    return start.label if start else ""
+
+
 def _rule_values(rule):
     return {
+        "programme": rule.programme,
+        "appliesFrom": _rule_from(rule),
         "minSemesters": rule.min_semesters,
         "maxSemesters": rule.max_semesters,
         "specialCounts": rule.special_counts,
     }
 
 
-def _serialize_rule(programme, rule, students):
+def _changed(rule):
     changed = rule.updated_by if rule else None
+    return {
+        "changedBy": changed.full_name if changed else "",
+        "changedAt": rule.updated_at.isoformat() if changed else None,
+    }
+
+
+def _serialize_later_rule(rule, counts):
+    return {
+        "id": rule.pk,
+        "fromLabel": _rule_from(rule),
+        "minSemesters": rule.min_semesters,
+        "maxSemesters": rule.max_semesters,
+        "specialCounts": rule.special_counts,
+        "activeStudents": counts.get(rule.pk, 0),
+        **_changed(rule),
+    }
+
+
+def _serialize_rule(programme, group, counts, students):
+    rule = group[0] if group else None
     return {
         "programme": programme,
         "hasRule": rule is not None,
@@ -50,9 +87,9 @@ def _serialize_rule(programme, rule, students):
         "maxSemesters": rule.max_semesters if rule else None,
         "specialCounts": rule.special_counts if rule else True,
         "source": rule.source if rule else "",
-        "changedBy": changed.full_name if changed else "",
-        "changedAt": rule.updated_at.isoformat() if changed else None,
-        "activeStudents": students.get(programme_key(programme), 0),
+        "activeStudents": counts.get(rule.pk, 0) if rule else students.get(programme_key(programme), 0),
+        "laterRules": [_serialize_later_rule(later, counts) for later in group[1:]],
+        **_changed(rule),
     }
 
 
@@ -61,37 +98,48 @@ class ProgrammeRuleSerializer(serializers.Serializer):
     minSemesters = serializers.IntegerField(min_value=1, max_value=20)
     maxSemesters = serializers.IntegerField(min_value=1, max_value=20)
     specialCounts = serializers.BooleanField()
+    fromSession = serializers.CharField(max_length=9, allow_blank=True, required=False, default="")
+    fromTerm = serializers.ChoiceField(choices=[SEMESTER_I, SEMESTER_II], allow_blank=True, required=False, default="")
 
     def validate(self, attrs):
         if attrs["minSemesters"] > attrs["maxSemesters"]:
             raise serializers.ValidationError(
                 {"minSemesters": ["The minimum cannot be more than the maximum."]}
             )
+        attrs["fromSession"] = attrs["fromSession"].strip()
+        if bool(attrs["fromSession"]) != bool(attrs["fromTerm"]) or (
+            attrs["fromSession"] and from_parts(attrs["fromSession"], attrs["fromTerm"]) is None
+        ):
+            raise serializers.ValidationError({"fromSession": ["Choose the first intake this rule covers."]})
         return attrs
 
 
-def _active_by_programme():
-    counts = {}
-    rows = Student.objects.filter(status=Student.Status.ACTIVE).values("programme").annotate(total=Count("pk"))
-    for row in rows:
-        key = programme_key(row["programme"])
-        counts[key] = counts.get(key, 0) + row["total"]
-    return counts
-
-
 def _all_rules():
-    students = _active_by_programme()
-    rules = {programme_key(rule.programme): rule for rule in ProgrammeRule.objects.select_related("updated_by")}
+    rules = rules_by_programme()
+    counts, students = {}, {}
+    active = Student.objects.filter(status=Student.Status.ACTIVE).prefetch_related("semesters")
+    for student in active:
+        key = programme_key(student.programme)
+        students[key] = students.get(key, 0) + 1
+        rule = rule_for(student.programme, rules, start_of(student, rows_of(student)))
+        if rule:
+            counts[rule.pk] = counts.get(rule.pk, 0) + 1
     return [
-        _serialize_rule(programme, rules.get(programme_key(programme)), students)
+        _serialize_rule(programme, rules.get(programme_key(programme), []), counts, students)
         for programme in APPROVED_PROGRAMMES
     ]
+
+
+def _record_rule_change(actor, rule, before, after):
+    ProgrammeRuleChange.objects.create(
+        rule=rule, actor=actor, actor_name=actor.full_name, before_values=before, after_values=after,
+    )
 
 
 @api_view(["GET", "PUT"])
 @permission_classes([IsAuthenticated])
 def programme_rules_view(request):
-    """Office: how long each approved programme takes."""
+    """Office: how long each approved programme takes, for each intake a rule covers."""
     _require_office_admin(request)
     if request.method == "GET":
         return Response({"rules": _all_rules()})
@@ -99,10 +147,16 @@ def programme_rules_view(request):
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
     with transaction.atomic():
-        rule = ProgrammeRule.objects.select_for_update().filter(programme=data["programme"]).first()
+        same_programme = ProgrammeRule.objects.select_for_update().filter(programme=data["programme"])
+        if data["fromSession"] and not same_programme.filter(from_session="").exists():
+            return Response(
+                {"error": "Set this programme's rule before adding one for new intakes."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        rule = same_programme.filter(from_session=data["fromSession"], from_term=data["fromTerm"]).first()
         before = _rule_values(rule) if rule else {}
         if rule is None:
-            rule = ProgrammeRule(programme=data["programme"])
+            rule = ProgrammeRule(programme=data["programme"], from_session=data["fromSession"], from_term=data["fromTerm"])
         rule.min_semesters = data["minSemesters"]
         rule.max_semesters = data["maxSemesters"]
         rule.special_counts = data["specialCounts"]
@@ -110,13 +164,23 @@ def programme_rules_view(request):
         rule.save()
         after = _rule_values(rule)
         if before != after:
-            ProgrammeRuleChange.objects.create(
-                rule=rule,
-                actor=request.user,
-                actor_name=request.user.full_name,
-                before_values=before,
-                after_values=after,
-            )
+            _record_rule_change(request.user, rule, before, after)
+    return Response({"rules": _all_rules()})
+
+
+@api_view(["DELETE"])
+@permission_classes([IsAuthenticated])
+def programme_rule_detail_view(request, rule_id):
+    """Office: remove a rule for new intakes. Those students go back to the rule before it."""
+    _require_office_admin(request)
+    with transaction.atomic():
+        rule = ProgrammeRule.objects.select_for_update().filter(pk=rule_id).first()
+        if rule is None:
+            return Response({"error": "That rule has already gone."}, status=status.HTTP_404_NOT_FOUND)
+        if not rule.from_session:
+            return Response({"error": "A programme always keeps its first rule."}, status=status.HTTP_409_CONFLICT)
+        _record_rule_change(request.user, rule, _rule_values(rule), {})
+        rule.delete()
     return Response({"rules": _all_rules()})
 
 
@@ -155,6 +219,11 @@ def student_semesters_view(request, matric_no):
         return Response(
             {"session": ["Use a session with consecutive years, like 2026/2027."]},
             status=status.HTTP_400_BAD_REQUEST,
+        )
+    if starts_later(student, semester):
+        return Response(
+            {"error": f"{semester.label} is before this student's intake."},
+            status=status.HTTP_409_CONFLICT,
         )
     _, created = record_semester(
         student, semester, actor=request.user, outcome=data["outcome"], note=data["note"].strip()
@@ -232,8 +301,25 @@ def _on_semester(semester):
     return StudentSemester.objects.filter(session=semester.session, term=semester.term).values("student_id")
 
 
+def _not_on_semester(semester, *, wanted_status=Student.Status.ACTIVE):
+    """(students to update, how many start later). A student whose intake is after this semester has not begun."""
+    students = (
+        Student.objects.filter(status=wanted_status)
+        .exclude(pk__in=_on_semester(semester))
+        .select_related("user", "registry")
+        .order_by("user__full_name")
+    )
+    ready, later = [], 0
+    for student in students:
+        if starts_later(student, semester):
+            later += 1
+        else:
+            ready.append(student)
+    return ready, later
+
+
 def _move_payload(portal, semester):
-    waiting = Student.objects.filter(status=Student.Status.ACTIVE).exclude(pk__in=_on_semester(semester))
+    waiting, not_started = _not_on_semester(semester)
     last = (
         StudentSemesterMove.objects.filter(session=semester.session, term=semester.term)
         .select_related("moved_by")
@@ -247,7 +333,8 @@ def _move_payload(portal, semester):
             "term": semester.term,
             "isSpecial": semester.is_special,
         },
-        "waiting": waiting.count(),
+        "waiting": len(waiting),
+        "notStarted": not_started,
         "lastMove": {
             "by": last.moved_by.full_name if last.moved_by else "",
             "at": last.created_at.isoformat(),
@@ -258,20 +345,15 @@ def _move_payload(portal, semester):
 
 
 def _move_rows(semester):
-    students = (
-        Student.objects.filter(status=Student.Status.ACTIVE)
-        .exclude(pk__in=_on_semester(semester))
-        .select_related("user", "registry")
-        .order_by("user__full_name")
-    )
     rows = []
-    for student in students:
+    for student in _not_on_semester(semester)[0]:
         registry = _registry_or_none(student)
         rows.append(
             {
                 "matric": student.matric_no,
                 "name": student.user.full_name,
                 "programme": student.programme,
+                "intake": intake_label(student.intake_semester),
                 "avatarText": _initials(student.user.full_name),
                 "avatarBg": _avatar_bg(student.matric_no),
                 "current": (registry.current_semester if registry else "") or student.intake_semester,
@@ -321,10 +403,10 @@ def _put_on_semester(students, semester, *, outcome, actor, note=""):
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def semester_move_view(request):
-    """Office: move students into the active semester, all in one go.
+    """Office: put students on the active semester, all in one go.
 
-    Only the active semester can be moved into, and a student has one row per
-    semester, so running this twice changes nothing.
+    Only the active semester can be used, and a student has one row per semester,
+    so running this twice changes nothing. Anyone whose intake is later is skipped.
     """
     _require_office_admin(request)
     portal, semester = _active_semester()
@@ -334,16 +416,16 @@ def semester_move_view(request):
                 {"error": "There is no active semester. Set one in Academic Semesters first."},
                 status=status.HTTP_409_CONFLICT,
             )
-        return Response({"semester": None, "waiting": 0, "lastMove": None})
+        return Response({"semester": None, "waiting": 0, "notStarted": 0, "lastMove": None})
     if request.method == "GET":
         payload = _move_payload(portal, semester)
         if request.query_params.get("summary") != "1":
             rows = _move_rows(semester)
-            deferred = Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=_on_semester(semester))
+            deferred = _not_on_semester(semester, wanted_status=Student.Status.DEFERRED)[0]
             payload.update(
                 students=rows,
                 movingFrom=_usual_semester(rows),
-                deferred=0 if semester.is_special else deferred.count(),
+                deferred=0 if semester.is_special else len(deferred),
             )
         return Response(payload)
 
@@ -359,16 +441,21 @@ def semester_move_view(request):
     with transaction.atomic():
         on_it = set(_on_semester(semester).values_list("student_id", flat=True))
         active = list(Student.objects.filter(status=Student.Status.ACTIVE).select_for_update())
-        moving = [student for student in active if student.matric_no.casefold() in wanted and student.pk not in on_it]
+        waiting = [student for student in active if student.pk not in on_it and not starts_later(student, semester)]
+        moving = [student for student in waiting if student.matric_no.casefold() in wanted]
         known = {student.matric_no.casefold() for student in active}
         _put_on_semester(moving, semester, outcome=StudentSemester.Outcome.STUDIED, actor=request.user)
         if not semester.is_special:
-            deferred = list(Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=on_it))
+            deferred = [
+                student
+                for student in Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=on_it)
+                if not starts_later(student, semester)
+            ]
             _put_on_semester(
                 deferred, semester, outcome=StudentSemester.Outcome.LEAVE, actor=request.user,
-                note="Deferred when students moved to this semester",
+                note="On deferment when this semester started",
             )
-        left_out = len([student for student in active if student.pk not in on_it]) - len(moving)
+        left_out = len(waiting) - len(moving)
         StudentSemesterMove.objects.create(
             session=semester.session, term=semester.term, moved_count=len(moving), left_out_count=left_out, moved_by=request.user,
         )

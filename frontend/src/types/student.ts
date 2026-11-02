@@ -30,6 +30,7 @@ export interface StudentRecord {
   supervisor: string;
   supervisorStaffNo?: string;
   intakeDate: string;
+  intakeLabel?: string;
   activated?: boolean;
   lastLogin?: string | null;
 }

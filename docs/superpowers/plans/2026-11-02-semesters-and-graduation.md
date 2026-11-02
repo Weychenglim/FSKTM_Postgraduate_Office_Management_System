@@ -201,3 +201,16 @@ Recommended answers first.
 - [Postgraduate Kit 2024/2025](https://fsktm.um.edu.my/fsktm/doc/postgraduate/PGKIT/PG%20KIT%202024%202025%202.pdf): research project across semesters, finishing in one year
 - [Master of Data Science](https://fsktm.um.edu.my/master-of-data-science-coursework), [Master of Cyber Security](https://fsktm.um.edu.my/master-of-cyber-security-coursework), [Master of Artificial Intelligence](https://fsktm.um.edu.my/master-of-artificial-intelligence-coursework)
 - `SURAT VISA LATEST_2026.docx` (office letter sample, in the Final Year Project folder)
+
+## Follow-up on 2 November 2026: intakes, tick lists and names
+
+Asked for after the catch-up with Wey Cheng and after researching how other student systems handle intakes.
+
+- **Names:** Move students is now Update current semester (`/registry/update-semester`). Graduate students is now Record graduations (`/registry/graduations`).
+- **No typing or pasting:** Record graduations is one page where staff tick students from the portal's own list. The pasted-list API is gone. Update current semester loses Paste a list, and its Special Semester view is a tick list.
+- **Later intakes:** a student whose intake is after the active semester is not waiting, cannot be updated, gets no leave row, cannot graduate and cannot have a semester added before their intake.
+- **Rules by intake:** a programme keeps one rule per first intake (`ProgrammeRule.from_session`, `from_term`). A student follows the latest rule that had started by their intake. UM Rules 2024, rule 1(3) keeps candidates admitted in 2020/2021 or earlier on the 2019 durations, so durations do depend on intake. Migration `accounts.0017`.
+- **Reading the intake:** the registration form, Edit Details and the import's settings pick from a list. The API and the import refuse a semester they can't read.
+- **Filter by intake:** on the Students tab, Record graduations and Update current semester.
+- **Changing an intake later:** the Semesters card warns when semesters sit before the intake or start after it, and Record graduations shows the first as Check first.
+- **Sources:** [Study@UM intakes](https://study.um.edu.my/faqs-amp-info), [UM (Master's Degree) Rules 2024](https://apium.um.edu.my/Postgraduate%20file/Rules%20and%20regulations/UM%20(Master's%20Degree)%20Rules%202024.pdf), [FSKTM PG Kit 2024/2025 course plans](https://fsktm.um.edu.my/fsktm/doc/postgraduate/PGKIT/PG%20KIT%202024%202025%202.pdf), [OpenEduCat progression](https://newdocs.openeducat.org/students/progression/), [ERPNext Program Enrollment Tool](https://docs.frappe.io/erpnext/user/manual/en/program-enrollment-tool), [Jacksonville State time limits](https://catalog.jsu.edu/graduate/academic-policies-procedures/time-limits/).

@@ -304,15 +304,15 @@ How long a programme takes, how far along each student is, and acting on many st
 
 | Method | Path | What it does |
 | ------ | ---- | ------------ |
-| GET, PUT | `programme-rules/` | Minimum, maximum and whether a Special Semester counts, for each approved programme. Edits are kept in `ProgrammeRuleChange`. |
+| GET, PUT | `programme-rules/` | Minimum, maximum and whether a Special Semester counts, for each approved programme. Send `fromSession` and `fromTerm` to set a rule for that intake and later ones; earlier intakes keep their rule. Edits are kept in `ProgrammeRuleChange`. |
+| DELETE | `programme-rules/<id>/` | Remove a rule for new intakes. Those students go back to the rule before it. A programme's first rule stays. |
 | GET | `students/<matric>/semesters/` | Anyone who can read that record: semesters studied, minimum, maximum semester, and the rows. |
 | POST | `students/<matric>/semesters/` | Add a semester (`session`, `term`, `outcome`). |
 | PATCH, DELETE | `students/<matric>/semesters/<id>/` | Correct or remove one. The record's current semester follows the latest row. |
 | PUT | `students/<matric>/semester-extension/` | Up to 3 semesters past the maximum, with a reason. |
-| GET | `semester-move/` | Who would move into the active semester. `?summary=1` gives only the counts, for the Students tab. |
-| POST | `semester-move/` | Move students (`semesterId`, `matrics`). Only the active semester, and running it twice changes nothing. Deferred students get the semester as leave, except a Special Semester. |
-| GET | `graduation/` | Active students near or past the minimum, as `ready`, `check` and `stop`, each with what is unfinished. Students 2 or more below the minimum are only counted (`tooEarly`). |
-| POST | `graduation/check/` | The same check for a pasted list (`matrics`), plus `notFound` and `notActive`. |
+| GET | `semester-move/` | Who still needs the active semester (the Update current semester page). `?summary=1` gives only the counts, for the Students tab. Anyone whose intake is later is left out and counted as `notStarted`. |
+| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Only the active semester, and running it twice changes nothing. Later intakes are skipped. Deferred students get the semester as leave, except a Special Semester. |
+| GET | `graduation/` | The Record graduations page: Active students near or past the minimum, as `ready`, `check` and `stop`, each with their intake and what is unfinished. Students 2 or more below the minimum, or who have not started, are only counted (`tooEarly`). |
 | POST | `graduation/` | Graduate (`matrics`, `earlyApproved`, `reason`). Each student is checked again and graduated separately; the result lists `graduated` and `skipped` with why. |
 | GET | `students/<matric>/graduation-check/` | The same check for one student. |
 

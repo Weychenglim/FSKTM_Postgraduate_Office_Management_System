@@ -13,7 +13,7 @@ from letters.models import AUTOMATIC_PURPOSES, GeneratedLetter
 from .models import Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, student_blockers, transition_student
 from .registry_views import _avatar_bg, _initials
-from .semester_rules import progress_of, rows_of, rules_by_programme
+from .semester_rules import active_semester, intake_label, progress_of, rows_of, rules_by_programme, starts_later
 
 READY, CHECK, STOP = "ready", "check", "stop"
 GRADUATED = "GRADUATED"
@@ -41,6 +41,8 @@ def _semester_items(progress):
         items.append(_item(CHECK, "ONE_BELOW", f"{_plural(progress.studied, 'semester')} studied, 1 below the minimum.", "record"))
     if progress.past_maximum:
         items.append(_item(CHECK, "PAST_MAXIMUM", "Past the maximum semester.", "record"))
+    for semester in progress.before_intake:
+        items.append(_item(CHECK, "BEFORE_INTAKE", f"{semester.label} is before their intake.", "record"))
     return items
 
 
@@ -90,6 +92,7 @@ def _summary(student, progress, items):
         "matric": student.matric_no,
         "name": student.user.full_name,
         "programme": student.programme,
+        "intake": intake_label(student.intake_semester),
         "avatarText": _initials(student.user.full_name),
         "avatarBg": _avatar_bg(student.matric_no),
         "studied": progress.studied,
@@ -101,9 +104,12 @@ def _summary(student, progress, items):
     }
 
 
-def check_student(student, rules=None, progress=None):
+def check_student(student, rules=None, progress=None, active=...):
     """One student's graduation check. Too few semesters says enough, so nothing else is looked up."""
     progress = progress_of(student, rules) if progress is None else progress
+    active = active_semester() if active is ... else active
+    if starts_later(student, active):
+        return _summary(student, progress, [_item(STOP, "NOT_STARTED", f"Starts in {intake_label(student.intake_semester)}.")])
     items = _semester_items(progress)
     if not any(item["code"] == "TOO_EARLY" for item in items):
         items = [*_workflow_items(student), *items, *_warning_items(student)]
@@ -122,14 +128,16 @@ def _students():
 
 
 def overview():
-    """Every Active student near or past the minimum, by group. Students well below it are only counted."""
+    """Every Active student near or past the minimum, by group. Students well below it,
+    or who have not started yet, are only counted."""
     groups = {READY: [], CHECK: [], STOP: []}
     too_early = 0
+    active = active_semester()
     for student, progress in _with_progress(list(_students().filter(status=Student.Status.ACTIVE))):
-        if progress.rule is not None and progress.has_record and progress.short_of_minimum >= 2:
+        if starts_later(student, active) or (progress.rule is not None and progress.has_record and progress.short_of_minimum >= 2):
             too_early += 1
             continue
-        result = check_student(student, progress=progress)
+        result = check_student(student, progress=progress, active=active)
         groups[result["group"]].append(result)
     return {**groups, "tooEarly": too_early}
 
@@ -146,34 +154,20 @@ def _matched(matrics):
     return found, [text for key, text in wanted.items() if key not in known]
 
 
-def check_list(matrics):
-    """What the portal says about the students on a pasted list."""
-    found, missing = _matched(matrics)
-    groups = {READY: [], CHECK: [], STOP: []}
-    not_active = []
-    active = [student for student in found if student.status == Student.Status.ACTIVE]
-    for student in found:
-        if student.status != Student.Status.ACTIVE:
-            not_active.append({"matric": student.matric_no, "name": student.user.full_name, "status": student.status})
-    for student, progress in _with_progress(active):
-        result = check_student(student, progress=progress)
-        groups[result["group"]].append(result)
-    return {**groups, "notFound": missing, "notActive": not_active}
-
-
 def graduate_many(matrics, *, actor, reason, early_approved=()):
     """Graduate each student separately, so one problem does not stop the others.
     Everything is checked again here, because the page may be out of date."""
     approved = {str(matric).strip().casefold() for matric in early_approved}
     found, missing = _matched(matrics)
     rules = rules_by_programme()
+    active = active_semester()
     graduated, skipped = [], [{"matric": matric, "name": "", "why": "Not found in the portal."} for matric in missing]
     for student in found:
         name = student.user.full_name
         if student.status != Student.Status.ACTIVE:
             skipped.append({"matric": student.matric_no, "name": name, "why": f"Their status is {student.status}."})
             continue
-        check = check_student(student, rules)
+        check = check_student(student, rules, active=active)
         stopped = [item["text"] for item in check["items"] if item["level"] == STOP]
         if stopped:
             skipped.append({"matric": student.matric_no, "name": name, "why": stopped[0]})

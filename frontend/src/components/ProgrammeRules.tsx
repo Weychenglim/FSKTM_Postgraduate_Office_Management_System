@@ -4,13 +4,15 @@
  */
 
 import React, { useEffect, useId, useState } from 'react';
-import type { ProgrammeRule } from '../services/registrySemestersApi';
-import { getProgrammeRules, saveProgrammeRule } from '../services/registrySemestersApi';
+import { Plus } from 'lucide-react';
+import type { LaterProgrammeRule, ProgrammeRule } from '../services/registrySemestersApi';
+import { getProgrammeRules, removeProgrammeRule, saveProgrammeRule } from '../services/registrySemestersApi';
 import { historyTime } from '../utils/documentDisplay';
-import { semesterCount } from '../utils/registrySemesters';
+import { semesterChoices, semesterCount, semesterParts, shortSemester, studentCount } from '../utils/registrySemesters';
 import { DialogShell } from './DocumentDialogs';
-import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
+import { SelectMenu } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
@@ -18,19 +20,43 @@ const errorText = (err: unknown, fallback: string) => (err instanceof Error && e
 const ruleFrom = (rule: ProgrammeRule) =>
   rule.changedBy ? `Changed by ${rule.changedBy}, ${historyTime(rule.changedAt ?? '')}` : `From the ${rule.source || 'handbook'}`;
 
-/** Registry's Programmes tab: how long each programme takes. It decides who can graduate and what letters print. */
+interface Editing {
+  rule: ProgrammeRule;
+  later: LaterProgrammeRule | null;
+  isNew: boolean;
+}
+
+const Durations: React.FC<{ minimum: number | null; maximum: number | null; specialCounts: boolean }> = ({ minimum, maximum, specialCounts }) => (
+  <>
+    <div>
+      <p className="card-label">Minimum</p>
+      <p className="text-[14px] font-bold text-slate-900">{semesterCount(minimum ?? 0)}</p>
+      {specialCounts && <p className="text-[12px] font-medium text-slate-500">A Special Semester counts</p>}
+    </div>
+    <div>
+      <p className="card-label">Maximum</p>
+      <p className="text-[14px] font-bold text-slate-900">{semesterCount(maximum ?? 0)}</p>
+    </div>
+  </>
+);
+
+const ROW = 'grid items-center gap-x-6 gap-y-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]';
+
+/** Registry's Programmes tab: how long each programme takes, for each intake a rule covers. */
 export const ProgrammeRules: React.FC = () => {
   const titleId = useId();
   const [rules, setRules] = useState<ProgrammeRule[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [editing, setEditing] = useState<ProgrammeRule | null>(null);
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const [firstIntake, setFirstIntake] = useState('');
   const [minimum, setMinimum] = useState('');
   const [maximum, setMaximum] = useState('');
   const [specialCounts, setSpecialCounts] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<{ programme: string; later: LaterProgrammeRule } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,11 +67,13 @@ export const ProgrammeRules: React.FC = () => {
     return () => { cancelled = true; };
   }, [reload]);
 
-  const edit = (rule: ProgrammeRule) => {
-    setEditing(rule);
-    setMinimum(String(rule.minSemesters ?? 3));
-    setMaximum(String(rule.maxSemesters ?? 8));
-    setSpecialCounts(rule.specialCounts);
+  const open = (rule: ProgrammeRule, later: LaterProgrammeRule | null, isNew = false) => {
+    const source = later ?? rule;
+    setEditing({ rule, later, isNew });
+    setFirstIntake('');
+    setMinimum(String(source.minSemesters ?? 3));
+    setMaximum(String(source.maxSemesters ?? 8));
+    setSpecialCounts(source.specialCounts);
     setProblem(null);
   };
 
@@ -61,12 +89,24 @@ export const ProgrammeRules: React.FC = () => {
       setProblem('The minimum cannot be more than the maximum.');
       return;
     }
+    const start = editing.isNew ? semesterParts(firstIntake) : editing.later ? semesterParts(editing.later.fromLabel) : null;
+    if (editing.isNew && !start) {
+      setProblem('Choose the first intake.');
+      return;
+    }
     setBusy(true);
     setProblem(null);
     try {
-      setRules(await saveProgrammeRule({ programme: editing.programme, minSemesters: min, maxSemesters: max, specialCounts }));
+      setRules(await saveProgrammeRule({
+        programme: editing.rule.programme,
+        minSemesters: min,
+        maxSemesters: max,
+        specialCounts,
+        fromSession: start?.session ?? '',
+        fromTerm: start?.term ?? '',
+      }));
       setEditing(null);
-      setToast(`Saved. This now applies to ${editing.programme}.`);
+      setToast('Saved.');
     } catch (err) {
       setProblem(errorText(err, 'Could not save this programme.'));
     } finally {
@@ -74,9 +114,26 @@ export const ProgrammeRules: React.FC = () => {
     }
   };
 
+  const remove = async () => {
+    if (!removing) return;
+    setBusy(true);
+    try {
+      setRules(await removeProgrammeRule(removing.later.id));
+      setRemoving(null);
+      setToast('Removed.');
+    } catch (err) {
+      setRemoving(null);
+      setToast(errorText(err, 'Could not remove this rule.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applies = editing && !editing.isNew ? (editing.later ?? editing.rule).activeStudents : null;
+
   return (
-    <div className="space-y-8">
-      <PageHeader title="Student Registry" subtitle="How long each programme takes. This decides who can graduate and what letters print." />
+    <div className="space-y-6">
+      <PageHeader title="Student Registry" subtitle="How long each programme takes." />
       <RegistryModuleTabs active="programmes" office />
       {error ? (
         <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
@@ -85,33 +142,43 @@ export const ProgrammeRules: React.FC = () => {
       ) : (
         <ul aria-label="Programmes" className="app-card divide-y divide-slate-100 px-5 sm:px-6">
           {rules.map(rule => (
-            <li key={rule.programme} className="grid items-center gap-x-6 gap-y-3 py-5 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
-              <div className="min-w-0">
-                <p className="text-[14px] font-extrabold text-brand-navy [overflow-wrap:anywhere]">{rule.programme}</p>
-                <p className="mt-0.5 text-[12.5px] font-medium text-slate-500">{rule.hasRule ? ruleFrom(rule) : 'No rule yet'}</p>
+            <li key={rule.programme} className="space-y-4 py-5">
+              <div className={ROW}>
+                <div className="min-w-0">
+                  <p className="text-[14px] font-extrabold text-brand-navy [overflow-wrap:anywhere]">{rule.programme}</p>
+                  <p className="mt-0.5 text-[12.5px] font-medium text-slate-500">
+                    {!rule.hasRule ? 'No rule yet' : rule.laterRules.length ? `Intakes before ${shortSemester(rule.laterRules[0].fromLabel)}` : ruleFrom(rule)}
+                  </p>
+                </div>
+                {rule.hasRule ? (
+                  <Durations minimum={rule.minSemesters} maximum={rule.maxSemesters} specialCounts={rule.specialCounts} />
+                ) : (
+                  <p className="text-[13px] font-semibold text-amber-800 md:col-span-2">The portal can't check how long this programme takes.</p>
+                )}
+                <PortalButton size="sm" onClick={() => open(rule, null)} aria-label={`Edit ${rule.programme}`}>Edit</PortalButton>
               </div>
-              {rule.hasRule ? (
-                <>
-                  <div>
-                    <p className="card-label">Minimum</p>
-                    <p className="text-[14px] font-bold text-slate-900">{semesterCount(rule.minSemesters ?? 0)}</p>
-                    {rule.specialCounts && <p className="text-[12px] font-medium text-slate-500">A Special Semester counts</p>}
+              {rule.laterRules.map(later => (
+                <div key={later.id} className={`${ROW} rounded-xl border border-slate-200 bg-slate-50 px-4 py-3`}>
+                  <div className="min-w-0">
+                    <p className="text-[13.5px] font-bold text-slate-900">From {shortSemester(later.fromLabel)}</p>
+                    <p className="mt-0.5 text-[12.5px] font-medium text-slate-500">{studentCount(later.activeStudents)}</p>
                   </div>
-                  <div>
-                    <p className="card-label">Maximum</p>
-                    <p className="text-[14px] font-bold text-slate-900">{semesterCount(rule.maxSemesters ?? 0)}</p>
+                  <Durations minimum={later.minSemesters} maximum={later.maxSemesters} specialCounts={later.specialCounts} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <PortalButton size="sm" onClick={() => open(rule, later)} aria-label={`Edit the rule from ${shortSemester(later.fromLabel)}`}>Edit</PortalButton>
+                    <PortalButton size="sm" variant="ghost" onClick={() => setRemoving({ programme: rule.programme, later })} aria-label={`Remove the rule from ${shortSemester(later.fromLabel)}`}>Remove</PortalButton>
                   </div>
-                </>
-              ) : (
-                <p className="text-[13px] font-semibold text-amber-800 md:col-span-2">The portal can't check how long this programme takes.</p>
+                </div>
+              ))}
+              {rule.hasRule && (
+                <PortalButton size="sm" variant="ghost" icon={Plus} onClick={() => open(rule, null, true)} aria-label={`Add a rule for new intakes of ${rule.programme}`}>New intake rule</PortalButton>
               )}
-              <PortalButton size="sm" onClick={() => edit(rule)} aria-label={`Edit ${rule.programme}`}>Edit</PortalButton>
             </li>
           ))}
         </ul>
       )}
       <DialogShell
-        title="Change this programme"
+        title={editing?.isNew ? 'New intake rule' : 'Change this rule'}
         titleId={titleId}
         isOpen={editing !== null}
         busy={busy}
@@ -121,7 +188,14 @@ export const ProgrammeRules: React.FC = () => {
           <PortalButton variant="primary" isLoading={busy} onClick={() => void save()}>Save</PortalButton>
         </>}
       >
-        <p className="text-[14px] font-bold text-slate-800 [overflow-wrap:anywhere]">{editing?.programme}</p>
+        <p className="text-[14px] font-bold text-slate-800 [overflow-wrap:anywhere]">{editing?.rule.programme}</p>
+        {editing?.later && <p className="text-[13px] font-semibold text-slate-600">From {shortSemester(editing.later.fromLabel)}</p>}
+        {editing?.isNew && (
+          <div className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+            <span id={`${titleId}-intake`}>First intake</span>
+            <SelectMenu aria-labelledby={`${titleId}-intake`} value={firstIntake} placeholder="Choose an intake" options={semesterChoices()} disabled={busy} onChange={setFirstIntake} />
+          </div>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
             Minimum semesters
@@ -137,10 +211,20 @@ export const ProgrammeRules: React.FC = () => {
           A Special Semester counts toward the minimum
         </label>
         <p className="text-[13px] text-slate-500">
-          This applies to {editing?.activeStudents ?? 0} Active {editing?.activeStudents === 1 ? 'student' : 'students'} straight away.
+          {editing?.isNew ? 'Earlier intakes keep their rule.' : `Applies to ${studentCount(applies ?? 0)} straight away.`}
         </p>
         {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
       </DialogShell>
+      <PortalConfirmModal
+        isOpen={removing !== null}
+        title="Remove this rule?"
+        message={`${studentCount(removing?.later.activeStudents ?? 0)} go back to the rule before it.`}
+        confirmLabel="Remove"
+        tone="danger"
+        isLoading={busy}
+        onConfirm={() => void remove()}
+        onCancel={() => setRemoving(null)}
+      />
       <PortalToast message={toast} tone="success" onClose={() => setToast(null)} />
     </div>
   );

@@ -10,7 +10,7 @@ from accounts.models import (
     StudentSemester,
     User,
 )
-from accounts.semester_rules import minimum_problem, progress_of
+from accounts.semester_rules import minimum_problem, progress_of, rule_for, rules_by_programme
 from announcements.models import Notification
 from accounts.semesters import SPECIAL, Semester, nth_normal, read, seeded_semesters, steps_to
 
@@ -183,8 +183,9 @@ class RegistrySemesterApiTests(APITestCase):
         self.assertEqual((row["minSemesters"], row["maxSemesters"], row["specialCounts"]), (4, 9, False))
         self.assertEqual(row["changedBy"], "Office Person")
         change = ProgrammeRuleChange.objects.get(rule__programme=DS)
-        self.assertEqual(change.before_values, {"minSemesters": 3, "maxSemesters": 8, "specialCounts": True})
-        self.assertEqual(change.after_values, {"minSemesters": 4, "maxSemesters": 9, "specialCounts": False})
+        same = {"programme": DS, "appliesFrom": ""}
+        self.assertEqual(change.before_values, {**same, "minSemesters": 3, "maxSemesters": 8, "specialCounts": True})
+        self.assertEqual(change.after_values, {**same, "minSemesters": 4, "maxSemesters": 9, "specialCounts": False})
         self.client.put(RULES, body, format="json")
         self.assertEqual(ProgrammeRuleChange.objects.filter(rule__programme=DS).count(), 1)
 
@@ -386,7 +387,6 @@ class MoveStudentsApiTests(APITestCase):
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class GraduationApiTests(APITestCase):
     url = "/api/registry/graduation/"
-    check = "/api/registry/graduation/check/"
     REASON = "Senate meeting, 12 March 2027"
     THREE = ("Semester I, 2026/2027", "Semester II, 2026/2027", "Special Semester, 2026/2027")
 
@@ -418,7 +418,6 @@ class GraduationApiTests(APITestCase):
         self.client.force_authenticate(self.ready.user)
         self.assertEqual(self.client.get(self.url).status_code, 403)
         self.assertEqual(self.client.post(self.url, {"matrics": ["GR1"], "reason": "x"}, format="json").status_code, 403)
-        self.assertEqual(self.client.post(self.check, {"matrics": ["GR1"]}, format="json").status_code, 403)
         self.assertEqual(self.client.get("/api/registry/students/GR1/graduation-check/").status_code, 403)
         self.ready.refresh_from_db()
         self.assertEqual(self.ready.status, Student.Status.ACTIVE)
@@ -436,16 +435,6 @@ class GraduationApiTests(APITestCase):
         self.assertEqual(self.group_of(data, "GR5")[0], None)
         group, row = self.group_of(data, "GR6")
         self.assertEqual((group, row["items"][-1]["code"]), ("check", "NO_RULE"))
-
-    def test_a_pasted_list_shows_everyone_on_it(self):
-        self.client.force_authenticate(self.office)
-        data = self.client.post(self.check, {"matrics": ["gr1", "GR3", "GR5", "99999", "GR1"]}, format="json").data
-        self.assertEqual([row["matric"] for row in data["ready"]], ["GR1"])
-        group, row = self.group_of(data, "GR3")
-        self.assertEqual((group, row["tooEarly"]), ("stop", True))
-        self.assertIn("Only 1 semester studied", row["items"][0]["text"])
-        self.assertEqual(data["notFound"], ["99999"])
-        self.assertEqual(data["notActive"], [{"matric": "GR5", "name": "Student GR5", "status": "Graduated"}])
 
     def test_graduating_a_group_skips_anyone_who_cannot_and_says_why(self):
         self.client.force_authenticate(self.office)
@@ -484,7 +473,7 @@ class GraduationApiTests(APITestCase):
         self.client.force_authenticate(self.office)
         GeneratedLetter.objects.create(student=self.ready, template_name="Confirmation", status=GeneratedLetter.Status.PENDING, purpose="BANKING")
         doc_type = DocumentType.objects.create(label="Progress report", code="progress", required=True, is_active=True)
-        data = self.client.post(self.check, {"matrics": ["GR1"]}, format="json").data
+        data = self.client.get(self.url).data
         group, row = self.group_of(data, "GR1")
         self.assertEqual(group, "check")
         self.assertEqual(sorted(item["code"] for item in row["items"]), ["DOCUMENTS", "LETTERS"])
@@ -492,7 +481,7 @@ class GraduationApiTests(APITestCase):
             title="Report", doc_type=doc_type, uploaded_by=self.ready.user, check_status=Document.CheckStatus.WAITING,
         )
         DocumentStudent.objects.create(document=document, student=self.ready)
-        data = self.client.post(self.check, {"matrics": ["GR1"]}, format="json").data
+        data = self.client.get(self.url).data
         self.assertEqual(sorted(item["code"] for item in self.group_of(data, "GR1")[1]["items"]), ["FILES", "LETTERS"])
         response = self.client.post(self.url, {"matrics": ["GR1"], "reason": self.REASON}, format="json")
         self.assertEqual([row["matric"] for row in response.data["graduated"]], ["GR1"])
@@ -609,3 +598,182 @@ class MaximumFlagTests(APITestCase):
         flags = {row["id"]: row["maximumFlag"] for row in self.client.get("/api/registry/students/").data}
         self.assertEqual(flags, {"MX1": "last", "MX2": "past", "MX3": "", "MX4": ""})
         self.assertEqual(self.client.get("/api/registry/students/MX2/").data["maximumFlag"], "past")
+
+
+class IntakeTests(APITestCase):
+    """October and March students sit side by side, each counted from their own intake."""
+
+    url = "/api/registry/semester-move/"
+    graduation = "/api/registry/graduation/"
+    LATER = "2026/2027 Semester II"
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from academics.models import AcademicSemester
+
+        cls.office = User.objects.create_user(
+            email="office@example.test", password="pw", full_name="Office Person", role=User.Role.OFFICE_ADMIN,
+        )
+        today = timezone.localdate()
+        cls.portal = AcademicSemester.objects.create(
+            code="2026-2027-S1", academic_session="2026/2027", term="SEMESTER_I", created_by=cls.office,
+            starts_on=today - timedelta(days=5), ends_on=today + timedelta(days=60), lifecycle_status="ACTIVE",
+        )
+        cls.october = make_student("IN1", intake="2025/2026 Semester II", current="Semester II, 2025/2026 Session")
+        semesters_for(cls.october, "Semester II, 2025/2026")
+        cls.march = make_student("IN2", intake=cls.LATER)
+        semesters_for(cls.march, "Semester II, 2026/2027")
+
+    def setUp(self):
+        self.client.force_authenticate(self.office)
+
+    def test_a_student_on_a_later_intake_is_not_waiting_and_cannot_be_moved(self):
+        data = self.client.get(self.url).data
+        self.assertEqual([row["matric"] for row in data["students"]], ["IN1"])
+        self.assertEqual((data["waiting"], data["notStarted"]), (1, 1))
+        self.assertEqual(data["students"][0]["intake"], "Semester II, 2025/2026 Session")
+        self.assertEqual(self.client.get(f"{self.url}?summary=1").data["waiting"], 1)
+        done = self.client.post(self.url, {"semesterId": self.portal.pk, "matrics": ["IN1", "IN2"]}, format="json").data
+        self.assertEqual((done["moved"], done["leftOut"]), (1, 0))
+        self.assertFalse(self.march.semesters.filter(session="2026/2027", term="SEMESTER_I").exists())
+        self.assertEqual(progress_of(self.march).studied, 1)
+
+    def test_a_deferred_student_on_a_later_intake_gets_no_leave(self):
+        waiting = make_student("IN3", intake=self.LATER, status=Student.Status.DEFERRED)
+        back = make_student("IN4", intake="2025/2026 Semester II", status=Student.Status.DEFERRED)
+        self.assertEqual(self.client.get(self.url).data["deferred"], 1)
+        self.client.post(self.url, {"semesterId": self.portal.pk, "matrics": ["IN1"]}, format="json")
+        self.assertFalse(waiting.semesters.exists())
+        self.assertEqual(back.semesters.get().note, "On deferment when this semester started")
+
+    def test_a_student_on_a_later_intake_is_counted_as_too_early_and_cannot_graduate(self):
+        ProgrammeRule.objects.filter(programme=DS).delete()
+        data = self.client.get(self.graduation).data
+        listed = [row["matric"] for group in ("ready", "check", "stop") for row in data[group]]
+        self.assertNotIn("IN2", listed)
+        self.assertEqual(data["tooEarly"], 1)
+        self.assertEqual(self.client.get("/api/registry/students/IN2/graduation-check/").data["items"][0]["code"], "NOT_STARTED")
+        result = self.client.post(self.graduation, {"matrics": ["IN2"], "reason": "Senate"}, format="json").data
+        self.assertEqual((result["graduated"], result["skipped"][0]["why"]), ([], "Starts in Semester II, 2026/2027 Session."))
+
+    def test_a_semester_before_the_intake_cannot_be_added_and_an_old_one_is_flagged(self):
+        url = f"/api/registry/students/{self.march.matric_no}/semesters/"
+        refused = self.client.post(url, {"session": "2026/2027", "term": "SEMESTER_I"}, format="json")
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn("before this student's intake", refused.data["error"])
+        self.assertEqual(self.client.get(url).data["intake"], "Semester II, 2026/2027 Session")
+
+        self.october.intake_semester = "2026/2027 Semester I"
+        self.october.save(update_fields=["intake_semester"])
+        semesters_for(self.october, "Semester I, 2026/2027", "Semester II, 2026/2027")
+        data = self.client.get(f"/api/registry/students/{self.october.matric_no}/semesters/").data
+        self.assertEqual(data["beforeIntake"], ["Semester II, 2025/2026 Session"])
+        check = self.client.get(f"/api/registry/students/{self.october.matric_no}/graduation-check/").data
+        self.assertIn("BEFORE_INTAKE", [item["code"] for item in check["items"]])
+
+    def test_a_record_that_starts_after_the_intake_is_flagged(self):
+        self.october.intake_semester = "2025/2026 Semester I"
+        self.october.save(update_fields=["intake_semester"])
+        self.assertTrue(self.client.get(f"/api/registry/students/{self.october.matric_no}/semesters/").data["startsAfterIntake"])
+        self.assertFalse(self.client.get(f"/api/registry/students/{self.march.matric_no}/semesters/").data["startsAfterIntake"])
+
+    def test_the_intake_must_be_readable(self):
+        bad = {"id": "IN9", "name": "New Student", "email": "in9@example.test", "programme": DS, "intakeDate": "next year", "sendInvite": False}
+        response = self.client.post("/api/registry/students/", bad, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("intakeDate", response.data)
+        good = self.client.post("/api/registry/students/", {**bad, "intakeDate": self.LATER}, format="json")
+        self.assertEqual(good.status_code, 201, good.data)
+        self.assertEqual(good.data["intakeLabel"], "Semester II, 2026/2027 Session")
+        record = "/api/registry/students/IN9/"
+        self.assertEqual(self.client.patch(record, {"intakeDate": "soon"}, format="json").status_code, 400)
+        self.assertEqual(self.client.patch(record, {"intakeDate": ""}, format="json").status_code, 200)
+
+
+class RulesByIntakeTests(APITestCase):
+    NEW_INTAKE = {"programme": DS, "minSemesters": 4, "maxSemesters": 6, "specialCounts": False, "fromSession": "2026/2027", "fromTerm": "SEMESTER_II"}
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.office = User.objects.create_user(
+            email="office@example.test", password="pw", full_name="Office Person", role=User.Role.OFFICE_ADMIN,
+        )
+        cls.old = make_student("RI1", intake="2026/2027 Semester I")
+        cls.new = make_student("RI2", intake="2026/2027 Semester II")
+        cls.newer = make_student("RI3", intake="2027/2028 Semester I")
+        cls.unknown = make_student("RI4", intake="")
+
+    def setUp(self):
+        self.client.force_authenticate(self.office)
+
+    def row(self, response):
+        return next(item for item in response.data["rules"] if item["programme"] == DS)
+
+    def test_a_new_rule_only_covers_that_intake_and_later_ones(self):
+        response = self.client.put(RULES, self.NEW_INTAKE, format="json")
+        self.assertEqual(response.status_code, 200, response.data)
+        row = self.row(response)
+        self.assertEqual((row["minSemesters"], row["activeStudents"]), (3, 1))
+        later = row["laterRules"][0]
+        self.assertEqual(
+            (later["fromLabel"], later["minSemesters"], later["maxSemesters"], later["activeStudents"], later["changedBy"]),
+            ("Semester II, 2026/2027 Session", 4, 6, 3, "Office Person"),
+        )
+        self.assertEqual(progress_of(self.old).minimum, 3)
+        self.assertEqual(progress_of(self.new).minimum, 4)
+        self.assertEqual(progress_of(self.newer).maximum, 6)
+        self.assertEqual(progress_of(self.unknown).minimum, 4)
+
+    def test_the_maximum_uses_the_rule_for_the_intake(self):
+        self.client.put(RULES, self.NEW_INTAKE, format="json")
+        self.assertEqual(progress_of(self.old).maximum_semester, nth_normal(read("2026/2027 Semester I"), 8))
+        self.assertEqual(progress_of(self.new).maximum_semester, nth_normal(read("2026/2027 Semester II"), 6))
+
+    def test_an_intake_before_every_later_rule_keeps_the_first_rule(self):
+        rules = rules_by_programme()
+        self.assertEqual(rule_for(DS, rules, read("2020/2021 Semester I")).min_semesters, 3)
+
+    def test_saving_the_same_intake_again_changes_that_rule(self):
+        self.client.put(RULES, self.NEW_INTAKE, format="json")
+        response = self.client.put(RULES, {**self.NEW_INTAKE, "minSemesters": 5}, format="json")
+        self.assertEqual([later["minSemesters"] for later in self.row(response)["laterRules"]], [5])
+        self.assertEqual(ProgrammeRule.objects.filter(programme=DS).count(), 2)
+
+    def test_editing_the_first_rule_leaves_a_later_one_alone(self):
+        self.client.put(RULES, self.NEW_INTAKE, format="json")
+        body = {"programme": DS, "minSemesters": 2, "maxSemesters": 7, "specialCounts": True}
+        row = self.row(self.client.put(RULES, body, format="json"))
+        self.assertEqual((row["minSemesters"], row["laterRules"][0]["minSemesters"]), (2, 4))
+
+    def test_the_first_intake_is_checked(self):
+        for extra in (
+            {"fromSession": "2026/2027", "fromTerm": ""},
+            {"fromSession": "", "fromTerm": "SEMESTER_I"},
+            {"fromSession": "2026/2028", "fromTerm": "SEMESTER_I"},
+            {"fromSession": "2026/2027", "fromTerm": "SPECIAL"},
+        ):
+            self.assertEqual(self.client.put(RULES, {**self.NEW_INTAKE, **extra}, format="json").status_code, 400, extra)
+
+    def test_a_programme_needs_its_first_rule_before_a_later_one(self):
+        ProgrammeRule.objects.filter(programme=DS).delete()
+        self.assertEqual(self.client.put(RULES, self.NEW_INTAKE, format="json").status_code, 409)
+
+    def test_a_later_rule_can_be_removed_and_the_history_stays(self):
+        later = self.row(self.client.put(RULES, self.NEW_INTAKE, format="json"))["laterRules"][0]
+        response = self.client.delete(f"{RULES}{later['id']}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.row(response)["laterRules"], [])
+        self.assertEqual(progress_of(self.new).minimum, 3)
+        change = ProgrammeRuleChange.objects.filter(after_values={}).get()
+        self.assertEqual((change.rule, change.before_values["appliesFrom"]), (None, "Semester II, 2026/2027 Session"))
+        self.assertEqual(self.client.delete(f"{RULES}{later['id']}/").status_code, 404)
+
+    def test_the_first_rule_cannot_be_removed_and_only_the_office_can_remove(self):
+        first = ProgrammeRule.objects.get(programme=DS)
+        self.assertEqual(self.client.delete(f"{RULES}{first.pk}/").status_code, 409)
+        self.client.force_authenticate(self.old.user)
+        self.assertEqual(self.client.delete(f"{RULES}{first.pk}/").status_code, 403)

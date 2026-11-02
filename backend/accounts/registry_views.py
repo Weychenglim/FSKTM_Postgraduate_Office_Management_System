@@ -47,7 +47,8 @@ from .registry_import import (
 from .registry_profiles import remember_layout
 from .registry_template import TEMPLATE_FILE_NAME, XLSX_CONTENT_TYPE, build_template
 from .registry_programmes import programme_values, remember_choices
-from .semester_rules import maximum_flag, record_semester, rules_by_programme, seed_student
+from .semesters import read as read_semester
+from .semester_rules import intake_label, maximum_flag, record_semester, rules_by_programme, seed_student
 from .semesters import read as read_semester
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
@@ -164,6 +165,7 @@ def to_record(student, rules=None) -> dict:
         "supervisor": supervisor.full_name if supervisor else "",
         "supervisorStaffNo": supervisor_profile.staff_no if supervisor_profile else "",
         "intakeDate": student.intake_semester,
+        "intakeLabel": intake_label(student.intake_semester),
         "maximumFlag": maximum_flag(student, rules, registry),
         # Lets the office spot accounts that were registered but never
         # activated, e.g. because the invitation bounced.
@@ -172,6 +174,13 @@ def to_record(student, rules=None) -> dict:
         if (user.last_portal_login or user.last_login)
         else None,
     }
+
+
+def _readable_semester(value):
+    text = value.strip()
+    if text and read_semester(text) is None:
+        raise serializers.ValidationError("Choose a semester like 2026/2027 Semester I.")
+    return text
 
 
 class StudentRecordCreateSerializer(serializers.Serializer):
@@ -190,6 +199,12 @@ class StudentRecordCreateSerializer(serializers.Serializer):
         choices=Student.Status.choices, required=False, default=Student.Status.ACTIVE
     )
     sendInvite = serializers.BooleanField(required=False, default=True)
+
+    def validate_semester(self, value):
+        return _readable_semester(value)
+
+    def validate_intakeDate(self, value):
+        return _readable_semester(value)
 
     def validate_id(self, value):
         matric = value.strip()
@@ -249,6 +264,12 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     )
     semester = serializers.CharField(max_length=64, allow_blank=True, required=False)
     intakeDate = serializers.CharField(max_length=32, allow_blank=True, required=False)
+
+    def validate_semester(self, value):
+        return _readable_semester(value)
+
+    def validate_intakeDate(self, value):
+        return _readable_semester(value)
 
     def validate_name(self, value):
         name = value.strip()
