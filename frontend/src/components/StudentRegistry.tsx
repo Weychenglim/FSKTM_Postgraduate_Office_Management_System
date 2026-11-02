@@ -13,19 +13,16 @@ import {
   UserPlus, 
   Search, 
   SlidersHorizontal, 
-  Eye, 
   Check, 
   X, 
   ChevronLeft, 
   ChevronRight, 
-  UserSquare, 
   UserCheck, 
   GraduationCap, 
   ShieldAlert, 
   ChevronDown,
   Mail,
   Calendar,
-  CalendarClock,
   Layers,
   FileSpreadsheet,
   UploadCloud,
@@ -50,7 +47,7 @@ import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { RegistryImportResult } from './RegistryImportResult';
 import { ImportSteps, RegistryImportMatch } from './RegistryImportMatch';
 import { NOT_CHOSEN, RegistryImportProgrammes } from './RegistryImportProgrammes';
-import { StatCard } from './StatCard';
+import { OverflowMenu } from './DocumentParts';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { historyTime } from '../utils/documentDisplay';
@@ -97,11 +94,13 @@ import {
   describeBlockers,
   distinctValues,
   studentStatusOptions,
+  inRegistryView,
+  registryViewOptions,
   summariseRegistry,
+  type RegistryView,
 } from '../utils/registryStatus';
 
 const NO_SUPERVISOR = '__none__';
-const ACADEMIC_STATUSES: StudentAcademicStatus[] = ['Active', 'Deferred', 'Graduated', 'Withdrawn'];
 import { PROGRAMME_OPTIONS, normaliseProgramme } from '../constants/programmes';
 import { CSV_HEADERS, reviewedFileName, rowsToCsv } from '../utils/csvImport';
 import { downloadCsv } from '../utils/csvExport';
@@ -213,27 +212,6 @@ export const ProgrammeChip: React.FC<ProgrammeChipProps> = ({ label }) => {
   );
 };
 
-// Reusable Account Status Indicator
-interface AccountStatusIndicatorProps {
-  status: StudentAccountStatus;
-}
-
-export const AccountStatusIndicator: React.FC<AccountStatusIndicatorProps> = ({ status }) => {
-  const dotTone = {
-    Verified: 'success',
-    Suspended: 'danger',
-  } as const;
-
-  return (
-    <div className="flex items-center gap-2 select-none">
-      <StatusDot tone={dotTone[status]} pulse className="w-2 h-2" />
-      <span className="card-value">
-        {status}
-      </span>
-    </div>
-  );
-};
-
 // Reusable Action Button
 interface ActionButtonProps {
   onClick: () => void;
@@ -300,13 +278,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [searchQuery, setSearchQuery] = useListState('StudentRegistry', 'searchQuery', '');
   const [selectedProgramme, setSelectedProgramme] = useListState<string>('StudentRegistry', 'selectedProgramme', 'All');
   const [selectedSemester, setSelectedSemester] = useListState<string>('StudentRegistry', 'selectedSemester', 'All');
-  const [selectedAcademicStatus, setSelectedAcademicStatus] = useListState<string>('StudentRegistry', 'selectedAcademicStatus', 'All');
+  const [statusView, setStatusView] = useListState<RegistryView>('StudentRegistry', 'statusView', 'All');
   const [selectedSupervisor, setSelectedSupervisor] = useListState<string>('StudentRegistry', 'selectedSupervisor', 'All');
   
   // Modals Dialog States
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
   const [moveSummary, setMoveSummary] = useState<MoveSummary | null>(null);
-  const [onlyNearMaximum, setOnlyNearMaximum] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     if (readOnly) return undefined;
@@ -1104,20 +1082,17 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
     const matchesProgramme = selectedProgramme === 'All' || student.programme === selectedProgramme;
     const matchesSemester = selectedSemester === 'All' || student.semester === selectedSemester;
-    const matchesAcademic = selectedAcademicStatus === 'All' || student.academicStatus === selectedAcademicStatus;
     const matchesSupervisor = selectedSupervisor === 'All'
       || (selectedSupervisor === NO_SUPERVISOR ? !student.supervisor : student.supervisor === selectedSupervisor);
 
-    const matchesMaximum = !onlyNearMaximum || Boolean(student.maximumFlag);
-
-    return matchesSearch && matchesProgramme && matchesSemester && matchesAcademic && matchesSupervisor && matchesMaximum;
+    return matchesSearch && matchesProgramme && matchesSemester && matchesSupervisor && inRegistryView(student, statusView);
   });
 
   const summary = summariseRegistry(students);
   const semesterOptions = distinctValues(students.map(s => s.semester));
-  const nearMaximum = students.filter((student) => student.maximumFlag).length;
   const supervisorOptions = distinctValues(students.map(s => s.supervisor));
-  const columnCount = 6;
+  const activeFilters = [selectedProgramme, selectedSemester, selectedSupervisor].filter((value) => value !== 'All').length;
+  const columnCount = 5;
 
   // Paginated students records
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage) || 1;
@@ -1171,15 +1146,28 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           {/* SCREEN A: PRIMARY REGISTRY STUDENT DIRECTORY LIST VIEW */}
           {/* ========================================================== */}
           {currentView === 'list' && (
-        <div id="student-registry-directory-list" className="space-y-8">
+        <div id="student-registry-directory-list" className="space-y-6">
           <PageHeader
             title="Student Registry"
             subtitle={readOnly ? 'Read-only view of the students in your scope.' : 'Manage student records, registrations and sign-in access.'}
             actions={
-              <div className="flex items-center gap-3 select-none">
-                <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
-                  Export CSV
-                </PortalButton>
+              <div className="flex flex-wrap items-center gap-2 select-none">
+                {readOnly ? (
+                  <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
+                    Export CSV
+                  </PortalButton>
+                ) : (
+                  <OverflowMenu
+                    label="More student actions"
+                    triggerLabel="More"
+                    triggerSize="md"
+                    actions={[
+                      { label: 'Move students', onSelect: () => navigate(APP_ROUTES.registryMoveStudents) },
+                      { label: 'Graduate students', onSelect: () => navigate(APP_ROUTES.registryGraduate) },
+                      { label: 'Export CSV', onSelect: handleExportCSV },
+                    ]}
+                  />
+                )}
                 {!readOnly && (
                   <PortalButton
                     onClick={() => {
@@ -1197,280 +1185,263 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             }
           />
 
-          {(!readOnly || canSeeTransfers) && (
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <RegistryModuleTabs active="students" office={!readOnly} />
-              {!readOnly && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <PortalButton size="sm" icon={CalendarClock} onClick={() => navigate(APP_ROUTES.registryMoveStudents)}>Move students</PortalButton>
-                  <PortalButton size="sm" icon={GraduationCap} onClick={() => navigate(APP_ROUTES.registryGraduate)}>Graduate students</PortalButton>
-                </div>
-              )}
-            </div>
-          )}
+          {(!readOnly || canSeeTransfers) && <RegistryModuleTabs active="students" office={!readOnly} />}
 
           {!readOnly && moveSummary?.semester && semesterMoveWaiting(moveSummary) && (
-            <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3.5 text-[13.5px] font-semibold text-blue-900">
+            <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-[13.5px] font-semibold text-blue-900">
               <span>
                 {moveSummary.semester.isSpecial
                   ? `The ${shortSemester(moveSummary.semester.label)} has started. Move the students taking it.`
                   : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} to move.`}
               </span>
-              <PortalButton size="sm" variant="primary" onClick={() => navigate(APP_ROUTES.registryMoveStudents)}>Move students</PortalButton>
+              <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.registryMoveStudents)}>Move students</PortalButton>
             </div>
           )}
 
-          {!readOnly && nearMaximum > 0 && (
-            <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3.5 text-[13.5px] font-semibold text-amber-900">
-              <span>{studentCount(nearMaximum)} {nearMaximum === 1 ? 'is' : 'are'} on the last allowed semester or past the maximum.</span>
-              <PortalButton size="sm" onClick={() => setOnlyNearMaximum((value) => !value)}>{onlyNearMaximum ? 'Show everyone' : 'Show them'}</PortalButton>
-            </div>
-          )}
-
-          {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
-          <div id="student-summary-cards" className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-            <StatCard label="Total Students" value={summary.total.toLocaleString()} caption={readOnly ? 'In your scope' : 'In the registry'} icon={GraduationCap} tone="blue" />
-            <StatCard label="Active" value={summary.active.toLocaleString()} caption="Currently studying" icon={UserCheck} tone="green" />
-            <StatCard label="Deferred" value={summary.deferred.toLocaleString()} caption="On approved deferment" icon={Calendar} tone="amber" />
-            <StatCard label="Graduated / Withdrawn" value={summary.exited.toLocaleString()} caption="No longer studying" icon={UserSquare} tone="slate" />
-            <StatCard label="Awaiting Activation" value={summary.awaitingActivation.toLocaleString()} caption="Password not set yet" icon={ShieldAlert} tone="purple" />
-          </div>
-
-          {/* ==================== CENTRAL DATATABLE AND FILTERS ==================== */}
           <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs">
-            
-            {/* Filtering Box Controls */}
-            <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col gap-3 select-none">
 
-              {/* Real-time Search Box */}
-              <div className="relative w-full">
-                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Search className="w-4 h-4 text-slate-400" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Search by name, student ID, or contact email..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1); 
-                  }}
-                  className="w-full bg-white border border-slate-200 text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                />
+            <div className="p-4 sm:p-5 flex flex-col gap-4 select-none">
+              <div role="group" aria-label="Show students by status" className="flex flex-wrap gap-2">
+                {registryViewOptions(summary, statusView, !readOnly).map(({ view, count }) => {
+                  const on = view === statusView;
+                  return (
+                    <button
+                      key={view}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => {
+                        setStatusView(view);
+                        setCurrentPage(1);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-bold transition cursor-pointer ${
+                        on ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {view}
+                      <span className={on ? 'text-white/70' : 'text-slate-400'}>{count.toLocaleString()}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Dynamic Droplist selectors */}
-              <div className="flex flex-wrap items-center gap-2">
-                
-                <SelectMenu
-                  variant="filter"
-                  prefix="Programme"
-                  aria-label="Filter by programme"
-                  value={selectedProgramme}
-                  options={[
-                    { value: 'All', label: 'All programmes', triggerLabel: 'All' },
-                    ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
-                  ]}
-                  onChange={(programme) => {
-                    setSelectedProgramme(programme);
-                    setCurrentPage(1);
-                  }}
-                />
-
-                <SelectMenu
-                  variant="filter"
-                  prefix="Semester"
-                  aria-label="Filter by semester"
-                  value={selectedSemester}
-                  options={[
-                    { value: 'All', label: 'All semesters', triggerLabel: 'All' },
-                    ...semesterOptions.map((semester) => ({ value: semester, label: semester })),
-                  ]}
-                  onChange={(semester) => {
-                    setSelectedSemester(semester);
-                    setCurrentPage(1);
-                  }}
-                />
-
-                <SelectMenu
-                  variant="filter"
-                  prefix="Status"
-                  aria-label="Filter by academic status"
-                  value={selectedAcademicStatus}
-                  options={[
-                    { value: 'All', label: 'All statuses', triggerLabel: 'All' },
-                    ...ACADEMIC_STATUSES.map(statusOption),
-                  ]}
-                  onChange={(academicStatus) => {
-                    setSelectedAcademicStatus(academicStatus);
-                    setCurrentPage(1);
-                  }}
-                />
-
-                <SelectMenu
-                  variant="filter"
-                  prefix="Supervisor"
-                  aria-label="Filter by supervisor"
-                  value={selectedSupervisor}
-                  options={[
-                    { value: 'All', label: 'All supervisors', triggerLabel: 'All' },
-                    { value: NO_SUPERVISOR, label: 'No supervisor yet' },
-                    ...supervisorOptions.map((supervisor) => ({ value: supervisor, label: supervisor })),
-                  ]}
-                  onChange={(supervisor) => {
-                    setSelectedSupervisor(supervisor);
-                    setCurrentPage(1);
-                  }}
-                />
-
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Search className="w-4 h-4 text-slate-400" />
+                  </span>
+                  <input
+                    type="text"
+                    aria-label="Search students"
+                    placeholder="Search name, ID or email"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full bg-white border border-slate-200 text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-3xs font-sans not-italic normal-case tracking-normal text-[13px] font-semibold"
+                  />
+                </div>
                 <PortalButton
                   variant="secondary"
                   size="md"
                   icon={SlidersHorizontal}
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedProgramme('All');
-                    setSelectedSemester('All');
-                    setSelectedAcademicStatus('All');
-                    setSelectedSupervisor('All');
-                    setCurrentPage(1);
-                    triggerToast('All filters reset.');
-                  }}
+                  aria-expanded={filtersOpen}
+                  onClick={() => setFiltersOpen((open) => !open)}
                 >
-                  Reset Filters
+                  Filters{activeFilters > 0 ? ` (${activeFilters})` : ''}
                 </PortalButton>
               </div>
-            </div>
 
-            {/* DATATABLE LIST VIEW */}
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[860px]">
-                <thead>
-                  <tr className="data-thead bg-slate-50 select-none">
-                    <th className="data-th">
-                      Student Candidate
-                    </th>
-                    <th className="data-th">
-                      Programme
-                    </th>
-                    <th className="data-th">
-                      Supervisor
-                    </th>
-                    <th className="data-th text-center">
-                      Academic Status
-                    </th>
-                    <th className="data-th">
-                      Account Status
-                    </th>
-                    <th className="data-th text-center">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={columnCount} className="p-0 text-xs font-semibold">
-                        <LoadingState message="Loading students…" />
-                      </td>
-                    </tr>
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={columnCount} className="p-0 text-xs font-semibold">
-                        <ErrorState message={error} onRetry={loadStudents} />
-                      </td>
-                    </tr>
-                  ) : displayedStudents.length === 0 ? (
-                    <tr>
-                      <td colSpan={columnCount} className="py-12 text-center text-slate-400 select-none text-xs font-bold">
-                        No matching students found. Adjust the search or filters and try again.
-                      </td>
-                    </tr>
-                  ) : (
-                    displayedStudents.map((student) => {
-                      return (
-                        <tr key={student.id} className="data-row">
-                          {/* Student identity details */}
-                          <td className="data-td">
-                            <div className="flex items-center gap-3 text-left">
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 select-none border border-black/5 shadow-3xs ${student.avatarBg}`}>
-                                {student.avatarText}
-                              </div>
-                              <div>
-                                <h4 className="section-label">
-                                  {student.name}
-                                </h4>
-                                <p className="text-[10px] text-slate-550 font-semibold tracking-wide font-mono mt-0.5">
-                                  {student.id}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
+              {filtersOpen && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <SelectMenu
+                    variant="filter"
+                    prefix="Programme"
+                    aria-label="Filter by programme"
+                    value={selectedProgramme}
+                    options={[
+                      { value: 'All', label: 'All programmes', triggerLabel: 'All' },
+                      ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
+                    ]}
+                    onChange={(programme) => {
+                      setSelectedProgramme(programme);
+                      setCurrentPage(1);
+                    }}
+                  />
 
-                          {/* Programme column */}
-                          <td className="data-td">
-                            <ProgrammeChip label={student.programme} />
-                          </td>
+                  <SelectMenu
+                    variant="filter"
+                    prefix="Semester"
+                    aria-label="Filter by semester"
+                    value={selectedSemester}
+                    options={[
+                      { value: 'All', label: 'All semesters', triggerLabel: 'All' },
+                      ...semesterOptions.map((semester) => ({ value: semester, label: semester })),
+                    ]}
+                    onChange={(semester) => {
+                      setSelectedSemester(semester);
+                      setCurrentPage(1);
+                    }}
+                  />
 
-                          <td className="data-td">
-                            {student.supervisor ? (
-                              <div className="text-left">
-                                <span className="text-[11.5px] font-extrabold text-slate-800 block">{student.supervisor}</span>
-                                {student.supervisorStaffNo && (
-                                  <span className="text-[10px] font-mono font-semibold text-slate-500">{student.supervisorStaffNo}</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-[11px] font-semibold text-slate-400">Not assigned</span>
-                            )}
-                          </td>
+                  <SelectMenu
+                    variant="filter"
+                    prefix="Supervisor"
+                    aria-label="Filter by supervisor"
+                    value={selectedSupervisor}
+                    options={[
+                      { value: 'All', label: 'All supervisors', triggerLabel: 'All' },
+                      { value: NO_SUPERVISOR, label: 'No supervisor yet' },
+                      ...supervisorOptions.map((supervisor) => ({ value: supervisor, label: supervisor })),
+                    ]}
+                    onChange={(supervisor) => {
+                      setSelectedSupervisor(supervisor);
+                      setCurrentPage(1);
+                    }}
+                  />
 
-                          {/* Academic status column */}
-                          <td className="data-td text-center">
-                            <StatusChip status={student.academicStatus} />
-                            {!readOnly && student.maximumFlag && (
-                              <span className={`mt-1 block text-[11px] font-bold ${student.maximumFlag === 'past' ? 'text-rose-700' : 'text-amber-700'}`}>
-                                {student.maximumFlag === 'past' ? 'Past the maximum' : 'Last semester'}
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Account status column */}
-                          <td className="data-td">
-                            <AccountStatusIndicator status={student.accountStatus} />
-                          </td>
-
-                          {/* Action column */}
-                          <td className="data-td text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <PortalButton variant="secondary" size="sm" icon={Eye} onClick={() => setViewingStudent(student)}>
-                                Inspect
-                              </PortalButton>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                  {activeFilters > 0 && (
+                    <PortalButton
+                      variant="ghost"
+                      size="md"
+                      onClick={() => {
+                        setSelectedProgramme('All');
+                        setSelectedSemester('All');
+                        setSelectedSupervisor('All');
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Clear filters
+                    </PortalButton>
                   )}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
+
+            <table className="data-table">
+              <thead>
+                <tr className="data-thead border-t bg-slate-50 select-none">
+                  <th className="data-th">Student</th>
+                  <th className="data-th hidden md:table-cell">Programme</th>
+                  <th className="data-th hidden xl:table-cell">Supervisor</th>
+                  <th className="data-th">Status</th>
+                  <th className="data-th w-12"><span className="sr-only">Open</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={columnCount} className="p-0 text-xs font-semibold">
+                      <LoadingState message="Loading students…" />
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={columnCount} className="p-0 text-xs font-semibold">
+                      <ErrorState message={error} onRetry={loadStudents} />
+                    </td>
+                  </tr>
+                ) : displayedStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={columnCount} className="py-12 text-center text-slate-400 select-none text-xs font-bold">
+                      No matching students found. Adjust the search or filters and try again.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedStudents.map((student) => {
+                    const accountNote = student.accountStatus === 'Suspended'
+                      ? 'Suspended'
+                      : student.activated === false ? 'Awaiting activation' : null;
+                    return (
+                      <tr
+                        key={student.id}
+                        className="data-row cursor-pointer"
+                        onClick={() => {
+                          if (!window.getSelection()?.toString()) setViewingStudent(student);
+                        }}
+                      >
+                        <td className="data-td">
+                          <div className="flex items-center gap-3 text-left">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 select-none border border-black/5 shadow-3xs ${student.avatarBg}`}>
+                              {student.avatarText}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="section-label">
+                                {student.name}
+                              </h4>
+                              <p className="text-[10px] text-slate-550 font-semibold tracking-wide font-mono mt-0.5">
+                                {student.id}
+                              </p>
+                              <p className="md:hidden mt-1 text-[11.5px] font-semibold text-slate-500">
+                                {describeProgramme(student.programme).field}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="data-td hidden md:table-cell">
+                          <ProgrammeChip label={student.programme} />
+                        </td>
+
+                        <td className="data-td hidden xl:table-cell">
+                          {student.supervisor ? (
+                            <div className="text-left">
+                              <span className="text-[11.5px] font-extrabold text-slate-800 block">{student.supervisor}</span>
+                              {student.supervisorStaffNo && (
+                                <span className="text-[10px] font-mono font-semibold text-slate-500">{student.supervisorStaffNo}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-slate-400">Not assigned</span>
+                          )}
+                        </td>
+
+                        <td className="data-td">
+                          <StatusChip status={student.academicStatus} />
+                          {!readOnly && student.maximumFlag && (
+                            <span className={`mt-1 block text-[11px] font-bold ${student.maximumFlag === 'past' ? 'text-rose-700' : 'text-amber-700'}`}>
+                              {student.maximumFlag === 'past' ? 'Past the maximum' : 'Last semester'}
+                            </span>
+                          )}
+                          {accountNote && (
+                            <span className={`mt-1 block text-[11px] font-bold ${accountNote === 'Suspended' ? 'text-rose-700' : 'text-purple-700'}`}>
+                              {accountNote}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="data-td w-12 pl-0 text-right">
+                          <button
+                            type="button"
+                            aria-label={`Open ${student.name}'s record`}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-brand-navy cursor-pointer"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setViewingStudent(student);
+                            }}
+                          >
+                            <ChevronRight className="w-4 h-4" aria-hidden="true" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
 
             {/* LOWER PORTAL PAGINATION FOOTER */}
-            <div className="px-6 py-4.5 bg-slate-50 border-t border-slate-[#e2e8f0] flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
-              
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+
               <div className="card-value text-left">
                 Showing <strong className="card-value">{filteredStudents.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</strong> to{' '}
                 <strong className="card-value">
                   {Math.min(currentPage * itemsPerPage, filteredStudents.length)}
                 </strong>{' '}
-                of <strong className="card-value">{filteredStudents.length}</strong> entries{' '}
-                <span className="card-description">
-                  (Total {summary.total.toLocaleString()} overall)
-                </span>
+                of <strong className="card-value">{filteredStudents.length}</strong>
               </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-1.5">
+              {totalPages > 1 && <div className="flex flex-wrap items-center justify-center gap-1.5">
 
                 {/* Pagination previous trigger */}
                 <button
@@ -1522,7 +1493,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
-              </div>
+              </div>}
 
             </div>
 

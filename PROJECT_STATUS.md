@@ -1,3 +1,7 @@
+## Student Registry list simplified (2 November 2026)
+
+The Students tab now has one main button, Register New Students. Move students, Graduate students and Export CSV sit in a More menu. The five big cards became small status filters above the list, and empty statuses stay hidden. Programme, Semester and Supervisor sit behind a Filters button. The list has four columns: a row opens the student's record, and Awaiting activation, Suspended, Last semester and Past the maximum show only when they apply. No inside scrollbar at any width.
+
 ## File Management: All files card removed (2 November 2026)
 
 Office staff and lecturers no longer see the All files / Files you can see card. It only repeated the All files tab below it. Coordinators keep their To check, Returned and Still to hand in cards.

@@ -41,7 +41,7 @@ export interface MenuAction {
 }
 
 /** The "⋯" button that holds the rarely used actions of a row or page. */
-export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; align?: 'left' | 'right'; triggerLabel?: string; disabled?: boolean }> = ({ label, actions, align = 'right', triggerLabel, disabled = false }) => {
+export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; align?: 'left' | 'right'; triggerLabel?: string; triggerSize?: 'sm' | 'md'; disabled?: boolean }> = ({ label, actions, align = 'right', triggerLabel, triggerSize = 'sm', disabled = false }) => {
   const [open, setOpen] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -49,7 +49,7 @@ export const OverflowMenu: React.FC<{ label: string; actions: MenuAction[]; alig
   if (!actions.length) return null;
   return (
     <div ref={wrapper} className="shrink-0">
-      {triggerLabel ? <PortalButton size="sm" icon={ChevronDown} iconPosition="right" disabled={disabled} aria-label={label} aria-haspopup="menu" aria-expanded={open}
+      {triggerLabel ? <PortalButton size={triggerSize} icon={ChevronDown} iconPosition="right" disabled={disabled} aria-label={label} aria-haspopup="menu" aria-expanded={open}
         aria-controls={open ? menuId : undefined} onClick={() => setOpen(value => !value)}>
         {triggerLabel}
       </PortalButton> : <button type="button" disabled={disabled} className="icon-button h-10 w-10" aria-label={label}
