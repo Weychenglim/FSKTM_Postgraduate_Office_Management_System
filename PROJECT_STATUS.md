@@ -1,3 +1,7 @@
+## File Management: All files card removed (2 November 2026)
+
+Office staff and lecturers no longer see the All files / Files you can see card. It only repeated the All files tab below it. Coordinators keep their To check, Returned and Still to hand in cards.
+
 ## Student upload box opens the file explorer (2 November 2026)
 
 On a student's My files tab, the dashed box now opens the file explorer when clicked, as well as taking a dragged file. Both go to the same upload page. It also works from the keyboard and at phone width.

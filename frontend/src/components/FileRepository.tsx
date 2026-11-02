@@ -226,9 +226,7 @@ export const FileRepository: React.FC = () => {
           { key: 'check', title: 'To check', value: summary?.toCheck, caption: 'files', description: 'Waiting for you to accept or return, from your programme and any programme without a coordinator.', icon: ClipboardCheck, tone: 'warning' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'check' }) },
           { key: 'returned', title: 'Returned', value: summary?.returned, caption: 'files', description: 'Waiting for the student to send a corrected file.', icon: RotateCcw, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all', status: 'RETURNED', programme: '' }) },
         ]
-      : [
-          { key: 'all', title: isOffice ? 'All files' : 'Files you can see', value: summary?.all, caption: 'files', description: isOffice ? "Every student's files and every staff file." : 'About your students, or shared with staff.', icon: FileStack, tone: 'info' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all' }) },
-        ]),
+      : []),
     ...(options?.canSeeRequired
       ? [{ key: 'required', title: 'Still to hand in', value: summary?.studentsStillToHandIn, caption: 'students', description: 'Owe at least one required document.', icon: UsersRound, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'required' }) }]
       : []),
