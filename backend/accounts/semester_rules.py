@@ -72,10 +72,10 @@ class Progress:
         return bool(self.current and self.maximum_semester and self.current.key == self.maximum_semester.key)
 
 
-def progress_of(student, rules=None, rows=None):
+def progress_of(student, rules=None, rows=None, registry=None):
     rule = rule_for(student.programme, rules)
     rows = rows_of(student) if rows is None else rows
-    registry = _registry(student)
+    registry = registry or _registry(student)
     studied = 0
     exempt = 0
     current = None
@@ -153,6 +153,18 @@ def record_semester(student, semester, *, actor=None, outcome=STUDIED, note=""):
     if created:
         sync_current(student)
     return row, created
+
+
+def mark_current_semester_as_leave(student):
+    """A student who defers has withdrawn from the semester they are on."""
+    from academics.services import current_effective_semester
+
+    portal = current_effective_semester()
+    if portal is None:
+        return
+    student.semesters.filter(
+        session=portal.academic_session, term=portal.term, outcome=STUDIED,
+    ).update(outcome=LEAVE, note="Deferred during this semester")
 
 
 def seed_student(student, *, actor=None, note="From the intake and current semester"):

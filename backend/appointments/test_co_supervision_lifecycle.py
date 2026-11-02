@@ -11,6 +11,7 @@ from accounts.participant_lifecycle import (
     transition_lecturer,
     transition_student,
 )
+from accounts.test_registry_semesters import semesters_for
 from marks.models import (
     EvaluationPeriod,
     EvaluationTask,
@@ -90,6 +91,7 @@ class CoSupervisionLifecycleTests(APITestCase):
     def test_graduation_closes_supporting_appointments_preserving_submitted_marks(self):
         appointment = self.activate()
         entry, _ = submitted_marks(self)
+        semesters_for(self.student, "Semester I, 2026/2027", "Semester II, 2026/2027", "Semester I, 2027/2028")
         transition_student(
             matric_no=self.student.matric_no,
             actor=self.office,

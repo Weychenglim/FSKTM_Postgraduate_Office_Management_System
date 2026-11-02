@@ -29,6 +29,7 @@ from .models import (
     User,
 )
 from .authorization import office_actor
+from .semester_rules import mark_current_semester_as_leave, minimum_problem
 from .session_tokens import blacklist_user_refresh_tokens
 
 
@@ -412,7 +413,7 @@ def _set_student_status(student, *, target, actor, reason, affected):
 
 
 @transaction.atomic
-def transition_student(*, matric_no, actor, target_status, reason):
+def transition_student(*, matric_no, actor, target_status, reason, early_approved=False):
     assert_office_actor(actor)
     reason = str(reason or "").strip()
     if not reason:
@@ -463,6 +464,9 @@ def transition_student(*, matric_no, actor, target_status, reason):
                 "Graduation is blocked by unresolved workflow or Marks records.",
                 blockers,
             )
+        problem = minimum_problem(student, early_approved=early_approved)
+        if problem:
+            raise ParticipantLifecycleConflict(problem, blockers)
         affected.update(
             _end_student_appointments(
                 student,
@@ -486,6 +490,8 @@ def transition_student(*, matric_no, actor, target_status, reason):
                 tasks=profile.evaluation_tasks.all(), actor=actor, reason=reason
             )
             affected["retiredMarksTasks"] = [task.pk for task in retired]
+    if target == Student.Status.DEFERRED:
+        mark_current_semester_as_leave(student)
     if target in {Student.Status.GRADUATED, Student.Status.WITHDRAWN}:
         from appointments.research_amendments import cancel_pending_amendments
         affected["cancelledAmendments"] = cancel_pending_amendments(
