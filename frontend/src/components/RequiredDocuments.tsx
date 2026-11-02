@@ -9,25 +9,19 @@ import { BellRing } from 'lucide-react';
 import type { RequiredOverview, RequiredShow, RequiredStudent, RequiredTypeProgress } from '../types';
 import { getRequiredOverview, getRequiredStudents, remindRequired } from '../services/filesApi';
 import { APP_ROUTES, routeForDocument } from '../constants/routes';
-import { historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn } from '../utils/documentDisplay';
-import { PortalButton, PortalConfirmModal, PortalToast, ProgressBar } from './PortalPrimitives';
+import { handedIn, historyTime, requiredGroups, stillToHandIn } from '../utils/documentDisplay';
+import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
-const SHOWS: Array<{ value: RequiredShow; label: string }> = [
-  { value: 'todo', label: 'Still to hand in' },
-  { value: 'waiting', label: 'Waiting for a check' },
-  { value: 'done', label: 'Handed in' },
-];
-
-/** The office's and coordinators' view of documents every student must hand in. */
-export const RequiredDocuments: React.FC<{ isOffice: boolean }> = ({ isOffice }) => {
+/** Programme coordinators' view of documents every student in their programme must hand in. */
+export const RequiredDocuments: React.FC<{ canManageTypes: boolean }> = ({ canManageTypes }) => {
   const navigate = useNavigate();
   const [overview, setOverview] = useState<RequiredOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [open, setOpen] = useState<number | null>(null);
+  const [open, setOpen] = useState<{ id: number; show: RequiredShow } | null>(null);
   const [reminding, setReminding] = useState<RequiredTypeProgress | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
@@ -65,9 +59,9 @@ export const RequiredDocuments: React.FC<{ isOffice: boolean }> = ({ isOffice })
       <section className="app-card">
         <EmptyState
           title="No required documents yet."
-          description={isOffice ? 'In Settings, turn on "Every student must hand it in" for a document type.' : 'The PG office decides which documents every student must hand in.'}
-          actionLabel={isOffice ? 'Open Settings' : undefined}
-          onAction={isOffice ? () => navigate(APP_ROUTES.filesSettings) : undefined}
+          description={canManageTypes ? 'In Settings, turn on "Every student must hand it in" for a document type.' : 'Programme coordinators decide which documents every student must hand in.'}
+          actionLabel={canManageTypes ? 'Open Settings' : undefined}
+          onAction={canManageTypes ? () => navigate(APP_ROUTES.filesSettings) : undefined}
         />
       </section>
     );
@@ -77,6 +71,7 @@ export const RequiredDocuments: React.FC<{ isOffice: boolean }> = ({ isOffice })
     <div className="space-y-4">
       {overview.types.map(item => {
         const owed = stillToHandIn(item);
+        const shown = open?.id === item.id ? open.show : null;
         return (
           <section key={item.id} aria-label={item.label} className="app-card">
             <div className="flex flex-wrap items-start justify-between gap-4 px-5 pb-3 pt-5">
@@ -92,23 +87,42 @@ export const RequiredDocuments: React.FC<{ isOffice: boolean }> = ({ isOffice })
                 </PortalButton>
               )}
             </div>
-            <div className="space-y-2 px-5 pb-4">
-              {item.students > 0 && <ProgressBar value={item.done} max={item.students} tone="success" />}
-              <p className="text-[13px] text-slate-700">{requiredProgressLine(item)}</p>
+            <div className="space-y-3 px-5 pb-5">
+              {item.students > 0 ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div aria-hidden="true" className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+                      <div className="h-full bg-emerald-500" style={{ width: `${(item.done / item.students) * 100}%` }} />
+                      <div className="h-full bg-amber-500" style={{ width: `${(item.waiting / item.students) * 100}%` }} />
+                    </div>
+                    <span className="whitespace-nowrap text-[13px] font-bold tabular-nums text-slate-900">{handedIn(item)}/{item.students} handed in</span>
+                  </div>
+                  <div role="group" aria-label={`Students for the ${item.label}`} className="flex flex-wrap gap-2">
+                    {requiredGroups(item).map(group => (
+                      <button
+                        key={group.show}
+                        type="button"
+                        aria-pressed={shown === group.show}
+                        disabled={!group.count}
+                        onClick={() => setOpen(shown === group.show ? null : { id: item.id, show: group.show })}
+                        className={`inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-[13px] font-semibold tabular-nums text-slate-700 transition disabled:cursor-default disabled:opacity-50 ${shown === group.show ? 'border-brand-navy ring-1 ring-brand-navy' : 'border-slate-200 hover:bg-slate-50 disabled:hover:bg-white'}`}
+                      >
+                        <span aria-hidden="true" className={`h-2 w-2 rounded-full ${group.dot}`} />
+                        <span className="font-extrabold text-slate-900">{group.count}</span> {group.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-[13px] text-slate-700">No Active student has to hand it in yet.</p>
+              )}
               {item.lastReminder && (
                 <p className="text-[12px] text-slate-500">
                   Last reminded {historyTime(item.lastReminder.at)} by {item.lastReminder.by}, {item.lastReminder.students === 1 ? '1 student' : `${item.lastReminder.students} students`}.
                 </p>
               )}
+              {shown && <RequiredNames item={item} show={shown} />}
             </div>
-            {item.students > 0 && (
-              <div className="border-t border-slate-100 px-5 py-3">
-                <button type="button" className="text-[13px] font-bold text-blue-700 hover:text-blue-900" aria-expanded={open === item.id} onClick={() => setOpen(current => (current === item.id ? null : item.id))}>
-                  {open === item.id ? 'Hide names' : 'Show names'}
-                </button>
-                {open === item.id && <RequiredNames item={item} />}
-              </div>
-            )}
           </section>
         );
       })}
@@ -129,9 +143,8 @@ export const RequiredDocuments: React.FC<{ isOffice: boolean }> = ({ isOffice })
   );
 };
 
-const RequiredNames: React.FC<{ item: RequiredTypeProgress }> = ({ item }) => {
+const RequiredNames: React.FC<{ item: RequiredTypeProgress; show: RequiredShow }> = ({ item, show }) => {
   const location = useLocation();
-  const [show, setShow] = useState<RequiredShow>('todo');
   const [rows, setRows] = useState<RequiredStudent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
@@ -150,21 +163,7 @@ const RequiredNames: React.FC<{ item: RequiredTypeProgress }> = ({ item }) => {
   }, [item.id, show, reload]);
 
   return (
-    <div className="space-y-3 pt-3">
-      <div role="radiogroup" aria-label="Which students" className="flex flex-wrap gap-2">
-        {SHOWS.map(choice => (
-          <button
-            key={choice.value}
-            type="button"
-            role="radio"
-            aria-checked={show === choice.value}
-            onClick={() => setShow(choice.value)}
-            className={`rounded-full border px-3 py-1.5 text-[12px] font-bold transition ${show === choice.value ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-          >
-            {choice.label}
-          </button>
-        ))}
-      </div>
+    <div className="border-t border-slate-100 pt-2">
       {error ? (
         <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
       ) : !rows ? (
@@ -180,7 +179,7 @@ const RequiredNames: React.FC<{ item: RequiredTypeProgress }> = ({ item }) => {
                 <p className="text-[12px] text-slate-500">{row.matric}{row.programme ? ` · ${row.programme}` : ''}</p>
               </div>
               <span className="flex items-center gap-3">
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${REQUIRED_STATES[row.state].className}`}>{REQUIRED_STATES[row.state].label}</span>
+                {row.state === 'RETURNED' && <span className="rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-bold text-rose-700">Returned</span>}
                 {row.documentId && <Link to={routeForDocument(row.documentId)} state={{ from }} className="text-[13px] font-bold text-blue-700 hover:text-blue-900">Open file</Link>}
               </span>
             </li>

@@ -4,18 +4,10 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
-import { ArrowLeft, ChevronRight, Plus, Search } from 'lucide-react';
-import type { DocumentTypeInput, DocumentTypeKind, DocumentTypeSettings, HistoryEntry, HistoryShow } from '../types';
-import {
-  addDocumentType,
-  getDocumentHistory,
-  getDocumentTypeSettings,
-  updateDocumentType,
-} from '../services/filesApi';
+import { ArrowLeft, ChevronRight, Plus } from 'lucide-react';
+import type { DocumentTypeInput, DocumentTypeKind, DocumentTypeSettings } from '../types';
+import { addDocumentType, getDocumentTypeSettings, updateDocumentType } from '../services/filesApi';
 import { ApiError, fieldErrors } from '../services/apiClient';
-import { APP_ROUTES, routeForDocument } from '../constants/routes';
-import { historyTime } from '../utils/documentDisplay';
 import { titleCase } from '../utils/programmeLabel';
 import {
   draftFromType,
@@ -34,9 +26,6 @@ import { SelectMenu } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
 import { ToggleSwitch } from './ToggleSwitch';
 
-type Tab = 'types' | 'history';
-
-const TAB_LABELS: Record<Tab, string> = { types: 'Document types', history: 'History' };
 type Toast = { message: string; tone: 'success' | 'danger' } | null;
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
@@ -52,9 +41,9 @@ const KIND_CHOICES: Array<{ value: DocumentTypeKind; label: string; hint: string
   { value: 'STAFF', label: 'Staff files', hint: 'Not about any student, for example a rubric or meeting notes' },
 ];
 
-const Pill: React.FC<{ checked: boolean; onChange: () => void; children: React.ReactNode }> = ({ checked, onChange, children }) => (
-  <label className={`inline-flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border px-3.5 text-[14px] font-semibold transition ${checked ? 'border-brand-navy bg-slate-50 text-brand-navy' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-    <input type="checkbox" className="h-[18px] w-[18px] accent-brand-navy" checked={checked} onChange={onChange} />
+const Pill: React.FC<{ checked: boolean; disabled?: boolean; onChange: () => void; children: React.ReactNode }> = ({ checked, disabled = false, onChange, children }) => (
+  <label className={`inline-flex min-h-11 items-center gap-2.5 rounded-xl border px-3.5 text-[14px] font-semibold transition ${disabled ? 'cursor-default opacity-70' : 'cursor-pointer'} ${checked ? 'border-brand-navy bg-slate-50 text-brand-navy' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+    <input type="checkbox" className="h-[18px] w-[18px] accent-brand-navy" checked={checked} disabled={disabled} onChange={onChange} />
     {children}
   </label>
 );
@@ -77,8 +66,6 @@ const Section: React.FC<{ title?: string; id?: string; children: React.ReactNode
 );
 
 export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
-  const [params] = useSearchParams();
-  const [tab, setTab] = useState<Tab>(() => (params.get('tab') === 'history' ? 'history' : 'types'));
   const [settings, setSettings] = useState<DocumentTypeSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -228,18 +215,26 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
         ) : (
           <>
             <div role="group" aria-labelledby="type-viewers" className="flex flex-wrap gap-2">
-              {SHARE_TICKS.map(tick => (
-                <Pill key={tick.key} checked={draft[tick.key]} onChange={() => change({ [tick.key]: !draft[tick.key] })}>{tick.label}</Pill>
-              ))}
+              {SHARE_TICKS.map(tick => {
+                const locked = tick.key === 'shareCoordinator' && draft.needsCheck;
+                return (
+                  <Pill key={tick.key} checked={draft[tick.key] || locked} disabled={locked} onChange={() => change({ [tick.key]: !draft[tick.key] })}>{tick.label}</Pill>
+                );
+              })}
             </div>
-            <p className="text-[12px] text-slate-500">Of the students the file is about. The PG office sees everything, and students see their own uploads. Staff can change this when they upload.</p>
+            <p className="text-[12px] text-slate-500">
+              Of the students the file is about. The PG office sees everything, and students see their own uploads. Staff can change this when they upload.
+              {draft.needsCheck ? ' The programme coordinator checks this type, so they always see it.' : ''}
+            </p>
           </>
         )}
       </Section>
 
-      <Section>
-        <SwitchRow id="type-check" title="The office checks it" hint={'Uploads wait in "To check" until you accept or return them.'} checked={draft.needsCheck} onChange={needsCheck => change({ needsCheck })} />
-      </Section>
+      {!staffKind && (
+        <Section>
+          <SwitchRow id="type-check" title="The programme coordinator checks it" hint={'Uploads wait in "To check" until the student\'s programme coordinator accepts or returns them. If the programme has no coordinator, any programme coordinator can.'} checked={draft.needsCheck} onChange={needsCheck => change(needsCheck ? { needsCheck, shareCoordinator: true } : { needsCheck })} />
+        </Section>
+      )}
 
       {!staffKind && (
         <Section>
@@ -305,34 +300,14 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   return (
     <RecordPage
       title="File settings"
-      subtitle="Who can upload and see each type of file, and the history of every file. Files are tagged automatically from each type's category."
+      subtitle="Who can upload and see each type of file, and which ones every student must hand in. Files are tagged automatically from each type's category."
       backLabel="Back to Files"
       onBack={onBack}
       dirty={dirty}
       busy={saving}
-      actions={tab === 'types' && settings ? <PortalButton variant="primary" icon={Plus} onClick={() => open('new')}>Add a type</PortalButton> : undefined}
+      actions={settings ? <PortalButton variant="primary" icon={Plus} onClick={() => open('new')}>Add a type</PortalButton> : undefined}
     >
-      <div role="tablist" aria-label="Settings" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
-        {(['types', 'history'] as const).map(value => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={tab === value}
-            onClick={() => guard(() => {
-              if (dirty) discard(false);
-              setTab(value);
-            })}
-            className={`card-value rounded-lg px-4 py-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${tab === value ? 'bg-brand-navy text-white' : 'text-slate-600 hover:bg-white'}`}
-          >
-            {TAB_LABELS[value]}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'history' ? (
-        <HistoryPane />
-      ) : loading && !settings ? (
+      {loading && !settings ? (
         <LoadingState message="Loading document types..." />
       ) : error ? (
         <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
@@ -385,113 +360,5 @@ export const FileSettings: React.FC<{ onBack: () => void }> = ({ onBack }) => {
       />
       <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
     </RecordPage>
-  );
-};
-
-const SHOW_OPTIONS: Array<{ value: HistoryShow; label: string }> = [
-  { value: 'all', label: 'All changes' },
-  { value: 'uploads', label: 'Uploads' },
-  { value: 'changes', label: 'New versions, edits and sharing' },
-  { value: 'checks', label: 'Accepted and returned' },
-  { value: 'archive', label: 'Archived and restored' },
-  { value: 'deleted', label: 'Deleted files' },
-  { value: 'opened', label: 'Opened and downloaded' },
-  { value: 'settings', label: 'Settings changes' },
-];
-const HISTORY_FROM = `${APP_ROUTES.filesSettings}?tab=history`;
-
-const HistoryPane: React.FC = () => {
-  const [show, setShow] = useState<HistoryShow>('all');
-  const [search, setSearch] = useState('');
-  const [query, setQuery] = useState('');
-  const [rows, setRows] = useState<HistoryEntry[] | null>(null);
-  const [count, setCount] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [reload, setReload] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [moreError, setMoreError] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setQuery(search.trim()), 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setRows(null);
-    setError(null);
-    setMoreError(false);
-    getDocumentHistory(show, query)
-      .then(page => {
-        if (cancelled) return;
-        setRows(page.results);
-        setCount(page.count);
-      })
-      .catch(err => !cancelled && setError(errorText(err, 'Could not load the history.')));
-    return () => {
-      cancelled = true;
-    };
-  }, [show, query, reload]);
-
-  const loadMore = async () => {
-    if (!rows) return;
-    setLoadingMore(true);
-    setMoreError(false);
-    try {
-      const page = await getDocumentHistory(show, query, rows.length);
-      setRows(current => [...(current ?? []), ...page.results]);
-      setCount(page.count);
-    } catch {
-      setMoreError(true);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  return (
-    <section aria-label="History" className="app-card">
-      <div className="flex flex-wrap items-center gap-3 px-5 pb-4 pt-5 sm:px-6">
-        <SelectMenu<HistoryShow> variant="filter" size="sm" prefix="Show" aria-label="Show" value={show} options={SHOW_OPTIONS} onChange={setShow} />
-        <div className="relative min-w-0 flex-1 basis-56">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
-          <input type="search" aria-label="Search the history" className="form-control form-control-md pl-10 text-[14px]" placeholder="Search by file, reference or person" value={search} onChange={event => setSearch(event.target.value)} />
-        </div>
-      </div>
-      {error ? (
-        <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
-      ) : !rows ? (
-        <LoadingState message="Loading the history..." />
-      ) : !rows.length ? (
-        <p className="border-t border-slate-100 px-5 py-6 text-[13px] text-slate-600 sm:px-6">{query ? 'No matching entries found.' : 'Nothing here yet.'}</p>
-      ) : (
-        <>
-          <ol>
-            {rows.map(entry => (
-              <li key={entry.id} className="flex flex-col gap-1 border-t border-slate-100 px-5 py-3.5 sm:flex-row sm:items-start sm:justify-between sm:gap-6 sm:px-6">
-                <div className="min-w-0">
-                  <p className="text-[14px] font-bold text-brand-navy">
-                    {entry.documentId ? (
-                      <Link to={routeForDocument(entry.documentId)} state={{ from: HISTORY_FROM }} className="hover:underline">{entry.title}</Link>
-                    ) : entry.title}
-                    {entry.reference && <span className="ml-2 text-[12px] font-semibold text-slate-500">{entry.reference}</span>}
-                  </p>
-                  <p className="text-[13px] text-slate-700"><span className="font-semibold">{entry.actionLabel}</span>{entry.detail ? `: ${entry.detail}` : ''}</p>
-                  {entry.reason && <p className="text-[13px] text-slate-600">"{entry.reason}"</p>}
-                </div>
-                <p className="shrink-0 text-[12px] text-slate-500 sm:text-right">
-                  {entry.actor}
-                  <span className="sm:hidden">, </span>
-                  <span className="sm:block">{historyTime(entry.at)}</span>
-                </p>
-              </li>
-            ))}
-          </ol>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 sm:px-6">
-            <span className="text-[13px] text-slate-500">Showing {rows.length} of {count}{moreError ? '. Could not load more.' : ''}</span>
-            {rows.length < count && <PortalButton size="sm" isLoading={loadingMore} onClick={() => void loadMore()}>{moreError ? 'Try again' : 'Load more'}</PortalButton>}
-          </div>
-        </>
-      )}
-    </section>
   );
 };

@@ -33,6 +33,14 @@ import { ApiError, request, requestBlob, requestMultipart } from './apiClient';
 
 const BASE = '/documents';
 
+/** Fired after this person uploads, replaces or deletes a file, so counts elsewhere refresh. */
+export const FILES_CHANGED_EVENT = 'fsktm:files-changed';
+
+function filesChanged<T>(result: T): T {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(FILES_CHANGED_EVENT));
+  return result;
+}
+
 export function getDocumentOptions(): Promise<DocumentOptions> {
   return request<DocumentOptions>(`${BASE}/options/`);
 }
@@ -53,7 +61,7 @@ export function getDocument(id: number | string): Promise<DocumentDetail> {
 }
 
 export function deleteDocument(id: number): Promise<void> {
-  return request<void>(`${BASE}/${id}/`, { method: 'DELETE' });
+  return request<void>(`${BASE}/${id}/`, { method: 'DELETE' }).then(filesChanged);
 }
 
 export function searchTaggableStudents(search: string): Promise<TaggableStudent[]> {
@@ -82,7 +90,7 @@ export function uploadDocument(input: DocumentUploadInput): Promise<DocumentDeta
   if (input.audience) form.append('audience', input.audience);
   (input.programmes ?? []).forEach(programme => form.append('programmes', programme));
   if (input.acknowledgeWarnings) form.append('acknowledgeWarnings', 'true');
-  return requestMultipart<DocumentDetail>(`${BASE}/`, form);
+  return requestMultipart<DocumentDetail>(`${BASE}/`, form).then(filesChanged);
 }
 
 export async function downloadDocument(document: Pick<PortalDocument, 'id' | 'file' | 'title'>, version?: number): Promise<void> {
@@ -145,7 +153,7 @@ export function addDocumentVersion(id: number, file: File, note = ''): Promise<D
   const form = new FormData();
   form.append('file', file);
   if (note.trim()) form.append('note', note.trim());
-  return requestMultipart<DocumentDetail>(`${BASE}/${id}/versions/`, form);
+  return requestMultipart<DocumentDetail>(`${BASE}/${id}/versions/`, form).then(filesChanged);
 }
 
 export function checkDocument(id: number, decision: 'ACCEPT' | 'RETURN', reason: string, expectedVersion?: number): Promise<DocumentDetail> {

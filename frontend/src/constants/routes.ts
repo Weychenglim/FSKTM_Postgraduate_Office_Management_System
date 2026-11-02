@@ -20,6 +20,8 @@ export const APP_ROUTES = {
   registry: '/registry',
   registryStaff: '/registry/staff',
   registryStaffNew: '/registry/staff/new',
+  registryTransfers: '/registry/transfers',
+  registryTransferNew: '/registry/transfers/new',
   faq: '/faq',
   faqEntries: '/faq/entries',
   faqEntryNew: '/faq/entries/new',
@@ -32,6 +34,7 @@ export const APP_ROUTES = {
   filesDocuments: '/files/documents',
   filesLetters: '/files/letters',
   filesSettings: '/files/settings',
+  filesHistory: '/files/history',
   supervisorAppointments: '/supervisor-appointments',
   supervisorAppointmentRequests: '/supervisor-appointments/requests',
   supervisorAppointmentWorkload: '/supervisor-appointments/workload',
@@ -103,6 +106,12 @@ export const routeForFaqEntry = (entryId: string): string =>
 
 export const routeForStaffAccount = (accountId: string): string =>
   `${APP_ROUTES.registryStaff}/${encodeURIComponent(accountId)}`;
+
+export const routeForProgrammeTransfer = (transferId: string | number): string =>
+  `${APP_ROUTES.registryTransfers}/${encodeURIComponent(String(transferId))}`;
+
+export const routeForNewProgrammeTransfer = (matric: string): string =>
+  `${APP_ROUTES.registryTransferNew}?student=${encodeURIComponent(matric)}`;
 
 export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimeline;
 
@@ -298,6 +307,13 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
       return `${APP_ROUTES.filesUpload}?type=${encodeURIComponent(String(target.recordId))}`;
     }
     return APP_ROUTES.files;
+  }
+
+  if (target.targetModule === 'REGISTRY') {
+    if (target.recordType === 'PROGRAMME_TRANSFER' && target.recordId) {
+      return routeForProgrammeTransfer(target.recordId);
+    }
+    return APP_ROUTES.registry;
   }
 
   if (target.targetModule === 'DASHBOARD') {

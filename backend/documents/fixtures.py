@@ -120,6 +120,12 @@ class DocumentPeople:
         cls.appoint(cls.bella, cls.supervisor)
         cls.give_panel(cls.ali, cls.panel)
 
+    @classmethod
+    def make_checker(cls):
+        """The coordinator of Ali's programme, who checks and archives his files."""
+        cls.checker = cls.lecturer("doc-coord-ds@example.test", "DOC-C2", "Prof Checker", User.Role.COORDINATOR)
+        Coordinator.objects.create(lecturer=cls.checker.lecturer, programme_managed=DS)
+
     @staticmethod
     def user(email, name, role):
         return User.objects.create_user(email=email, password="pw-documents-6601", full_name=name, role=role)

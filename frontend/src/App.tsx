@@ -63,6 +63,10 @@ import {
   clearAuthToken,
 } from './services/apiClient';
 import { NotificationsProvider } from './context/NotificationsContext';
+import { useMaintenanceWatch } from './context/maintenanceWatch';
+import { MaintenanceBanner, MaintenanceScreen, SignInMaintenanceNotice } from './components/MaintenanceNotices';
+import { maintenanceStatus } from './utils/maintenance';
+import { toDoLabel, useFileToDo } from './context/fileToDo';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
@@ -102,6 +106,7 @@ const UploadNewDocument = lazyNamed('UploadNewDocument', () => import('./compone
 const DocumentPage = lazyNamed('DocumentPage', () => import('./components/DocumentPage'));
 const AppointmentLetterPage = lazyNamed('AppointmentLetterPage', () => import('./components/AppointmentLetterPage'));
 const FileSettings = lazyNamed('FileSettings', () => import('./components/FileSettings'));
+const FileHistory = lazyNamed('FileHistory', () => import('./components/FileHistory'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
 const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
 const AcademicFAQEditor = lazyNamed('AcademicFAQEditor', () => import('./components/AcademicFAQEditor'));
@@ -110,6 +115,9 @@ const LetterTemplateManagement = lazyNamed('LetterTemplateManagement', () => imp
 const StudentLetterGeneration = lazyNamed('StudentLetterGeneration', () => import('./components/StudentLetterGeneration'));
 const StudentMyRecords = lazyNamed('StudentMyRecords', () => import('./components/StudentMyRecords'));
 const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/StudentRegistry'));
+const ProgrammeTransfers = lazyNamed('ProgrammeTransfers', () => import('./components/ProgrammeTransfers'));
+const ProgrammeTransferPage = lazyNamed('ProgrammeTransferPage', () => import('./components/ProgrammeTransferPage'));
+const ProgrammeTransferForm = lazyNamed('ProgrammeTransferForm', () => import('./components/ProgrammeTransferForm'));
 const StaffLecturersRegistry = lazyNamed('StaffLecturersRegistry', () => import('./components/StaffLecturersRegistry'));
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
@@ -177,6 +185,10 @@ export default function App() {
 
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
 
+  const maintenanceWatch = useMaintenanceWatch();
+  const maintenanceOn = maintenanceStatus(maintenanceWatch.maintenance) === 'on';
+  const fileToDo = useFileToDo(currentUser?.role === 'Student' && !currentUser.mustChangePassword && !maintenanceOn, pathname);
+
   // The API client clears the token and fires this when the backend rejects it
   // mid-session. Without a listener the user stays in an authenticated shell
   // while every request fails, until they happen to reload. The event can carry
@@ -223,6 +235,8 @@ export default function App() {
     : 'entries';
   const isStaffRoute = pathname === APP_ROUTES.registryStaff || pathname.startsWith(`${APP_ROUTES.registryStaff}/`);
   const staffAccountMatch = pathname === APP_ROUTES.registryStaffNew ? null : matchPath(`${APP_ROUTES.registryStaff}/:accountId`, pathname);
+  const isTransferRoute = pathname === APP_ROUTES.registryTransfers || pathname.startsWith(`${APP_ROUTES.registryTransfers}/`);
+  const transferMatch = pathname === APP_ROUTES.registryTransferNew ? null : matchPath(`${APP_ROUTES.registryTransfers}/:transferId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorRequestsRoute = pathname === APP_ROUTES.supervisorAppointmentRequests;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
@@ -403,7 +417,9 @@ export default function App() {
   const isPasswordLinkPage =
     pathname === APP_ROUTES.resetPassword || pathname === APP_ROUTES.activateAccount;
 
-  if (isRestoringSession && !isPasswordLinkPage) {
+  // Also wait for the maintenance check, so nobody sees the sign-in page while
+  // the portal is under maintenance.
+  if ((isRestoringSession && !isPasswordLinkPage) || !maintenanceWatch.checked) {
     return (
       <div
         id="session-restore-loading"
@@ -415,6 +431,10 @@ export default function App() {
         </div>
       </div>
     );
+  }
+
+  if (maintenanceOn && maintenanceWatch.maintenance) {
+    return <MaintenanceScreen maintenance={maintenanceWatch.maintenance} onSignOut={currentUser ? handleLogout : undefined} />;
   }
 
   if (!currentUser) {
@@ -450,6 +470,7 @@ export default function App() {
         <AuthLayout>
           <div className="w-full flex justify-center items-center">
             <div className="w-full flex justify-center flex-col items-center">
+              <SignInMaintenanceNotice maintenance={maintenanceWatch.maintenance} />
               <LoginCard
                 onForgotPasswordClick={() => navigate(APP_ROUTES.forgotPassword)}
                 onLoginSuccess={handleSuccessfulLogin}
@@ -521,9 +542,11 @@ export default function App() {
           userName={currentUser.fullName}
           userRole={currentUser.role}
           feedbackScopeKey={`${currentUser.id}:${currentUser.role}`}
+          sidebarBadges={fileToDo ? { [SIDEBAR_ITEMS.FILE_MANAGEMENT]: { count: fileToDo, label: toDoLabel(fileToDo) } } : undefined}
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >
+          <MaintenanceBanner maintenance={maintenanceWatch.maintenance} />
           <React.Suspense fallback={<ModuleLoadingFallback />}>
             <OfficeDashboardLayout enabled={isOfficeDashboardPresentation(pathname, currentUser.role)}>
             <ModuleFeedbackScope pathname={pathname}>
@@ -728,6 +751,16 @@ export default function App() {
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               )
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isTransferRoute && currentUser.role !== 'Office Staff/Admin' && currentUser.role !== 'Programme Coordinator' ? (
+              <Navigate to={APP_ROUTES.registry} replace />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryTransferNew ? (
+              currentUser.role === 'Office Staff/Admin'
+                ? <ProgrammeTransferForm key={location.search} matric={new URLSearchParams(location.search).get('student') ?? ''} />
+                : <Navigate to={APP_ROUTES.registryTransfers} replace />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && transferMatch ? (
+              <ProgrammeTransferPage key={transferMatch.params.transferId} transferId={transferMatch.params.transferId ?? ''} />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isTransferRoute ? (
+              <ProgrammeTransfers office={currentUser.role === 'Office Staff/Admin'} />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute && currentUser.role !== 'Office Staff/Admin' ? (
               <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute ? (
@@ -738,6 +771,7 @@ export default function App() {
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry
                 readOnly={currentUser.role !== 'Office Staff/Admin'}
+                canSeeTransfers={currentUser.role === 'Office Staff/Admin' || currentUser.role === 'Programme Coordinator'}
                 onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
@@ -861,8 +895,10 @@ export default function App() {
                   onUploadSuccess={(document) => navigate(routeForDocument(document.id), { replace: true, state: { uploadedReference: document.reference } })}
                   onOpenExisting={(documentId) => navigate(routeForDocument(documentId))}
                 />
-              ) : pathname === APP_ROUTES.filesSettings && currentUser.role === 'Office Staff/Admin' ? (
+              ) : pathname === APP_ROUTES.filesSettings && currentUser.role === 'Programme Coordinator' ? (
                 <FileSettings onBack={() => navigate(APP_ROUTES.files)} />
+              ) : pathname === APP_ROUTES.filesHistory && currentUser.role === 'Office Staff/Admin' ? (
+                <FileHistory onBack={() => navigate(APP_ROUTES.files)} />
               ) : documentMatch ? (
                 <DocumentPage
                   key={documentMatch.params.documentId}

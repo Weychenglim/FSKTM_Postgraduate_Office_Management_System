@@ -7,3 +7,4 @@ class AccountsConfig(AppConfig):
 
     def ready(self):
         from . import checks  # noqa: F401
+        from . import transfer_notices  # noqa: F401

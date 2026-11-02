@@ -149,11 +149,11 @@ export const StudentFileSubmission: React.FC = () => {
     const badge = requiredBadge(item.state, file?.checkStatus);
     const hint =
       item.state === 'MISSING'
-        ? item.dueNote || 'The office needs this from every student.'
+        ? item.dueNote || 'Every student must hand this in.'
         : item.state === 'RETURNED'
-          ? file?.checkReason ? `Returned: "${file.checkReason}"` : 'Returned by the office. Upload a corrected file.'
+          ? file?.checkReason ? `Returned: "${file.checkReason}"` : 'Returned by your programme coordinator. Upload a corrected file.'
           : item.state === 'WAITING'
-            ? `Sent ${shortDocumentDate(file?.uploadedAt)}. The office will check it.`
+            ? `Sent ${shortDocumentDate(file?.uploadedAt)}. Your programme coordinator will check it.`
             : file?.checkedAt ? `Accepted ${shortDocumentDate(file.checkedAt)}` : `Sent ${shortDocumentDate(file?.uploadedAt)}`;
     const act = () => (item.state === 'MISSING' || !item.documentId ? upload(undefined, item.code) : openFile(item.documentId, item.state === 'RETURNED'));
     return (
@@ -206,7 +206,7 @@ export const StudentFileSubmission: React.FC = () => {
               <div className="space-y-3 px-5 pb-4 pt-5 sm:px-6">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
-                    <h2 id="required-heading" className="section-label">Documents the office needs from you</h2>
+                    <h2 id="required-heading" className="section-label">Documents you must hand in</h2>
                     <p className="card-description mt-1">Open one to hand it in, or to see where it is.</p>
                   </div>
                   <p className="text-[13px] font-semibold text-slate-700">{handedIn} of {required.length} handed in</p>
@@ -222,14 +222,14 @@ export const StudentFileSubmission: React.FC = () => {
             <section aria-labelledby="returned-heading" className="app-card overflow-hidden">
               <div className="px-5 pb-3 pt-5 sm:px-6">
                 <h2 id="returned-heading" className="section-label">Returned to you</h2>
-                <p className="card-description mt-1">The office sent these back. Upload a corrected file to each.</p>
+                <p className="card-description mt-1">Your programme coordinator sent these back. Upload a corrected file to each.</p>
               </div>
               <ul className="divide-y divide-slate-100 border-t border-slate-100">
                 {returnedElsewhere.map(file => (
                   <li key={file.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 sm:px-6">
                     <div className="min-w-0">
                       <p className="text-[14px] font-semibold text-brand-navy">{file.title}</p>
-                      <p className="text-[12.5px] text-rose-700">"{file.checkReason}"{file.checkedBy ? ` ${file.checkedBy}, PG office` : ''}</p>
+                      <p className="text-[12.5px] text-rose-700">"{file.checkReason}"{file.checkedBy ? ` ${file.checkedBy}, programme coordinator` : ''}</p>
                     </div>
                     <PortalButton size="sm" icon={Upload} onClick={() => openFile(file.id, true)}>Upload again</PortalButton>
                   </li>
@@ -239,7 +239,7 @@ export const StudentFileSubmission: React.FC = () => {
           )}
           {!required.length && !returnedElsewhere.length && (
             <section className="app-card">
-              <EmptyState icon={ListChecks} title="Nothing to hand in right now" description="When the office asks you for a document, it shows here with what to do next." actionLabel="Upload a file" onAction={() => upload()} />
+              <EmptyState icon={ListChecks} title="Nothing to hand in right now" description="When you have to hand in a document, it shows here with what to do next." actionLabel="Upload a file" onAction={() => upload()} />
             </section>
           )}
         </>

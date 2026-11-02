@@ -10,8 +10,8 @@ from django.utils import timezone
 
 
 class DocumentType(models.Model):
-    """An office-managed kind of document: who may upload it, who sees it by
-    default, and whether the office checks it."""
+    """A coordinator-managed kind of document: who may upload it, who sees it by
+    default, and whether the programme coordinator checks it."""
 
     class Group(models.TextChoices):
         SUPERVISION = "SUPERVISION", "Supervision"

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { DocumentTypeOption, TaggableStudent } from '../types';
 import { APP_ROUTES, routeForNotificationTarget } from '../constants/routes';
-import { checkBadge, checkChip, checkSteps, formatFileSize, requiredBadge, historyTime, REQUIRED_STATES, requiredProgressLine, stillToHandIn, studentsLine, uploadedLine } from './documentDisplay';
+import { checkBadge, checkChip, checkSteps, formatFileSize, requiredBadge, handedIn, historyTime, requiredGroups, stillToHandIn, studentsLine, uploadedLine } from './documentDisplay';
 import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from './documentFilters';
 import { defaultSharing, sharingNames, staffReach, staffTypeChoices, studentAudienceSentence, studentReach } from './documentSharing';
 import { suggestTypeForFile, tagText, uploadTags } from './documentTags';
@@ -24,7 +24,7 @@ assert.equal(formatFileSize(640 * 1024), '640 KB');
 assert.equal(formatFileSize(2.5 * 1024 * 1024), '2.5 MB');
 assert.equal(formatFileSize(10 * 1024 * 1024), '10 MB');
 assert.equal(checkChip('NONE'), null, 'No chip when nobody needs to act');
-assert.equal(checkChip('WAITING')?.label, 'Waiting for office');
+assert.equal(checkChip('WAITING')?.label, 'Waiting for a check');
 assert.equal(checkChip('RETURNED')?.label, 'Returned');
 assert.deepEqual(studentsLine([]), { main: 'Staff file', sub: '' });
 assert.deepEqual(studentsLine([{ matric: 'S1', name: 'Ali Hassan', programme: '' }]), { main: 'Ali Hassan', sub: 'S1' });
@@ -59,11 +59,14 @@ assert.equal(moreFilterCount({ ...EMPTY_DOCUMENT_FILTERS, intake: '2025/2026', s
 assert.equal(historyTime('2026-10-14T02:05:00Z'), '14 Oct 2026, 10:05', 'History times are in Malaysia time');
 assert.equal(historyTime('not a date'), '');
 const counts = { students: 40, done: 12, waiting: 3, returned: 2, missing: 23 };
-assert.equal(requiredProgressLine(counts), '12 of 40 handed in · 3 waiting for a check · 25 still to hand in');
 assert.equal(stillToHandIn(counts), 25, 'A returned file still has to be handed in');
-assert.equal(requiredProgressLine({ ...counts, waiting: 0 }), '12 of 40 handed in · 25 still to hand in');
-assert.equal(requiredProgressLine({ students: 0, done: 0, waiting: 0, returned: 0, missing: 0 }), 'No Active student has to hand it in yet.');
-assert.equal(REQUIRED_STATES.MISSING.label, 'Not handed in');
+assert.equal(handedIn(counts), 15, 'An upload waiting for a check counts as handed in');
+assert.deepEqual(
+  requiredGroups(counts).map(group => [group.show, group.label, group.count]),
+  [['done', 'Done', 12], ['waiting', 'To check', 3], ['todo', 'Missing', 25]],
+  'Each chip opens the names the backend returns for that group',
+);
+assert.equal(handedIn({ students: 13, done: 0, waiting: 1, returned: 1, missing: 11 }), 1, 'One upload waiting for a check reads 1/13, not 0');
 assert.equal(
   routeForNotificationTarget({ targetModule: 'FILES', recordType: 'REQUIRED_DOCUMENT', recordId: 'supervisor-appointment-form' }),
   `${APP_ROUTES.filesUpload}?type=supervisor-appointment-form`,
@@ -135,7 +138,7 @@ assert.deepEqual(preview.map(tag => `${tag.kind}:${tag.label}`), [
 assert.deepEqual(uploadTags({ type: null, semester: null, role: 'Student', programmes: [], intakes: [] }), []);
 
 // Status badges and who will see an upload
-assert.deepEqual(checkBadge('WAITING'), { label: 'Waiting for office', tone: 'warning' });
+assert.deepEqual(checkBadge('WAITING'), { label: 'Waiting for a check', tone: 'warning' });
 const checked = {
   checkReason: '', checkedBy: '', checkedAt: null, uploadedAt: '2026-10-26T01:00:00Z',
   uploadedBy: { name: 'Ali Hassan', role: 'Student', roleLabel: 'Student', isMe: false },
@@ -143,7 +146,7 @@ const checked = {
 };
 assert.deepEqual(checkSteps({ ...checked, checkStatus: 'NONE' }), [], 'No steps when the office does not check the type');
 const waitingSteps = checkSteps({ ...checked, checkStatus: 'WAITING' });
-assert.deepEqual(waitingSteps.map(step => `${step.label}:${step.state}`), ['Version 2 uploaded:completed', 'Office check:current', 'Accepted:upcoming']);
+assert.deepEqual(waitingSteps.map(step => `${step.label}:${step.state}`), ['Version 2 uploaded:completed', 'Coordinator check:current', 'Accepted:upcoming']);
 assert.equal(waitingSteps[0].occurredAt, '2026-10-26T02:00:00Z', 'The step dates the version being checked');
 const returnedSteps = checkSteps({ ...checked, checkStatus: 'RETURNED', checkReason: 'Sign page 2.', checkedBy: 'Siti', checkedAt: '2026-10-26T03:00:00Z' });
 assert.deepEqual([returnedSteps[1].state, returnedSteps[1].reason, returnedSteps[1].actorName, returnedSteps[2].state], ['rejected', 'Sign page 2.', 'Siti', 'not_reached']);

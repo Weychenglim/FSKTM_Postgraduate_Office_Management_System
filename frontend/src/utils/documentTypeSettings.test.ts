@@ -36,7 +36,7 @@ const thesis: DocumentTypeSetting = {
   waiting: 1,
 };
 
-assert.equal(typeSummary(draftFromType(thesis)), 'Students upload · seen by supervisors, panel · office checks');
+assert.equal(typeSummary(draftFromType(thesis)), 'Students upload · seen by supervisors, panel · coordinator checks');
 assert.equal(typeSummary({ ...NEW_TYPE, uploaders: ['SUPERVISOR'], shareSupervisors: false }), 'Staff upload · office only');
 assert.equal(typeSummary({ ...NEW_TYPE, kind: 'STAFF', uploaders: [] }), 'Office uploads only · uploader picks who sees it');
 
@@ -49,7 +49,7 @@ assert.deepEqual(saveNotices(thesis, draft), []);
 assert.deepEqual(saveNotices(thesis, { ...draft, sharePanel: false }), ['This also changes who can see the 3 files students already uploaded.']);
 assert.deepEqual(saveNotices(thesis, { ...draft, isActive: false, needsCheck: false }), [
   '4 files use this type. They stay, but nobody can choose it for new uploads.',
-  '1 file still waits in To check. You can still accept or return it.',
+  '1 file still waits in To check. The programme coordinator can still accept or return it.',
 ]);
 assert.deepEqual(saveNotices({ ...thesis, files: 1 }, { ...draft, isActive: false }), ['1 file uses this type. It stays, but nobody can choose it for new uploads.']);
 assert.deepEqual(saveNotices(null, NEW_TYPE), [], 'A new type changes no files');

@@ -298,7 +298,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                   {!types.length && <p className="text-[13px] text-slate-600">There is nothing you can upload here right now. Contact the PG office.</p>}
                   {askedFor.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Asked for by the office</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">You must hand these in</p>
                       <div className="grid gap-2.5 sm:grid-cols-2">{askedFor.map(typeCard)}</div>
                     </div>
                   )}
@@ -506,8 +506,10 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                 <div className="space-y-1">
                   <dt className="font-bold text-slate-800">What happens next</dt>
                   <dd className="text-slate-600">
-                    {type.needsCheck && !options.isOffice
-                      ? isStudent ? 'The office checks it and tells you when it is accepted, or what to fix.' : 'The office checks it before it counts as handed in.'
+                    {type.needsCheck && !staffFile
+                      ? isStudent
+                        ? 'Your programme coordinator checks it and tells you when it is accepted, or what to fix.'
+                        : `The student's programme coordinator checks it before it counts as handed in${role === 'Programme Coordinator' ? ', unless you are that coordinator' : ''}.`
                       : 'It is filed straight away.'}
                   </dd>
                 </div>

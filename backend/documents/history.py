@@ -30,7 +30,7 @@ FIELD_WORDS = {
     "share_supervisors": "who can see it",
     "share_panel": "who can see it",
     "share_coordinator": "who can see it",
-    "needs_check": "office checks",
+    "needs_check": "coordinator checks",
     "one_per_student": "one file per student",
     "required": "whether every student must hand it in",
     "required_due_note": "the due note",

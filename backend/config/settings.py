@@ -121,6 +121,7 @@ INSTALLED_APPS = [
     "announcements",
     "documents",
     "faq",
+    "maintenance",
 ]
 
 MIDDLEWARE = [
@@ -132,6 +133,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "maintenance.middleware.MaintenanceMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

@@ -284,6 +284,20 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 
 **History.** Every change is an `AccountChange` row with who, when and what. Rows cannot be edited or deleted, and keep the name and email as text after an account is deleted.
 
+## Programme transfers in Student Registry (`/api/registry/`)
+
+The office starts a transfer from the Student Record; the coordinator of the student's current programme approves it, then the coordinator of the new programme. The workflow, its records and its rules stay in `appointments.research_amendments` (`/api/appointments/research-amendments/`, kind `TRANSFER`); Registry only reads them.
+
+| Method | Path | Who | Returns |
+| ------ | ---- | --- | ------- |
+| GET | `students/<matric>/transfer/` | Anyone who can read that record | `{studentId, hasResearchProfile, canRequest, pending}`; the office also gets `blockers`, `currentCoordinators`, `destinations` (each with its coordinators), `team` and `unfinishedTasks` |
+| GET | `programme-coordinators/` | Office and programme coordinators | `{programmes: [{programme, coordinators}]}`, regular and acting coordinators today |
+
+- A student record also carries `userId`, which the transfer API needs.
+- A student with a research profile changes programme only through a transfer; a direct programme edit answers 409 and says to use Request programme transfer. Students without one are edited directly.
+- When nobody coordinates the student's current programme, a new transfer starts at the new programme's coordinator (its first history entry goes straight to `PENDING_DESTINATION_COORDINATOR`).
+- Notices (`accounts.transfer_notices`, target `REGISTRY` / `PROGRAMME_TRANSFER`): the coordinators who must decide next, and when it ends, the student and the office user who started it. The person acting is never told about their own step.
+
 ## FAQ knowledge base endpoints (`/api/faq/`)
 
 The chatbot's answers (UC28, UC29).
@@ -390,25 +404,26 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 | GET | `options/` | Everyone: the types they may choose, semesters, programmes and intakes; a student also gets `me` (their programme, intake, supervisors, panel and coordinators) for the upload summary |
 | GET | `students/?search=`, `students/<matric>/` | Staff: students they may tag, and one student's header |
 | GET, POST | `/` (list with `view`, `q`, `type`, `group`, `semester`, `programme`, `intake`, `student`, `uploader`, `sender`, `required`, `status`, `kind`, `from`, `to`, `archived`; multipart upload) | Everyone, by the access rules below |
-| GET | `summary/` | Everyone (tab counts; the office and coordinators also get `studentsStillToHandIn`) |
-| GET, PATCH, DELETE | `<id>/` | View right; edit by the uploader or the office; delete by the uploader |
+| GET | `summary/` | Everyone (tab counts; programme coordinators also get `toCheck`, `returned` and `studentsStillToHandIn` for their programmes) |
+| GET, PATCH, DELETE | `<id>/` | View right; edit and delete by the uploader |
 | GET | `<id>/download/?version=`, `<id>/preview/`, `<id>/preview/pages/<n>/` | View right |
 | POST | `download-zip/` (`{ids}`) | View right on every file |
-| POST | `<id>/versions/` (multipart) | The uploader or the office |
-| POST | `<id>/check/` (`{decision: ACCEPT or RETURN, reason, expectedVersion}`) | Office Staff/Admin |
-| GET, PUT | `<id>/sharing/` | The office, or the staff member who uploaded it |
-| POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | Office Staff/Admin |
-| GET, POST | `types/`, PATCH `types/<id>/` | Office Staff/Admin |
+| POST | `<id>/versions/` (multipart) | The uploader |
+| POST | `<id>/check/` (`{decision: ACCEPT or RETURN, reason, expectedVersion}`) | The programme coordinator of a student the file is about |
+| GET, PUT | `<id>/sharing/` | The staff member who uploaded it |
+| POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | The programme coordinator of a student the file is about |
+| GET, POST | `types/`, PATCH `types/<id>/` | Programme coordinators |
 | GET | `history/?show=&q=` | Office Staff/Admin |
-| GET | `required/`, `required/<typeId>/students/?show=todo,waiting,done` | Office Staff/Admin, and programme coordinators for their programmes |
-| POST | `required/<typeId>/remind/` | Office Staff/Admin, once a day per type |
+| GET | `required/`, `required/<typeId>/students/?show=todo,waiting,done` | Programme coordinators, for their programmes |
+| POST | `required/<typeId>/remind/` | Programme coordinators, their programmes' students, once a day per type each |
 | GET | `required/mine/` | Student |
 
 **Who sees what.**
-- The office sees every file. Uploaders see their own. Students see only what they uploaded.
+- The office sees every file, but only uploads, and changes only what it uploaded. Uploaders see their own. Students see only what they uploaded.
 - Staff see a student's files through real relationships, ticked per file: supervisors and co-supervisors (active appointments), the panel member (active panel appointment), and the programme coordinator (acting delegations included).
 - Staff files (about no student) go to all lecturers and coordinators, coordinators only, or the office only, optionally narrowed to programmes. Students never see them.
-- Archived files are seen by the office only. A file someone may not see answers 404, the same as a missing one.
+- A programme coordinator always sees files about students in their programme that need a check, and checks, archives and restores them. A programme that no coordinator runs (regular or acting) is covered by every coordinator, for checks, archiving and required documents, so nothing waits for a check nobody can make.
+- Archived files are seen by the office and by the coordinator of the student's programme. A file someone may not see answers 404, the same as a missing one.
 
 **Uploads.**
 - Up to 10 MB (`DOCUMENT_MAX_UPLOAD_BYTES`) and 100 an hour per person (`DOCUMENT_UPLOAD_THROTTLE_RATE`).
@@ -417,13 +432,46 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 - Files are stored under `MEDIA_ROOT/documents/<year>/<month>/` with random names and are only served through the permission-checked download, as attachments.
 - Previews are drawn on the server as PNG pages, because the production security policy blocks the browser's own PDF viewer.
 
-**Checking and versions.** For types the office checks, uploads wait in "To check". Returning needs a reason; the uploader is told in the app, and by email when "Email alerts" is on. A new version waits again.
+**Checking and versions.** For types the programme coordinator checks, uploads wait in the coordinator's "To check" (a coordinator's own upload for their students needs no check). Returning needs a reason; the uploader is told in the app, and by email when "Email alerts" is on. A new version waits again.
 
 **Automatic tags (2026-10-26).** Nobody types tags. Each file's `autoTags` are worked out when it is shown: Category (the type's group), Required, Semester, From (`sender`: student, lecturer, coordinator or office), and each student's Programme and Intake (a staff file's chosen programmes). Each tag carries the list filter it opens. They follow a student who changes programme. Search also matches programme, intake and category words. Typed tags and their endpoints were removed in `documents.0005`.
 
 **Settings and history.** The office edits types (who uploads, who sees, checks, required, switched on) and reads the history, which keeps deleted files as text. New sharing on a type reaches files students uploaded; what staff chose when uploading stays.
 
 **Required documents.** A type can be required of every Active student, or of chosen programmes only. A returned file still counts as owed. Remind sends a notice, and an email to students with "Deadline reminders" on.
+
+## Portal maintenance
+
+The technical administrator switches it in Django admin: **Portal maintenance**
+(`/admin/maintenance/portalmaintenance/`). Choose Off, On now, or Planned with a
+start time; add an expected end and a message if wanted. **Maintenance history**
+lists every change. Office staff have no switch: it is a technical task.
+
+While it is on, nobody can sign in or use the portal, office staff included.
+Every page shows only the maintenance page, with the message and the expected
+end, and checks every minute; people who were signed in stay signed in and carry
+on when it ends. The API turns requests away with `503`, code
+`portal_maintenance`, and a `Retry-After` header. Before a planned start,
+signed-in people and the sign-in page see a warning banner. It ends only when the
+technical administrator switches it off; the expected end is only shown.
+
+| Method | Path | Who | What |
+| ------ | ---- | --- | ---- |
+| GET | `/api/maintenance/` | Anyone | `{status: off/planned/on, startsAt, expectedEnd, message}` |
+
+A check in `maintenance.middleware` runs before every signed-in `/api/` request.
+Requests without a token only reach public views: sign-in, the password link
+views and the status check maintenance themselves, so a new public view should
+call `maintenance.state.is_on()` too. Session renewal, sign-out and reading
+one's own account (`GET /api/auth/me/`) stay open. The Django admin site is not
+under `/api/`, so it keeps working. The state is cached, so a normal request
+costs no extra query.
+
+`python manage.py maintenance status|on|off [--message TEXT] [--hours N]` does
+the same from the command line, for deploy scripts. With the in-memory
+development cache, restart the server afterwards. In development the admin site
+is at `http://localhost:8000/admin/`. This only works while Django runs: an
+upgrade that stops the server needs a page at the web server.
 
 ## Scheduled commands
 
@@ -437,6 +485,12 @@ repeatedly, so schedule them every few minutes:
 | `send_deadline_reminders --dry-run` | Reports pending recipient/event counts without creating notifications, run records or email deliveries. |
 | `send_weekly_summary` | Emails everyone who turned the weekly summary on a list of their unread notifications from the past seven days. One email per person per week. |
 | `check_document_storage [--remove-orphans]` | Reports stored File Management files that are missing, and left-over files nothing refers to. With `--remove-orphans` it deletes left-overs more than an hour old. Run it weekly, or after restoring a backup. |
+
+While portal maintenance is on, `release_announcements`,
+`send_deadline_reminders` and `send_weekly_summary` skip their run, so nobody is
+sent to a portal they cannot open. Announcements and deadline reminders catch up
+on the first run after it ends; a weekly summary due during maintenance is
+skipped that week.
 
 Each person's Settings switches decide what they get: no reminders when
 "Deadline reminders" is off, and email copies of announcements and reminders

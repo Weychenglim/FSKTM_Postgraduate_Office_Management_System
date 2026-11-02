@@ -9,11 +9,11 @@ from .test_access import DocumentClient
 
 
 class SettingsClient(DocumentClient):
-    def as_office(self):
-        self.client.force_authenticate(self.office)
+    def as_coordinator(self):
+        self.client.force_authenticate(self.coordinator)
 
     def change_type(self, code, body, user=None):
-        self.client.force_authenticate(user or self.office)
+        self.client.force_authenticate(user or self.coordinator)
         doc_type = DocumentType.objects.get(code=code)
         return self.client.patch(f"/api/documents/types/{doc_type.pk}/", body, format="json")
 
@@ -32,10 +32,10 @@ class TypeSettingsTests(DocumentPeople, SettingsClient, APITestCase):
     def setUp(self):
         cache.clear()
 
-    def test_the_office_sees_every_type_with_counts(self):
+    def test_coordinators_see_every_type_with_counts(self):
         DocumentType.objects.filter(code="other").update(is_active=False)
         self.made(self.ali.user, "thesis", "Thesis")
-        self.as_office()
+        self.as_coordinator()
         response = self.client.get("/api/documents/types/")
         self.assertEqual(response.status_code, 200)
         rows = {row["code"]: row for row in response.data["types"]}
@@ -44,10 +44,17 @@ class TypeSettingsTests(DocumentPeople, SettingsClient, APITestCase):
         self.assertEqual((rows["thesis"]["files"], rows["thesis"]["studentUploads"]), (1, 1))
         self.assertEqual(response.data["kindUploaders"]["STAFF"], ["LECTURER", "COORDINATOR"])
         self.assertEqual(len(response.data["programmes"]), 3)
-        for user in (self.supervisor, self.coordinator, self.ali.user):
+        for user in (self.office, self.supervisor, self.ali.user):
             self.client.force_authenticate(user)
             self.assertEqual(self.client.get("/api/documents/types/").status_code, 403)
-        self.assertEqual(self.change_type("thesis", {"label": "Mine"}, self.coordinator).status_code, 403)
+            self.assertEqual(self.client.post("/api/documents/types/", {"label": "Mine"}, format="json").status_code, 403)
+        self.assertEqual(self.change_type("thesis", {"label": "Mine"}, self.office).status_code, 403)
+        self.assertFalse(SettingsChange.objects.exists())
+
+    def test_only_coordinators_get_the_settings_button(self):
+        for user, expected in ((self.coordinator, True), (self.office, False), (self.supervisor, False), (self.ali.user, False)):
+            self.client.force_authenticate(user)
+            self.assertIs(self.client.get("/api/documents/options/").data["canManageTypes"], expected)
 
     def test_new_ticks_reach_student_uploads_but_not_staff_choices(self):
         student_upload = self.made(self.ali.user, "research-proposal", "Ali proposal")
@@ -60,7 +67,7 @@ class TypeSettingsTests(DocumentPeople, SettingsClient, APITestCase):
         self.assertEqual(self.titles(self.co_supervisor), {"Supervisor copy"})
         change = SettingsChange.objects.get(action=SettingsChange.Action.CHANGED)
         self.assertEqual(change.details["changes"]["share_supervisors"], {"before": True, "after": False})
-        self.assertEqual((change.actor, change.details["updatedFiles"]), (self.office, 1))
+        self.assertEqual((change.actor, change.details["updatedFiles"]), (self.coordinator, 1))
 
     def test_saving_without_changes_logs_nothing(self):
         doc_type = DocumentType.objects.get(code="thesis")
@@ -69,7 +76,7 @@ class TypeSettingsTests(DocumentPeople, SettingsClient, APITestCase):
         self.assertFalse(SettingsChange.objects.exists())
 
     def test_adding_a_type_students_can_use(self):
-        self.as_office()
+        self.as_coordinator()
         response = self.client.post(
             "/api/documents/types/",
             {
@@ -96,7 +103,7 @@ class TypeSettingsTests(DocumentPeople, SettingsClient, APITestCase):
         self.assertEqual(uploaded["checkStatus"], "WAITING")
 
     def test_type_rules(self):
-        self.as_office()
+        self.as_coordinator()
         self.assertIn("label", self.client.post("/api/documents/types/", {"label": "thesis"}, format="json").data)
         self.assertIn("uploaders", self.client.post(
             "/api/documents/types/", {"label": "Rubric", "kind": "STAFF", "uploaders": ["STUDENT"]}, format="json"
@@ -130,19 +137,25 @@ class SharingTests(DocumentPeople, SettingsClient, APITestCase):
     def setUp(self):
         cache.clear()
 
-    def test_the_office_changes_a_student_upload_and_it_stops_following_its_type(self):
+    def test_the_office_cannot_change_who_sees_a_students_upload(self):
         thesis = self.made(self.ali.user, "thesis", "Thesis")
-        options = self.sharing(self.office, thesis).data
+        self.assertEqual(self.sharing(self.office, thesis).status_code, 403)
+        self.assertEqual(self.sharing(self.office, thesis, {"supervisors": True, "panel": False, "coordinator": True}).status_code, 403)
+        self.assertIn("Thesis", self.titles(self.panel))
+        self.assertFalse(DocumentEvent.objects.filter(action=DocumentEvent.Action.SHARING_CHANGED).exists())
+
+    def test_staff_change_their_own_upload_and_it_keeps_its_choice(self):
+        evaluation = self.made(self.supervisor, "evaluation-form", "Evaluation", students=[self.ali.matric_no])
+        options = self.sharing(self.supervisor, evaluation).data
         self.assertEqual(options["people"]["panel"], [{"name": "Dr Panel", "role": "panel member"}])
-        self.assertEqual({person["name"] for person in options["people"]["supervisors"]}, {"Dr Supervisor", "Dr Co"})
-        response = self.sharing(self.office, thesis, {"supervisors": True, "panel": False, "coordinator": True})
+        self.assertEqual({person["name"] for person in options["people"]["supervisors"]}, {"Dr Co"})
+        response = self.sharing(self.supervisor, evaluation, {"supervisors": True, "panel": False, "coordinator": True})
         self.assertEqual((response.status_code, response.data["share"]["panel"]), (200, False))
-        self.assertNotIn("Thesis", self.titles(self.panel))
+        self.assertNotIn("Evaluation", self.titles(self.panel))
         event = DocumentEvent.objects.get(action=DocumentEvent.Action.SHARING_CHANGED)
         self.assertEqual((event.details["before"]["panel"], event.details["after"]["panel"]), (True, False))
-        self.change_type("thesis", {"sharePanel": True, "shareSupervisors": False})
-        stored = Document.objects.get(pk=thesis["id"])
-        self.assertEqual((stored.follows_type, stored.share_panel, stored.share_supervisors), (False, False, True))
+        self.change_type("evaluation-form", {"sharePanel": True})
+        self.assertFalse(Document.objects.get(pk=evaluation["id"]).share_panel)
 
     def test_people_who_can_newly_see_a_file_are_told(self):
         evaluation = self.made(self.supervisor, "evaluation-form", "Evaluation", students=[self.ali.matric_no], sharePanel="false")
@@ -154,6 +167,17 @@ class SharingTests(DocumentPeople, SettingsClient, APITestCase):
         with self.captureOnCommitCallbacks(execute=True):
             self.sharing(self.supervisor, evaluation, {"supervisors": True, "panel": True, "coordinator": True})
         self.assertEqual(DocumentEvent.objects.filter(action=DocumentEvent.Action.SHARING_CHANGED).count(), 1)
+
+    def test_a_checked_file_always_reaches_the_coordinator(self):
+        self.assertTrue(self.change_type("faculty-form", {"shareCoordinator": False}).data["shareCoordinator"])
+        self.assertTrue(self.change_type("thesis", {"needsCheck": True, "shareCoordinator": False}).data["shareCoordinator"])
+        DocumentType.objects.filter(code="faculty-form").update(uploaders=["STUDENT", "SUPERVISOR"])
+        form = self.made(self.supervisor, "faculty-form", "Faculty form", students=[self.ali.matric_no], shareCoordinator="false")
+        self.assertEqual(form["checkStatus"], "WAITING")
+        self.assertTrue(Document.objects.get(pk=form["id"]).share_coordinator)
+        self.assertTrue(self.sharing(self.supervisor, form).data["coordinatorChecks"])
+        response = self.sharing(self.supervisor, form, {"supervisors": True, "panel": False, "coordinator": False})
+        self.assertEqual((response.status_code, response.data["share"]["coordinator"]), (200, True))
 
     def test_who_may_change_sharing(self):
         thesis = self.made(self.ali.user, "thesis", "Thesis")

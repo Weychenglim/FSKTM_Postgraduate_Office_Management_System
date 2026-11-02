@@ -26,7 +26,6 @@ from .access import (
     panel_student_ids,
     people_reached,
     permissions,
-    programme_key,
     supervisors_of,
     taggable_students,
     visible_documents,
@@ -51,7 +50,6 @@ from .required import (
     AlreadyReminded,
     NobodyToRemind,
     mine,
-    programme_filter,
     progress,
     reminded_today,
     remind,
@@ -159,7 +157,9 @@ def options_view(request):
         "maxBytes": max_upload_bytes(),
         "isOffice": scope.office,
         "canUploadStaffFiles": scope.office or is_staff_member(user),
-        "canSeeRequired": scope.office or bool(scope.coordinated),
+        "canSeeRequired": bool(scope.coordinated),
+        "canManageTypes": bool(scope.coordinated),
+        "canCheck": bool(scope.coordinated),
     }
     if not student_view:
         payload["semesters"] = [
@@ -250,6 +250,8 @@ def student_header_view(request, matric):
     student = None
     if scope.office or is_staff_member(request.user):
         student = taggable_students(request.user, scope).filter(matric_no__iexact=matric.strip()).first()
+    if student is None and scope.coordinated:
+        student = Student.objects.select_related("user").filter(scope.covered_q(), matric_no__iexact=matric.strip()).first()
     if student is None:
         return Response({"detail": "This student isn't available to you."}, status=status.HTTP_404_NOT_FOUND)
     ids = {student.user_id}
@@ -260,7 +262,7 @@ def student_header_view(request, matric):
     if scope.office:
         letters = GeneratedLetter.objects.filter(student=student, status=GeneratedLetter.Status.ISSUED).count()
     required = None
-    if scope.office or programme_key(student.programme) in scope.coordinated:
+    if scope.covers(student):
         required = [{"label": doc_type.label, "state": state} for doc_type, state, _ in mine(student)]
     return Response({
         "matric": student.matric_no,
@@ -278,11 +280,10 @@ def _filtered(request, scope):
     params = request.query_params
     documents = visible_documents(request.user, scope)
     errors = {}
-    if scope.office:
-        documents = documents.filter(archived_at__isnull=not _flag(params.get("archived")))
+    documents = documents.filter(archived_at__isnull=not _flag(params.get("archived")))
     view = params.get("view") or "all"
     if view == "check":
-        documents = documents.filter(check_status=Document.CheckStatus.WAITING)
+        documents = documents.filter(scope.checked_files(), check_status=Document.CheckStatus.WAITING)
     elif view == "staff":
         documents = documents.filter(is_staff_file=True)
     elif view == "mine":
@@ -456,7 +457,7 @@ def _upload(request, scope):
         share = {
             "supervisors": _flag(data.get("shareSupervisors"), doc_type.share_supervisors),
             "panel": _flag(data.get("sharePanel"), doc_type.share_panel),
-            "coordinator": _flag(data.get("shareCoordinator"), doc_type.share_coordinator),
+            "coordinator": doc_type.needs_check or _flag(data.get("shareCoordinator"), doc_type.share_coordinator),
         }
 
     semester = current_effective_semester()
@@ -511,7 +512,7 @@ def _upload(request, scope):
                     status=status.HTTP_409_CONFLICT,
                 )
 
-    needs_check = doc_type.needs_check and not scope.office
+    needs_check = doc_type.needs_check and not staff_file and not scope.coordinates_all(students)
     document = create_document(
         actor=user,
         uploader_role=user.role,
@@ -573,18 +574,32 @@ def summary_view(request):
         "staffFiles": current.filter(is_staff_file=True).count(),
         "mine": current.filter(uploaded_by=request.user).count(),
     }
-    if scope.office:
-        payload["toCheck"] = current.filter(check_status=Document.CheckStatus.WAITING).count()
-        payload["returned"] = current.filter(check_status=Document.CheckStatus.RETURNED).count()
-        payload["archived"] = visible.filter(archived_at__isnull=False).count()
     if scope.office or scope.coordinated:
+        payload["archived"] = visible.filter(archived_at__isnull=False).count()
+    if scope.coordinated:
+        checked_files = current.filter(scope.checked_files())
+        payload["toCheck"] = checked_files.filter(check_status=Document.CheckStatus.WAITING).count()
+        payload["returned"] = checked_files.filter(check_status=Document.CheckStatus.RETURNED).count()
         students, _ = _required_students(scope)
         behind = set()
         for doc_type in required_types():
             rows, _ = progress(doc_type, students)
             behind.update(student.pk for student, state, _ in rows if state in STILL_TO_HAND_IN)
         payload["studentsStillToHandIn"] = len(behind)
+    if request.user.role == User.Role.STUDENT:
+        payload["toDo"] = _student_to_do(request.user, current)
     return Response(payload)
+
+
+def _student_to_do(user, current):
+    """What the student still has to hand in: required documents not handed in
+    or returned, and any other file of theirs that was returned."""
+    student = user._related_or_none("student")
+    items = mine(student) if student else []
+    owed = sum(1 for _, state, _ in items if state in STILL_TO_HAND_IN)
+    required_files = [document_id for _, _, document_id in items if document_id]
+    returned = current.filter(check_status=Document.CheckStatus.RETURNED).exclude(pk__in=required_files).count()
+    return owed + returned
 
 
 def _visible_or_none(request, scope, pk):
@@ -646,6 +661,8 @@ PREVIEW_KINDS = {"PDF", "IMAGE", "DOCX"}
 MAX_ZIP_FILES = 50
 MAX_ZIP_BYTES = 100 * 1024 * 1024
 FILE_MISSING = {"detail": "File not found. Please tell the PG office.", "code": "file_missing"}
+NOT_CHECKER = "Only the programme coordinator of the student this file is about can check it."
+NOT_ARCHIVER = "Only the programme coordinator of the student this file is about can archive or restore it."
 
 
 def _version_of(request, document):
@@ -785,12 +802,11 @@ def download_zip_view(request):
 
 
 def _edit(request, scope, document):
-    """Title, note and semester; staff uploaders and the office may also change
-    which students the file is about. Tags are the system's, never typed."""
+    """Title, note and semester; staff uploaders may also change which students
+    the file is about. Tags are the system's, never typed."""
     user = request.user
-    uploader = document.uploaded_by_id == user.pk
-    if not (uploader or scope.office) or document.archived_at:
-        return Response({"detail": "Only the uploader or the PG office can change this file.", "code": "documents_not_uploader"}, status=status.HTTP_403_FORBIDDEN)
+    if document.uploaded_by_id != user.pk or document.archived_at:
+        return Response({"detail": "Only the person who uploaded this file can change it.", "code": "documents_not_uploader"}, status=status.HTTP_403_FORBIDDEN)
     data = request.data
     errors, changes = {}, {}
     if "title" in data:
@@ -843,8 +859,8 @@ def versions_view(request, pk):
     if document is None:
         return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
     user = request.user
-    if not (document.uploaded_by_id == user.pk or scope.office) or document.archived_at:
-        return Response({"detail": "Only the uploader or the PG office can add a version.", "code": "documents_not_uploader"}, status=status.HTTP_403_FORBIDDEN)
+    if document.uploaded_by_id != user.pk or document.archived_at:
+        return Response({"detail": "Only the person who uploaded this file can add a version.", "code": "documents_not_uploader"}, status=status.HTTP_403_FORBIDDEN)
     if user.role == User.Role.STUDENT:
         student = user._related_or_none("student")
         if student is None or student.status != Student.Status.ACTIVE:
@@ -858,7 +874,7 @@ def versions_view(request, pk):
         return Response({"file": [str(problem)]}, status=status.HTTP_400_BAD_REQUEST)
     if document.current_version and document.current_version.sha256 == checked.sha256:
         return Response({"file": ["This is the same file as the current version."]}, status=status.HTTP_400_BAD_REQUEST)
-    add_version(document, actor=user, checked=checked, note=note, is_office=scope.office)
+    add_version(document, actor=user, checked=checked, note=note, by_checker=scope.coordinates(document))
     document = _visible_or_none(request, scope, document.pk)
     return Response(detail_dict(document, user, scope), status=status.HTTP_201_CREATED)
 
@@ -866,15 +882,15 @@ def versions_view(request, pk):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def check_view(request, pk):
-    """The office accepts a waiting file, or returns it with a reason."""
+    """The student's programme coordinator accepts a waiting file, or returns it with a reason."""
     scope, refused = _scope_or_refuse(request)
     if refused:
         return refused
-    if not scope.office:
-        return Response({"detail": "Only the PG office checks files.", "code": "documents_office_only"}, status=status.HTTP_403_FORBIDDEN)
     document = _visible_or_none(request, scope, pk)
     if document is None:
         return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    if not scope.coordinates(document):
+        return Response({"detail": NOT_CHECKER, "code": "documents_not_coordinator"}, status=status.HTTP_403_FORBIDDEN)
     decision = str(request.data.get("decision") or "").upper()
     reason = str(request.data.get("reason") or "").strip()
     if decision not in ("ACCEPT", "RETURN"):
@@ -900,7 +916,19 @@ def _office_only(request):
         return scope, refused
     if not scope.office:
         return scope, Response(
-            {"detail": "Only the PG office manages File Management settings.", "code": "documents_office_only"},
+            {"detail": "Only the PG office reads the File Management history.", "code": "documents_office_only"},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return scope, None
+
+
+def _coordinators_only(request):
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return scope, refused
+    if not scope.coordinated:
+        return scope, Response(
+            {"detail": "Only programme coordinators manage File Management settings.", "code": "documents_coordinators_only"},
             status=status.HTTP_403_FORBIDDEN,
         )
     return scope, None
@@ -983,7 +1011,9 @@ def _type_values(data, doc_type=None):
     elif doc_type is None:
         values["required_programmes"] = []
     if kind == DocumentType.Kind.STAFF:
-        values.update(share_supervisors=False, share_panel=False, share_coordinator=False, one_per_student=False, required=False)
+        values.update(share_supervisors=False, share_panel=False, share_coordinator=False, one_per_student=False, required=False, needs_check=False)
+    elif values.get("needs_check", doc_type.needs_check if doc_type else False):
+        values["share_coordinator"] = True
     uploaders = values.get("uploaders", doc_type.uploaders if doc_type else [])
     required = values.get("required", doc_type.required if doc_type else False)
     if required and "STUDENT" not in (uploaders or []) and "uploaders" not in errors:
@@ -994,8 +1024,8 @@ def _type_values(data, doc_type=None):
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def types_view(request):
-    """Every document type, switched off ones included, for the office."""
-    _, refused = _office_only(request)
+    """Every document type, switched off ones included, for programme coordinators."""
+    _, refused = _coordinators_only(request)
     if refused:
         return refused
     if request.method == "POST":
@@ -1015,7 +1045,7 @@ def types_view(request):
 @api_view(["PATCH"])
 @permission_classes([IsAuthenticated])
 def type_view(request, pk):
-    _, refused = _office_only(request)
+    _, refused = _coordinators_only(request)
     if refused:
         return refused
     doc_type = DocumentType.objects.filter(pk=pk).first()
@@ -1052,7 +1082,7 @@ def sharing_view(request, pk):
         return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
     if not permissions(request.user, document, scope)["canChangeSharing"]:
         return Response(
-            {"detail": "Only the PG office or the staff member who uploaded it can change who sees this file.", "code": "documents_not_uploader"},
+            {"detail": "Only the staff member who uploaded it can change who sees this file.", "code": "documents_not_uploader"},
             status=status.HTTP_403_FORBIDDEN,
         )
     if request.method == "GET":
@@ -1066,6 +1096,7 @@ def sharing_view(request, pk):
         students = [link.student for link in document.student_links.all()]
         return Response({
             "isStaffFile": False,
+            "coordinatorChecks": document.check_status != Document.CheckStatus.NONE,
             "share": sharing_of(document),
             "followsType": document.follows_type,
             "people": _reach_by_group(document, students),
@@ -1088,6 +1119,8 @@ def sharing_view(request, pk):
         sharing = {"audience": audience, "programmes": [] if audience == Document.Audience.OFFICE else programmes}
     else:
         sharing = {key: _flag(data.get(key)) for key in ("supervisors", "panel", "coordinator")}
+        if document.check_status != Document.CheckStatus.NONE:
+            sharing["coordinator"] = True
     change_sharing(document, actor=request.user, sharing=sharing)
     document = _visible_or_none(request, scope, document.pk)
     return Response(detail_dict(document, request.user, scope))
@@ -1096,13 +1129,15 @@ def sharing_view(request, pk):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def archive_view(request, pk):
-    """The office archives a file instead of deleting it (UC27)."""
-    scope, refused = _office_only(request)
+    """The student's programme coordinator archives a file instead of deleting it (UC27)."""
+    scope, refused = _scope_or_refuse(request)
     if refused:
         return refused
     document = _visible_or_none(request, scope, pk)
     if document is None:
         return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    if not scope.coordinates(document):
+        return Response({"detail": NOT_ARCHIVER, "code": "documents_not_coordinator"}, status=status.HTTP_403_FORBIDDEN)
     if document.archived_at:
         return Response({"detail": "This file is already archived.", "code": "already_archived"}, status=status.HTTP_409_CONFLICT)
     reason = " ".join(str(request.data.get("reason") or "").split())
@@ -1118,12 +1153,14 @@ def archive_view(request, pk):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def restore_view(request, pk):
-    scope, refused = _office_only(request)
+    scope, refused = _scope_or_refuse(request)
     if refused:
         return refused
     document = _visible_or_none(request, scope, pk)
     if document is None:
         return Response({"detail": NOT_AVAILABLE}, status=status.HTTP_404_NOT_FOUND)
+    if not scope.coordinates(document):
+        return Response({"detail": NOT_ARCHIVER, "code": "documents_not_coordinator"}, status=status.HTTP_403_FORBIDDEN)
     if not document.archived_at:
         return Response({"detail": "This file is not archived.", "code": "not_archived"}, status=status.HTTP_409_CONFLICT)
     restore_document(document, actor=request.user)
@@ -1157,12 +1194,10 @@ def history_view(request):
 
 def _required_students(scope):
     """The students whose required documents this person may follow."""
-    if scope.office:
-        return Student.objects.all(), None
     if scope.coordinated:
-        return Student.objects.filter(programme_filter(scope.coordinated)), None
+        return Student.objects.filter(scope.covered_q()), None
     return None, Response(
-        {"detail": "Only the PG office and programme coordinators follow required documents.", "code": "documents_required_role"},
+        {"detail": "Only programme coordinators follow required documents.", "code": "documents_required_role"},
         status=status.HTTP_403_FORBIDDEN,
     )
 
@@ -1179,7 +1214,7 @@ def required_view(request):
     items = []
     for doc_type in required_types():
         rows, counts = progress(doc_type, students)
-        last = doc_type.reminders.first()
+        last = doc_type.reminders.filter(sent_by=request.user).first()
         items.append({
             "id": doc_type.pk,
             "code": doc_type.code,
@@ -1192,9 +1227,9 @@ def required_view(request):
             "returned": counts[RETURNED],
             "missing": counts[MISSING],
             "lastReminder": {"at": last.sent_at.isoformat(), "by": last.sent_by_name, "students": last.students} if last else None,
-            "remindedToday": reminded_today(doc_type) is not None,
+            "remindedToday": reminded_today(doc_type, request.user) is not None,
         })
-    return Response({"types": items, "canRemind": scope.office})
+    return Response({"types": items, "canRemind": bool(scope.coordinated)})
 
 
 REQUIRED_FILTERS = {"todo": STILL_TO_HAND_IN, "waiting": (WAITING,), "done": (DONE,)}
@@ -1236,17 +1271,20 @@ def required_students_view(request, pk):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def required_remind_view(request, pk):
-    _, refused = _office_only(request)
+    scope, refused = _scope_or_refuse(request)
+    if refused:
+        return refused
+    students, refused = _required_students(scope)
     if refused:
         return refused
     doc_type = required_types().filter(pk=pk).first()
     if doc_type is None:
         return Response({"detail": "This type is not required."}, status=status.HTTP_404_NOT_FOUND)
     try:
-        sent = remind(doc_type, actor=request.user, students=Student.objects.all())
+        sent = remind(doc_type, actor=request.user, students=students)
     except AlreadyReminded:
         return Response(
-            {"detail": "Students were already reminded about this today. You can remind them again tomorrow.", "code": "reminded_today"},
+            {"detail": "You already reminded your students about this today. You can remind them again tomorrow.", "code": "reminded_today"},
             status=status.HTTP_409_CONFLICT,
         )
     except NobodyToRemind:
