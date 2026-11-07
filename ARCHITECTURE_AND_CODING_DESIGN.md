@@ -343,7 +343,7 @@ Marks overview, setup, checks, monitoring and subpages use shorter, state-specif
 
 `MarkEntryRecords` groups its search, counted Status dropdown and visible programme/semester/evaluator fields in the existing `WorkspaceFilterCard` from `RequestWorkspacePrimitives`. Clear filters uses the shared action footer with no Apply action or submission form. The filter panel and results remain in one surface. It reuses `filterMarkRecordsByStatusTab`, existing local search/filter predicates, `useListState` and dashboard monitoring context. A restored legacy applied dropdown status is reflected in the single visible status selection until reset or another status is chosen. Counts use the same loaded-record scope as each status filter rather than the former active-only summary. Search, programme, semester, evaluator and status selection filter immediately from authenticated-shell field state and reset pagination. The former applied-filter object is read only as a legacy status fallback; its separate draft/apply state and success toast are removed. Clear resets list filters while retaining monitoring scope. Loading/errors display unknown counts. Student/record identity and status/submission metadata share cells in an eight-column table inside a named focusable scroll region. Empty states bypass table/pagination. Pagination reuses `pageWindow` and clamps restored page state after a successful load. Service reads, permissions, lifecycle badges and academic mutations are unchanged; no new dependencies or global styles.
 
-`EvaluationTaskAssignment` uses two main `PortalCard` surfaces: combined period/generation and task management. Native `details` progressively reveals period metadata/readiness; session activity is a second disclosure inside the task card. The existing `WorkspaceFilterCard` contains visibly labelled Evaluator role and Task status `PortalSelect` controls, reusing the existing role/status state and immediate filtering. Role counts remain in dropdown options; submission counts remain compact text below. Clear filters uses the shared action footer and retains period scope. The grid stacks on mobile. The populated table combines student identity and evaluator role into their respective cells without discarding fields and scrolls in a named, focusable region. Empty results use a compact text block instead of wide table scaffolding. `MarksTaskDeadlineEntryPoint` accepts an optional compact variant for header navigation, while its default rendering and local completion-window fallback remain available; the workspace embeds the fallback in task management when central navigation is absent. Existing loaders, generation/backup handlers, period targeting, decision and detail surfaces remain authoritative; no API or dependency changes.
+`EvaluationTaskAssignment` uses two main `PortalCard` surfaces: combined period/generation and task management. Native `details` progressively reveals period metadata/readiness; session activity is a second disclosure inside the task card. The existing `WorkspaceFilterCard` contains visibly labelled Evaluator role and Task status `PortalSelect` controls, reusing the existing role/status state and immediate filtering. Role counts remain in dropdown options; submission counts remain compact text below. Clear filters uses the shared action footer and retains period scope. The grid stacks on mobile. The populated table combines student identity and evaluator role into their respective cells without discarding fields and scrolls in a named, focusable region. Empty results use a compact text block instead of wide table scaffolding. The backup assignment editor reuses two separate searchable `SelectMenu` fields, one for students and one for active lecturers, backed by the Office-only assignment-options endpoint's optional search mode; each returns up to 50 matches and a total count. Student results remain filtered by period programme scope. The fields sit side by side at desktop widths and stack on narrow screens; the shared picker portal keeps their menus from overlapping. The optional official-task link uses the already loaded task list. The editor separates assignment fields from reason/exception confirmation and uses the shared small-button style. The legacy endpoint response, generation/backup handlers, period targeting and authorization remain authoritative; no schema or dependency changes.
 
 `RubricsManagementView` branches after loading/error handling: an empty library without an active creation form renders the shared `PortalCard`/`EmptyState` with `beginFamily`; the editor grid adds its family sidebar and desktop second column only when family groups exist. First-family creation reuses the existing form and mutations with focus moved to its family-code field. No service or rubric validation changes.
 
@@ -1529,6 +1529,7 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - `marks.services` is the transactional configuration boundary. It uses row locks for version cloning, period transitions, and task creation, while draft/submission writes reload and lock the referenced period before validating its window so a concurrent close cannot race a lecturer write. Configuration mutations write immutable `MarksConfigurationAudit` snapshots.
 - Marks APIs support lecturer-scoped draft saving and immediate submission locking, plus Office monitoring and task generation from active Supervisor and Panel appointments. Domain-state conflicts are represented by `MarksStateConflict` and returned as HTTP `409`.
 - Office Staff/Admin Marks Assignment uses `/api/marks/periods/` and `/api/marks/assignment-options/` to populate production forms for task generation and backup evaluator assignment; raw database ID prompts are not part of the finished workflow.
+- The shared `SelectMenu` supports an inline search mode where the field itself is the combobox and the filtered list opens beneath it. Marks backup assignment uses separate Student, Backup Lecturer, and optional official-task controls in this mode; remote person searches remain debounced and limited to 50 results. Its interactive period selector contains only the current workspace period when published and non-ended, remains visible for the single option, and has no blank placeholder. Staff change workspace scope before creating a backup for another period; the entry action is disabled for an ineligible current period.
 - Office Staff/Admin Marks overview combines `/api/marks/periods/`, `/api/marks/`, and `/api/dashboard/summary/` so period cards, submission monitoring, and Mark Entry Records use the same live task/record data.
 - Mark Entry Records accepts an initial status tab for dashboard and monitoring deep links; shared `src/utils/markRecords.ts` owns mark record summaries and status-tab filtering.
 - `/api/marks/` derives display status from task period timing, returning `Overdue` for unsubmitted tasks after `EvaluationPeriod.closes_at` without adding a database status.
@@ -2020,6 +2021,8 @@ Component activation/deactivation share the guarded update and confirmation flow
 ### Period configuration layout refinement — 2026-11-02
 Period configuration uses a scoped flex workspace with a 1.75rem card gap, a responsive preview/write footer and newest-first activity rows with human-readable actions, author, timestamp and optional reason. History remains bounded and scrollable.
 
+Draft evaluation periods expose the shared danger action in the MarkEntryPeriodList Action column below the single-line Manage period button. The shared confirmation dialog is owned by MarkEntryPeriodConfig and handles deletion from the selected list row.
+
 ### Scalable recipient preview — 2026-11-02
 Extracted MarkEntryRecipientPreview into a stateful component; filtering and pagination are local and read-only. The dialog uses max-w-6xl. Programme appears only for multiple programmes. Exclusion counts remain role-based because the API does not supply excluded identities or exact reasons.
 
@@ -2045,3 +2048,63 @@ Marks overview semester context (2026-11-02): Show the selected academic semeste
 
 ### Evaluation task workspace — 2026-11-02
 EvaluationTaskAssignment filters generation-period choices independently of loaded task/backup data. Empty scopes suppress filters and count summaries; temporary assignment activity renders in a separate conditional collapsible card.
+
+### Atomic retirement on explicit period closure — 2026-11-03
+close_evaluation_period invokes the existing retire_participant_evaluation_tasks service within its closure transaction after signed-preview validation. Retirement skips submitted entries, invalidates live task completion windows, and records actor/reason with entry snapshots. ClosureSummary receives a period-only retirement presentation flag; semester/handover messaging remains unchanged. No schema or endpoint changes.
+
+### Shared marking editor presentation — 2026-11-03
+- MarkEntryDetail contains student context, component scoring, comments and the total/action footer within one PortalCard. Component headings and score fields share a responsive row; feedback spans its width. Existing permissions, draft recovery, validation and submission confirmation are preserved.
+
+- MarkEntryDetail draft failures render through PortalToast; submission errors remain in DecisionDialog and conflict recovery remains in the editor.
+
+
+Office MarkEntryRecordDetail presents component results as reading sections. SubmittedMarksActions launches its existing guarded correction/reopening workflow in PortalModal, retaining confirmation and discard checks.
+
+Office mark details refinement: removed the repeated four-column summary and sidebar cards. One full-width overview contains period metadata and a right-aligned action footer; results use the available width and correction history collapses below. Labels are 14px semibold and answers 13px regular.
+
+Office mark record layout now uses a top student overview and responsive results/evaluation-detail columns. Component feedback uses a separate spanning table row. Existing Office action modals sit in the evaluation-detail footer; nonempty correction history stays beneath results.
+
+Office evaluation sidebar simplified: role sits under evaluator; dates and assignment metadata share one collapsed Dates and activity section. Correction and reopening buttons use pencil and reopen icons.
+
+Office dates disclosure now separates the entry schedule from a chronological activity timeline. Missing activity timestamps are omitted, and last-update duplicates of assignment/submission are suppressed.
+
+- `SubmittedMarkDetail` aligns with the Office record layout: full-width student overview, three-column score table with full-width feedback rows, and compact evaluation sidebar. Submission activity displays only the submission timestamp supplied by the lecturer task API; assignment/opening dates are not invented. Long feedback uses native keyboard-accessible disclosure.
+
+- EvaluationTaskSerializer now supplies periodName, rubricName, rubricVersion, opensAt, closesAt and assignedAt as read-only metadata on task list and history responses. SubmittedEvaluationSerializer inherits these fields. Lecturer evaluation details mirror Office schedule and activity layout without Office controls.
+
+- Both mark record detail views use formatMalaysiaDateTimeCompact, which explicitly formats Asia/Kuala_Lumpur timestamps. The existing full formatter retains its timezone suffix for other callers. This removes the Office device-time dependency and repeated Lecturer timezone suffixes.
+
+- Office marks correction/reopening dialogs: added matching rounded-square close controls with unsaved-change protection; score and comment fields use explicit padding and heights because portalled dialogs do not inherit workspace styles. Component feedback remains preserved and read-only in the correction workflow.
+
+- MarkEntryPeriodConfig keeps saving/pendingWrite active through the post-write read; savedReadBlocked is set only after a committed write fails to refresh, preserving recovery controls without flashing a false warning.
+
+- Monitoring checks existing recipient-preview eligibility for up to ten visible open/scheduled periods, handles per-period errors/retry and ignores stale responses on filter changes/unmount. A pure status resolver separates readiness from dates. Assignment navigation accepts a period query parameter; generation retains existing confirmation/authorization. Overdue totals respect personal completion deadlines.
+
+- Monitoring uses a nonwrapping flex row with a 12px gap for status/actions inside the horizontally scrollable table.
+
+- EvaluationTaskAssignment uses shared PortalButton for row viewing, retaining the task-specific accessible label and detail handler.
+
+- Session activity labels successful generation as Generated evaluation tasks; generation behavior and counts are unchanged.
+
+### Coordinator Marks Entry access - 3 November 2026
+The shared ROLE_ALLOWED_MODULES list excludes Marks Entry for Programme Coordinators. Sidebar filtering and the existing App module guard use this same rule, including direct Marks URLs; backend permissions are unchanged.
+
+- LecturerMarksEntry derives view/task identity from React Router instead of local view selection. App keys it by pathname and search. Exact tasks are resolved only from authenticated Lecturer assignment/submission collections; missing/malformed URLs never fall back to another task. Legacy task query links replace into canonical task routes. Routed detail pages retain RecordPage dirty/busy guards without synthetic local history entries; local consumers retain their existing pageKey behavior. Lecturer-specific routes are blocked for other roles; Office /marks/tasks and /marks/records remain unchanged.
+
+- Lecturer marking task fallback UI: standard detail heading and back navigation above a compact state card; loading, unavailable and error states share the layout. Task access and routing rules are unchanged.
+
+### Correction history text overflow — 2026-11-04
+`MarkCorrectionHistoryView` keeps status, total and component values in a fixed-layout comparison table. Overall comments render in separate before/after panels with arbitrary text wrapping, while each audit event groups actor, role and timestamp in its header and presents its reason in a labeled block. The layout uses the existing card typography and does not require a horizontal scroller.
+
+Correction history timestamps use the compact Malaysia formatter without repeating its timezone suffix. Events retain the subtle left accent and use larger vertical spacing instead of nested cards.
+
+Correction and reopening event titles use compact semibold navy emphasis over the accompanying actor, timestamp and reason metadata.
+
+Marks deadline shortcuts with a known semester and period use the period anchor plus `manage=window`, allowing the shared Periods & deadlines route to open the selected window editor directly. General shortcuts without a selected period continue to open the Marks activity list.
+
+The Marks deadline-extension flow reuses `DecisionDialog` in extra-wide mode (`max-w-4xl`) with larger form spacing. Its eligible-task picker uses a fixed-layout table with spacious rows, filters in memory, paginates 10 tasks per page using the established recipient-preview controls, and retains selected task IDs across search and page changes. A concise informational impact note sits directly below the scope selector. Empty DecisionDialog messages are omitted from both rendering and the accessible description relationship.
+Supporting-supervisor request detail pages reuse `CoSupervisorNominationCard`, `SupervisionDetailSection`, `ApprovalProcess`, `PrimaryRequestDecisionButtons` and `DecisionDialog`. The detail-page variant uses vertically stacked Request summary and Review and outcome cards with icons, shared section typography and a right-aligned action footer. It omits the separate audit disclosure while retaining history events as inputs to the workflow timeline. List and team contexts keep their existing audit and compact-action presentation.
+Request summary labels and values use `supervisionDetailLabel` and `supervisionDetailBody`; student identifiers use the compact secondary text scale. This keeps record content readable and visually distinct from section headings without changing shared global card typography.
+# Draft evaluation period deletion (7 November 2026)
+
+The existing evaluation-period detail endpoint accepts `DELETE` for authorized Office Staff/Admin. A transactional service locks the semester and draft period, enforces draft-only deletion, rejects periods with evaluation tasks or linked timeline entries, and records a configuration audit snapshot before deletion. The frontend Mark Entry period editor uses the shared `PortalButton` and `PortalConfirmModal`; a successful deletion returns to the filtered period list and removes the deleted period anchor from the URL while retaining semester scope. Protected foreign-key references are translated into a conflict response rather than an unhandled server error.
