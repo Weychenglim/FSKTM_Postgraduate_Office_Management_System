@@ -12,6 +12,9 @@ import type {
   MarkRecord,
   MarkRecordDetail,
   MarksAssignmentOptions,
+  MarksAssignmentSearchResults,
+  MarksAssignmentStudentOption,
+  MarksAssignmentLecturerOption,
   RubricComponent,
   RubricVersion,
 } from '../types';
@@ -94,6 +97,10 @@ export async function updateEvaluationPeriod(
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
+}
+
+export async function deleteEvaluationPeriod(periodId: number): Promise<void> {
+  await request<void>(`/marks/periods/${periodId}/`, { method: 'DELETE' });
 }
 
 export async function publishEvaluationPeriod(
@@ -217,6 +224,25 @@ export async function getRubricComponents(): Promise<RubricComponent[]> {
 
 export async function getMarksAssignmentOptions(): Promise<MarksAssignmentOptions> {
   return request<MarksAssignmentOptions>('/marks/assignment-options/');
+}
+
+export async function searchMarksAssignmentStudents(
+  periodId: number,
+  query: string,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<MarksAssignmentSearchResults<MarksAssignmentStudentOption>> {
+  const params = new URLSearchParams({ kind: 'students', period_id: String(periodId), q: query, limit: String(limit) });
+  return request<MarksAssignmentSearchResults<MarksAssignmentStudentOption>>(`/marks/assignment-options/?${params}`, { signal });
+}
+
+export async function searchMarksAssignmentLecturers(
+  query: string,
+  limit = 50,
+  signal?: AbortSignal,
+): Promise<MarksAssignmentSearchResults<MarksAssignmentLecturerOption>> {
+  const params = new URLSearchParams({ kind: 'lecturers', q: query, limit: String(limit) });
+  return request<MarksAssignmentSearchResults<MarksAssignmentLecturerOption>>(`/marks/assignment-options/?${params}`, { signal });
 }
 
 export async function generateEvaluationTasks(periodId: number): Promise<{

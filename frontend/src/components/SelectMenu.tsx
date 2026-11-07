@@ -35,6 +35,15 @@ interface SelectMenuProps<T extends string> {
   placeholder?: string;
   /** Opt-in search inside the popup; other selectors retain select-only behaviour. */
   searchPlaceholder?: string;
+  /** Keep the search input in the field itself instead of adding a second input to the popup. */
+  searchMode?: 'popup' | 'inline';
+  /** Limit rendered search results for large in-memory option sets. */
+  maxSearchResults?: number;
+  /** Search callback for remote option providers. Local filtering still applies. */
+  onSearchChange?: (query: string) => void;
+  searchResultCount?: number;
+  searchResultsLoading?: boolean;
+  searchResultsError?: string | null;
   showSelectedDescription?: boolean;
   /** Toolbar filters read "Prefix: value", e.g. "Programme: All". */
   prefix?: string;
@@ -70,6 +79,12 @@ export const SelectMenu = <T extends string>({
   onChange,
   placeholder = 'Select an option',
   searchPlaceholder,
+  searchMode = 'popup',
+  maxSearchResults,
+  onSearchChange,
+  searchResultCount,
+  searchResultsLoading = false,
+  searchResultsError = null,
   showSelectedDescription = true,
   prefix,
   variant = 'field',
@@ -88,7 +103,7 @@ export const SelectMenu = <T extends string>({
   const baseId = useId();
   const listId = `${baseId}-list`;
   const optionId = (index: number) => `${baseId}-option-${index}`;
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -99,11 +114,15 @@ export const SelectMenu = <T extends string>({
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
   const [openUp, setOpenUp] = useState(false);
 
-  const options = searchPlaceholder && query.trim()
+  const matchingOptions = searchPlaceholder && query.trim()
     ? allOptions.filter(option => !option.value || `${option.label} ${option.description ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()))
     : allOptions;
+  const options = maxSearchResults && searchPlaceholder
+    ? matchingOptions.slice(0, maxSearchResults)
+    : matchingOptions;
   const selectedIndex = options.findIndex((option) => option.value === value);
   const selected = allOptions.find(option => option.value === value);
+  const inlineSearch = Boolean(searchPlaceholder && searchMode === 'inline');
 
   const place = useCallback(() => {
     const trigger = triggerRef.current;
@@ -172,8 +191,8 @@ export const SelectMenu = <T extends string>({
   }, [disabled]);
 
   useEffect(() => {
-    if (open && searchPlaceholder) searchRef.current?.focus({preventScroll:true});
-  }, [open, searchPlaceholder]);
+    if (open && searchPlaceholder && !inlineSearch) searchRef.current?.focus({preventScroll:true});
+  }, [open, searchPlaceholder, inlineSearch]);
 
   useEffect(() => {
     if (searchPlaceholder) {
@@ -184,6 +203,7 @@ export const SelectMenu = <T extends string>({
 
   const openAt = (index: number) => {
     setQuery('');
+    onSearchChange?.('');
     setActive(options[index] && !options[index].disabled ? index : firstEnabledIndex(options));
     setOpen(true);
   };
@@ -208,7 +228,9 @@ export const SelectMenu = <T extends string>({
     if (open) event.stopPropagation();
     const printable = event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey;
     const typing = Date.now() - typed.current.at <= 600 && typed.current.text !== '';
-    if (event.target === searchRef.current && !['ArrowDown','ArrowUp','Enter','Escape','Tab','PageDown','PageUp'].includes(event.key)) return;
+    const isInlineInput = inlineSearch && event.target === triggerRef.current;
+    if ((event.target === searchRef.current || isInlineInput) && !['ArrowDown','ArrowUp','Enter','Escape','Tab','PageDown','PageUp'].includes(event.key)) return;
+    if (isInlineInput && event.key === ' ') return;
 
     if (!open) {
       if (event.key === 'ArrowDown' || event.key === 'Enter' || (event.key === ' ' && !typing)) {
@@ -302,7 +324,42 @@ export const SelectMenu = <T extends string>({
 
   return (
     <>
-      <button
+      {inlineSearch ? (
+        <div className={`relative ${className}`}>
+          <input
+            ref={element => { triggerRef.current = element; }}
+            id={id}
+            type="search"
+            role="combobox"
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls={open ? listId : undefined}
+            aria-activedescendant={open && active >= 0 ? optionId(active) : undefined}
+            aria-autocomplete="list"
+            aria-label={ariaLabel}
+            aria-labelledby={ariaLabelledBy}
+            aria-describedby={ariaDescribedBy}
+            aria-required={ariaRequired}
+            aria-invalid={ariaInvalid}
+            title={title}
+            disabled={disabled}
+            placeholder={open ? searchPlaceholder : placeholder}
+            value={open ? query : triggerText}
+            onFocus={() => {
+              if (!open) openAt(selectedIndex >= 0 ? selectedIndex : firstEnabledIndex(options));
+            }}
+            onChange={event => {
+              const next = event.target.value;
+              setQuery(next);
+              onSearchChange?.(next);
+              setOpen(true);
+            }}
+            onKeyDown={onKeyDown}
+            className={`${triggerClass} w-full pr-10 font-semibold text-slate-800 outline-none transition placeholder:font-medium placeholder:text-slate-400 focus:border-brand-navy focus:ring-1 focus:ring-brand-navy disabled:cursor-not-allowed disabled:opacity-60`}
+          />
+          <ChevronDown aria-hidden="true" className={`pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        </div>
+      ) : <button
         ref={(element) => {
           triggerRef.current = element;
           if (typeof controlRef === 'function') controlRef(element);
@@ -354,21 +411,21 @@ export const SelectMenu = <T extends string>({
           aria-hidden="true"
           className={`w-4 h-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
         />
-      </button>
+      </button>}
 
       {/* Closes at once, like a native list, so two lists never overlap. */}
       {open &&
         createPortal(
-          searchPlaceholder ? <div ref={popupRef} id={`${listId}-popup`} role="dialog" aria-label={ariaLabel ?? placeholder}
+          searchPlaceholder ? <div ref={popupRef} id={`${listId}-popup`} role={inlineSearch ? undefined : 'dialog'} aria-label={ariaLabel ?? placeholder}
             style={menuStyle} className="portal-select-menu fixed z-[10020] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl text-left font-sans">
-            <div className="shrink-0 border-b border-slate-200 p-3">
+            {!inlineSearch ? <div className="shrink-0 border-b border-slate-200 p-3">
               <input ref={searchRef} type="search" role="combobox" aria-label={searchPlaceholder} aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-activedescendant={active >= 0 ? optionId(active) : undefined}
-                placeholder={searchPlaceholder} value={query} onChange={event=>setQuery(event.target.value)} onKeyDown={onKeyDown}
+                placeholder={searchPlaceholder} value={query} onChange={event=>{const next=event.target.value;setQuery(next);onSearchChange?.(next);}} onKeyDown={onKeyDown}
                 className="form-control form-control-md w-full"/>
-            </div>
-            <ul ref={listRef} id={listId} role="listbox" aria-label={ariaLabel ?? placeholder} onMouseDown={event=>event.preventDefault()}
+            </div> : null}
+            <ul ref={listRef} id={listId} role="listbox" aria-label={ariaLabel ?? placeholder} aria-busy={searchResultsLoading || undefined} onMouseDown={event=>event.preventDefault()}
               className={`relative min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5 ${THIN_SCROLLBAR}`}>
-            {options.map((option, index) => {
+            {!searchResultsLoading && !searchResultsError && options.map((option, index) => {
               const isSelected = index === selectedIndex;
               const isActive = index === active;
               return (
@@ -404,7 +461,11 @@ export const SelectMenu = <T extends string>({
               );
             })}
             </ul>
-            {query.trim() && !options.some(option=>!!option.value) ? <p role="status" className="shrink-0 px-4 pb-3 text-sm text-slate-600">No events match your search.</p> : null}
+            {searchResultsLoading ? <p role="status" className="shrink-0 px-4 pb-3 text-sm text-slate-600">Searching…</p> : null}
+            {searchResultsError ? <p role="alert" className="shrink-0 px-4 pb-3 text-sm text-rose-700">{searchResultsError}</p> : null}
+            {!searchResultsLoading && !searchResultsError && (query.trim() || searchResultCount === 0) && !matchingOptions.some(option=>!!option.value) ? <p role="status" className="shrink-0 px-4 pb-3 text-sm text-slate-600">No options match your search.</p> : null}
+            {!searchResultsLoading && !searchResultsError && searchResultCount !== undefined && searchResultCount > options.length ? <p role="status" className="shrink-0 border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500">Showing {options.length} of {searchResultCount} matches. Refine your search to narrow the list.</p> : null}
+            {!searchResultsLoading && !searchResultsError && searchResultCount === undefined && maxSearchResults && matchingOptions.length > maxSearchResults ? <p role="status" className="shrink-0 border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500">Showing the first {maxSearchResults} of {matchingOptions.length} matches. Refine your search to narrow the list.</p> : null}
           </div> : <motion.ul
             ref={listRef}
             id={listId}

@@ -125,6 +125,12 @@ class ReasonSerializer(serializers.Serializer):
 
 
 class EvaluationTaskSerializer(serializers.ModelSerializer):
+    periodName = serializers.CharField(source="period.name", read_only=True)
+    rubricName = serializers.CharField(source="period.rubric.name", read_only=True)
+    rubricVersion = serializers.IntegerField(source="period.rubric.version", read_only=True)
+    opensAt = serializers.DateTimeField(source="period.opens_at", read_only=True, allow_null=True)
+    closesAt = serializers.DateTimeField(source="period.closes_at", read_only=True, allow_null=True)
+    assignedAt = serializers.DateTimeField(source="assigned_at", read_only=True)
     studentId = serializers.CharField(source="profile.matric_no")
     studentName = serializers.CharField(source="profile.student_name")
     initials = serializers.SerializerMethodField()
@@ -148,6 +154,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
         model = EvaluationTask
         fields = [
             "id",
+            "periodName", "rubricName", "rubricVersion", "opensAt", "closesAt", "assignedAt",
             "studentId",
             "studentName",
             "initials",
@@ -261,13 +268,10 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
 class SubmittedEvaluationSerializer(EvaluationTaskSerializer):
     taskLifecycleStatus = serializers.CharField(source="lifecycle_status")
     periodId = serializers.IntegerField(source="period_id")
-    periodName = serializers.CharField(source="period.name")
-    rubricName = serializers.CharField(source="period.rubric.name")
-    rubricVersion = serializers.IntegerField(source="period.rubric.version")
 
     class Meta(EvaluationTaskSerializer.Meta):
         fields = EvaluationTaskSerializer.Meta.fields + [
-            "taskLifecycleStatus", "periodId", "periodName", "rubricName", "rubricVersion",
+            "taskLifecycleStatus", "periodId",
         ]
 
     def to_representation(self, obj):

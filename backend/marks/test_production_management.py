@@ -10,9 +10,12 @@ from rest_framework.test import APITestCase
 from accounts.models import OfficeStaff
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
+from appointments.models import StudentResearchProfile
+from dashboard.models import SemesterTimeline, SemesterTimelineEntry
 
 from .models import (
     EvaluationPeriod,
+    EvaluationTask,
     MarksConfigurationAudit,
     Rubric,
     RubricComponent,
@@ -315,6 +318,89 @@ class MarksConfigurationApiTests(APITestCase):
         self.assertEqual(response.data["semesterId"], self.academic_semester.pk)
         self.assertEqual(response.data["semester"], self.academic_semester.label)
         return response
+
+    def test_delete_draft_period_preserves_audit_snapshot(self):
+        rubric_id = self.create_ready_rubric()
+        period = self.create_draft_period(rubric_id)
+        period_id = period.data["id"]
+
+        deleted = self.client.delete(f"/api/marks/periods/{period_id}/")
+
+        self.assertEqual(deleted.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(EvaluationPeriod.objects.filter(pk=period_id).exists())
+        audit = MarksConfigurationAudit.objects.get(
+            entity_type=MarksConfigurationAudit.EntityType.PERIOD,
+            entity_id=period_id,
+            action="DELETE",
+        )
+        self.assertEqual(audit.before_values["name"], "Semester 1 Evaluation")
+        self.assertEqual(audit.after_values, {})
+
+    def test_delete_period_requires_office_access_and_draft_lifecycle(self):
+        rubric_id = self.create_ready_rubric()
+        period = self.create_draft_period(rubric_id)
+        period_id = period.data["id"]
+
+        for user in (self.lecturer, self.coordinator, self.student):
+            with self.subTest(role=user.role):
+                self.client.force_authenticate(user)
+                self.assertEqual(
+                    self.client.delete(f"/api/marks/periods/{period_id}/").status_code,
+                    status.HTTP_403_FORBIDDEN,
+                )
+        self.client.force_authenticate(self.office_admin)
+        self.client.post(f"/api/marks/periods/{period_id}/publish/", {}, format="json")
+        blocked = self.client.delete(f"/api/marks/periods/{period_id}/")
+
+        self.assertEqual(blocked.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(EvaluationPeriod.objects.filter(pk=period_id).exists())
+
+    def test_delete_draft_period_with_tasks_or_timeline_links_is_blocked(self):
+        rubric_id = self.create_ready_rubric()
+        task_period = self.create_draft_period(rubric_id)
+        profile = StudentResearchProfile.objects.create(
+            matric_no="UAT-DELETE-01",
+            student_name="UAT Student",
+            programme="Computer Science",
+            semester=self.academic_semester.label,
+            proposed_topic="Draft deletion guard",
+            supervisor=self.lecturer,
+        )
+        EvaluationTask.objects.create(
+            profile=profile,
+            evaluator=self.lecturer,
+            period_id=task_period.data["id"],
+        )
+        task_blocked = self.client.delete(
+            f"/api/marks/periods/{task_period.data['id']}/"
+        )
+
+        timeline_period = self.create_draft_period(rubric_id)
+        timeline = SemesterTimeline.objects.create(
+            academic_semester=self.academic_semester,
+            semester=self.academic_semester.label,
+            session=self.academic_semester.academic_session,
+            uploaded_by=self.office_admin,
+        )
+        SemesterTimelineEntry.objects.create(
+            timeline=timeline,
+            level="P1",
+            step=1,
+            title="Marks window",
+            detail="Linked marks period",
+            action_owner="Lecturers",
+            deadline_start=self.academic_semester.starts_on,
+            deadline_end=self.academic_semester.ends_on,
+            marks_period_id=timeline_period.data["id"],
+        )
+        timeline_blocked = self.client.delete(
+            f"/api/marks/periods/{timeline_period.data['id']}/"
+        )
+
+        self.assertEqual(task_blocked.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(EvaluationPeriod.objects.filter(pk=task_period.data["id"]).exists())
+        self.assertEqual(timeline_blocked.status_code, status.HTTP_409_CONFLICT)
+        self.assertTrue(EvaluationPeriod.objects.filter(pk=timeline_period.data["id"]).exists())
 
     def test_archive_family_preserves_used_versions_and_restores(self):
         rubric_id = self.create_ready_rubric()

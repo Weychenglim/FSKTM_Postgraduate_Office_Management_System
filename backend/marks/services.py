@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_slug
 from django.db import transaction
 from django.db.models import Q
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
 
@@ -555,6 +556,52 @@ def update_evaluation_period(*, period, actor, values, reason=""):
 
 
 @transaction.atomic
+def delete_draft_evaluation_period(*, period, actor):
+    """Permanently remove an unpublished period that has no dependent work."""
+    _assert_office_admin(actor)
+    if period.academic_semester_id:
+        AcademicSemester.objects.select_for_update().filter(
+            pk=period.academic_semester_id
+        ).first()
+    try:
+        period = (
+            EvaluationPeriod.objects.select_for_update()
+            .get(pk=period.pk)
+        )
+    except EvaluationPeriod.DoesNotExist as exc:
+        raise MarksStateConflict(
+            "This draft period was already deleted. Refresh the period list."
+        ) from exc
+    if period.lifecycle_status != EvaluationPeriod.Lifecycle.DRAFT:
+        raise MarksStateConflict("Only draft evaluation periods can be deleted.")
+    if EvaluationTask.objects.filter(period=period).exists():
+        raise MarksStateConflict(
+            "This draft has evaluation tasks and cannot be deleted. "
+            "Keep the period so its marks history remains available."
+        )
+    if period.timeline_entries.exists():
+        raise MarksStateConflict(
+            "This draft is linked to a semester timeline. Remove that link "
+            "before deleting the period."
+        )
+
+    before = _period_snapshot(period)
+    _configuration_audit(
+        entity_type=MarksConfigurationAudit.EntityType.PERIOD,
+        entity_id=period.pk,
+        action="DELETE",
+        actor=actor,
+        before_values=before,
+    )
+    try:
+        period.delete()
+    except ProtectedError as exc:
+        raise MarksStateConflict(
+            "This draft is linked to records that must be kept, so it cannot be deleted."
+        ) from exc
+
+
+@transaction.atomic
 def publish_evaluation_period(*, period, actor):
     _assert_office_admin(actor)
     period = (
@@ -635,6 +682,11 @@ def close_evaluation_period(*, period, actor, reason, preview_token=None, acknow
             "is_open",
             "updated_at",
         ]
+    )
+    retire_participant_evaluation_tasks(
+        tasks=EvaluationTask.objects.filter(period=period),
+        actor=actor,
+        reason=f"Evaluation period closed: {reason}",
     )
     _configuration_audit(
         entity_type=MarksConfigurationAudit.EntityType.PERIOD,

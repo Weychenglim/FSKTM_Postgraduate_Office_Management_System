@@ -38,12 +38,12 @@ const LECTURER_MODULES: SidebarItemId[] = [
 ];
 
 /**
- * Modules each role may open. 'ALL' grants every module (Office Staff/Admin and
- * Programme Coordinator are full-access in the current scope).
+ * Modules each role may open. Office has full module access; Coordinators
+ * retain administrative modules except Marks Entry.
  */
 export const ROLE_ALLOWED_MODULES: Record<UserRole, SidebarItemId[] | 'ALL'> = {
   'Office Staff/Admin': 'ALL',
-  'Programme Coordinator': 'ALL',
+  'Programme Coordinator': Object.values(SIDEBAR_ITEMS).filter(module => module !== SIDEBAR_ITEMS.MARKS_ENTRY),
   Lecturer: LECTURER_MODULES,
   Student: STUDENT_MODULES,
 };

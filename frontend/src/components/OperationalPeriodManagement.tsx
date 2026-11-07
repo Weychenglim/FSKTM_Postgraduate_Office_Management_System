@@ -1,4 +1,4 @@
-import {Info} from 'lucide-react';
+import {CalendarClock,CalendarX,Info,Settings2} from 'lucide-react';
 import {AlertMessage} from './AlertMessage';
 import {SubmissionScheduleField} from './SubmissionScheduleField';
 import {TimelineEventPicker} from './TimelineEventPicker';
@@ -14,7 +14,7 @@ import type {OperationalActivity, OperationalException, OperationalExceptionCand
 import {createOperationalPeriod,updateOperationalPeriod,transitionOperationalPeriod,getOperationalPeriods,publishOperationalPeriod,setOperationalEnforcement,getOperationalExceptions,getOperationalExceptionCandidates,revokeOperationalException} from '../services/operationalPeriodsApi';
 import {getEvaluationPeriod,getEvaluationPeriods,getEvaluationPreviewTasks,getMarksProgrammeOptions} from '../services/marksApi';
 import {getCompletionWindows,revokeCompletionWindow} from '../services/marksCompletionApi';
-import {formatMalaysiaDateTime,formatMalaysiaDate,malaysiaDeadline,toMalaysiaDateTimeLocalValue} from '../utils/malaysiaDateTime';
+import {formatMalaysiaDateTime,formatMalaysiaDateTimeCompact,formatMalaysiaDate,malaysiaDeadline,toMalaysiaDateTimeLocalValue} from '../utils/malaysiaDateTime';
 import {submitDeadlineExtension,type DeadlineExtensionTarget} from '../utils/operationalDeadlineExtension';
 import {completeDecision,createDecisionSubmission,decisionFailure} from '../utils/decisionSubmission';
 import {canEditTimelineSemester,defaultMarksExtensionScope,getOperationalProgrammeOptions} from '../utils/operationalPeriodAccess';
@@ -167,6 +167,8 @@ function OperationalPeriodManagementContent({semesterId,semesterLifecycle,entrie
   const initialExtension=useRef<{scope:'everyone'|'selected';deadline:string}>({scope:'everyone',deadline:''});
   const [deadline,setDeadline]=useState('');
   const [reason,setReason]=useState('');
+  const [taskSearch,setTaskSearch]=useState('');
+  const [taskPage,setTaskPage]=useState(1);
   const [candidates,setCandidates]=useState<OperationalExceptionCandidate[]>([]);
   const [selectedCandidate,setSelectedCandidate]=useState('');
   const [taskIds,setTaskIds]=useState<number[]>([]);
@@ -244,7 +246,7 @@ function OperationalPeriodManagementContent({semesterId,semesterLifecycle,entrie
 
   const openExtension=async(value:Extension)=>{
     initialExtension.current={scope:value.target.kind==='marks'&&value.target.allowEveryone===false?'selected':'everyone',deadline:value.target.kind==='event'?value.target.closesAt?.slice(0,10)??'':toMalaysiaDateTimeLocalValue(value.target.closesAt)};
-    ++candidateGeneration.current;setHistory(null);setExtension(value);setScope(initialExtension.current.scope);setDeadline(initialExtension.current.deadline);setReason('');setTaskIds([]);setCandidates([]);setSelectedCandidate('');setDetailError(null);setDetailLoading(false);
+    ++candidateGeneration.current;setHistory(null);setExtension(value);setScope(initialExtension.current.scope);setDeadline(initialExtension.current.deadline);setReason('');setTaskSearch('');setTaskPage(1);setTaskIds([]);setCandidates([]);setSelectedCandidate('');setDetailError(null);setDetailLoading(false);
     if(value.target.kind==='appointment'){
       const version=++candidateGeneration.current;setDetailLoading(true);
       try{const result=await getOperationalExceptionCandidates(value.target.id);if(version===candidateGeneration.current)setCandidates(result.candidates);}
@@ -314,6 +316,14 @@ function OperationalPeriodManagementContent({semesterId,semesterLifecycle,entrie
   };
   const scopedTasks=tasks.filter(task=>task.periodId===(extension?.target.kind==='marks'?extension.target.id:history?.kind==='marks'?history.id:null));
   const eligibleTasks=scopedTasks.filter(task=>task.taskId&&task.status!=='SUBMITTED'&&task.canGrantCompletionWindow);
+  const taskQuery=taskSearch.trim().toLocaleLowerCase();
+  const filteredEligibleTasks=eligibleTasks.filter(task=>!taskQuery||`${task.studentName} ${task.studentId} ${task.panelMember} ${task.evaluatorRoleLabel??task.evaluatorRole??''}`.toLocaleLowerCase().includes(taskQuery));
+  const taskPageSize=10;
+  const taskPageCount=Math.max(1,Math.ceil(filteredEligibleTasks.length/taskPageSize));
+  const currentTaskPage=Math.min(taskPage,taskPageCount);
+  const taskPageOffset=(currentTaskPage-1)*taskPageSize;
+  const visibleEligibleTasks=filteredEligibleTasks.slice(taskPageOffset,taskPageOffset+taskPageSize);
+  const allFilteredTasksSelected=filteredEligibleTasks.length>0&&filteredEligibleTasks.every(task=>taskIds.includes(task.taskId!));
   const linkableEntries=entries.filter(entry=>!entry.operationalPeriodId&&!entry.marksPeriodId);
   const selectedCalendarEvent=linkableEntries.find(entry=>String(entry.id)===timelineEntryId);
   const editingLinkedEvents=editingPeriod?entries.filter(entry=>entry.operationalPeriodId===editingPeriod.id):[];
@@ -346,17 +356,50 @@ function OperationalPeriodManagementContent({semesterId,semesterLifecycle,entrie
       {action?.kind==='enforcement'&&action.enabled?<div className="space-y-6"><ProgrammeCoverageReview coverage={coverage}/><label className="flex cursor-pointer items-start gap-3 rounded-lg bg-slate-50 p-4 text-xs font-normal leading-6 text-slate-700"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={actionConfirmed} onChange={event=>setActionConfirmed(event.target.checked)}/><span className="min-w-0">I have reviewed programme coverage, opening and closing times, including programmes that will be blocked.</span></label></div>:null}
       {action?.kind==='publish'?<p className="card-description">{formatMalaysiaDateTime(action.period.opensAt)} to {formatMalaysiaDateTime(action.period.closesAt)}<br/>{action.period.programmeScope==='ALL'?'All programmes':action.period.programmes.join(', ')}</p>:<label className="form-label block">Reason<textarea className="form-control form-control-md mt-1" rows={3} required value={actionReason} onChange={event=>setActionReason(event.target.value)}/></label>}
     </DecisionDialog>
-    <DecisionDialog isOpen={!!extension} decisionKey={extension?`${extension.target.kind}:${extension.target.id}`:undefined} title="Extend deadline" context={extension?.name} message="Use a common deadline for everyone or grant extra time to selected eligible cases. Enter exact Malaysia time and a reason." confirmLabel="Save extension" successMessage="Deadline extension saved." standaloneGuard dirty={!!reason.trim()||scope!==initialExtension.current.scope||deadline!==initialExtension.current.deadline||scope==='selected'&&(!!selectedCandidate||taskIds.length>0)} busy={mutationBusy} canConfirm={!!deadline&&!!reason.trim()&&(scope==='everyone'||(extension?.target.kind==='appointment'?!!selectedCandidate&&!detailLoading&&!detailError:taskIds.length>0))} onConfirm={async()=>{
+    <DecisionDialog isOpen={!!extension} size={extension?.target.kind==='marks'?'extra-wide':'default'} decisionKey={extension?`${extension.target.kind}:${extension.target.id}`:undefined} title="Extend deadline" context={extension?.name} message={extension?.target.kind==='marks'?null:'Use a common deadline for everyone or grant extra time to selected eligible cases. Enter exact Malaysia time and a reason.'} confirmLabel="Save extension" successMessage="Deadline extension saved." standaloneGuard dirty={!!reason.trim()||scope!==initialExtension.current.scope||deadline!==initialExtension.current.deadline||scope==='selected'&&(!!selectedCandidate||taskIds.length>0)} busy={mutationBusy} canConfirm={!!deadline&&!!reason.trim()&&(scope==='everyone'||(extension?.target.kind==='appointment'?!!selectedCandidate&&!detailLoading&&!detailError:taskIds.length>0))} onConfirm={async()=>{
       if(!extension)return false;
       return runMutation(()=>submitDeadlineExtension(extension.target,scope,deadline,reason,{taskIds,candidate:candidates.find((_,index)=>String(index)===selectedCandidate)}),async()=>{await load();await onTimelineRefresh();});
     }} onReload={refreshAll} onClose={()=>{candidateGeneration.current+=1;setExtension(null);}}>
       <p className="card-description">Current deadline: {extension?.target.kind==='event'&&extension.target.closesAt?`${formatMalaysiaDate(extension.target.closesAt)} (complete Malaysia day)`:formatMalaysiaDateTime(extension?.target.closesAt)}</p>
       {extension?.target.kind==='appointment'?<div className="flex flex-wrap gap-2"><StatusBadge>{extensionPeriod?.lifecycleStatus}</StatusBadge><StatusBadge>{extensionPeriod?.effectiveStatus}</StatusBadge><StatusBadge tone={extensionEnforced?'success':'warning'}>{extensionEnforced?'Dates enforced':'Dates not enforced'}</StatusBadge></div>:null}
       <DeadlineExtensionScopeFields kind={extension?.target.kind??'event'} value={scope} onChange={setScope} everyoneAllowed={extension?.target.kind==='marks'?extension.target.allowEveryone!==false:calendarEditable}/>
+      <section aria-label="Extension impact" className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5">
+        <Info className="mt-0.5 size-4 shrink-0 text-blue-700" aria-hidden="true"/>
+        <div className="min-w-0 space-y-1">
+          <p className="card-description text-blue-900">{extension?.target.kind==='appointment'?extensionImpact(extensionPeriod,extensionEnforced,scope,deadline):scope==='selected'?'Applies only to selected tasks; the period and linked timeline deadlines stay unchanged.':'Updates the deadline for everyone covered by this window.'}</p>
+          {scope==='everyone'&&(extensionLinkedEvents.length||calendarStatus!=='ready')?<p className="card-description text-blue-800">{extensionLinkedEvents.length?`Linked timeline: ${extensionLinkedEvents.map(entry=>entry.title||entry.detail).join(', ')}. These displayed dates will update too.`:'Any linked timeline events will follow the new common deadline.'}</p>:null}
+        </div>
+      </section>
       {scope==='selected'&&extension?.target.kind==='appointment'?<div className="space-y-2">{detailLoading?<p role="status">Loading eligible cases…</p>:detailError?<AlertMessage type="error" title="Couldn’t load this information" message={detailError}/>:<label className="form-label block">Student and participant<PortalSelect className="form-control form-control-md mt-1" value={selectedCandidate} onChange={event=>setSelectedCandidate(event.target.value)}><option value="">Select eligible case</option>{candidates.map((candidate,index)=><option key={`${candidate.studentId}:${candidate.participantId}`} value={index}>{candidate.studentName} · {candidate.matricNo??candidate.studentId}{candidate.participantName?` · ${candidate.participantName}`:''}</option>)}</PortalSelect></label>}{!detailLoading&&!detailError&&!candidates.length?<p>No eligible cases available.</p>:null}</div>:null}
-      {scope==='selected'&&extension?.target.kind==='marks'?<fieldset className="max-h-56 space-y-3 overflow-y-auto"><legend className="form-label mb-2">Eligible unfinished evaluation tasks</legend>{eligibleTasks.length?eligibleTasks.map(task=><label key={task.taskId} className="flex items-start gap-2 text-xs"><input type="checkbox" checked={taskIds.includes(task.taskId!)} onChange={event=>setTaskIds(values=>event.target.checked?[...values,task.taskId!]:values.filter(value=>value!==task.taskId))}/><span>{task.studentName} · {task.panelMember} · {task.evaluatorRoleLabel??task.evaluatorRole}<br/>Effective deadline: {formatMalaysiaDateTime(task.effectiveDueAt??task.dueAt)}</span></label>):<p>No eligible unfinished tasks.</p>}</fieldset>:null}
+      {scope==='selected'&&extension?.target.kind==='marks'?<section aria-label="Eligible unfinished evaluation tasks" className="min-w-0 space-y-3">
+        <label className="form-label block">Search tasks<input type="search" value={taskSearch} onChange={event=>{setTaskSearch(event.target.value);setTaskPage(1);}} placeholder="Student name, ID or evaluator" className="form-control form-control-md mt-2 w-full"/></label>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-semibold text-slate-700" role="status">Eligible tasks · {filteredEligibleTasks.length} · {taskIds.length} selected</p>
+          <div className="flex flex-wrap gap-2">
+            <PortalButton type="button" size="sm" disabled={!filteredEligibleTasks.length||allFilteredTasksSelected} onClick={()=>setTaskIds(current=>Array.from(new Set([...current,...filteredEligibleTasks.map(task=>task.taskId!)])))}>Select all matching ({filteredEligibleTasks.length})</PortalButton>
+            {taskIds.length?<PortalButton type="button" size="sm" onClick={()=>setTaskIds([])}>Clear selection</PortalButton>:null}
+          </div>
+        </div>
+        <div className="overflow-hidden rounded-lg border border-slate-200">
+          <table className="w-full table-fixed text-left text-xs">
+            <colgroup><col className="w-[38%]"/><col className="w-[31%]"/><col className="w-[31%]"/></colgroup>
+            <thead className="bg-slate-50 text-slate-600"><tr><th scope="col" className="px-3 py-3 font-semibold sm:px-4">Student</th><th scope="col" className="px-3 py-3 font-semibold sm:px-4">Evaluator / role</th><th scope="col" className="px-3 py-3 font-semibold sm:px-4">Effective deadline (MYT)</th></tr></thead>
+            <tbody className="divide-y divide-slate-100">
+              {visibleEligibleTasks.map(task=><tr key={task.taskId} className={taskIds.includes(task.taskId!)?'bg-blue-50/60':'bg-white'}>
+                <td className="px-3 py-4 align-top sm:px-4"><label className="flex cursor-pointer items-start gap-2"><input type="checkbox" aria-label={`Select ${task.studentName}, ${task.studentId}`} className="mt-0.5 h-4 w-4 shrink-0 accent-brand-navy" checked={taskIds.includes(task.taskId!)} onChange={event=>setTaskIds(values=>event.target.checked?[...values,task.taskId!]:values.filter(value=>value!==task.taskId))}/><span className="min-w-0 [overflow-wrap:anywhere]"><span className="block font-semibold text-slate-900">{task.studentName}</span><span className="mt-1 block text-slate-500">{task.studentId}</span></span></label></td>
+                <td className="px-3 py-4 align-top sm:px-4"><span className="block [overflow-wrap:anywhere] text-slate-800">{task.panelMember}</span><span className="mt-1 block [overflow-wrap:anywhere] text-slate-500">{task.evaluatorRoleLabel??task.evaluatorRole}</span></td>
+                <td className="px-3 py-4 align-top sm:px-4 [overflow-wrap:anywhere] text-slate-600">{formatMalaysiaDateTimeCompact(task.effectiveDueAt??task.dueAt)}</td>
+              </tr>)}
+              {!filteredEligibleTasks.length?<tr><td colSpan={3} className="px-4 py-8 text-center text-slate-500">{eligibleTasks.length?'No tasks match your search.':'No eligible unfinished tasks.'}</td></tr>:null}
+            </tbody>
+          </table>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs text-slate-500">Showing {filteredEligibleTasks.length?taskPageOffset+1:0}–{Math.min(taskPageOffset+taskPageSize,filteredEligibleTasks.length)} of {filteredEligibleTasks.length} {filteredEligibleTasks.length===1?'task':'tasks'}</p>
+            {taskPageCount>1?<div className="flex items-center gap-3"><PortalButton type="button" size="sm" disabled={currentTaskPage===1} onClick={()=>setTaskPage(page=>Math.max(1,page-1))}>Previous</PortalButton><span aria-live="polite" className="text-xs text-slate-600">Page {currentTaskPage} of {taskPageCount}</span><PortalButton type="button" size="sm" disabled={currentTaskPage===taskPageCount} onClick={()=>setTaskPage(page=>Math.min(taskPageCount,page+1))}>Next</PortalButton></div>:null}
+          </div>
+        </div>
+      </section>:null}
       <label className="form-label block">{extension?.target.kind==='event'?'New deadline (complete Malaysia day)':'New deadline (Malaysia time)'}<input type={extension?.target.kind==='event'?'date':'datetime-local'} className="form-control form-control-md mt-1" required value={deadline} onChange={event=>setDeadline(event.target.value)}/></label>
-      <section aria-label="Extension impact" className="rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2"><p className="card-description">{extension?.target.kind==='appointment'?extensionImpact(extensionPeriod,extensionEnforced,scope,deadline):scope==='selected'?'Only the selected people receive extra time. The general deadline and linked timeline remain unchanged.':'The common deadline changes for everyone covered by this window.'}</p>{scope==='everyone'&&(extensionLinkedEvents.length||calendarStatus!=='ready')?<p className="card-description">{extensionLinkedEvents.length?`Linked timeline: ${extensionLinkedEvents.map(entry=>entry.title||entry.detail).join(', ')}. Saving will also update the displayed event dates.`:'Any linked timeline events will follow the new common deadline.'}</p>:null}</section>
       <label className="form-label block">Reason<textarea className="form-control form-control-md mt-1" rows={3} required value={reason} onChange={event=>setReason(event.target.value)}/></label>
     </DecisionDialog>
   </>;
@@ -400,10 +443,13 @@ function OperationalPeriodManagementContent({semesterId,semesterLifecycle,entrie
       </div>
       <dl className="grid gap-2 sm:grid-cols-[8rem_minmax(0,1fr)]"><dt className="text-xs leading-6 text-slate-500">Programmes</dt><dd className="text-sm leading-6 text-slate-900">{managedWindow.programmeScope==='ALL'?'All programmes':managedWindow.programmes.join(', ')}</dd></dl>
       <p className="period-review-note">{managedAppointment?(managedAppointment.lifecycleStatus==='DRAFT'?'Publish this draft before its dates can control submissions.':data?.enforcement[managedAppointment.activity]?'Dates are enforced for new submissions. Existing requests remain reviewable.':'Dates are not enforced for this activity. Publishing this window does not enable restrictions.'):'Assigned lecturers may save and submit marks while the evaluation window or an eligible completion window permits it.'}</p>
-      <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-5">{managedAppointment?.lifecycleStatus==='DRAFT'?<><PortalButton size="sm" disabled={!calendarEditable||mutationBusy} onClick={()=>openPeriodForm(managedAppointment)}>Edit draft</PortalButton><PortalButton size="sm" variant="primary" disabled={!calendarEditable||mutationBusy} onClick={()=>openAction({kind:'publish',period:managedAppointment})}>Review and publish</PortalButton></>:null}
-       {managedAppointment?.lifecycleStatus==='PUBLISHED'?<PortalButton size="sm" disabled={!calendarEditable||mutationBusy} onClick={()=>void openExtension({name:managedAppointment.name,target:{kind:'appointment',id:managedAppointment.id,revision:managedAppointment.revision,closesAt:managedAppointment.closesAt}})}>Extend deadline</PortalButton>:null}
-       {managedMarks?<><Link className="period-text-link" to={marksConfigurationRoute(semesterId,managedMarks.id)}>Open evaluation configuration →</Link>{!['DRAFT','ARCHIVED'].includes(managedMarks.lifecycleStatus)?<PortalButton size="sm" disabled={mutationBusy} onClick={()=>void openExtension({name:managedMarks.name,target:{kind:'marks',id:managedMarks.id,closesAt:managedMarks.closesAt,allowEveryone:defaultMarksExtensionScope(managedMarks.lifecycleStatus,semesterLifecycle)==='everyone'}})}>Extend deadline</PortalButton>:null}</>:null}
-      {managedAppointment?.lifecycleStatus==='PUBLISHED'?<PortalButton className="sm:ml-auto" size="sm" variant="dangerSolid" disabled={mutationBusy||!calendarEditable} onClick={()=>openAction({kind:'close',period:managedAppointment})}>Close submissions early</PortalButton>:managedAppointment&&['DRAFT','CLOSED'].includes(managedAppointment.lifecycleStatus)?<PortalButton className="sm:ml-auto" size="sm" variant="dangerSolid" disabled={mutationBusy||!calendarEditable} onClick={()=>openAction({kind:'archive',period:managedAppointment})}>Archive window</PortalButton>:null}</div>
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 pt-5">{managedAppointment?.lifecycleStatus==='DRAFT'?<><PortalButton size="sm" disabled={!calendarEditable||mutationBusy} onClick={()=>openPeriodForm(managedAppointment)}>Edit draft</PortalButton><PortalButton size="sm" variant="primary" disabled={!calendarEditable||mutationBusy} onClick={()=>openAction({kind:'publish',period:managedAppointment})}>Review and publish</PortalButton></>:null}
+       {managedAppointment?.lifecycleStatus==='PUBLISHED'?<PortalButton size="sm" icon={CalendarClock} disabled={!calendarEditable||mutationBusy} onClick={()=>void openExtension({name:managedAppointment.name,target:{kind:'appointment',id:managedAppointment.id,revision:managedAppointment.revision,closesAt:managedAppointment.closesAt}})}>Extend deadline</PortalButton>:null}
+       {managedMarks?<div className="flex w-full flex-wrap justify-end gap-3">
+        <Link className="inline-flex items-center justify-center gap-2 rounded-lg border border-brand-navy bg-brand-navy px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-white shadow-sm transition-colors hover:bg-brand-navy-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/20" to={marksConfigurationRoute(semesterId,managedMarks.id)}><Settings2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0"/>Open evaluation configuration</Link>
+        {!['DRAFT','ARCHIVED'].includes(managedMarks.lifecycleStatus)?<PortalButton size="sm" icon={CalendarClock} disabled={mutationBusy} onClick={()=>void openExtension({name:managedMarks.name,target:{kind:'marks',id:managedMarks.id,closesAt:managedMarks.closesAt,allowEveryone:defaultMarksExtensionScope(managedMarks.lifecycleStatus,semesterLifecycle)==='everyone'}})}>Extend deadline</PortalButton>:null}
+       </div>:null}
+      {managedAppointment?.lifecycleStatus==='PUBLISHED'?<PortalButton size="sm" icon={CalendarX} variant="dangerSolid" disabled={mutationBusy||!calendarEditable} onClick={()=>openAction({kind:'close',period:managedAppointment})}>Close submissions early</PortalButton>:managedAppointment&&['DRAFT','CLOSED'].includes(managedAppointment.lifecycleStatus)?<PortalButton size="sm" variant="dangerSolid" disabled={mutationBusy||!calendarEditable} onClick={()=>openAction({kind:'archive',period:managedAppointment})}>Archive window</PortalButton>:null}</div>
      </PortalCard><PortalCard>      <PeriodCalendarConnection key={`${managed.kind}:${managed.id}`} semesterId={semesterId} kind={managed.kind} periodId={managed.id} name={managedWindow.name} opensAt={managedWindow.opensAt} closesAt={managedWindow.closesAt} entries={entries} status={calendarStatus} editable={recordReady&&calendarEditable&&managedWindow.lifecycleStatus!=='ARCHIVED'} onRefresh={onTimelineRefresh} onInteractionChange={setCalendarBusy}/></PortalCard><PortalCard>
       <div className="[&>details]:border-t-0 [&>details>summary]:py-0 [&>details>summary]:min-h-8 [&>details>div]:pt-5 [&>details>div]:pb-0">
        <SupervisorRequestDisclosure title="History" onToggle={event=>{if(event.currentTarget.open)openHistory({kind:managed.kind,id:managed.id,name:managedWindow.name});else setHistory(null);}}>

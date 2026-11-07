@@ -1,3 +1,4 @@
+import {Trash2} from 'lucide-react';
 import React from 'react';
 import type {EvaluationPeriodOption} from '../types';
 import {PortalButton, PortalCard, StatusBadge, getStatusBadgeTone} from './PortalPrimitives';
@@ -7,9 +8,11 @@ import {formatPeriodStatus} from '../utils/marksProductionManagement';
 
 type Filters = {search: string; status: string; page: number};
 
-export function MarkEntryPeriodList({periods, filters, busy, onManage, onFiltersChange}: {
+export function MarkEntryPeriodList({periods, filters, busy, onManage, onDelete, onFiltersChange}: {
   periods: EvaluationPeriodOption[]; filters: Filters; busy: boolean;
-  onManage: (period: EvaluationPeriodOption) => void; onFiltersChange: (filters: Filters) => void;
+  onManage: (period: EvaluationPeriodOption) => void;
+  onDelete: (period: EvaluationPeriodOption) => void;
+  onFiltersChange: (filters: Filters) => void;
 }) {
   const rows = periods.filter(period =>
     (filters.status === 'all' || (filters.status === 'archived' ? period.lifecycleStatus === 'ARCHIVED' : period.lifecycleStatus !== 'ARCHIVED')) &&
@@ -23,13 +26,16 @@ export function MarkEntryPeriodList({periods, filters, busy, onManage, onFilters
     </div>
     {rows.length ? <div className="overflow-x-auto" role="region" aria-label="Evaluation periods" tabIndex={0}>
       <table className="data-table min-w-[760px] [&_th]:px-6 [&_th]:py-4 [&_td]:px-6 [&_td]:py-5">
-        <colgroup><col style={{width: '28%'}} /><col style={{width: '21%'}} /><col style={{width: '21%'}} /><col style={{width: '15%'}} /><col style={{width: '15%'}} /></colgroup>
+        <colgroup><col style={{width: '24%'}} /><col style={{width: '17%'}} /><col style={{width: '17%'}} /><col style={{width: '14%'}} /><col style={{width: '28%'}} /></colgroup>
         <thead><tr>{['Period', 'Academic semester', 'Rubric', 'Status', 'Action'].map(label => <th key={label} className="data-th">{label}</th>)}</tr></thead>
         <tbody>{rows.slice((page - 1) * 10, page * 10).map(period => <tr key={period.id}>
           <td className="data-td"><span className="card-value">{period.name}</span></td>
           <td className="data-td">{period.semester}</td><td className="data-td">{period.rubricName}</td>
           <td className="data-td"><StatusBadge tone={getStatusBadgeTone(period.effectiveStatus)}>{formatPeriodStatus(period.lifecycleStatus === 'PUBLISHED' ? period.effectiveStatus : period.lifecycleStatus)}</StatusBadge></td>
-          <td className="data-td"><PortalButton disabled={busy} onClick={() => onManage(period)}>Manage period</PortalButton></td>
+          <td className="data-td"><div className="flex flex-col items-start gap-2" role="group" aria-label={`Actions for ${period.name}`}>
+            <PortalButton className="shrink-0 whitespace-nowrap" disabled={busy} onClick={() => onManage(period)}>Manage period</PortalButton>
+            {period.lifecycleStatus === 'DRAFT' ? <PortalButton size="sm" className="whitespace-nowrap" variant="danger" icon={Trash2} disabled={busy} onClick={() => onDelete(period)}>Delete draft</PortalButton> : null}
+          </div></td>
         </tr>)}</tbody>
       </table>
     </div> : <EmptyState title="No matching periods" description="Change the search or status filter." />}

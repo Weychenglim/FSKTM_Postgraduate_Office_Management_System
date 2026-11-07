@@ -1,7 +1,7 @@
 import {LecturerMarksEntry} from '../src/components/LecturerMarksEntry';
 import {AppointmentMarkingAction} from '../src/components/AppointmentMarkingAction';
 import {appointmentMarkingRoute} from '../src/utils/appointmentMarking';
-import {createMemoryRouter,RouterProvider} from 'react-router';
+import {createMemoryRouter,RouterProvider,MemoryRouter} from 'react-router';
 import {PanelAppointmentManagement} from '../src/components/PanelAppointmentManagement';
 import React from 'react';
 import {createRoot,type Root} from 'react-dom/client';
@@ -23,7 +23,7 @@ const assignment:PanelAssignment={academicTeam:{primary:{name:"Dr Current Primar
 const student:PanelRecommendationSupervisee={studentId:recommendation.studentId,studentName:recommendation.studentName,programme:recommendation.programme,semester:recommendation.semester!,proposedTopic:recommendation.proposedTopic,researchArea:recommendation.researchArea!,abstract:recommendation.abstract!,supervisorName:'Dr Nadia Hassan',supervisorId:'L001',supervisorAppointmentId:2,panelAppointmentId:9,currentPanelMember:'Dr Amir Hakim',currentPanelMemberId:'DEMO-L071',canRecommend:true};
 const office=(row=recommendation):PanelRecord=>({recordId:'appointment-9',id:row.studentId,studentName:row.studentName,programme:row.programme,semester:row.semester!,supervisor:row.supervisorName!,panelMember:row.recommendedMember,status:row.appointmentLifecycle?.status==='ACTIVE'?'Approved':'Ended',updatedDate:'20 Oct 2026',recommendation:row,appointmentLifecycle:row.appointmentLifecycle});
 const button=(text:string,scope:ParentNode=document)=>[...scope.querySelectorAll<HTMLButtonElement>('button')].find(b=>b.textContent?.trim().toLowerCase()===text.toLowerCase());
-async function mount(element:React.ReactNode){root?.unmount();root=createRoot(container);root.render(element);await until(()=>!!container.textContent);await pause();}
+async function mount(element:React.ReactNode){root?.unmount();root=createRoot(container);root.render(React.isValidElement<{contextSearch?:string}>(element)&&element.type===LecturerMarksEntry?<MemoryRouter initialEntries={['/marks?'+(element.props.contextSearch??'').replace(/^\?/, '')]}>{element}</MemoryRouter>:element);await until(()=>!!container.textContent);await pause();}
 async function click(text:string,scope:ParentNode=document){const b=button(text,scope);check(b,`Missing ${text}`);b!.click();await pause();}
 async function setValue(element:HTMLTextAreaElement|HTMLSelectElement,text:string){const proto=element instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLTextAreaElement.prototype;Object.getOwnPropertyDescriptor(proto,'value')!.set!.call(element,text);element.dispatchEvent(new Event(element instanceof HTMLSelectElement?'change':'input',{bubbles:true}));await pause();}
 function geometry(){

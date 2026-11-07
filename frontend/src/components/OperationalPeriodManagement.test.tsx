@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import * as management from './OperationalPeriodManagement';
@@ -21,6 +22,23 @@ assert.doesNotMatch(link,/<select(?! aria-hidden="true")/);
 const noEvents=renderToStaticMarkup(<management.CalendarPeriodLinkFields entries={[]} selectedId="" onChange={()=>{}}/>);
 assert.match(noEvents,/Create or import/);
 console.log('Period extension history displays actors, reasons and deadline changes');
+
+const periodDetailSource = readFileSync(new URL('./OperationalPeriodManagement.tsx', import.meta.url), 'utf8');
+const marksActionRow = periodDetailSource.slice(periodDetailSource.indexOf('{managedMarks?<div'), periodDetailSource.indexOf("{managedAppointment?.lifecycleStatus==='PUBLISHED'?<PortalButton className=\"sm:ml-auto\""));
+assert.match(periodDetailSource, /items-center justify-end gap-3 border-t/);
+assert.match(marksActionRow, /<Settings2 aria-hidden="true"/);
+assert.match(marksActionRow, /Extend deadline/);
+assert.match(marksActionRow, /icon=\{CalendarClock\}/);
+const appointmentActionStart = periodDetailSource.indexOf("{managedAppointment?.lifecycleStatus==='PUBLISHED'?<PortalButton size=\"sm\"");
+const closeActionEnd = periodDetailSource.indexOf('Close submissions early', appointmentActionStart) + 'Close submissions early'.length;
+const appointmentActions = periodDetailSource.slice(appointmentActionStart, closeActionEnd);
+assert.match(appointmentActions, /icon=\{CalendarClock\}/);
+assert.match(appointmentActions, /icon=\{CalendarX\} variant="dangerSolid"/);
+assert.ok(appointmentActions.indexOf('Extend deadline') < appointmentActions.indexOf('Close submissions early'));
+assert.doesNotMatch(appointmentActions, /sm:ml-auto/);
+assert.match(periodDetailSource, /aria-label="Window history"/);
+assert.match(periodDetailSource, /aria-label="Task completion windows"/);
+assert.match(periodDetailSource, /Review extra-time grants and revocations for an individual evaluation task\./);
 
 const unchanged=renderToStaticMarkup(<management.OperationalHistory events={[{id:2,action:'UPDATE',reason:'Reviewed schedule',actorName:'Office staff',createdAt:'2026-10-16T01:00:00Z',before:{closesAt:'2026-10-20T04:00:00Z',name:'Old intake'},after:{closesAt:'2026-10-20T12:00:00+08:00',name:'New intake'}}]}/>);
 assert.doesNotMatch(unchanged,/>Closes</,'Equivalent timestamps must not appear as changed deadlines');

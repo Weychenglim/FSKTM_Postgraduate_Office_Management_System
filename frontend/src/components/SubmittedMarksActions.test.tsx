@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import React from 'react';
+import {readFileSync} from 'node:fs';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {SubmittedMarksActions, MarkCorrectionHistoryView} from './SubmittedMarksActions';
 import type {MarkRecordDetail} from '../types';
@@ -22,3 +23,12 @@ assert.match(audit, /Office Reviewer/); assert.match(audit, /Verified error/);
 assert.match(audit, /Before/); assert.match(audit, /After/); assert.match(audit, /Problem/);
 assert.match(audit, /80.00/); assert.match(audit, /85.00/); assert.match(audit, /Reviewed &lt;text&gt;/);
 console.log('Submitted Marks action authority and readable before/after audit rendering passed');
+
+const actionsSource = readFileSync(new URL('./SubmittedMarksActions.tsx', import.meta.url), 'utf8');
+const modalStart = actionsSource.indexOf('<PortalModal');
+const modalEnd = actionsSource.indexOf('</PortalModal>', modalStart);
+assert.notEqual(modalStart, -1);
+assert.notEqual(modalEnd, -1);
+assert.match(actionsSource.slice(modalStart, modalEnd), /<AlertMessage type="error"/,
+  'correction validation errors must use the shared alert inside the visible dialog');
+console.log('Submitted Marks correction errors render through the shared alert inside the modal');

@@ -280,6 +280,7 @@ export default function App() {
   const isMarksRubricsRoute = pathname === APP_ROUTES.marksRubrics;
   const isMarksTasksRoute = pathname === APP_ROUTES.marksTasks;
   const isMarksRecordsRoute = pathname === APP_ROUTES.marksRecords;
+  const isLecturerMarksRecordRoute = pathname === APP_ROUTES.marksHistory || pathname.startsWith(`${APP_ROUTES.marksTasks}/`);
   const isMarksAdministrationRoute = (
     isMarksConfigRoute
     || isMarksRubricsRoute
@@ -517,8 +518,8 @@ export default function App() {
     return <Navigate to={defaultAuthenticatedRoute} replace />;
   }
   if (
-    isMarksAdministrationRoute
-    && !canAccessMarksAdministration(currentUser.role)
+    (isMarksAdministrationRoute && !canAccessMarksAdministration(currentUser.role))
+    || (isLecturerMarksRecordRoute && !isLecturerWorkspace)
   ) {
     return <Navigate to={defaultAuthenticatedRoute} replace />;
   }
@@ -553,7 +554,7 @@ export default function App() {
             <OfficeMonitoringProvider enabled={currentUser.role === 'Office Staff/Admin'}>
             {activeSidebarItem === SIDEBAR_ITEMS.MARKS_ENTRY ? (
               isLecturerWorkspace ? (
-                <LecturerMarksEntry key={location.search} contextSearch={location.search}
+                <LecturerMarksEntry key={pathname + location.search} contextSearch={location.search}
                   onBackToDashboard={() => navigate(APP_ROUTES.dashboard)}
                   onNavigateToDossier={openDossier}
                   onNavigateToRequirements={() => openSupervisorRecord(routeForSupervisorRequirements(),isSupervisorSuperviseesRoute?APP_ROUTES.supervisorAppointmentSupervisees:APP_ROUTES.supervisorAppointments,'Records administration')}

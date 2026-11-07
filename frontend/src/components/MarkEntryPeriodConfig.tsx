@@ -12,7 +12,7 @@ import type { ClosureApproval } from '../types/marks';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {flushSync} from 'react-dom';
-import { Link } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
 import {
   Archive,
@@ -30,6 +30,7 @@ import {
   archiveEvaluationPeriod,
   closeEvaluationPeriod,
   createEvaluationPeriod,
+  deleteEvaluationPeriod,
   getEvaluationPeriod,
   getEvaluationPeriods,
   getMarksProgrammeOptions,
@@ -129,6 +130,8 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
   onManageTimeline,
   contextSearch='',
 }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const context=parseMarksPeriodContext(contextSearch);
   const contextScope=useRef(contextSearch);contextScope.current=contextSearch;
   const [contextSemester,setContextSemester]=useState<AcademicSemester|null>(null);
@@ -177,6 +180,8 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
   const [acknowledged,setAcknowledged]=useState(false);
   const [closureContext,setClosureContext]=useState<{periodId:number;search:string}|null>(null);
   const [discardClosure,setDiscardClosure]=useState(false);
+  const [deleteDraftTarget,setDeleteDraftTarget]=useState<EvaluationPeriodOption|null>(null);
+  const [deleteDraftError,setDeleteDraftError]=useState<string|null>(null);
   const pendingWrite=useRef(false);
   const feedback=useDecisionFeedback();
   const fieldProps=(key:string)=>({id:PERIOD_FIELDS[key].id,'aria-invalid':!!formFeedback?.fields[key],'aria-describedby':formFeedback?.fields[key]?`${PERIOD_FIELDS[key].id}-error`:undefined});
@@ -254,6 +259,8 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
 
   useEffect(() => {
     setEditorOpen(false);
+    setDeleteDraftTarget(null);
+    setDeleteDraftError(null);
     void loadWorkspace();
     return()=>{contextRequest.current+=1;selectionRequest.current+=1;};
   }, [includeArchived,contextSearch]);
@@ -402,7 +409,6 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
       if(requestedScope!==contextScope.current)return;
       replacePeriod(updated);
       committed=true;
-      setSavedReadBlocked(true);
       setConflictBlocked(false);
       const detail=await getEvaluationPeriod(updated.id);
       if(requestedScope!==contextScope.current)return;
@@ -411,7 +417,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
       notify(selected ? 'Period changes saved.' : 'Draft period created.','success');
     } catch (saveError) {
       if(requestedScope===contextScope.current){
-        if(committed)notify('Period saved. The latest record could not be loaded. Reload it before another action.','warning');
+        if(committed){setSavedReadBlocked(true);notify('Period saved. The latest record could not be loaded. Reload it before another action.','warning');}
         else {if(saveError instanceof ApiError&&(saveError.status===403||saveError.status===409))setConflictBlocked(true);report(readFormFeedback(saveError,marksMutationErrorMessage(saveError),PERIOD_FIELD_MAP));}
       }
     } finally {
@@ -449,7 +455,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
           ? await closeEvaluationPeriod(selected.id, reason, approval)
           : await archiveEvaluationPeriod(selected.id, reason);
       if(requestedScope!==contextScope.current)return;
-      replacePeriod(updated);committed=true;setClosureContext(null);setDiscardClosure(false);setSavedReadBlocked(true);setConflictBlocked(false);setReason('');setAcknowledged(false);
+      replacePeriod(updated);committed=true;setClosureContext(null);setDiscardClosure(false);setConflictBlocked(false);setReason('');setAcknowledged(false);
       const detail=await getEvaluationPeriod(updated.id);
       if(requestedScope!==contextScope.current)return;
       replacePeriod(detail);
@@ -469,7 +475,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
       }
     } catch (transitionError) {
       if(requestedScope===contextScope.current){
-        if(committed)notify('Period changed. The latest record could not be loaded. Reload it before another action.','warning');
+        if(committed){setSavedReadBlocked(true);notify('Period changed. The latest record could not be loaded. Reload it before another action.','warning');}
         else {if(transitionError instanceof ApiError&&(transitionError.status===403||transitionError.status===409))setConflictBlocked(true);if(!approval)setActionError(marksMutationErrorMessage(transitionError));}
       }
       if (approval&&!committed) throw transitionError;
@@ -544,11 +550,65 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
   };
   const finalReviewCurrent=finalReview!==null&&finalReviewIdentity.current?.contextSearch===contextSearch&&finalReviewIdentity.current?.periodId===selected?.id&&(finalReview!=='publish'||!!preview);
 
+  const finishDraftRemoval = (periodId: number, message: string, tone: 'success' | 'warning') => {
+    invalidatePreview();
+    setPeriods(current => current.filter(period => period.id !== periodId));
+    if (selected?.id === periodId) {
+      setSelected(null);
+      const cleanForm = {...EMPTY_FORM, semesterId: context.semesterId ? String(context.semesterId) : ''};
+      setForm(cleanForm);
+      setNewBaseline(cleanForm);
+      setReason('');
+      setEditorOpen(false);
+    }
+    setDeleteDraftTarget(null);
+    setDeleteDraftError(null);
+    setConflictBlocked(false);
+    setSavedReadBlocked(false);
+    setListFocusRequest(request => request + 1);
+    notify(message, tone);
+    if (context.periodId === periodId) {
+      const nextParams = new URLSearchParams(contextSearch);
+      nextParams.delete('period');
+      const nextSearch = nextParams.toString();
+      navigate({pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : ''}, {replace: true});
+    }
+  };
+
+  const removeDraft = async () => {
+    if (!deleteDraftTarget || deleteDraftTarget.lifecycleStatus !== 'DRAFT' || pendingWrite.current || saving || selecting || conflictBlocked || savedReadBlocked) return;
+    const periodId = deleteDraftTarget.id;
+    const requestedScope = contextSearch;
+    pendingWrite.current = true;
+    setSaving(true);
+    setActionError(null);
+    setDeleteDraftError(null);
+    try {
+      await deleteEvaluationPeriod(periodId);
+      if (requestedScope !== contextScope.current) return;
+      finishDraftRemoval(periodId, 'Draft period deleted.', 'success');
+    } catch (deleteError) {
+      if (requestedScope === contextScope.current) {
+        if (deleteError instanceof ApiError && (deleteError.status === 404 || deleteError.status === 409 && deleteError.message.startsWith('This draft period was already deleted.'))) {
+          finishDraftRemoval(periodId, 'This draft was already removed. It has been cleared from the list.', 'warning');
+          return;
+        }
+        setDeleteDraftTarget(null);
+        if (deleteError instanceof ApiError && (deleteError.status === 403 || deleteError.status === 409 && deleteError.message === 'Only draft evaluation periods can be deleted.')) setConflictBlocked(true);
+        setDeleteDraftError(marksMutationErrorMessage(deleteError));
+      }
+    } finally {
+      pendingWrite.current = false;
+      setSaving(false);
+    }
+  };
+
   return (
     <div id="mark-entry-period-configuration" className="marks-workspace space-y-7 animate-fade-in">
       <DraftNavigationGuard dirty={draftDirty} busy={saving||selecting} />
       <PortalConfirmModal isOpen={replacement!==null} title="Discard unsaved period changes?" message="Leave this period and discard the unsaved changes?" confirmLabel="Discard changes" cancelLabel="Stay on this page" onCancel={()=>setReplacement(null)} onConfirm={discardAndRun}/>
       <PortalConfirmModal isOpen={recoveryPeriod!==null} title="Review latest period" message="The latest saved period is available. Replace the visible unsaved changes with it?" confirmLabel="Discard changes" cancelLabel="Stay on this page" onCancel={()=>setRecoveryPeriod(null)} onConfirm={()=>{if(!recoveryPeriod)return;replacePeriod(recoveryPeriod);setRecoveryPeriod(null);setSavedReadBlocked(false);setConflictBlocked(false);setFormFeedback(null);setActionError(null);setReason('');setAcknowledged(false);}}/>
+      <PortalConfirmModal isOpen={deleteDraftTarget !== null} title="Delete draft period?" message={<div className="space-y-2"><p className="font-semibold text-slate-900">{deleteDraftTarget?.name}</p><p>This permanently removes the unpublished period. It can’t be undone.</p>{selected?.id === deleteDraftTarget?.id && hasUnsavedChanges ? <p>Your unsaved edits will also be discarded.</p> : null}</div>} confirmLabel="Delete draft" cancelLabel="Keep draft" isLoading={saving} onCancel={()=>{if(!saving)setDeleteDraftTarget(null);}} onConfirm={()=>void removeDraft()}/>
       <PortalModal isOpen={previewOpen && !!preview && canPublish} onClose={() => setPreviewOpen(false)} labelledBy="period-recipient-preview-title" className="max-w-6xl p-0">
         <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-5">
           <div><h2 id="period-recipient-preview-title" className="text-base font-bold text-slate-900">Recipient preview</h2><p className="card-description mt-1">{selected?.name}</p></div>
@@ -613,6 +673,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
       />
 
       {error ? <ErrorState compact title={contextBlocked?'Evaluation context needs review':'Couldn’t load evaluation configuration'} message={error} onRetry={loadWorkspace} /> : null}
+      {deleteDraftError ? <AlertMessage type="error" title="Draft wasn’t deleted" message={deleteDraftError}/> : null}
 
       {contextSemester?<div className="rounded-lg border border-slate-200 bg-white p-4"><p className="card-value">{contextSemester.label}</p><p className="card-description mt-1">Opened from Periods &amp; deadlines. Evaluation periods below are limited to this semester.</p></div>:null}
 
@@ -625,7 +686,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
             {selectionError?<ErrorState compact title="Couldn’t open the selected period" message={selectionError} onRetry={selectionTarget?()=>void selectPeriod(selectionTarget):undefined}/>:null}
             {emptyList && !archivedAvailable && !listFilters.search && listFilters.status === 'current' ? <PortalCard data-period-empty padding="lg">
               <EmptyState icon={CalendarClock} title="No evaluation periods yet" description={newPeriodDisabled ? 'No periods are configured. This semester is read-only.' : 'Create your first period to prepare marks entry.'} />
-            </PortalCard> : <MarkEntryPeriodList periods={periods} filters={listFilters} busy={saving || selecting} onManage={period => void selectPeriod(period)} onFiltersChange={next => {setListFilters(next);setIncludeArchived(next.status !== 'current');}} />}
+            </PortalCard> : <MarkEntryPeriodList periods={periods} filters={listFilters} busy={saving || selecting} onManage={period => void selectPeriod(period)} onDelete={period => {setDeleteDraftError(null);setDeleteDraftTarget(period);}} onFiltersChange={next => {setListFilters(next);setIncludeArchived(next.status !== 'current');}} />}
 
           </section> : (
 
