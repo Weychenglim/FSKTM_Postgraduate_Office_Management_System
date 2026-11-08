@@ -5,8 +5,7 @@
 
 import React, { useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { shortProgramme } from '../utils/programmeTransfers';
-import { intakeFilterOptions, shortSemester, studentCount } from '../utils/registrySemesters';
+import { intakeFilterOptions, shortProgramme, shortSemester, studentCount } from '../utils/registrySemesters';
 import { PortalButton } from './PortalPrimitives';
 import { SelectMenu } from './SelectMenu';
 

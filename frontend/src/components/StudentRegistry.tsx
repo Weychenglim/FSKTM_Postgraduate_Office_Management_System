@@ -23,22 +23,15 @@ import {
   ChevronDown,
   Mail,
   Calendar,
-  Layers,
   FileSpreadsheet,
   UploadCloud,
-  FileText,
   AlertTriangle,
   AlertCircle,
   Edit,
   Trash2,
   CheckCircle,
   MoreVertical,
-  Info,
   RefreshCw,
-  HelpCircle,
-  FileDown,
-  ArrowRightLeft,
-  Lock
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -52,12 +45,12 @@ import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { historyTime } from '../utils/documentDisplay';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { APP_ROUTES, routeForNewProgrammeTransfer, routeForProgrammeTransfer } from '../constants/routes';
-import { getStudentTransfer, type StudentTransferSummary } from '../services/programmeTransfersApi';
+import { APP_ROUTES } from '../constants/routes';
 import { getSemesterMoveSummary, getStudentGraduationCheck, type GraduationStudent, type MoveSummary } from '../services/registrySemestersApi';
 import { canonicalSemester, intakeFilterOptions, matchesIntake, semesterChoices, semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
+import { StudentStatusCards } from './ParticipantStatusCards';
 import { StudentSemestersCard } from './StudentSemestersCard';
 import {
   ImportCommitResponse,
@@ -68,7 +61,6 @@ import {
   ImportPreviewResponse,
   ImportPreviewRow,
   ImportProgrammeValue,
-  RegistryImportBatch,
   StudentAcademicStatus,
   StudentAccountStatus,
   StudentRecord,
@@ -81,13 +73,11 @@ import {
   downloadImportTemplate,
   fieldErrors,
   getParticipant,
-  getRecentImports,
   getStudentById,
   getStudents,
   inspectStudentImport,
   previewStudentImport,
   sendAccessLink,
-  sendBatchInvitations,
   updateStudent,
 } from '../services';
 import {
@@ -106,7 +96,6 @@ import { CSV_HEADERS, reviewedFileName, rowsToCsv } from '../utils/csvImport';
 import { downloadCsv } from '../utils/csvExport';
 import { pageWindow } from '../utils/pageWindow';
 import {
-  BATCH_PROBLEM_COLUMNS,
   IMPORT_REPORT_COLUMNS,
   IMPORT_ROW_FILTERS,
   STUDENT_ID_RULE,
@@ -115,7 +104,6 @@ import {
   differenceWarning,
   filterImportRows,
   rowExplanation,
-  rowsAfterHeldSend,
   rowsForReview,
   skipNotice,
   summariseImportRows,
@@ -234,15 +222,10 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
 
 interface StudentRegistryProps {
   readOnly?: boolean;
-  /** Office staff and programme coordinators follow programme transfers. */
-  canSeeTransfers?: boolean;
-  onOpenParticipantLifecycle?: () => void;
 }
 
 export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   readOnly = false,
-  canSeeTransfers = false,
-  onOpenParticipantLifecycle,
 }) => {
   // Master Student Registry State: loaded from studentsApi (mock-backed today).
   const [students, setStudents] = useState<StudentRecord[]>([]);
@@ -293,12 +276,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     getSemesterMoveSummary().then((found) => { if (!cancelled) setMoveSummary(found); }).catch(() => undefined);
     return () => { cancelled = true; };
   }, [readOnly]);
-  const [transfer, setTransfer] = useState<StudentTransferSummary | null>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const openStudent = searchParams.get('student');
 
-  // ?student=<matric> opens that Student Record, for example on the way back from a transfer.
+  // ?student=<matric> opens that Student Record, for example from a graduation check.
   useEffect(() => {
     if (!openStudent || viewingStudent || loading) return;
     const found = students.find((row) => row.id.toLowerCase() === openStudent.toLowerCase());
@@ -314,18 +296,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       cancelled = true;
     };
   }, [openStudent, students, loading]);
-
-  useEffect(() => {
-    setTransfer(null);
-    if (!viewingStudent) return;
-    let cancelled = false;
-    getStudentTransfer(viewingStudent.id)
-      .then((found) => !cancelled && setTransfer(found))
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [viewingStudent?.id]);
 
   const closeRecord = () => {
     setViewingStudent(null);
@@ -349,8 +319,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     phone: '',
     programme: '',
     intakeBatch: '',
-    semester: '',
-    sendCredentialsImmediately: true
+    semester: ''
   });
 
   // Bulk CSV Import Session States
@@ -376,12 +345,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [importSheet, setImportSheet] = useState<string | null>(null);
   const [importHeaderRow, setImportHeaderRow] = useState<number | null>(null);
   const [matchError, setMatchError] = useState<string | null>(null);
-  // Programme, intake and semester for every row, and whether activation
-  // emails go out now or are held to send later.
+  // Programme, intake and semester for every row.
   const [importDefaults, setImportDefaults] = useState<ImportDefaults>({});
-  const [sendInvitesNow, setSendInvitesNow] = useState(true);
-  const [heldBatchToSend, setHeldBatchToSend] = useState<RegistryImportBatch | null>(null);
-  const [sendingHeld, setSendingHeld] = useState(false);
   // Programme names in the file that are not approved programmes, and the
   // office's choice for each: an approved programme, or skip its rows.
   const [programmeValues, setProgrammeValues] = useState<ImportProgrammeValue[]>([]);
@@ -395,10 +360,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [dropIdSuffix, setDropIdSuffix] = useState(false);
   // False when every row is a student, with no row of column names.
   const [importHasHeader, setImportHasHeader] = useState(true);
-
-  const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
-  const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
-  const [showAllImports, setShowAllImports] = useState(false);
 
   // Record being edited inside CSV preview list, identified by its file line
   const [editingCsvLine, setEditingCsvLine] = useState<number | null>(null);
@@ -426,7 +387,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [graduationCheck, setGraduationCheck] = useState<GraduationStudent | null>(null);
   const [earlyApproved, setEarlyApproved] = useState(false);
 
-  const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', intakeDate: '' });
+  const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', programmeReason: '', intakeDate: '' });
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   // An edit clears the last save problem, so a fixed field no longer shows it.
@@ -448,6 +409,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       email: viewingStudent?.email ?? '',
       phone: viewingStudent?.phone ?? '',
       programme: viewingStudent?.programme ?? '',
+      programmeReason: '',
       intakeDate: canonicalSemester(viewingStudent?.intakeDate ?? ''),
     });
   }, [viewingStudent?.id]);
@@ -515,7 +477,16 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     if (detailsDraft.name.trim() !== student.name) changes.name = detailsDraft.name.trim();
     if (detailsDraft.email.trim().toLowerCase() !== student.email.toLowerCase()) changes.email = detailsDraft.email.trim();
     if (detailsDraft.phone.trim() !== student.phone) changes.phone = detailsDraft.phone.trim();
-    if (detailsDraft.programme !== student.programme) changes.programme = detailsDraft.programme;
+    if (detailsDraft.programme !== student.programme) {
+      changes.programme = detailsDraft.programme;
+      if (student.hasResearchProfile) {
+        if (!detailsDraft.programmeReason.trim()) {
+          setDetailsError('Give a reason for the correction.');
+          return;
+        }
+        changes.programmeReason = detailsDraft.programmeReason.trim();
+      }
+    }
     if (detailsDraft.intakeDate !== canonicalSemester(student.intakeDate)) changes.intakeDate = detailsDraft.intakeDate;
     if (Object.keys(changes).length === 0) {
       setDetailsError('Nothing has changed yet.');
@@ -526,6 +497,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     try {
       const { oldAddressTold, ...updated } = await updateStudent(student.id, changes);
       setViewingStudent(updated);
+      setDetailsDraft((draft) => ({ ...draft, programmeReason: '' }));
       loadStudents();
       triggerToast(
         !changes.email
@@ -538,7 +510,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       );
     } catch (err) {
       const fields = fieldErrors(err);
-      setDetailsError(fields.name ?? fields.email ?? fields.phone ?? (err instanceof Error ? err.message : 'Could not save the details.'));
+      setDetailsError(fields.name ?? fields.email ?? fields.phone ?? fields.programmeReason ?? (err instanceof Error ? err.message : 'Could not save the details.'));
     } finally {
       setDetailsSaving(false);
     }
@@ -637,7 +609,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
         semester: manualFormData.semester.trim(),
         intakeDate: manualFormData.intakeBatch,
         academicStatus: 'Active',
-        sendInvite: manualFormData.sendCredentialsImmediately,
       });
       invitationSent = created.invitationSent;
     } catch (err) {
@@ -650,9 +621,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
     loadStudents();
     setCurrentView('list');
-    if (!manualFormData.sendCredentialsImmediately) {
-      triggerToast(`Registered "${manualFormData.name}". No activation email was sent; send it from their profile when ready.`);
-    } else if (invitationSent === false) {
+    if (invitationSent === false) {
       triggerToast(`Registered "${manualFormData.name}", but the activation email could not be sent. Use Send Activation Link in their profile.`);
     } else {
       triggerToast(`Registered "${manualFormData.name}" and emailed their activation link.`);
@@ -666,8 +635,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       phone: '',
       programme: '',
       intakeBatch: '',
-      semester: '',
-      sendCredentialsImmediately: true
+      semester: ''
     });
   };
 
@@ -705,19 +673,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     fileInputRef.current?.click();
   };
 
-  const loadRecentImports = useCallback((limit: number) => {
-    setRecentImportsError(null);
-    getRecentImports(limit)
-      .then(setRecentImports)
-      .catch((err) => setRecentImportsError(err instanceof Error ? err.message : 'Could not load recent imports.'));
-  }, []);
-
-  useEffect(() => {
-    if (currentView === 'register' && registerActiveTab === 'bulk') {
-      loadRecentImports(showAllImports ? 50 : 5);
-    }
-  }, [currentView, registerActiveTab, showAllImports, loadRecentImports]);
-
   const clearImport = () => {
     setUploadedFile(null);
     setSourceFile(null);
@@ -733,7 +688,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setImportHeaderRow(null);
     setMatchError(null);
     setImportDefaults({});
-    setSendInvitesNow(true);
     setProgrammeValues([]);
     setProgrammeValueCount(0);
     setProgrammeChoices({});
@@ -754,7 +708,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     programmeMap: programmeChoices,
     fillEmail,
     idRule: dropIdSuffix ? STUDENT_ID_RULE : null,
-    sendInvites: sendInvitesNow,
   });
 
   // Edited rows are sent back in our own layout, so the server finds the
@@ -764,7 +717,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     programmeMap: programmeChoices,
     fillEmail,
     idRule: dropIdSuffix ? STUDENT_ID_RULE : null,
-    sendInvites: sendInvitesNow,
   });
 
   const reviewedFile = (rows: ImportPreviewRow[]) =>
@@ -811,13 +763,17 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // A new file is described first (sheets, column names, suggested matches).
   // Our own template goes straight to checking rows; any other layout stops at
   // Match columns so the office confirms which column is which.
-  const previewImportFile = async (file: File, first?: ImportOptions) => {
+  const previewImportFile = async (picked: File, first?: ImportOptions) => {
     setIsProcessingCsv(true);
     setCsvFatalError(null);
     setEditingCsvLine(null);
     setImportResult(null);
     setMatchError(null);
     try {
+      // The file is sent again at each step, and the browser refuses to resend
+      // one that changed on disk (OneDrive and Excel both do this), saying only
+      // "Failed to fetch". So the import keeps its own copy from the start.
+      const file = new File([await picked.arrayBuffer()], picked.name, { type: picked.type, lastModified: picked.lastModified });
       const layout = await inspectStudentImport(file, first);
       setUploadedFile({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB` });
       setSourceFile(file);
@@ -969,7 +925,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   };
 
   // Creates every Ready row; duplicates are skipped and other problem rows are
-  // left out. The server records the run for Recent Imports.
+  // left out.
   const handleCommitVerifiedCsv = async () => {
     if (csvPreviewRecords.length === 0) return;
     const editedSet = rowsEdited || !sourceFile;
@@ -986,7 +942,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       });
       const { batch, rows } = result;
       loadStudents();
-      loadRecentImports(showAllImports ? 50 : 5);
 
       // The result panel lists every skipped and failed row. Only the rows that
       // were not imported stay in the preview, so they can be fixed and sent
@@ -1008,43 +963,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     } finally {
       setSaving(false);
     }
-  };
-
-  // Activation emails an import held back go only to students from that
-  // import who are still active and have not set a password.
-  const handleSendHeld = async () => {
-    if (!heldBatchToSend) return;
-    setSendingHeld(true);
-    try {
-      const result = await sendBatchInvitations(heldBatchToSend.id);
-      const notes = [
-        result.failed ? `${result.failed} could not be sent.` : '',
-        result.alreadyActivated ? `${result.alreadyActivated} had already set a password.` : '',
-        result.suspended ? `${result.suspended} have sign-in suspended.` : '',
-      ].filter(Boolean);
-      triggerToast(
-        [`Sent ${result.sent} activation email${result.sent === 1 ? '' : 's'}.`, ...notes].join(' '),
-      );
-      setImportResult((current) =>
-        current && current.batch.id === result.batch.id
-          ? { batch: result.batch, rows: rowsAfterHeldSend(current.rows, result.students) }
-          : current,
-      );
-      loadRecentImports(showAllImports ? 50 : 5);
-    } catch (err) {
-      triggerToast(err instanceof Error ? err.message : 'The activation emails could not be sent.');
-    } finally {
-      setSendingHeld(false);
-      setHeldBatchToSend(null);
-    }
-  };
-
-  const downloadImportProblems = (batch: RegistryImportBatch) => {
-    downloadCsv(
-      reviewedFileName(batch.fileName).replace('-reviewed.csv', '-skipped-and-not-imported.csv'),
-      batch.problems,
-      BATCH_PROBLEM_COLUMNS,
-    );
   };
 
   const downloadImportReport = () => {
@@ -1113,7 +1031,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const visibleImportRows = filterImportRows(csvPreviewRecords, importFilter);
   const skipText = skipNotice(importSummary);
   const filledEmailCount = csvPreviewRecords.filter((row) => row.emailFilled).length;
-  const heldCount = heldBatchToSend?.created ?? 0;
 
   // Unsaved edits on an open record, so leaving it asks before they are lost.
   const recordDirty = viewingStudent !== null && !readOnly && (
@@ -1130,18 +1047,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
       <PortalToast message={toastMessage} />
-
-      <PortalConfirmModal
-        isOpen={heldBatchToSend !== null}
-        title={`Send activation emails to ${heldCount} student${heldCount === 1 ? '' : 's'}?`}
-        message={`Only students from ${heldBatchToSend?.fileName ?? 'this import'} who have not set a password yet are emailed.`}
-        confirmLabel="Send Emails"
-        tone="info"
-        icon={Mail}
-        isLoading={sendingHeld}
-        onConfirm={() => void handleSendHeld()}
-        onCancel={() => setHeldBatchToSend(null)}
-      />
 
       <>
           {/* ========================================================== */}
@@ -1186,7 +1091,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             }
           />
 
-          {(!readOnly || canSeeTransfers) && <RegistryModuleTabs active="students" office={!readOnly} />}
+          {!readOnly && <RegistryModuleTabs active="students" />}
 
           {!readOnly && moveSummary?.semester && semesterMoveWaiting(moveSummary) && (
             <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-[13.5px] font-semibold text-blue-900">
@@ -1529,7 +1434,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           dirty={
             !!manualFormData.name || !!manualFormData.id || !!manualFormData.email || !!manualFormData.phone
             || !!manualFormData.programme || !!manualFormData.intakeBatch || !!manualFormData.semester
-            || !manualFormData.sendCredentialsImmediately || uploadedFile !== null
+            || uploadedFile !== null
           }
           busy={isProcessingCsv || saving}
         >{requestBack => <div id="student-registry-register-view" className="space-y-8 text-left select-none animate-fade-in">
@@ -1557,8 +1462,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       result={importResult}
                       onDownloadReport={downloadImportReport}
                       onClose={() => setImportResult(null)}
-                      onSendHeld={() => setHeldBatchToSend(importResult.batch)}
-                      sendingHeld={sendingHeld}
                     />
                   )}
 
@@ -1870,43 +1773,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         </div>
                       </div>
 
-                    </div>
-
-                    {/* ACCOUNT SETTINGS SECTION */}
-                    <div className="space-y-4 pt-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">
-                          Account Settings
-                        </span>
-                        <div className="flex-1 h-[1px] bg-slate-100" />
-                      </div>
-
-                      {/* Info Box */}
-                      <div id="notice-box-credentials" className="bg-[#f0f5ff] border border-[#d0e0ff] text-[#1e3a8a] rounded-2xl p-4 flex items-start gap-3">
-                        <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                      </div>
-
-                      {/* Send activation link now or later */}
-                      <label
-                        htmlFor="send-credentials-toggle"
-                        className="border border-slate-200 rounded-2xl p-5 flex items-start gap-4 bg-white shadow-3xs cursor-pointer"
-                      >
-                        <input
-                          id="send-credentials-toggle"
-                          type="checkbox"
-                          checked={manualFormData.sendCredentialsImmediately}
-                          onChange={(e) => setManualFormData({
-                            ...manualFormData,
-                            sendCredentialsImmediately: e.target.checked
-                          })}
-                          className="mt-0.5 w-4.5 h-4.5 shrink-0 accent-blue-600 cursor-pointer"
-                        />
-                        <span className="text-left space-y-1">
-                          <span className="block text-xs font-extrabold text-slate-900">
-                            Send activation link immediately
-                          </span>
-                        </span>
-                      </label>
                     </div>
 
                     {/* BOTTOM ACTIONS BAR */}
@@ -2307,21 +2173,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             </div>
                           )}
 
-                          <div role="group" aria-labelledby="registry-import-email-choice" className="flex flex-col items-end gap-1">
-                            <span id="registry-import-email-choice" className="text-[9.5px] uppercase font-black tracking-wider text-slate-400">
-                              Activation emails
-                            </span>
-                            <SegmentedControl<'now' | 'later'>
-                              options={['now', 'later'] as const}
-                              value={sendInvitesNow ? 'now' : 'later'}
-                              onChange={(choice) => setSendInvitesNow(choice === 'now')}
-                              labels={{ now: 'Send now', later: 'Send later' }}
-                            />
-                            {!sendInvitesNow && (
-                              <span className="text-[10px] font-semibold text-slate-500">Send them from Recent Imports when ready.</span>
-                            )}
-                          </div>
-
                           <PortalButton
                             variant="primary"
                             size="md"
@@ -2342,121 +2193,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               </div>
             )}
 
-            {registerActiveTab === 'bulk' && (
-              <div className="lg:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                {/* CARD 2: CURRENT SEMESTER OVERVIEW CLOCK */}
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
-                  <div className="flex items-center gap-3 mb-4 select-none">
-                    <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 border border-pink-100 flex items-center justify-center shrink-0">
-                      <Layers className="w-5 h-5" />
-                    </div>
-                    <h3 className="section-label">Registry Snapshot</h3>
-                  </div>
-
-                  {/* Sub bento items */}
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                  
-                    {/* Item 1: Total count */}
-                    <div className="bg-blue-50/50 border border-blue-100/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                      <span className="card-label block">Total Registered</span>
-                      <h3 className="card-metric text-blue-700 mt-1">{students.length.toLocaleString()}</h3>
-                      <div className="absolute right-3 bottom-2 animate-pulse text-blue-500/10">
-                        <GraduationCap className="w-8 h-8" />
-                      </div>
-                    </div>
-
-                    {/* Item 2: Pending count */}
-                    <div className="bg-amber-50/50 border border-amber-150/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                      <span className="card-label block">Awaiting Activation</span>
-                      <h3 className="card-metric text-amber-700 mt-1">
-                        {students.filter(s => s.activated === false).length.toLocaleString()}
-                      </h3>
-                      <div className="absolute right-3 bottom-2 text-amber-600/15">
-                        <ShieldAlert className="w-8 h-8" />
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-
-                {/* CARD 3: RECENT IMPORTS METADATA HISTORIES */}
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
-                  <div className="flex items-center justify-between gap-3 mb-4 select-none">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <h3 className="section-label">Recent Imports</h3>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAllImports(!showAllImports)}
-                      className="text-blue-600 hover:text-blue-800 text-xs font-bold cursor-pointer"
-                    >
-                      {showAllImports ? 'Show Recent' : 'View All'}
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {recentImportsError && (
-                      <p className="text-[10.5px] font-semibold text-rose-600">{recentImportsError}</p>
-                    )}
-                    {!recentImportsError && recentImports.length === 0 && (
-                      <p className="text-[10.5px] font-semibold text-slate-400">No imports yet.</p>
-                    )}
-                    {recentImports.map((batch) => (
-                      <div
-                        key={batch.id}
-                        className="p-3 bg-[#f8fafc] border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 text-left"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                            <FileSpreadsheet className="w-4.5 h-4.5" />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-extrabold text-brand-navy text-[11px] block truncate select-all" title={batch.fileName}>
-                              {batch.fileName}
-                            </span>
-                            <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">
-                              {new Date(batch.createdAt).toLocaleDateString()} • {batchSummary(batch)}
-                            </span>
-                            {batch.uploadedBy && (
-                              <span className="text-[9.5px] text-slate-400 font-semibold block">by {batch.uploadedBy}</span>
-                            )}
-                            {batch.invitationsHeld && (
-                              <span className="mt-1 inline-flex items-center gap-1.5">
-                                <span className="text-[9.5px] font-black uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                                  Emails on hold
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setHeldBatchToSend(batch)}
-                                  className="text-[10px] font-black text-blue-600 hover:underline cursor-pointer"
-                                >
-                                  Send now
-                                </button>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {batch.problems.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => downloadImportProblems(batch)}
-                            className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer shrink-0"
-                            title="Download the rows that were skipped or not imported"
-                            aria-label={`Download the rows from ${batch.fileName} that were skipped or not imported`}
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
           </div>
 
@@ -2495,32 +2231,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       Programme Mapped
                     </span>
                     <ProgrammeChip label={viewingStudent.programme} />
-                    {transfer?.pending ? (
-                      <div className="mt-2 space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] font-semibold text-amber-900">
-                        <p>
-                          Transfer to {transfer.pending.destination} waiting for{' '}
-                          {transfer.pending.waitingFor.length ? transfer.pending.waitingFor.join(' or ') : 'a programme coordinator'}.
-                        </p>
-                        {canSeeTransfers && (
-                          <button
-                            type="button"
-                            className="font-bold text-blue-700 hover:text-blue-900"
-                            onClick={() => navigate(routeForProgrammeTransfer(transfer.pending!.id), { state: { recordReturn: { path: `${APP_ROUTES.registry}?student=${encodeURIComponent(viewingStudent.id)}`, label: 'Student Record' } } })}
-                          >
-                            View transfer
-                          </button>
-                        )}
-                      </div>
-                    ) : !readOnly && transfer?.hasResearchProfile ? (
-                      <PortalButton
-                        size="sm"
-                        icon={ArrowRightLeft}
-                        className="mt-2"
-                        onClick={() => navigate(routeForNewProgrammeTransfer(viewingStudent.id), { state: { recordReturn: { path: `${APP_ROUTES.registry}?student=${encodeURIComponent(viewingStudent.id)}`, label: 'Student Record' } } })}
-                      >
-                        Request programme transfer
-                      </PortalButton>
-                    ) : null}
                   </div>
 
                   {/* Academic Status checks */}
@@ -2629,18 +2339,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         className="form-control form-control-sm normal-case tracking-normal"
                       />
                     </label>
-                    {transfer?.hasResearchProfile ? (
-                      <div className="flex flex-col gap-1 form-label">
-                        Programme
-                        <span className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-bold normal-case tracking-normal text-slate-700">
-                          <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-                          {viewingStudent.programme}
-                        </span>
-                        <span className="text-[10.5px] font-semibold normal-case tracking-normal text-slate-500">
-                          Has a research profile, so the programme changes through Request programme transfer.
-                        </span>
-                      </div>
-                    ) : (
                     <label className="flex flex-col gap-1 form-label">
                       Programme
                       <SelectMenu
@@ -2657,7 +2355,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         disabled={detailsSaving}
                       />
                     </label>
-                    )}
                     <label className="flex flex-col gap-1 form-label">
                       Intake
                       <SelectMenu
@@ -2671,6 +2368,25 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       />
                     </label>
                   </div>
+                  {detailsDraft.programme !== viewingStudent.programme && (
+                    <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-[11.5px] font-semibold text-amber-900">
+                        Only fix a programme entered by mistake. A student who wants to change programme must withdraw and apply again.
+                      </p>
+                      {viewingStudent.hasResearchProfile && (
+                        <textarea
+                          aria-label="Reason for the correction"
+                          value={detailsDraft.programmeReason}
+                          onChange={(e) => editDetails({ programmeReason: e.target.value })}
+                          disabled={detailsSaving}
+                          rows={2}
+                          maxLength={1000}
+                          placeholder="Reason for the correction (required)"
+                          className="form-control form-control-sm resize-none"
+                        />
+                      )}
+                    </div>
+                  )}
                   {detailsError && (
                     <p role="alert" className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold">
                       {detailsError}
@@ -2740,15 +2456,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                               {statusBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
                             </ul>
                           )}
-                          {statusBlockers.length > 0 && onOpenParticipantLifecycle && (
-                            <button
-                              type="button"
-                              onClick={onOpenParticipantLifecycle}
-                              className="underline font-black text-rose-800 cursor-pointer"
-                            >
-                              Resolve in Participant Lifecycle
-                            </button>
-                          )}
                         </div>
                       )}
                       <div className="flex justify-end">
@@ -2764,6 +2471,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </>
                   )}
                 </div>
+                )}
+
+                {!readOnly && (
+                  <StudentStatusCards
+                    key={viewingStudent.id}
+                    matric={viewingStudent.id}
+                    version={`${viewingStudent.academicStatus}:${statusBlockers.length}`}
+                    onChanged={(message) => {
+                      triggerToast(message);
+                      setStatusError(null);
+                      setStatusBlockers([]);
+                    }}
+                  />
                 )}
 
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-150 space-y-3">

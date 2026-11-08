@@ -1,6 +1,7 @@
 from datetime import timedelta
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
+from .delegations import today
 from .models import User, Lecturer, Coordinator, Student
 
 @override_settings(PASSWORD_HASHERS=['django.contrib.auth.hashers.MD5PasswordHasher'])
@@ -51,6 +52,16 @@ class DelegationTests(TestCase):
         self.assertEqual(self.client.get('/api/accounts/coordinator-delegations/options/').status_code, 403)
         self.client.force_authenticate(User.objects.get(email='student@delegation.test'))
         self.assertEqual(self.client.get('/api/accounts/coordinator-delegations/').status_code, 403)
+
+    def test_only_the_approved_programmes_are_offered(self):
+        from .programmes import APPROVED_PROGRAMMES
+        options = self.client.get('/api/accounts/coordinator-delegations/options/').data
+        self.assertEqual(options['programmes'], APPROVED_PROGRAMMES)
+        response = self.client.post('/api/accounts/coordinator-delegations/', {
+            'coordinatorId': self.user.pk, 'programme': APPROVED_PROGRAMMES[0], 'startsOn': str(today()),
+            'endsOn': str(today()), 'justification': 'Covering',
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
 
     def test_dates_eligibility_retirement_and_programme_binding(self):
         from unittest.mock import patch

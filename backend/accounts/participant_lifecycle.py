@@ -33,6 +33,9 @@ from .semester_rules import mark_current_semester_as_leave, minimum_problem
 from .session_tokens import blacklist_user_refresh_tokens
 
 
+LECTURER_LEFT = (Lecturer.Lifecycle.RETIRED, Lecturer.Lifecycle.RESIGNED)
+
+
 class ParticipantLifecycleConflict(Exception):
     def __init__(self, message, blockers=None):
         super().__init__(message)
@@ -255,7 +258,7 @@ def serialize_lecturer(lecturer, include_audits=True):
         "programme": None,
         "department": lecturer.department,
         "lifecycleStatus": lecturer.lifecycle_status,
-        "accountAccess": "DISABLED" if lecturer.lifecycle_status == Lecturer.Lifecycle.RETIRED else "ACTIVE",
+        "accountAccess": "DISABLED" if lecturer.lifecycle_status in LECTURER_LEFT else "ACTIVE",
         "changedAt": lecturer.lifecycle_changed_at.isoformat() if lecturer.lifecycle_changed_at else None,
         "changedBy": lecturer.lifecycle_changed_by.full_name if lecturer.lifecycle_changed_by else None,
         "reason": lecturer.lifecycle_reason or None,
@@ -533,7 +536,11 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
     if not reason:
         raise ValueError("A lifecycle reason is required.")
     if target_status not in Lecturer.Lifecycle.values:
-        raise ValueError("Select Active, Retiring, or Retired.")
+        raise ValueError("Select Active, Retiring, Retired, or Resigned.")
+    if target_status == Lecturer.Lifecycle.ACTIVE:
+        from .staff_accounts import _lock_staff_accounts
+
+        _lock_staff_accounts()
     lecturer = Lecturer.objects.select_for_update().select_related("user").get(
         staff_no__iexact=staff_no
     )
@@ -542,8 +549,10 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
         Lecturer.Lifecycle.RETIRING: {
             Lecturer.Lifecycle.ACTIVE,
             Lecturer.Lifecycle.RETIRED,
+            Lecturer.Lifecycle.RESIGNED,
         },
-        Lecturer.Lifecycle.RETIRED: set(),
+        Lecturer.Lifecycle.RETIRED: {Lecturer.Lifecycle.ACTIVE},
+        Lecturer.Lifecycle.RESIGNED: {Lecturer.Lifecycle.ACTIVE},
     }
     if target_status not in allowed[lecturer.lifecycle_status]:
         raise ParticipantLifecycleConflict(
@@ -551,7 +560,7 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
             lecturer_blockers(lecturer),
         )
     affected = {}
-    if target_status == Lecturer.Lifecycle.RETIRED:
+    if target_status in LECTURER_LEFT:
         blockers = lecturer_blockers(lecturer)
         required_zero = [
             "pendingCoSupervisorNominations",
@@ -565,7 +574,8 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
         ]
         if any(blockers[key] for key in required_zero):
             raise ParticipantLifecycleConflict(
-                "Retirement is blocked by active appointments or responsibilities.",
+                f"{'Retirement' if target_status == Lecturer.Lifecycle.RETIRED else 'Resignation'} "
+                "is blocked by active appointments or responsibilities.",
                 blockers,
             )
         retired = retire_participant_evaluation_tasks(
@@ -577,6 +587,21 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
         lecturer.user.is_active = False
         lecturer.user.save(update_fields=["is_active"])
         blacklist_user_refresh_tokens(lecturer.user)
+    elif lecturer.lifecycle_status in LECTURER_LEFT:
+        # The profile was kept while they were away, so only sign-in comes back.
+        # Someone else may have taken over a programme in the meantime.
+        from .staff_accounts import programme_coordinator
+
+        coordinator = Coordinator.objects.filter(lecturer=lecturer).first()
+        programme = coordinator.programme_managed.strip() if coordinator else ""
+        holder = programme_coordinator(programme, lecturer.user) if programme else None
+        if holder is not None:
+            raise ParticipantLifecycleConflict(
+                f"{holder.full_name} now coordinates this programme. Change this account's programme first.",
+                lecturer_blockers(lecturer),
+            )
+        lecturer.user.is_active = True
+        lecturer.user.save(update_fields=["is_active"])
     _set_lecturer_status(
         lecturer,
         target=target_status,

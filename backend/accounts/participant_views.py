@@ -80,6 +80,7 @@ def participant_list_view(request):
         "activeLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.ACTIVE).count(),
         "retiringLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.RETIRING).count(),
         "retiredLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.RETIRED).count(),
+        "resignedLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.RESIGNED).count(),
     }
     programmes = list(
         Student.objects.exclude(programme="")

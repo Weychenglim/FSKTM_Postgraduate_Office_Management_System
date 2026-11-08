@@ -72,9 +72,6 @@ export const RecordGraduations: React.FC = () => {
   const matching = filterPeople(everyone, filters);
   const stopped = filterPeople(overview?.stop ?? [], filters);
   const shown = view === 'all' ? matching : matching.filter(student => student.group === view);
-  const readyShown = shown.filter(student => student.group === 'ready');
-  const selectable = readyShown.length ? readyShown : shown;
-  const allSelected = selectable.length > 0 && selectable.every(student => picked.has(student.matric));
   const going = everyone.filter(student => picked.has(student.matric));
   const early = going.filter(student => student.early);
   const unfinished = going.filter(student => student.group === 'check' && !student.early);
@@ -83,15 +80,6 @@ export const RecordGraduations: React.FC = () => {
     const next = new Set(current);
     if (on) next.add(matric);
     else next.delete(matric);
-    return next;
-  });
-
-  const toggleAll = (on: boolean) => setPicked(current => {
-    const next = new Set(current);
-    for (const student of selectable) {
-      if (on) next.add(student.matric);
-      else next.delete(student.matric);
-    }
     return next;
   });
 
@@ -188,13 +176,8 @@ export const RecordGraduations: React.FC = () => {
         <PeopleFilters people={[...everyone, ...overview.stop]} programme={programme} intake={intake} query={query} onProgramme={setProgramme} onIntake={setIntake} onQuery={setQuery} />
       </div>
 
-      <label className="flex cursor-pointer items-center gap-3 border-y border-slate-200 bg-slate-50 px-5 py-3 text-[13px] font-bold text-brand-navy sm:px-6">
-        <input type="checkbox" className="h-[18px] w-[18px] cursor-pointer" checked={allSelected} disabled={selectable.length === 0} onChange={event => toggleAll(event.target.checked)} />
-        Select all{readyShown.length ? ' ready' : ''} ({selectable.length})
-      </label>
-
       {shown.length ? (
-        <ul aria-label="Students" className="divide-y divide-slate-100">
+        <ul aria-label="Students" className="divide-y divide-slate-100 border-t border-slate-200">
           {shown.map(student => (
             <PersonTickRow
               key={student.matric}
@@ -238,7 +221,7 @@ export const RecordGraduations: React.FC = () => {
       )}
 
       <DialogShell
-        title={`Record ${going.length} ${going.length === 1 ? 'graduation' : 'graduations'}?`}
+        title={`Record ${going.length} ${going.length === 1 ? 'student' : 'students'} as graduated?`}
         titleId={titleId}
         isOpen={confirming}
         busy={busy}
@@ -246,20 +229,26 @@ export const RecordGraduations: React.FC = () => {
         footer={<>
           <PortalButton disabled={busy} onClick={() => setConfirming(false)}>Cancel</PortalButton>
           <PortalButton variant="primary" isLoading={busy} disabled={!reason.trim()} onClick={() => void record()}>
-            Record {going.length} {going.length === 1 ? 'graduation' : 'graduations'}
+            Record as graduated
           </PortalButton>
         </>}
       >
-        <p className="text-[13.5px] font-semibold text-slate-800">{nameList(going)}</p>
-        <p className="text-[13.5px] text-slate-600">This can't be undone. Appointments end as Completed and each student gets a notice.</p>
+        <ol aria-label="Students to record" className="grid list-decimal gap-x-8 gap-y-1 pl-5 text-[13.5px] font-semibold text-slate-800 sm:grid-cols-2">
+          {going.map(student => (
+            <li key={student.matric}>
+              {student.name} <span className="font-mono text-[12px] font-medium text-slate-500">{student.matric}</span>
+            </li>
+          ))}
+        </ol>
+        <p className="text-[13.5px] text-slate-600">You can't undo this. Their supervisor and panel appointments will close, and each student will get a notice.</p>
         {(early.length > 0 || unfinished.length > 0) && (
           <div className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-900">
             {early.length > 0 && <p>Approved to finish early: {nameList(early)}.</p>}
-            {unfinished.length > 0 && <p>Still unfinished: {nameList(unfinished)}.</p>}
+            {unfinished.length > 0 && <p>Not everything finished: {nameList(unfinished)}.</p>}
           </div>
         )}
         <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-          Senate meeting or letter
+          Senate approval
           <input
             className="form-control form-control-md"
             maxLength={1000}

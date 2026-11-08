@@ -8,6 +8,7 @@ from rest_framework.exceptions import APIException, PermissionDenied, Validation
 
 from .authorization import office_actor
 from .models import Coordinator, CoordinatorDelegation, Lecturer, Student, User
+from .programmes import APPROVED_PROGRAMMES
 
 
 class DelegationConflict(APIException):
@@ -30,7 +31,8 @@ def require_office(user):
 
 def recognised_programmes():
     from appointments.models import StudentResearchProfile
-    values = list(Student.objects.values_list('programme', flat=True))
+    values = list(APPROVED_PROGRAMMES)
+    values += list(Student.objects.values_list('programme', flat=True))
     values += list(Coordinator.objects.values_list('programme_managed', flat=True))
     values += list(StudentResearchProfile.objects.values_list('programme', flat=True))
     canonical = {}

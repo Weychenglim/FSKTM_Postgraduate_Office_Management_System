@@ -97,7 +97,6 @@ const OfficeAttentionPage = lazyNamed('OfficeAttentionPage', () => import('./com
 const TimelineManagement = lazyNamed('TimelineManagement', () => import('./components/TimelineManagement'));
 const OfficePeriodsManagement = lazyNamed('OfficePeriodsManagement', () => import('./components/OfficePeriodsManagement'));
 const AcademicSemesterManagement = lazyNamed('AcademicSemesterManagement', () => import('./components/AcademicSemesterManagement'));
-const ParticipantLifecycleManagement = lazyNamed('ParticipantLifecycleManagement', () => import('./components/ParticipantLifecycleManagement'));
 const WorkflowReconciliationCentre = lazyNamed('WorkflowReconciliationCentre', () => import('./components/WorkflowReconciliationCentre'));
 const LecturerCapacityManagement = lazyNamed('LecturerCapacityManagement', () => import('./components/LecturerCapacityManagement'));
 const FileRepository = lazyNamed('FileRepository', () => import('./components/FileRepository'));
@@ -115,10 +114,8 @@ const LetterTemplateManagement = lazyNamed('LetterTemplateManagement', () => imp
 const StudentLetterGeneration = lazyNamed('StudentLetterGeneration', () => import('./components/StudentLetterGeneration'));
 const StudentMyRecords = lazyNamed('StudentMyRecords', () => import('./components/StudentMyRecords'));
 const StudentRegistry = lazyNamed('StudentRegistry', () => import('./components/StudentRegistry'));
-const ProgrammeTransfers = lazyNamed('ProgrammeTransfers', () => import('./components/ProgrammeTransfers'));
-const ProgrammeTransferPage = lazyNamed('ProgrammeTransferPage', () => import('./components/ProgrammeTransferPage'));
-const ProgrammeTransferForm = lazyNamed('ProgrammeTransferForm', () => import('./components/ProgrammeTransferForm'));
 const ProgrammeRules = lazyNamed('ProgrammeRules', () => import('./components/ProgrammeRules'));
+const ActingCoordinators = lazyNamed('ActingCoordinators', () => import('./components/ActingCoordinators'));
 const UpdateCurrentSemester = lazyNamed('UpdateCurrentSemester', () => import('./components/UpdateCurrentSemester'));
 const RecordGraduations = lazyNamed('RecordGraduations', () => import('./components/RecordGraduations'));
 const StaffLecturersRegistry = lazyNamed('StaffLecturersRegistry', () => import('./components/StaffLecturersRegistry'));
@@ -238,8 +235,6 @@ export default function App() {
     : 'entries';
   const isStaffRoute = pathname === APP_ROUTES.registryStaff || pathname.startsWith(`${APP_ROUTES.registryStaff}/`);
   const staffAccountMatch = pathname === APP_ROUTES.registryStaffNew ? null : matchPath(`${APP_ROUTES.registryStaff}/:accountId`, pathname);
-  const isTransferRoute = pathname === APP_ROUTES.registryTransfers || pathname.startsWith(`${APP_ROUTES.registryTransfers}/`);
-  const transferMatch = pathname === APP_ROUTES.registryTransferNew ? null : matchPath(`${APP_ROUTES.registryTransfers}/:transferId`, pathname);
   const isSupervisorWorkloadRoute = pathname === APP_ROUTES.supervisorAppointmentWorkload;
   const isSupervisorRequestsRoute = pathname === APP_ROUTES.supervisorAppointmentRequests;
   const isSupervisorNewRoute = pathname === APP_ROUTES.supervisorAppointmentNew;
@@ -760,16 +755,8 @@ export default function App() {
               currentUser.role === 'Office Staff/Admin' ? <UpdateCurrentSemester /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryGraduations ? (
               currentUser.role === 'Office Staff/Admin' ? <RecordGraduations /> : <Navigate to={APP_ROUTES.registry} replace />
-            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isTransferRoute && currentUser.role !== 'Office Staff/Admin' && currentUser.role !== 'Programme Coordinator' ? (
-              <Navigate to={APP_ROUTES.registry} replace />
-            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryTransferNew ? (
-              currentUser.role === 'Office Staff/Admin'
-                ? <ProgrammeTransferForm key={location.search} matric={new URLSearchParams(location.search).get('student') ?? ''} />
-                : <Navigate to={APP_ROUTES.registryTransfers} replace />
-            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && transferMatch ? (
-              <ProgrammeTransferPage key={transferMatch.params.transferId} transferId={transferMatch.params.transferId ?? ''} />
-            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isTransferRoute ? (
-              <ProgrammeTransfers office={currentUser.role === 'Office Staff/Admin'} />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryActingCoordinators ? (
+              currentUser.role === 'Office Staff/Admin' ? <ActingCoordinators /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute && currentUser.role !== 'Office Staff/Admin' ? (
               <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute ? (
@@ -780,8 +767,6 @@ export default function App() {
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry
                 readOnly={currentUser.role !== 'Office Staff/Admin'}
-                canSeeTransfers={currentUser.role === 'Office Staff/Admin' || currentUser.role === 'Programme Coordinator'}
-                onOpenParticipantLifecycle={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
               pathname === APP_ROUTES.myProfile && !isStudentWorkspace ? (
@@ -818,13 +803,8 @@ export default function App() {
                   onNavigateToRoute={navigate}
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
-              ) : isDashboardParticipantLifecycleRoute && currentUser.role !== 'Office Staff/Admin' ? (
-                <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardParticipantLifecycleRoute ? (
-                <ParticipantLifecycleManagement
-                  onBack={() => navigate(APP_ROUTES.dashboard)}
-                  onOpenReconciliation={() => navigate(APP_ROUTES.dashboardWorkflowReconciliation)}
-                />
+                <Navigate to={currentUser.role === 'Office Staff/Admin' ? APP_ROUTES.registry : APP_ROUTES.dashboard} replace />
               ) : isStudentOtherDossierRoute ? (
                 <Navigate to={APP_ROUTES.dashboardProgress} replace />
               ) : isDashboardProgressRoute && !dossierStudentId ? (
@@ -872,7 +852,6 @@ export default function App() {
               ) : isDashboardSemestersRoute ? (
                 <AcademicSemesterManagement
                   onBack={() => navigate(APP_ROUTES.dashboard)}
-                  onManageParticipants={() => navigate(APP_ROUTES.dashboardParticipantLifecycle)}
                   onOpenReconciliation={() => navigate(APP_ROUTES.dashboardWorkflowReconciliation)}
                   onOpenCapacity={(semesterId) => navigate(`${APP_ROUTES.dashboardLecturerCapacity}${semesterId ? `?semester=${semesterId}` : ''}`)}
                 />
@@ -928,7 +907,7 @@ export default function App() {
                 <FileRepository />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.FAQ_CHATBOT ? (
-              isStudentWorkspace || currentUser.role === 'Programme Coordinator' ? (
+              isStudentWorkspace ? (
                 <StudentFAQChatbot />
               ) : (
                 <AcademicFAQEditor view={faqView} entryId={faqEntryMatch?.params.entryId} />

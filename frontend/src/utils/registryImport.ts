@@ -7,7 +7,6 @@
 import type { CsvColumn } from './csvExport';
 import { describeProgramme } from './programmeLabel';
 import type {
-  BatchInvitationResult,
   ImportColumn,
   ImportDifference,
   ImportField,
@@ -15,7 +14,6 @@ import type {
   ImportPreviewRow,
   ImportProgrammeValue,
   RegistryImportBatch,
-  RegistryImportProblem,
 } from '../types';
 
 // ---------------- Matching the file's columns ----------------
@@ -222,27 +220,6 @@ export const importOutcome = (row: ImportPreviewRow): string => {
   return 'Not imported';
 };
 
-/**
- * The import report once held activation emails go out: each held row shows
- * whether its email was sent. Students who activated or were suspended in the
- * meantime were not emailed, so they read simply as created.
- */
-export const rowsAfterHeldSend = (
-  rows: ImportPreviewRow[],
-  students: BatchInvitationResult['students'],
-): ImportPreviewRow[] => {
-  const outcomes = new Map(students.map((student) => [student.line, student.outcome]));
-  return rows.map((row) => {
-    if (!row.invitationHeld) return row;
-    const outcome = outcomes.get(row.line);
-    return {
-      ...row,
-      invitationHeld: false,
-      invitationSent: outcome === 'sent' || outcome === 'failed' ? outcome === 'sent' : undefined,
-    };
-  });
-};
-
 /** Columns of the report the office downloads after an import: every row and what happened to it. */
 export const IMPORT_REPORT_COLUMNS: CsvColumn<ImportPreviewRow>[] = [
   { header: 'Line', value: (row) => row.line },
@@ -255,16 +232,6 @@ export const IMPORT_REPORT_COLUMNS: CsvColumn<ImportPreviewRow>[] = [
     header: 'Details',
     value: (row) => [rowExplanation(row), differenceWarning(row), ...derivedNotes(row)].filter(Boolean).join(' '),
   },
-];
-
-/** Columns of a past batch's download: the rows that were skipped or not imported. */
-export const BATCH_PROBLEM_COLUMNS: CsvColumn<RegistryImportProblem>[] = [
-  { header: 'Line', value: (problem) => problem.line },
-  { header: 'Student ID', value: (problem) => problem.id },
-  { header: 'Full name', value: (problem) => problem.name ?? '' },
-  { header: 'Result', value: (problem) => problem.result },
-  { header: 'Reason', value: (problem) => problem.issue },
-  { header: 'In the registry as', value: (problem) => problem.existingName ?? '' },
 ];
 
 /** "3 created · 4 already registered · 1 not imported · 2 emails not sent" for a past batch. */

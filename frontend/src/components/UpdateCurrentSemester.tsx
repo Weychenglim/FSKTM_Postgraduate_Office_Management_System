@@ -9,8 +9,7 @@ import { ArrowRight, Check, ChevronDown, GraduationCap, Info, Search } from 'luc
 import type { MoveState, MoveStudent } from '../services/registrySemestersApi';
 import { getSemesterMove, moveStudents } from '../services/registrySemestersApi';
 import { APP_ROUTES } from '../constants/routes';
-import { shortProgramme } from '../utils/programmeTransfers';
-import { filterPeople, findStudents, intakeFilterOptions, matchesIntake, shortSemester, studentCount } from '../utils/registrySemesters';
+import { filterPeople, findStudents, intakeFilterOptions, matchesIntake, shortProgramme, shortSemester, studentCount } from '../utils/registrySemesters';
 import { PeopleFilters, PersonRow, PersonTickRow, SelectionBar } from './RegistryPersonRow';
 import { PortalButton } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';

@@ -2,7 +2,6 @@ import type { UserRole, WorkflowReport, WorkflowReportAttentionItem, WorkflowRep
 import {
   APP_ROUTES,
   routeForDashboardTimeline,
-  routeForParticipantLifecycle,
   routeForWorkflowReconciliation,
   routeForPanelRecommendation,
   routeForSupervisorApplication,
@@ -65,9 +64,8 @@ export const canOpenReportDossier = (
 export const resolveWorkflowReportRecordRoute = (
   item: Pick<WorkflowReportAttentionItem, 'recordType' | 'recordId'>,
 ): string => {
-  if (item.recordType === 'STUDENT_PARTICIPANT' || item.recordType === 'LECTURER_PARTICIPANT') {
-    return routeForParticipantLifecycle();
-  }
+  if (item.recordType === 'STUDENT_PARTICIPANT') return `${APP_ROUTES.registry}?student=${encodeURIComponent(item.recordId)}`;
+  if (item.recordType === 'LECTURER_PARTICIPANT') return APP_ROUTES.registryStaff;
   if (item.recordType === 'RECONCILIATION_ISSUE') {
     return routeForWorkflowReconciliation();
   }

@@ -9,12 +9,10 @@
 // writes always go to the backend (they require an Office Staff/Admin session).
 
 import {
-  BatchInvitationResult,
   ImportCommitResponse,
   ImportInspectResponse,
   ImportOptions,
   ImportPreviewResponse,
-  RegistryImportBatch,
   StudentRecord,
 } from '../types';
 import { MOCK_STUDENTS } from '../mocks/students';
@@ -42,6 +40,7 @@ export interface StudentRecordUpdate {
   name?: string;
   email?: string;
   programme?: string;
+  programmeReason?: string;
   academicStatus?: StudentRecord['academicStatus'];
   statusReason?: string;
   earlyCompletionApproved?: boolean;
@@ -177,16 +176,7 @@ export async function commitStudentImport(
   );
 }
 
-/** Email the activation links an import held back (only students still waiting). */
-export async function sendBatchInvitations(batchId: number): Promise<BatchInvitationResult> {
-  return request<BatchInvitationResult>(`/registry/imports/${batchId}/send-invitations/`, { method: 'POST' });
-}
-
 /** The Excel template for typing a list: Programme is a dropdown, and Student ID and Phone keep leading zeros. */
 export async function downloadImportTemplate(): Promise<Blob> {
   return requestBlob('/registry/students/import/template/');
-}
-
-export async function getRecentImports(limit = 5): Promise<RegistryImportBatch[]> {
-  return request<RegistryImportBatch[]>(`/registry/imports/?limit=${limit}`);
 }

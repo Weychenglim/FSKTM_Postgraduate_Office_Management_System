@@ -1,6 +1,15 @@
 import type { GraduationItem, SemesterOutcome, SemesterTerm, StudentSemesters } from '../services/registrySemestersApi';
 import type { BadgeTone } from '../components/PortalPrimitives';
-import { APP_ROUTES, routeForProgrammeTransfer } from '../constants/routes';
+import { APP_ROUTES, routeForSupervisorResearchRequest } from '../constants/routes';
+
+const SMALL_WORDS = new Set(['of', 'and', 'in', 'the', 'by']);
+
+/** "MASTER OF DATA SCIENCE (COURSEWORK)" becomes "Data Science", for narrow columns. */
+export function shortProgramme(programme: string): string {
+  const core = programme.trim().replace(/^master of\s+/i, '').replace(/\s*\(.*\)\s*$/, '');
+  if (!core) return programme;
+  return core.toLowerCase().split(/\s+/).map((word, index) => (index > 0 && SMALL_WORDS.has(word) ? word : word.charAt(0).toUpperCase() + word.slice(1))).join(' ');
+}
 
 export const semesterCount = (count: number) => `${count} ${count === 1 ? 'semester' : 'semesters'}`;
 export const studentCount = (count: number) => `${count} ${count === 1 ? 'student' : 'students'}`;
@@ -137,7 +146,7 @@ export function fixLink(item: Pick<GraduationItem, 'fix' | 'recordId'>, matric: 
     case 'documents': return { label: 'View files', to: `${APP_ROUTES.files}?student=${encoded}` };
     case 'research': return { label: 'Open request', to: APP_ROUTES.supervisorResearchChanges };
     case 'programmes': return { label: 'Open Programmes', to: APP_ROUTES.registryProgrammes };
-    case 'transfer': return item.recordId ? { label: 'Open transfer', to: routeForProgrammeTransfer(item.recordId) } : null;
+    case 'transfer': return item.recordId ? { label: 'Open request', to: routeForSupervisorResearchRequest(String(item.recordId)) } : null;
     default: return null;
   }
 }

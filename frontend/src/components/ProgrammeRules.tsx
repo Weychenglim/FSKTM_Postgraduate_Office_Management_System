@@ -31,7 +31,7 @@ const Durations: React.FC<{ minimum: number | null; maximum: number | null; spec
     <div>
       <p className="card-label">Minimum</p>
       <p className="text-[14px] font-bold text-slate-900">{semesterCount(minimum ?? 0)}</p>
-      {specialCounts && <p className="text-[12px] font-medium text-slate-500">A Special Semester counts</p>}
+      {specialCounts && <p className="text-[12px] font-medium text-slate-500">Special Semesters included</p>}
     </div>
     <div>
       <p className="card-label">Maximum</p>
@@ -134,7 +134,7 @@ export const ProgrammeRules: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader title="Student Registry" subtitle="How long each programme takes." />
-      <RegistryModuleTabs active="programmes" office />
+      <RegistryModuleTabs active="programmes" />
       {error ? (
         <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
       ) : !rules ? (
@@ -208,10 +208,10 @@ export const ProgrammeRules: React.FC = () => {
         </div>
         <label className="flex items-start gap-2.5 text-[13.5px] font-semibold text-slate-700">
           <input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={specialCounts} disabled={busy} onChange={event => setSpecialCounts(event.target.checked)} />
-          A Special Semester counts toward the minimum
+          Include Special Semesters in the minimum
         </label>
         <p className="text-[13px] text-slate-500">
-          {editing?.isNew ? 'Earlier intakes keep their rule.' : `Applies to ${studentCount(applies ?? 0)} straight away.`}
+          {editing?.isNew ? 'Students from earlier intakes are not affected.' : `Applies to ${studentCount(applies ?? 0)} straight away.`}
         </p>
         {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
       </DialogShell>

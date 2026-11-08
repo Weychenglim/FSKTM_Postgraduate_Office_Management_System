@@ -15,12 +15,12 @@ test('home exposes seven tools without the rejected navigation strip or dropdown
   assert.doesNotMatch(readFileSync(new URL('./OfficeDashboardLayout.tsx',import.meta.url),'utf8'),/Office Dashboard pages|office-administration-menu|office-mobile-navigation/);
 });
 
-test('Office finds attention before calendar without losing participant access', () => {
+test('Office finds attention before calendar, with participants managed in Registry', () => {
   const html = renderToStaticMarkup(<AdministrationDashboard onNavigateToTab={() => {}} />);
   const attention = html.indexOf('Needs attention');
   const calendar = html.indexOf('Semester Timeline');
   assert.ok(attention >= 0 && attention < calendar, 'Attention must precede calendar');
-  assert.match(html, /Manage Participants/);
+  assert.doesNotMatch(html, /Manage Participants/);
 });
 
 test('independent periods workspace is a known route without replacing protected route', () => {

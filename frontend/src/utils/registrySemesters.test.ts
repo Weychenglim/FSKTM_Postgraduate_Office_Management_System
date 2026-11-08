@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { StudentSemesters } from '../services/registrySemestersApi';
 import { APP_ROUTES } from '../constants/routes';
-import { canonicalSemester, filterPeople, findStudents, fixLink, intakeFilterOptions, intakeNotice, matchesIntake, NO_INTAKE, semesterChoices, semesterParts, maximumNotice, semesterCount, semesterMoveWaiting, shortSemester, studentCount, validSession } from './registrySemesters';
+import { canonicalSemester, filterPeople, findStudents, fixLink, intakeFilterOptions, intakeNotice, matchesIntake, NO_INTAKE, semesterChoices, semesterParts, maximumNotice, semesterCount, semesterMoveWaiting, shortSemester, studentCount, validSession, shortProgramme } from './registrySemesters';
 
 assert.equal(semesterCount(1), '1 semester');
 assert.equal(semesterCount(3), '3 semesters');
@@ -41,7 +41,7 @@ assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: {} }), fa
 assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: null }), true);
 
 assert.deepEqual(fixLink({ fix: 'record', recordId: null }, 'A/1'), { label: 'Open record', to: '/registry?student=A%2F1' });
-assert.deepEqual(fixLink({ fix: 'transfer', recordId: 7 }, 'M1'), { label: 'Open transfer', to: '/registry/transfers/7' });
+assert.deepEqual(fixLink({ fix: 'transfer', recordId: 7 }, 'M1'), { label: 'Open request', to: '/supervisor-appointments/research-changes/7' });
 assert.equal(fixLink({ fix: 'transfer', recordId: null }, 'M1'), null);
 assert.equal(fixLink({ fix: '', recordId: null }, 'M1'), null);
 assert.equal(fixLink({ fix: 'marks', recordId: null }, 'M1')?.to, APP_ROUTES.marks);
@@ -97,3 +97,7 @@ assert.match(intakeNotice({ intake: 'Semester I, 2026/2027 Session', beforeIntak
 assert.match(intakeNotice({ intake: 'Semester I, 2025/2026 Session', beforeIntake: [], startsAfterIntake: true })?.text ?? '', /start later/);
 
 console.log('registry semester helper tests passed');
+
+assert.equal(shortProgramme('MASTER OF DATA SCIENCE (COURSEWORK)'), 'Data Science');
+assert.equal(shortProgramme('Master of Computer Science (By Coursework)'), 'Computer Science');
+assert.equal(shortProgramme('MASTER OF SCIENCE AND TECHNOLOGY'), 'Science and Technology');

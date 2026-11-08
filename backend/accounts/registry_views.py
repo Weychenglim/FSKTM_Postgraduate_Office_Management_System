@@ -35,6 +35,7 @@ from .account_emails import activation_email, email_changed_email
 from .authorization import coordinator_scope_q
 from .models import Lecturer, OfficeStaff, RegistryImportBatch, Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
+from .programme_correction import ProgrammeCorrectionConflict, correct_programme
 from .programmes import APPROVED_PROGRAMMES
 from .registry_import import (
     ImportFileError,
@@ -151,7 +152,7 @@ def to_record(student, rules=None) -> dict:
     supervisor_profile = supervisor._related_or_none("lecturer") if supervisor else None
     return {
         "id": student.matric_no,
-        "userId": student.pk,
+        "hasResearchProfile": user._related_or_none("research_profile") is not None,
         "name": user.full_name,
         "avatarText": _initials(user.full_name),
         "avatarBg": _avatar_bg(student.matric_no),
@@ -252,6 +253,7 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     academicStatus = serializers.ChoiceField(
         choices=Student.Status.choices, required=False
     )
+    programmeReason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
     statusReason = serializers.CharField(
         max_length=1000, allow_blank=True, required=False
     )
@@ -301,7 +303,7 @@ def student_records_view(request):
         return _create_student(request)
 
     queryset = _require_registry_reader(request).select_related(
-        "user", "registry"
+        "user", "user__research_profile", "registry"
     ).prefetch_related(_active_supervision(), "semesters")
     search = (request.query_params.get("search") or "").strip()
     if search:
@@ -852,19 +854,20 @@ def student_record_detail_view(request, matric_no):
 
         student_fields = []
         if "programme" in data and data["programme"] != student.programme:
-            # The research profile carries its own programme, and amendments
-            # require the two to match, so transfers go through that workflow.
+            # The research profile carries its own programme, and the two must match.
             if StudentResearchProfile.objects.filter(student_id=student.user_id).exists():
-                transaction.set_rollback(True)
-                return Response(
-                    {
-                        "error": (
-                            "This student has a research profile. Use Request programme transfer "
-                            "on the Student Record, so the record and the research profile change together."
-                        )
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
+                programme_reason = data.get("programmeReason", "").strip()
+                if not programme_reason:
+                    transaction.set_rollback(True)
+                    return Response(
+                        {"programmeReason": ["Give a reason for the correction."]},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                try:
+                    correct_programme(student, data["programme"], actor=request.user, reason=programme_reason)
+                except ProgrammeCorrectionConflict as exc:
+                    transaction.set_rollback(True)
+                    return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
             student.programme = data["programme"]
             student_fields.append("programme")
         if "intakeDate" in data:

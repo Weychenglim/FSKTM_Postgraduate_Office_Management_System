@@ -321,6 +321,7 @@ class Lecturer(models.Model):
         ACTIVE = "ACTIVE", "Active"
         RETIRING = "RETIRING", "Retiring"
         RETIRED = "RETIRED", "Retired"
+        RESIGNED = "RESIGNED", "Resigned"
 
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, primary_key=True, related_name="lecturer"
