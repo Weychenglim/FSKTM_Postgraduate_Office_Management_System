@@ -1,3 +1,39 @@
+## Assessment display names (8 November 2026)
+
+Assessment options, period lists/search and publication review display Research Project 1 and Research Project 2. Shared assessmentLabel maps existing P1/P2 identifiers without rewriting data or resetting test records; no reseed or migration is needed.
+
+## Historical assessment classification removed (8 November 2026)
+
+Classification UI and non-draft assessment update exception removed at user request, superseding previous classification documentation. Four unclassified UAT test periods were backed up privately and backfilled as P1 with audit reasons. Existing marks remain unchanged. New periods still require assessment; duplicate publication guards remain enforced.
+
+## Compact calendar publication control (8 November 2026)
+
+Calendar publishing sits in the page title's action area, wrapping below the title on narrow screens, consistently across Calendar, Entries and History. Place a small rectangular Unpublished status tag beside the Calendar title, with a soft lavender background, dark indigo 11px text, a small matching status dot, semibold weight, 6px corners and vertical centre alignment with the title. Use the standard primary PortalButton styling, matching Add events, with medium sizing, uppercase PUBLISH CALENDAR, a paper-plane icon and a 40px minimum height. Hide it once published and show a subtly green Published tag beside the title; restore it after another saved change. Publishing shows a spinner and prevents repeat clicks. Keep the semester Active badge beside its selector and publication counts in the review dialog.
+
+## Marks publication safeguards (8 November 2026)
+
+Each rubric version explicitly permits Supervisor, Panel or Both; components inherit this setting. Used versions remain immutable and must be cloned for changes. Evaluation periods identify Project I (P1) or Project II (P2). Publication rejects incompatible roles and duplicate coverage for the same academic semester, assessment, overlapping programme scope and evaluator role, regardless of period names, dates or rubric versions. Distinct P1/P2 assessments and disjoint programmes/roles remain valid. Legacy assessments and rubric compatibility are not guessed from names. Office may classify an unclassified historical period once with an audit reason; existing marks and assignment settings remain unchanged. Ambiguous legacy coverage blocks new overlapping publication until classified. Existing published periods continue operating; general editing or automated replacement of submitted work is outside this change.
+
+Historical classification records identity without creating work, including genuine legacy duplicates. Publication remains blocked by that coverage. Closed periods and archived periods containing tasks reserve coverage; unused archived periods can be replaced. Excel results explicitly identify P1/P2 or unclassified legacy records.
+
+## Office marks Excel export (8 November 2026)
+
+The export control matches Supervisor requests: compact navy Export Excel button with an inline download icon.
+
+Office downloads all marks records matching current search, programme, semester, evaluator, status, period and monitoring filters across every page. Tabs: Summary, Data Science, Cyber Security, Artificial Intelligence and Outstanding. Programme tabs contain submitted evaluator results only, with student/record IDs, research title, semester, period, evaluator role, assignment/period lifecycle, rubric/version, numeric component marks, total/maximum and submission/update timestamps. No combined grade or draft scores/feedback. Summary checks all active assignments for each matching student and period independently of filters; students without matching assignments are not listed. Outstanding respects filters and labels historical assignments. Unknown legacy programmes retain submitted results in an additional Other programmes tab. Exports identify filters, matching count and Malaysia export time, with frozen headings and filters. Google Form-only history and importing it are outside scope.
+
+## Downloadable calendar template guidance (8 November 2026)
+
+The Excel Instructions sheet explains Add events as the default (no duplicate merging), Replace calendar as replacement of the entire draft, existing/incoming/resulting count review and replacement acknowledgement. It explicitly distinguishes saving a draft from Publish calendar, preserves audience and semester visibility rules, and keeps submission-window controls separate. Linked-event preservation guidance applies specifically to replacement and includes the event's position within its P1/P2 group.
+
+## Calendar draft publication and explicit imports (8 November 2026)
+
+Office edits, creates, deletes and imports semester calendar events into an editable draft. Import offers Add events (default) and Replace calendar. Preview shows existing, incoming and resulting counts; replacement requires fresh acknowledgement for that workbook. Signed confirmation binds the mode, actor, file, semester and reviewed calendar/period state.
+
+Publish calendar reviews the whole selected semester draft and replaces its published calendar atomically. Later calendar edits remain private until another publication. Selected audiences see only their published events on reload/focus refresh; dashboard tasks, reminders, student tracking, dossiers and calendar reports use published calendars. Draft-semester publication does not make that semester the current dashboard. Publishing never opens, publishes or closes an operational/marks submission window. Linked events continue projecting their owning period's authoritative dates/status; window changes remain controlled by Periods & deadlines.
+
+Existing visible and historical calendars are preserved during migration; existing Draft semesters remain unpublished. Empty drafts can be published to remove all public events. No approval workflow, automatic duplicate merging or real-time push is added.
+
 ## Phase six feedback scope (1 November 2026)
 
 Requirement saves publish one shared outcome and distinguish a committed write from a failed refresh. Participant and coordinator-delegation drafts require discard consent before replacement or exit; conflict/permission failures retain input and block stale resubmission until successful latest-record review. Seeded delegation dates are clean. Report, appointment-letter and announcement-attachment exports describe a prepared browser handoff; explicit notification read updates are quiet on success and expose failures. Existing permissions, academic transitions, reasons and Malaysia date rules remain authoritative.
@@ -738,7 +774,7 @@ Design and field-by-field scope: `docs/superpowers/specs/2026-10-17-supervisor-s
 
 ## Connected operational periods approved and implemented (2026-10-16)
 
-The user approved implementation of docs/superpowers/plans/2026-10-16-connected-operational-periods.md and clarified that Office should use one main extension entry point in Timeline Management. This supersedes the pending proposal below. Timeline Management configures scoped Supervisor/Panel intake periods, explicitly enables their date rules per semester/activity, links calendar events and extends normal or selected-case/task deadlines through shared controls. Existing Marks period configuration, publication rules, rubric/targeting settings and completion windows remain authoritative; existing Marks screens route deadline management into the shared hub. Closed semesters retain selected Marks recovery access without reopening calendar edits or appointment intake.
+The user approved implementation of docs/superpowers/plans/2026-10-16-connected-operational-periods.md and clarified that Office should use one main extension entry point in Timeline Management. This supersedes the pending proposal below. Timeline Management configures scoped Supervisor/Panel intake periods, explicitly enables their date rules per semester/activity, links calendar events and extends normal or selected-case/task deadlines through shared controls. Existing Marks period configuration, publication rules, rubric/targeting settings and completion windows remain authoritative; existing Marks screens route deadline management into the shared hub and open the selected Marks window directly when a period is known. Closed semesters retain selected Marks recovery access without reopening calendar edits or appointment intake.
 
 Only intake creation gains date guards; submitted requests remain reviewable under existing authority, lifecycle, capacity and conflict rules. Programme scope follows the student; cross-programme lecturer eligibility remains intact. Project stage is not inferred from calendar P1/P2 labels. Existing semesters retain disabled appointment enforcement until Office configures and explicitly enables it. Personal grants preserve expiry, renewal/supersession, revocation, ownership checks and audit history.
 
@@ -1180,6 +1216,7 @@ Direction agreed on 8 October: routine Office users should perform their work in
 - Office previews unfinished work before period closure, semester closure or handover and acknowledges it using a current server-issued preview token. Archived records remain locked; active windows on unfinished tasks block archival.
 - Existing screens, Dashboard actions/counts, reports/exports, dossiers and reconciliation share task-level deadline rules without expanding role-based access. Otherwise eligible closed-period work remains available for an Office recovery decision instead of automatic retirement solely due to closure.
 - Existing assigned tasks retain their ordinary open-period submission access; exceptional completion grants additionally require the current eligible appointment. Published periods without a finite deadline do not need an individual extension. Submitted results retain the deadline used even if it was unlimited.
+- When granting selected-task completion windows, Office can search eligible tasks in a compact table and page through 10 results at a time. Selection persists while searching and paging, and the interface shows the selected count before saving.
 
 ## Temporary Acting-Coordinator Delegation (2026-09-20)
 
@@ -1196,6 +1233,7 @@ Direction agreed on 8 October: routine Office users should perform their work in
 - Targeting is editable only in Draft and appears in configuration audits. Office reviews a refreshed, read-only recipient preview before UI publication, including current student/evaluator pairs, new/existing task counts, and missing eligible appointments. Empty periods may be published with a warning. Preview is an estimate; later eligible appointments receive tasks through existing generation triggers.
 - Preview, generation, and missing-task reconciliation use the same official-role selection. New task creation rechecks eligibility under transaction locks. Programme changes preserve existing tasks and Marks history but govern new assignments, including replacement tasks.
 - Manual backup assignments must stay within the period's programme scope. A linked original task must belong to the same period and student and use an included official role; standalone backups retain existing reasoned audit behavior within scope.
+- The Office backup-assignment form provides server-searched student and lecturer selectors, returning at most 50 matches with the total count and prompting users to refine broad searches. Student matches are restricted to the selected period's programme scope. After choosing a student, Office can optionally link the backup to that student's official Supervisor or Panel task; an unlinked backup remains a general exception assignment.
 - Individual rosters, cohorts/stages, separate role rubrics, and coordinator-role redesign remain outside this slice.
 
 ## Student Panel Privacy in Supervisory Teams (2026-09-15)
@@ -1492,7 +1530,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Student, Lecturer, Coordinator, and Office Supervisor views must render only persisted application fields and documents. They must not fabricate eligibility decisions, supporting files, research content, timestamps, feedback, or appointment letters.
 - Official faculty templates, academic eligibility thresholds, antivirus scanning, post-submission file replacement, Notifications/Announcements, and File Repository integration remain outside Supervisor intake until authoritative rules or teammate-owned interfaces are available.
 - Evaluation task generation must create role-specific mark-entry tasks for both active Supervisor Appointments and active Panel Appointments.
-- Marks Assignment must provide production Office Staff/Admin controls for selecting evaluation periods, generating missing tasks, filtering tasks by role/status, and assigning backup evaluators without raw ID prompts.
+- Marks Assignment must provide production Office Staff/Admin controls for selecting eligible evaluation periods, generating missing tasks, filtering tasks by role/status, and assigning backup evaluators without raw ID prompts. Backup assignment provides an interactive selector containing only the current eligible workspace period, even when it is the sole option; draft and ended periods are excluded, and no blank placeholder option is shown. To target another period, staff change the workspace period first. The assignment action is unavailable when the current period is ineligible. Student and backup lecturer selection must each use one searchable combobox field with its result list opening directly beneath it; do not stack a separate search input inside the dropdown.
 - Office Staff/Admin may add a backup/manual-override evaluator only for exception cases, with a mandatory reason and audit trail; this must not change the official supervisor or panel appointment.
 - If a mark entry period is active and tasks were not manually generated, the backend must safely generate missing tasks without duplicating or overwriting existing/submitted entries.
 - Marks Entry overview and monitoring must use live mark periods, task totals, and mark records rather than hardcoded submission counts.
@@ -1517,6 +1555,7 @@ The five owned completion modules are Dashboard/Timeline, Supervisor Appointment
 - Draft updates remove persisted optional scores omitted from the request. Submission rejects duplicate, unknown, negative, over-maximum, or missing required component scores.
 - State conflicts, locked configuration, duplicate submission, and illegal lifecycle transitions return `409`; malformed input and score validation return `400`.
 - Office Staff/Admin Mark Record Detail must load one persisted record by stable record ID and show assignment, student/research summary, deadline, rubric version, component scores, comments, total, lock state, overrides, and read-only correction history.
+- Correction history must keep reason, actor and timestamp easy to scan; before/after comparison must remain readable with long overall comments without creating horizontal page scrolling.
 - Office Marks administration routes must fail closed in the frontend for Programme Coordinator, Lecturer, and Student users in addition to backend endpoint authorization.
 - Submitted-mark reopening and direct score or comment corrections use authorized, audited Office portal actions; Django admin is inspection-only. Reopening is permitted only while the period still accepts submissions; an audited correction with a mandatory reason and before/after values may be made after closure.
 - Marks production screens must not ship mock records, browser-local period/rubric mutations, simulated sync controls, unsupported mark-sheet/PDF downloads, fake supporting documents, or notification dispatch behavior.
@@ -1988,3 +2027,58 @@ Marks overview semester context (2026-11-02): Show the selected academic semeste
 
 ### Evaluation task workspace — 2026-11-02
 Evaluation task generation offers published Open/Scheduled periods with concise name and evaluator-role labels; closed and archived records remain accessible in Mark Records.
+
+### Explicit mark-entry period closure — 2026-11-03
+Closing a mark-entry evaluation period retires all its unfinished active or paused tasks and ends their completion windows. Submitted marks, saved drafts and audit history remain preserved. Office must review the current signed preview, acknowledge retirement when unfinished work exists, and provide a closure reason. This supersedes the keep-for-completion behaviour for explicit period closure; semester closure and natural deadline expiry are unchanged.
+
+### Lecturer mark entry layout — 2026-11-03
+- Supervisor, Panel and backup marking use the same full-width editor, aligned score fields, full-width feedback and a contained total/action footer.
+
+
+Office mark records use bold field labels and regular-weight answers, with full-width component feedback and modal correction/reopening forms.
+
+Office assessment review uses a compact student overview, comparable component scores and full-width feedback. Long feedback is expandable without losing access to its full text.
+
+- Lecturer submitted mark records use the same student overview and assessment-results hierarchy as Office records, with bold field labels, smaller regular answers and expandable long feedback. Lecturer submissions remain read-only.
+
+- Lecturer submitted mark details show consistent period/rubric context and dates/activity from both the task list and submission history. Missing optional data is omitted.
+
+- Office and Lecturer mark record dates use the same compact date/time presentation, with Malaysia timezone identified once per dates/activity section.
+
+- Office marks correction/reopening dialogs: added matching rounded-square close controls with unsaved-change protection; score and comment fields use explicit padding and heights because portalled dialogs do not inherit workspace styles. Component feedback remains preserved and read-only in the correction workflow.
+
+- Successful evaluation-period saves must show the success notification without a transient refresh-failure warning.
+
+- Submission monitoring distinguishes task readiness from schedule: Tasks needed, No eligible recipients, Awaiting submissions, In progress, Complete and Overdue. Generate tasks opens the matching period for review; empty totals are not clickable.
+
+- Monitoring task-status badges and their actions share one compact horizontal row.
+
+- Evaluation task table actions use the standard View button and align with the Action heading.
+
+- Assignment activity uses evaluation-task terminology consistently with the generation button.
+
+### Coordinator Marks Entry access - 3 November 2026
+Programme Coordinators must not see or open the Marks Entry module. Office and Lecturer access is retained.
+
+- Operational Marks period details present evaluation configuration as the primary button and deadline extension as a secondary action, grouped at the card's lower right with distinct icons.
+- Published Supervisor and Panel submission windows group deadline extension and early closure actions at the card's lower right, with distinct calendar icons and danger styling for early closure.
+
+- Lecturer marking task details use /marks/tasks/:taskId and submission history uses /marks/history. Refresh, direct links, browser Back/Forward and marking-role URLs preserve task identity and draft-leave protection. Existing appointment shortcuts remain valid; other module routing is deferred.
+
+- Lecturer marking task fallback UI: standard detail heading and back navigation above a compact state card; loading, unavailable and error states share the layout. Task access and routing rules are unchanged.
+- Supporting-supervisor request details use two vertically stacked appointment-style cards: Request summary, then Review and outcome. Each card has a relevant icon and the existing section typography hierarchy. Role-appropriate actions sit at the lower right of Review and outcome without an Available actions heading; reviewer accept/reject actions use the shared appointment-workflow controls. The detail view does not add a separate audit-history section.
+- Supporting-supervisor request summary fields distinguish their labels, primary values and secondary student identifier using the shared appointment-detail type scale; body values remain comfortably readable and visually subordinate to card headings.
+# Draft evaluation period cleanup (7 November 2026)
+
+Office Staff/Admin can permanently delete an unpublished evaluation-period draft from its configuration page. Deletion requires explicit confirmation, discards any unsaved edits, and is rejected when the draft has evaluation tasks or a linked semester timeline entry. Published and closed periods retain their existing lifecycle and archival rules.
+
+From the Mark Entry Periods list, each draft row exposes Delete draft in its Action column below Manage period. Manage period stays on one line; non-draft rows show only Manage period.
+
+
+Draft deletion is available inside the period configuration footer. Closed periods place Archive in the same footer position and use the same danger button treatment.
+
+- Published evaluation periods past their deadline offer Close period; those still within their schedule offer Close period early. Formal closure retains the unfinished-work review.
+
+- Rubric editing labels evaluator role selection “Rubric for” and identifies existing unset roles as not configured; a role selection remains required before saving.
+
+- Unconfigured rubric roles use a prompt rather than a selectable dropdown option; selecting a role remains required.

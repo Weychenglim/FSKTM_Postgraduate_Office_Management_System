@@ -522,7 +522,7 @@ def _timeline_section(today):
         }
     timeline = (
         SemesterTimeline.objects.filter(
-            is_active=True,
+            is_published=True,
             academic_semester=academic_semester,
         )
         .prefetch_related("entries")

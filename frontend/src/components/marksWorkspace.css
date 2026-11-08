@@ -48,6 +48,9 @@
 /* Keep history separate from editing and make preview distinct from write actions. */
 .period-config-workspace { display: flex; flex-direction: column; gap: 1.75rem; }
 .period-config-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1.25rem; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; }
+.period-config-footer button { line-height: 1.25; }
+.period-config-footer button > svg { transform: translateY(-1px); }
+.period-config-destructive-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
 .period-config-write-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-left: auto; }
 .period-config-history-list { margin-top: 1.5rem; max-height: 26rem; overflow-y: auto; list-style: none; padding: 0; }
 .period-config-history-entry { padding: 1.25rem 0; }
@@ -57,7 +60,9 @@
 .period-config-history-reason { margin-top: .75rem; color: #475569; font-size: .875rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 639px) {
   .period-config-footer { align-items: stretch; flex-direction: column; }
-  .period-config-write-actions { margin-left: 0; }
+  .period-config-footer button { line-height: 1.25; }
+.period-config-destructive-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
+.period-config-write-actions { margin-left: 0; }
   .period-config-history-heading { flex-direction: column; }
 }
 

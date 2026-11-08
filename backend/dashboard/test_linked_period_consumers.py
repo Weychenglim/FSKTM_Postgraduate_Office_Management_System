@@ -22,7 +22,12 @@ class LinkedPeriodConsumerTests(APITestCase):
         self.entry.marks_period=period
         self.entry.target_roles=['STUDENT','OFFICE_STAFF']
         self.entry.save()
+        self.publish_calendar()
         return period
+
+    def publish_calendar(self):
+        from .calendar_publication import publication_state, publish_calendar
+        publish_calendar(self.academic_semester, self.admin, publication_state(self.entry.timeline, self.admin)['reviewToken'])
 
     def test_student_dashboard_never_exposes_marks_linked_timeline_rows(self):
         self.linked_marks_event()
@@ -40,6 +45,7 @@ class LinkedPeriodConsumerTests(APITestCase):
         self.entry.deadline_start=timezone.localdate()-timedelta(days=4)
         self.entry.deadline_end=timezone.localdate()-timedelta(days=1)
         self.entry.save()
+        self.publish_calendar()
         rows=_timeline_rows(self.admin,None,None,timezone.localdate(),'all',None)
         self.assertEqual(rows[0]['status'],'ENDED')
 

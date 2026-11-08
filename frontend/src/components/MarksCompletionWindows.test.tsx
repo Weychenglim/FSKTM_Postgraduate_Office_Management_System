@@ -18,4 +18,10 @@ assert.match(office,/aria-label="Select Submitted student, Dr Panel, Task #3" di
 const counts={submitted:10,notStarted:2,draft:3,paused:1,activeWindows:2,unfinished:6};
 const preview=renderToStaticMarkup(<ClosureSummary preview={{previewToken:'secret-preview-token',semesterId:1,periods:[{...counts,periodId:2,name:'Previous period'}],totals:counts,requiresAcknowledgement:true}}/>);
 assert.match(preview,/Previous period/);assert.match(preview,/Active windows/);assert.doesNotMatch(preview,/secret-preview-token|studentId|scores/);
+const periodPreview=renderToStaticMarkup(<ClosureSummary retireUnfinished preview={{previewToken:'secret-preview-token',semesterId:1,periods:[{...counts,periodId:2,name:'Previous period'}],totals:counts,requiresAcknowledgement:true}}/>);
+assert.match(periodPreview,/role="alert"/);
+assert.match(periodPreview,/Closing this period retires all unfinished evaluation tasks/);
+assert.match(periodPreview,/Submitted marks, saved drafts and history will be preserved/);
+assert.doesNotMatch(periodPreview,/Only separately granted completion windows/);
+assert.match(preview,/Only separately granted completion windows/);
 console.log('Completion history, eligible historical tasks, Malaysia time and closure summary passed');

@@ -48,7 +48,7 @@ import {
   getStatusBadgeTone,
 } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
-import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
+import { formatMalaysiaDateTimeCompact } from '../utils/malaysiaDateTime';
 import {OfficeToolContext, OfficeToolSection, OfficeToolViews} from './OfficeToolPrimitives';
 import {SemesterActivationSection} from './SemesterActivationSection';
 import {AlertMessage} from './AlertMessage';
@@ -89,6 +89,46 @@ const displayDate = (value: string) => new Date(`${value}T00:00:00`).toLocaleDat
   month: 'short',
   year: 'numeric',
 });
+
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  academicSession: 'Academic session',
+  term: 'Term',
+  startsOn: 'Starts on',
+  endsOn: 'Ends on',
+  lifecycleStatus: 'Status',
+};
+
+function auditActionTitle(action: string): string {
+  const titles: Record<string, string> = {
+    CREATE: 'Semester created',
+    UPDATE: 'Semester details updated',
+    ACTIVATE: 'Semester activated',
+    HANDOVER_CLOSE: 'Semester handed over',
+    CLOSE: 'Semester closed',
+    EXTEND: 'Semester dates extended',
+    ARCHIVE: 'Semester archived',
+  };
+  return titles[action] ?? formatSemesterLifecycle(action);
+}
+
+function auditValue(field: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const text = String(value);
+  if (field === 'term' || field === 'lifecycleStatus') return formatSemesterLifecycle(text);
+  if ((field === 'startsOn' || field === 'endsOn') && /^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return displayDate(text);
+  }
+  return text;
+}
+
+function semesterAuditChanges(audit: AcademicSemesterAudit) {
+  return Object.entries(AUDIT_FIELD_LABELS).flatMap(([field, label]) => {
+    const before = audit.beforeValues[field];
+    const after = audit.afterValues[field];
+    if (JSON.stringify(before ?? null) === JSON.stringify(after ?? null)) return [];
+    return [{ field, label, before: auditValue(field, before), after: auditValue(field, after) }];
+  });
+}
 
 export const AcademicSemesterManagement: React.FC<AcademicSemesterManagementProps> = (props) => <DecisionFeedbackProvider scopeKey="academic-semesters"><AcademicSemesterManagementContent {...props}/></DecisionFeedbackProvider>;
 
@@ -474,20 +514,52 @@ const AcademicSemesterManagementContent: React.FC<AcademicSemesterManagementProp
             <p className="card-description mt-2">No audit events are available.</p>
           ) : (
             <div className="mt-3 divide-y divide-slate-200">
-              {audits.map((audit) => (
-                <div key={audit.id} className="grid gap-1 py-3 md:grid-cols-[160px_1fr_180px]">
-                  <p className="card-label">
-                    {formatSemesterLifecycle(audit.action)}
-                  </p>
-                  <div>
-                    <p className="card-description">{audit.reason || 'Configuration created.'}</p>
-                    <p className="card-description">{audit.actor}</p>
-                  </div>
-                  <time className="card-caption text-slate-500 md:text-right">
-                    {formatMalaysiaDateTime(audit.createdAt)}
-                  </time>
-                </div>
-              ))}
+              {audits.map((audit) => {
+                const changes = semesterAuditChanges(audit);
+                return (
+                  <article key={audit.id} className="py-4 first:pt-2">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-slate-900">{auditActionTitle(audit.action)}</h3>
+                        <p className="mt-1 text-sm text-slate-600">{audit.actor}</p>
+                      </div>
+                      <time dateTime={audit.createdAt} className="shrink-0 text-xs text-slate-500 sm:text-right">
+                        {formatMalaysiaDateTimeCompact(audit.createdAt)}
+                      </time>
+                    </div>
+                    {audit.reason ? (
+                      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-5 text-slate-600">
+                        <span className="font-medium text-slate-700">Reason:</span> {audit.reason}
+                      </p>
+                    ) : null}
+                    {changes.length ? (
+                      <details className="group mt-3">
+                        <summary className="w-fit cursor-pointer list-none text-sm font-medium text-blue-700 hover:text-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden">
+                          <span className="inline-flex items-center gap-2">
+                            <span className="transition-transform group-open:rotate-90" aria-hidden="true">›</span>
+                            View changes <span className="text-xs font-normal text-slate-500">({changes.length})</span>
+                          </span>
+                        </summary>
+                        <table className="data-table mt-2 w-full table-fixed">
+                          <colgroup><col className="w-2/5"/><col className="w-[30%]"/><col className="w-[30%]"/></colgroup>
+                          <thead>
+                            <tr><th scope="col" className="data-th p-2">Field</th><th scope="col" className="data-th p-2">Before</th><th scope="col" className="data-th p-2">After</th></tr>
+                          </thead>
+                          <tbody>
+                            {changes.map((change) => (
+                              <tr key={change.field} className="border-t border-slate-100">
+                                <th scope="row" className="data-td-strong p-2 [overflow-wrap:anywhere]">{change.label}</th>
+                                <td className="data-td p-2 [overflow-wrap:anywhere]">{change.before}</td>
+                                <td className="data-td p-2 [overflow-wrap:anywhere]">{change.after}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </details>
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>

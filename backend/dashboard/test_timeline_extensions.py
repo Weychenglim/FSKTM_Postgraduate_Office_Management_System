@@ -58,6 +58,12 @@ class TimelineExtensionTests(APITestCase):
         from announcements.models import Notification
         from announcements.reminders import send_deadline_reminders
         self.assertEqual(self.extend().status_code,200)
+        # Calendar extensions stay private until the updated draft is published.
+        send_deadline_reminders(now=timezone.now())
+        self.assertFalse(Notification.objects.filter(recipient=self.student,title__startswith='Deadline extended').exists())
+        from .calendar_publication import publication_state, publish_calendar
+        token = publication_state(self.entry.timeline, self.admin)['reviewToken']
+        publish_calendar(self.academic_semester, self.admin, token)
         send_deadline_reminders(now=timezone.now())
         notices=Notification.objects.filter(recipient=self.student,title__startswith='Deadline extended')
         self.assertEqual(notices.count(),1)

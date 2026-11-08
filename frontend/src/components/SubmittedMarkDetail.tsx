@@ -5,12 +5,11 @@ import { MarksHeading } from './MarksPrimitives';
  */
 
 import React from 'react';
-import { CalendarClock, Lock, ClipboardCheck, MessageSquare } from 'lucide-react';
+import { Lock, ClipboardCheck, MessageSquare } from 'lucide-react';
 
 import { RecordPage } from './RecordPage';
 import type { EvaluationTask } from '../types';
-import { formatDeadlineText } from '../utils/workflowAgeing';
-import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
+import { formatMalaysiaDateTimeCompact as formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
 import {
   PortalCard,
   StatusBadge,
@@ -19,6 +18,7 @@ import {
 interface SubmittedMarkDetailProps {
   task: EvaluationTask;
   backLabel?: string;
+  routed?: boolean;
   onBack: () => void;
 }
 
@@ -26,6 +26,7 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
   task,
   onBack,
   backLabel = 'Back to Marks Entry',
+  routed = false,
 }) => {
   const components = task.components || [];
   const calculatedTotal = components.reduce(
@@ -40,116 +41,143 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
     ? calculatedTotal.toFixed(2)
     : Number(task.totalMark).toFixed(2);
 
+  const role = task.evaluatorRoleLabel || (task.evaluatorRole === 'SUPERVISOR' ? 'Supervisor' : task.evaluatorRole === 'BACKUP' ? 'Backup evaluator' : 'Panel member');
+  const activity = [
+    ...(task.assignedAt ? [{ label: 'Assigned', date: task.assignedAt }] : []),
+    ...(task.submittedAt ? [{ label: 'Submitted', date: task.submittedAt }] : []),
+  ].filter(event => Number.isFinite(Date.parse(event.date)))
+    .sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
+
   return (
-    <div className="marks-workspace">
-      <RecordPage
-        title="Submitted Mark Detail"
-        subtitle="Review submitted scores and evaluator feedback."
-        backLabel={backLabel}
-        onBack={onBack}
-        pageKey={`marks-submitted:${task.id}`}
-        metadata={<p className="card-description">Marked as <strong className="font-semibold text-slate-800">{task.evaluatorRoleLabel || (task.evaluatorRole === 'SUPERVISOR' ? 'Supervisor' : task.evaluatorRole === 'BACKUP' ? 'Backup evaluator' : 'Panel member')}</strong></p>}
-        actions={<StatusBadge tone="success" icon={Lock}>Submitted</StatusBadge>}
-      >
-
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_300px] gap-6 items-start">
-        <div className="space-y-6">
-          <PortalCard padding="lg" className="rounded-lg">
-            <dl className="grid grid-cols-1 md:grid-cols-2 gap-5 text-xs">
-              <div>
-                <dt className="card-label">Student</dt>
-                <dd className="card-value mt-1">{task.studentName}</dd>
-                <dd className="mt-0.5 font-mono text-blue-700">{task.studentId}</dd>
-              </div>
-              <div>
-                <dt className="card-label">Evaluator role</dt>
-                <dd className="card-value mt-1 text-slate-700">{task.evaluatorRoleLabel || task.evaluatorRole || 'Evaluator'}</dd>
-              </div>
-              <div className="md:col-span-2">
-                <dt className="card-label">Research title</dt>
-                <dd className="card-value mt-1 leading-relaxed text-slate-700">{task.researchTitle}</dd>
-              </div>
-              <div>
-                <dt className="card-label">Semester</dt>
-                <dd className="card-value mt-1 text-slate-700">{task.semester}</dd>
-              </div>
-              <div>
-                <dt className="card-label">Submitted</dt>
-                <dd className="card-value mt-1 text-slate-700">{task.submittedAt ? formatMalaysiaDateTime(task.submittedAt) : task.submittedDate || 'Date unavailable'}</dd>
-              </div>
-              {task.periodName ? <div><dt className="card-label">Evaluation period</dt><dd className="card-value mt-1">{task.periodName}</dd></div> : null}
-              {task.rubricName ? <div><dt className="card-label">Rubric</dt><dd className="card-value mt-1">{task.rubricName}{task.rubricVersion ? ` · Version ${task.rubricVersion}` : ''}</dd></div> : null}
-            </dl>
-          </PortalCard>
-
-          <PortalCard padding="none" className="overflow-hidden rounded-lg">
-            <div className="border-b border-slate-100 bg-slate-50 px-5 py-4">
-              <MarksHeading icon={ClipboardCheck}>Rubric scores</MarksHeading>
+    <RecordPage
+      title="Submitted Mark Detail"
+      subtitle="Review submitted scores and evaluator feedback."
+      backLabel={backLabel}
+      onBack={onBack}
+      pageKey={routed ? undefined : `marks-submitted:${task.id}`}
+      actions={<StatusBadge tone="success" icon={Lock}>Submitted</StatusBadge>}
+    >
+      <div className="marks-workspace space-y-7 text-left">
+        <PortalCard padding="lg" className="rounded-lg">
+          <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
+            <div>
+              <dt className="text-sm font-semibold text-slate-700">Student</dt>
+              <dd className="mt-2 text-[13px] font-normal leading-6 text-slate-700">{task.studentName}</dd>
+              <dd className="mt-1 text-[13px] font-normal text-slate-500">{task.studentId}</dd>
             </div>
-            <div role="region" aria-label="Submitted rubric scores" tabIndex={0} className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-blue-600">
-              <table className="data-table min-w-[680px]">
-                <caption className="sr-only">Submitted marks and feedback by rubric component</caption>
-                <thead>
-                  <tr className="data-thead">
-                    <th scope="col" className="data-th">Component</th>
-                    <th scope="col" className="data-th text-center">Maximum</th>
-                    <th scope="col" className="data-th text-center">Awarded</th>
-                    <th scope="col" className="data-th">Feedback</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {components.map((component) => (
-                    <tr key={component.id}>
-                      <td className="data-td-strong">{component.name}</td>
-                      <td className="data-td text-center">{component.maxMarks}</td>
-                      <td className="data-td-strong text-center">{component.marksAwarded ?? '-'}</td>
-                      <td className="data-td">{component.feedback || 'No component feedback'}</td>
+            <div>
+              <dt className="text-sm font-semibold text-slate-700">Semester</dt>
+              <dd className="mt-2 text-[13px] font-normal leading-6 text-slate-700">{task.semester || 'Not recorded'}</dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-sm font-semibold text-slate-700">Research title</dt>
+              <dd className="mt-2 break-words text-[13px] font-normal leading-6 text-slate-700">{task.researchTitle || 'Not recorded'}</dd>
+            </div>
+          </dl>
+        </PortalCard>
+
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 space-y-6">
+            <PortalCard padding="none" className="overflow-hidden rounded-lg">
+              <div className="border-b border-slate-200 px-6 py-5">
+                <MarksHeading icon={ClipboardCheck}>Assessment results</MarksHeading>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed text-left">
+                  <caption className="sr-only">Submitted marks and feedback by rubric component</caption>
+                  <thead className="bg-slate-50 text-sm font-semibold text-slate-700">
+                    <tr>
+                      <th scope="col" className="w-[56%] px-6 py-4">Component</th>
+                      <th scope="col" className="w-[22%] px-3 py-4 text-right">Maximum</th>
+                      <th scope="col" className="w-[22%] px-6 py-4 text-right">Awarded</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-slate-200 bg-slate-50">
-                    <td className="data-td-strong px-4 py-3 text-slate-700">Total</td>
-                    <td className="data-td-strong px-4 py-3 text-center text-slate-600">{maximum.toFixed(2)}</td>
-                    <td className="data-td-strong px-4 py-3 text-center text-brand-navy">{total}</td>
-                    <td />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </PortalCard>
-
-          <PortalCard padding="lg" className="rounded-lg">
-            <MarksHeading icon={MessageSquare}>Overall comments</MarksHeading>
-            <p className="card-description mt-3 whitespace-pre-wrap leading-relaxed text-slate-700">
-              {task.comments || 'No overall comments were entered.'}
-            </p>
-          </PortalCard>
-        </div>
-
-        <aside className="space-y-5 xl:sticky xl:top-6">
-          <PortalCard padding="lg" className="rounded-lg bg-brand-navy text-white">
-            <p className="card-label text-indigo-300">Submitted total</p>
-            <p className="mt-2 text-4xl font-black">
-              {total}
-              <span className="text-sm text-slate-400"> / {maximum.toFixed(2)}</span>
-            </p>
-          </PortalCard>
-          <PortalCard padding="lg" className="rounded-lg">
-            <div className="flex items-start gap-3">
-              <CalendarClock className="h-5 w-5 shrink-0 text-blue-600" />
-              <div>
-                <h2 className="section-label text-slate-600">Deadline state</h2>
-                <p className="card-value mt-2 text-slate-800">{formatDeadlineText(task)}</p>
-                <p className="card-description mt-2">
-                  This submission is locked. Authorized corrections are recorded by the postgraduate office.
-                </p>
+                  </thead>
+                  <tbody>
+                    {components.map(component => (
+                      <React.Fragment key={component.id}>
+                        <tr className="border-t border-slate-200 align-top">
+                          <th scope="row" className="break-words px-6 pt-5 pb-2 text-sm font-semibold text-slate-800">
+                            {component.name}
+                            {component.description ? <p className="mt-1 break-words text-[13px] font-normal leading-5 text-slate-500">{component.description}</p> : null}
+                          </th>
+                          <td className="px-3 pt-5 pb-2 text-right text-[13px] font-normal tabular-nums">{component.maxMarks}</td>
+                          <td className="px-6 pt-5 pb-2 text-right text-[13px] font-normal tabular-nums">{component.marksAwarded ?? '-'}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={3} className="px-6 pb-5">
+                            <p className="text-sm font-semibold text-slate-700">Feedback</p>
+                            {component.feedback && component.feedback.length > 240 ? (
+                              <details className="group mt-1">
+                                <summary className="cursor-pointer text-[13px] leading-6 text-slate-700">
+                                  <span className="group-open:hidden">{component.feedback.slice(0, 240)}… </span>
+                                  <span className="text-blue-700 group-open:hidden">Show full feedback</span>
+                                  <span className="hidden text-blue-700 group-open:inline">Hide full feedback</span>
+                                </summary>
+                                <p className="mt-2 whitespace-pre-wrap break-words text-[13px] font-normal leading-6 text-slate-700">{component.feedback}</p>
+                              </details>
+                            ) : <p className="mt-1 whitespace-pre-wrap break-words text-[13px] font-normal leading-6 text-slate-700">{component.feedback || 'No feedback entered.'}</p>}
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                  <tfoot className="border-t border-slate-200 bg-slate-50">
+                    <tr>
+                      <th scope="row" className="px-6 py-4 text-sm font-semibold text-slate-700">Total mark</th>
+                      <td className="px-3 py-4 text-right text-[13px] font-normal tabular-nums">{maximum.toFixed(2)}</td>
+                      <td className="px-6 py-4 text-right text-[13px] font-normal tabular-nums">{total}</td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
-            </div>
-          </PortalCard>
-        </aside>
+            </PortalCard>
+            <PortalCard padding="lg" className="rounded-lg">
+              <MarksHeading icon={MessageSquare}>Overall comments</MarksHeading>
+              <p className="mt-3 whitespace-pre-wrap break-words text-[13px] font-normal leading-6 text-slate-700">{task.comments || 'No overall comments were entered.'}</p>
+            </PortalCard>
+          </div>
+
+          <aside>
+            <PortalCard padding="lg" className="rounded-lg">
+              <h2 className="section-label">Evaluation details</h2>
+              <dl className="mt-5 space-y-5">
+                {[
+                  ['Evaluator role', role],
+                  ...(task.periodName ? [['Evaluation period', task.periodName]] : []),
+                  ...(task.rubricName ? [['Rubric', `${task.rubricName}${task.rubricVersion ? ` / Version ${task.rubricVersion}` : ''}`]] : []),
+                ].map(([label, value]) => <div key={label}>
+                  <dt className="text-sm font-semibold text-slate-700">{label}</dt>
+                  <dd className="mt-1 break-words text-[13px] font-normal leading-6 text-slate-700">{value}</dd>
+                </div>)}
+              </dl>
+              <details className="mt-5 border-t border-slate-100 pt-4">
+                <summary className="cursor-pointer text-sm font-semibold text-slate-600">Dates and activity</summary>
+                <div className="mt-5">                  <p className="mb-4 text-[13px] font-normal text-slate-500">Malaysia time (UTC+08:00)</p>
+                  {task.opensAt || task.closesAt ? <>
+                    <h3 className="text-sm font-semibold text-slate-700">Entry schedule</h3>
+                    <dl className="mt-3 grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-3">
+                      {([['Opens', task.opensAt], ['Closes', task.closesAt]] as const).filter(([, date]) => date).map(([label, date]) => <div key={label}>
+                        <dt className="text-sm font-semibold text-slate-700">{label}</dt>
+                        <dd className="mt-1 break-words text-[13px] font-normal leading-6 text-slate-700">{formatMalaysiaDateTime(date)}</dd>
+                      </div>)}
+                    </dl>
+                  </> : null}
+                  <h3 className={`${task.opensAt || task.closesAt ? 'mt-6 ' : ''}text-sm font-semibold text-slate-700`}>Activity</h3>
+                  {activity.length ? <ol className="mt-4 ml-1 border-l border-slate-200">
+                    {activity.map(event => <li key={event.label} className="relative ml-4 pb-5 last:pb-0">
+                      <span aria-hidden="true" className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-blue-600 ring-4 ring-white" />
+                      <p className="text-sm font-semibold text-slate-700">{event.label}</p>
+                      <p className="mt-1 text-[13px] font-normal leading-5 text-slate-600">{formatMalaysiaDateTime(event.date)}</p>
+                    </li>)}
+                  </ol> : task.submittedDate ? <p className="mt-3 text-[13px] font-normal leading-5 text-slate-600">Submitted: {task.submittedDate}</p>
+                    : <p className="mt-3 text-[13px] text-slate-500">No activity recorded.</p>}
+                </div>
+              </details>
+              <p className="mt-5 border-t border-slate-100 pt-4 text-[13px] font-normal leading-6 text-slate-500">This submission is locked. Contact the Postgraduate Office if a correction is needed.</p>
+            </PortalCard>
+          </aside>
+        </div>
       </div>
     </RecordPage>
-    </div>
   );
 };

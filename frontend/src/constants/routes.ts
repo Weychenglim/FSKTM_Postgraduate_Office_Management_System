@@ -57,6 +57,7 @@ export const APP_ROUTES = {
   lettersLists: '/letters/lists',
   announcements: '/announcements',
   marks: '/marks',
+  marksHistory: '/marks/history',
   marksConfig: '/marks/config',
   marksRubrics: '/marks/rubrics',
   marksTasks: '/marks/tasks',

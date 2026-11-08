@@ -72,6 +72,6 @@ export function MarksOverview({ onViewRecords }: { onViewRecords: (status?: Mark
       <ChecklistCard unavailable={loading || !!error} items={buildMarksSetupChecklist(data?.periods ?? [], data?.rubrics ?? [])} onItemAction={item => navigate(item.id === 'period' ? APP_ROUTES.marksConfig : item.id === 'rubric' ? APP_ROUTES.marksRubrics : APP_ROUTES.marksTasks)} />
       {!loading && !error && data ? <AlertListCard periods={data.periods} rubrics={data.rubrics} onViewRecords={onViewRecords} onManageRubrics={() => navigate(APP_ROUTES.marksRubrics)} /> : <aside className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><MarksHeading icon={CircleAlert}>Evaluation checks</MarksHeading><p className="card-description mt-2">{loading ? 'Loading evaluation checks…' : 'Evaluation checks could not be loaded. Setup pages and submission monitoring remain available.'}</p></aside>}
     </div>
-    {!loading && !error && data ? <MarkSubmissionMonitoring key={selectedSemester} periods={periods} onViewRecords={openRecords} /> : null}
+    {!loading && !error && data ? <MarkSubmissionMonitoring key={selectedSemester} periods={periods} onViewRecords={openRecords} onGenerateTasks={periodId => navigate(`${APP_ROUTES.marksTasks}?period=${periodId}`)} /> : null}
   </div>;
 }

@@ -333,7 +333,7 @@ export const CoordinatorSupervisorApprovals: React.FC<CoordinatorSupervisorAppro
   if (supportingId) return <>{decisionDialogs}<RecordPage pageKey={!initialSupportingId ? `coordinator-supporting-${supportingId}` : undefined} title="Supporting supervisor request" metadata={!loading && !error && supporting ? <RequestMetadata {...supportingRequestMetadata(supporting)} /> : undefined} actions={nextAction} backLabel={backLabel} onBack={closeRecord} dirty={!!supportingReason.trim()} busy={busy}>
     <PortalToast message={toast} />
     {loading ? <LoadingState message="Loading supporting supervisor request…" /> : error ? <ErrorState message={error} onRetry={() => void loadRecords()} /> : supporting ? <>
-      <CoSupervisorNominationCard nomination={supporting} hideMetadata busy={busy} onAction={(_, action) => { setSupportingAction(action); setSupportingReason(''); }} actions={<>
+      <CoSupervisorNominationCard detailView nomination={supporting} hideMetadata busy={busy} onAction={(_, action) => { setSupportingAction(action); setSupportingReason(''); }} summaryActions={<>
         <PortalButton variant="primary" icon={UserRound} size="sm" onClick={() => onNavigateToDossier?.(supporting.matricNo)}>View student record</PortalButton>
       </>} />
     </> : <p className="card-description">This request is unavailable or outside your authorised scope.</p>}

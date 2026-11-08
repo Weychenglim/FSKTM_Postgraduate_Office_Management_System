@@ -95,10 +95,9 @@ function Preview() {
   return <main style={{ padding: '24px', maxWidth: 1280, margin: 'auto', background: '#f1f5f9' }}>{content}<output hidden id="route">{route.pathname}{route.search}</output></main>;
 }
 const listMemory = new Map<string, unknown>();
-if (page === 'history-retained' || page === 'history-error') listMemory.set('LecturerMarksEntry:currentView', 'history');
 if (page === 'records-legacy') listMemory.set('MarkEntryRecords:appliedFilters', { search: '', programme: 'All Programmes', semester: 'All Semesters', status: 'Overdue', panelMember: 'All Members' });
 if (page === 'records-legacy') listMemory.set('MarkEntryRecords:currentPage', 99);
-createRoot(document.getElementById('root')!).render(<ListState.Provider value={listMemory}><MemoryRouter initialEntries={[page === 'records-monitoring-empty' ? '/marks/records?monitor=backup' : '/marks']}><OfficeMonitoringProvider enabled={page === 'records-monitoring-empty'}><Preview /></OfficeMonitoringProvider></MemoryRouter></ListState.Provider>);
+createRoot(document.getElementById('root')!).render(<ListState.Provider value={listMemory}><MemoryRouter initialEntries={[page === 'records-monitoring-empty' ? '/marks/records?monitor=backup' : page === 'history-retained' || page === 'history-error' ? '/marks/history' : '/marks']}><OfficeMonitoringProvider enabled={page === 'records-monitoring-empty'}><Preview /></OfficeMonitoringProvider></MemoryRouter></ListState.Provider>);
 const pause = (ms = 25) => new Promise(resolve => setTimeout(resolve, ms));
 const assert = (value: unknown, label: string) => { if (!value) throw Error(label); checks.push(label); };
 const until = async (test: () => unknown) => { for (let i = 0; i < 180; i++) { if (test()) return; await pause(); } throw Error('Fixture did not settle: ' + document.body.textContent?.slice(-500)); };

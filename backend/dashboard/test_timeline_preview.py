@@ -16,7 +16,7 @@ class TimelinePreviewSafetyTests(APITestCase):
         content = upload.read()
         upload.seek(0)
         response = self.client.post('/api/dashboard/timeline/upload/preview/',
-            {'semesterId': self.academic_semester.pk, 'file': upload}, format='multipart')
+            {'semesterId': self.academic_semester.pk, 'file': upload, 'mode': 'REPLACE'}, format='multipart')
         self.assertEqual(response.status_code, 200, getattr(response, 'data', None))
         return response.data, content
 
@@ -26,6 +26,7 @@ class TimelinePreviewSafetyTests(APITestCase):
             'semesterId': self.academic_semester.pk,
             'file': SimpleUploadedFile('timeline.xlsx', content),
             'previewToken': preview['previewToken'], 'acknowledgeWarnings': 'true', **kwargs,
+            'mode': 'REPLACE',
         }, format='multipart')
 
     def test_preview_is_nonmutating_and_old_rows_require_acknowledgement(self):
@@ -129,7 +130,7 @@ class TimelinePreviewSafetyTests(APITestCase):
             week_label=row[6], target_roles=['LECTURER'], operational_period=period)
         self.client.force_authenticate(self.admin)
         bad = self.client.post('/api/dashboard/timeline/upload/preview/',
-            {'semesterId': self.academic_semester.pk, 'file': workbook_upload(self.valid_rows())}, format='multipart')
+            {'semesterId': self.academic_semester.pk, 'file': workbook_upload(self.valid_rows()), 'mode': 'REPLACE'}, format='multipart')
         self.assertEqual(bad.status_code, 400, bad.data)
         self.assertTrue(SemesterTimeline.objects.get(pk=timeline.pk).is_active)
         preview, content = self.preview([row])

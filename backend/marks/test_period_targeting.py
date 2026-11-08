@@ -41,7 +41,7 @@ class PeriodTargetingTests(APITestCase):
             created_by=self.office, activated_at=timezone.now(),
         )
         publish_test_capacity_plan(self.semester, self.office)
-        self.rubric = Rubric.objects.create(name="Target rubric", code="target-rubric")
+        self.rubric = Rubric.objects.create(name="Target rubric", code="target-rubric", allowed_evaluator_roles=["SUPERVISOR", "PANEL"])
         RubricComponent.objects.create(
             rubric=self.rubric, code="total", name="Total", max_marks="100.00",
         )
@@ -90,6 +90,7 @@ class PeriodTargetingTests(APITestCase):
 
     def payload(self, **targeting):
         return {
+            "assessment": "P1",
             "name": f"Target period {EvaluationPeriod.objects.count()}",
             "semesterId": self.semester.pk, "rubricId": self.rubric.pk,
             "opensAt": (timezone.now() - timezone.timedelta(hours=1)).isoformat(),

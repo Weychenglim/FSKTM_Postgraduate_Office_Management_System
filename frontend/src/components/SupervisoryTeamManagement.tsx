@@ -5,7 +5,7 @@ import {AppointmentMarkingAction} from './AppointmentMarkingAction';
 import type {AppointmentMarkingTarget} from '../utils/appointmentMarking';
 import { IconHeading } from './IconHeading';
 import { AppointmentIcon } from './AppointmentPrimitives';
-import { UsersRound, History, FileText, UserPlus, ArrowRightLeft, Send, X, Search, ChevronDown, CheckCircle } from 'lucide-react';
+import { UsersRound, History, FileText, UserPlus, ArrowRightLeft, Send, X, Search, ChevronDown, CheckCircle, ListChecks } from 'lucide-react';
 import {SupervisionDetailSection, SupervisionOverview, SupervisionMember, SupervisionContactDetails, SupervisionPerson, supervisionDetailLabel, supervisionDetailBody} from './SupervisionDetailLayout';
 import {SupervisorRequestDisclosure} from './SupervisorRequestFields';
 import { PortalSelect } from './PortalSelect';
@@ -28,7 +28,7 @@ import { Users } from 'lucide-react';
 import { decideCoSupervisor, endCoSupervisor, getCoSupervisorCandidates, getSupervisoryWorkspace, getSupervisoryTeam, nominateCoSupervisor } from '../services/coSupervisionApi';
 import { ApiError } from '../services/apiClient';
 import type { CoSupervisorAction, CoSupervisorAppointment, CoSupervisorCandidate, CoSupervisorNomination, CoSupervisorOutcome, SupervisoryTeam, SupervisoryWorkspace, SupervisionPanel, TeamAudit } from '../types/coSupervision';
-import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
+import { PortalButton, PortalCard, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { ResearchAmendments } from './ResearchAmendments';
 import { CapacityReassessments } from './CapacityReassessments';
@@ -37,7 +37,7 @@ import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { AppointmentMemberCard, appointmentDetailTypography } from './AppointmentPrimitives';
 import { RequestFilters, WorkspaceSectionHeader, WorkspaceRecordTable, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
 import { ApprovalProcess, formatRequestRecordedAt } from './ApprovalProcess';
-import { RequestAuditHistory, RequestDetailCard, RequestMetadata, RequestSection, RequestField } from './RequestDetailPrimitives';
+import { PrimaryRequestDecisionButtons, RequestAuditHistory, RequestDetailCard, RequestMetadata, RequestSection, RequestField } from './RequestDetailPrimitives';
 import { buildSupervisorApprovalProcess, type ApprovalEvent } from '../utils/approvalProcess';
 import type {ActiveSuperviseeRow} from '../types';
 import {endSupervisorAppointment} from '../services/appointmentsApi';
@@ -90,17 +90,45 @@ export function supportingRequestMetadata(row: CoSupervisorNomination): React.Co
     statusTone:row.status==='APPROVED'?'success':row.status.startsWith('REJECTED')?'danger':row.status==='CANCELLED'?'neutral':'warning'};
 }
 
-export function CoSupervisorNominationCard({ nomination: row, busy, onAction, actions, hideMetadata=false, compact=false }: {
-  nomination: CoSupervisorNomination; busy: boolean; onAction: (row: CoSupervisorNomination, action: CoSupervisorAction) => void; actions?:React.ReactNode; hideMetadata?:boolean; compact?:boolean;
+export function CoSupervisorNominationCard({ nomination: row, busy, onAction, actions, summaryActions, hideMetadata=false, compact=false, detailView=false }: {
+  nomination: CoSupervisorNomination; busy: boolean; onAction: (row: CoSupervisorNomination, action: CoSupervisorAction) => void; actions?:React.ReactNode; summaryActions?:React.ReactNode; hideMetadata?:boolean; compact?:boolean; detailView?:boolean;
 }) {
   if(compact)return <article data-pending-supporting-summary className="min-w-0 space-y-3"><div className="flex flex-wrap items-center justify-between gap-3"><p className={supervisionDetailBody}>{row.candidate.name}</p><StatusBadge tone="warning">{statusLabels[row.status]}</StatusBadge></div><div className="flex justify-end"><Link to={routeForSupportingSupervisorRequest(String(row.id))} className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 shadow-3xs transition-all duration-200 hover:bg-slate-50 hover:text-brand-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/20"><FileText className="h-4 w-4 shrink-0" aria-hidden="true"/>View nomination request</Link></div></article>;
   const events=supportingAuditEvents(row.history);
-  const actionSlot=<>{row.allowedActions.length?<div className="flex flex-wrap gap-2">{row.allowedActions.map(action=>
-    <PortalButton key={action} size="sm" disabled={busy} variant={action==='accept'||action==='approve'?'primary':'secondary'} onClick={()=>onAction(row,action)}>{labels[action]}</PortalButton>)}</div>:null}{actions}</>;
+  const positiveAction: CoSupervisorAction | undefined = row.allowedActions.includes('accept') ? 'accept' : row.allowedActions.includes('approve') ? 'approve' : undefined;
+  const rejectAction: CoSupervisorAction | undefined = row.allowedActions.includes('reject') ? 'reject' : row.allowedActions.includes('coordinator-reject') ? 'coordinator-reject' : undefined;
+  const hasDecisionPair = !!positiveAction && !!rejectAction;
+  const actionButtons = detailView && hasDecisionPair ? <PrimaryRequestDecisionButtons
+    positiveLabel={positiveAction === 'approve' ? 'Approve request' : 'Accept request'} disabled={busy}
+    onPositive={()=>{if(positiveAction)onAction(row,positiveAction);}}
+    onReject={()=>{if(rejectAction)onAction(row,rejectAction);}} />
+    : row.allowedActions.length ? <div className="flex flex-wrap gap-2">{row.allowedActions.map(action=>
+      <PortalButton key={action} size="sm" disabled={busy} variant={action==='accept'||action==='approve'?'primary':'secondary'} onClick={()=>onAction(row,action)}>{labels[action]}</PortalButton>)}</div> : null;
+  const actionSlot=<>{actionButtons}{actions}</>;
   const steps=buildSupervisorApprovalProcess({kind:'supporting',status:row.status,submittedAt:row.submittedAt,events,waitingDays:row.waitingDays,waitingOn:row.responsibleStage}).map(step=>({...step,reason:step.reason===row.reason?undefined:step.reason}));
   return <div className="space-y-4">
     {!hideMetadata?<RequestMetadata {...supportingRequestMetadata(row)}/>:null}
-    <RequestDetailCard progress={<ApprovalProcess steps={steps}/>} actions={row.allowedActions.length||actions?actionSlot:undefined} audit={events.length?<RequestAuditHistory events={events}/>:undefined}>
+    {detailView ? <>
+      <SupervisionDetailSection title="Request summary" icon={FileText} actions={summaryActions}>
+        <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+          <div className="min-w-0 space-y-1.5"><dt className={supervisionDetailLabel}>Student</dt><dd className={`${supervisionDetailBody} font-medium`}>{row.studentName}</dd><dd className="text-xs leading-relaxed text-slate-500">{row.matricNo}</dd></div>
+          <div className="min-w-0 space-y-1.5"><dt className={supervisionDetailLabel}>Requested supporting supervisor</dt><dd className={`${supervisionDetailBody} font-medium`}>{row.candidate.name}</dd></div>
+          <div className="min-w-0 space-y-1.5"><dt className={supervisionDetailLabel}>Programme</dt><dd className={supervisionDetailBody}>{row.programme||'Not recorded'}</dd></div>
+          <div className="min-w-0 space-y-1.5"><dt className={supervisionDetailLabel}>Semester</dt><dd className={supervisionDetailBody}>{row.semester||'Not recorded'}</dd></div>
+        </dl>
+        <div className="border-t border-slate-100 pt-6"><RequestSection title="Why this supervisor was requested">
+          <p className={`${supervisionDetailBody} whitespace-pre-wrap`}>{row.justification||'No reason was provided with this request.'}</p>
+          {row.replacesAppointmentId?<p className={`${supervisionDetailBody} mt-3 text-slate-600`}>This request replaces an existing supporting appointment.</p>:null}
+        </RequestSection></div>
+        {row.reason?<div className="border-t border-slate-100 pt-6"><RequestSection title={row.status==='CANCELLED'?'Cancellation reason':'Decision reason'}><p className="card-description whitespace-pre-wrap">{row.reason}</p></RequestSection></div>:null}
+      </SupervisionDetailSection>
+      <SupervisionDetailSection title="Review and outcome" icon={ListChecks}>
+        <ApprovalProcess steps={steps} headingAs="h3" />
+        {row.allowedActions.length||actions ? <div className="border-t border-slate-100 pt-5">
+          <div className="flex flex-wrap justify-end gap-2 [&>div]:justify-end">{actionButtons}{actions}</div>
+        </div> : null}
+      </SupervisionDetailSection>
+    </> : <RequestDetailCard progress={<ApprovalProcess steps={steps}/>} actions={row.allowedActions.length||actions?actionSlot:undefined} audit={events.length?<RequestAuditHistory events={events}/>:undefined}>
       <RequestSection title="Request summary"><dl className="grid gap-4 sm:grid-cols-2">
         <div><dt className="card-label">Student</dt><dd className="card-value mt-1">{row.studentName}</dd><dd className="card-caption mt-1">{row.matricNo}</dd></div>
         <div><dt className="card-label">Requested supporting supervisor</dt><dd className="card-value mt-1">{row.candidate.name}</dd></div>
@@ -111,7 +139,7 @@ export function CoSupervisorNominationCard({ nomination: row, busy, onAction, ac
         {row.replacesAppointmentId?<p className="card-description mt-3">Replacement for an existing supporting appointment</p>:null}
       </RequestSection>
       {row.reason?<RequestSection title={row.status==='CANCELLED'?'Cancellation reason':'Decision reason'}><p className="card-description whitespace-pre-wrap">{row.reason}</p></RequestSection>:null}
-    </RequestDetailCard>
+    </RequestDetailCard>}
   </div>;
 }
 

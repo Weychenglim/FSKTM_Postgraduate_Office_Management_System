@@ -27,13 +27,20 @@ export function toMalaysiaDateTimeLocalValue(value: string | null | undefined): 
 }
 
 export function formatMalaysiaDateTime(value: string | null | undefined): string {
+  const formatted = formatMalaysiaDateTimeCompact(value);
+  return formatted === 'Not configured' || formatted === 'Invalid date'
+    ? formatted : `${formatted} (Malaysia, UTC+08:00)`;
+}
+
+/** Use when the surrounding section already identifies Malaysia time. */
+export function formatMalaysiaDateTimeCompact(value: string | null | undefined): string {
   if (!value) return 'Not configured';
   const parsed = parseInstant(value);
   if (!Number.isFinite(parsed.getTime())) return 'Invalid date';
-  return `${parsed.toLocaleString('en-MY', {
+  return parsed.toLocaleString('en-MY', {
     timeZone: 'Asia/Kuala_Lumpur',
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  })} (Malaysia, UTC+08:00)`;
+  });
 }
 
 /** Display workflow timestamps and date-only appointments in faculty time. */

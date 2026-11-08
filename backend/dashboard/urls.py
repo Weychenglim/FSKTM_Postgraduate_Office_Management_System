@@ -8,6 +8,7 @@ from .office_attention import office_attention_view
 urlpatterns = [
     path('timeline/entries/<int:pk>/extend/', extend_timeline_entry_view),
     path("timeline/active/", views.active_timeline_view),
+    path("timeline/publish/", views.publish_timeline_view),
     path("timeline/template/", views.template_view),
     path("timeline/upload/preview/", views.preview_timeline_upload_view),
     path("timeline/upload/", views.upload_timeline_view),

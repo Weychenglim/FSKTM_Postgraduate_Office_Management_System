@@ -9,15 +9,15 @@ import type { DecisionOutcome } from '../utils/decisionSubmission';
  */
 
 import React, { useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Save, UserRound } from 'lucide-react';
+import { CheckCircle2, Save, UserRound } from 'lucide-react';
 
 import { RecordPage } from './RecordPage';
-import {FormFeedback} from './FormFeedback';
-import {focusFeedback, readFormFeedback, type FormFeedbackState} from '../utils/formFeedback';
+import {readFormFeedback, type FormFeedbackState} from '../utils/formFeedback';
 import type { EvaluationTask } from '../types';
 import { ApiError } from '../services/apiClient';
 import {
   PortalButton,
+  PortalToast,
   PortalCard,
   StatusBadge,
 } from './PortalPrimitives';
@@ -25,6 +25,7 @@ import {
 interface MarkEntryDetailProps {
   task: EvaluationTask;
   backLabel?: string;
+  routed?: boolean;
   onBack: () => void;
   onReload?: () => Promise<EvaluationTask>;
   onSave: (updatedTask: EvaluationTask) => void | Promise<void>;
@@ -54,6 +55,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   onSave,
   onSubmit,
   backLabel = 'Back to Marks Entry',
+  routed = false,
 }) => {
   const components = task.components || [];
   const [values, setValues] = useState(() => draftValues(task));
@@ -106,12 +108,11 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
       return outcome;
     }
     catch (error) {
-      // Confirmation failures remain in DecisionDialog; draft saves stay with the editor.
+      // Submission failures stay in the confirmation; draft failures use a dismissible toast.
       if (submit) throw error;
       const feedback = readFormFeedback(error, error instanceof Error ? error.message : 'The mark draft could not be saved. Try again.');
       if (error instanceof ApiError && [403, 404, 409].includes(error.status ?? 0)) setDraftConflict(true);
       setSaveFeedback(feedback);
-      focusFeedback(feedback, {}, 'mark-draft-save-feedback');
       return false;
     }
     finally { savingRef.current = false; setSaving(false); }
@@ -153,6 +154,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
   });
 
   const requestSubmission = () => {
+    setSaveFeedback(null);
     setShowValidation(true);
     if (!isReadOnly && !draftConflict && task.canSubmit === true && errors.length === 0) {
       setReviewedTask(buildTask('SUBMITTED'));
@@ -166,8 +168,7 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
         subtitle="Score the assigned rubric and save or submit your evaluation."
         backLabel={backLabel}
         onBack={onBack}
-        pageKey={`marks-entry:${task.id}`} dirty={!isReadOnly && dirty} busy={saving}
-        metadata={<p className="card-description">Marking as <strong className="font-semibold text-slate-800">{evaluatorRoleLabel(task)}</strong></p>}
+        pageKey={routed ? undefined : `marks-entry:${task.id}`} dirty={!isReadOnly && dirty} busy={saving}
         actions={(
           <StatusBadge tone={submitted ? 'success' : isReadOnly ? 'neutral' : 'info'}>
             {submitted ? 'Submitted' : isReadOnly ? 'Read only' : evaluatorRoleLabel(task)}
@@ -176,6 +177,11 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
       >
 
 
+    <PortalToast
+      message={showValidation && errors.length > 0 ? `Complete required marks: ${errors.join(' ')}` : saveFeedback?.message ?? null}
+      tone={showValidation && errors.length > 0 ? 'warning' : 'danger'}
+      onClose={() => {setShowValidation(false); setSaveFeedback(null);}}
+    />
     <fieldset id="mark-entry-detail-page" disabled={saving} className="marks-workspace space-y-6 text-left">
       <DecisionDialog isOpen={confirmOpen} decisionKey={task.id} kind="confirmation"
         title="Submit and lock marks?" context={<p>{task.studentName} · {task.studentId} · Task #{task.id} · {evaluatorRoleLabel(task)}</p>}
@@ -202,12 +208,15 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
           </div>
         </PortalCard>
       ) : (
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_280px] gap-6 items-start">
-          <PortalCard padding="none" className="overflow-hidden rounded-lg">
-            <div className="border-b border-slate-100 bg-slate-50 px-6 py-5">
+        <div className="space-y-6">
+          <PortalCard padding="none" className="overflow-hidden">
+            <div className="border-b border-slate-200 px-6 py-6 sm:px-8">
               <MarksHeading icon={UserRound}>{task.studentName}</MarksHeading>
               <p className="card-description mt-1">
-                {task.studentId} · {task.researchTitle}
+                {task.studentId} · {task.semester}
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-800">
+                {task.researchTitle}
               </p>
             </div>
 
@@ -215,10 +224,10 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
               {components.map((component, index) => (
                 <div
                   key={component.id}
-                  className="grid grid-cols-1 gap-5 p-6 md:grid-cols-[minmax(0,1fr)_150px]"
+                  className="space-y-5 px-6 py-7 sm:px-8"
                 >
-                  <div>
-                    <div className="flex items-start gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-5">
+                    <div className="flex min-w-0 basis-full items-start gap-3 sm:flex-1 sm:basis-0">
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-navy text-xs font-black text-white">
                         {index + 1}
                       </span>
@@ -227,24 +236,8 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                         {component.description ? <p className="card-description mt-1">{component.description}</p> : null}
                       </div>
                     </div>
-                    <label htmlFor={`marks-feedback-${task.id}-${component.id}`} className="form-label mt-4 block">Component feedback</label>
-                    <textarea
-                      id={`marks-feedback-${task.id}-${component.id}`}
-                      aria-label={`Component feedback for ${component.name}`}
-                      disabled={isReadOnly}
-                      value={values[component.id]?.feedback || ''}
-                      onChange={(event) => setValues((current) => ({
-                        ...current,
-                        [component.id]: {
-                          ...current[component.id],
-                          feedback: event.target.value,
-                        },
-                      }))}
-                      className="form-control mt-2 min-h-[82px]"
-                    />
-                  </div>
-                  <label className="space-y-2">
-                    <span className="form-label">
+                  <label className="block w-36 shrink-0 space-y-2">
+                    <span className="block text-sm font-semibold leading-5 text-slate-700">
                       Marks / {component.maxMarks}
                     </span>
                     <input
@@ -262,14 +255,33 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                           mark: event.target.value,
                         },
                       }))}
-                      className="form-control text-right text-brand-navy"
+                      className="form-control block text-right tabular-nums text-slate-900"
                     />
                   </label>
+                  </div>
+                  <div>
+                    <label htmlFor={`marks-feedback-${task.id}-${component.id}`} className="form-label block">Component feedback</label>
+                    <textarea
+                      id={`marks-feedback-${task.id}-${component.id}`}
+                      aria-label={`Component feedback for ${component.name}`}
+                      rows={2}
+                      disabled={isReadOnly}
+                      value={values[component.id]?.feedback || ''}
+                      onChange={(event) => setValues((current) => ({
+                        ...current,
+                        [component.id]: {
+                          ...current[component.id],
+                          feedback: event.target.value,
+                        },
+                      }))}
+                      className="form-control mt-2 block min-h-[64px] w-full px-3 py-2"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
 
-            <div className="border-t border-slate-100 p-6">
+            <div className="border-t border-slate-200 px-6 py-7 sm:px-8">
               <label htmlFor={`marks-comments-${task.id}`} className="form-label">
                 Overall comments
               </label>
@@ -278,37 +290,20 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                 disabled={isReadOnly}
                 value={comments}
                 onChange={(event) => setComments(event.target.value)}
-                className="form-control mt-2 min-h-[96px]"
+                className="form-control mt-2 block min-h-[112px] w-full px-3 py-3"
               />
             </div>
-          </PortalCard>
-
-          <aside className="space-y-5 xl:sticky xl:top-6">
-            <PortalCard padding="lg" className="rounded-2xl">
-              <p className="card-label">Calculated total</p>
-              <p className="mt-2 card-metric">
+          <div className="space-y-5 border-t border-slate-200 bg-slate-50/60 px-6 py-6 sm:px-8">
+            <div>
+              <p className="text-sm font-semibold text-slate-600">Calculated total</p>
+              <p className="mt-2 text-[28px] font-extrabold tracking-tight tabular-nums text-brand-navy">
                 {total.toFixed(2)}
-                <span className="text-sm text-slate-400"> / {maximum.toFixed(2)}</span>
+                <span className="ml-1 text-base font-medium text-slate-500"> / {maximum.toFixed(2)}</span>
               </p>
-            </PortalCard>
-
-            {showValidation && errors.length > 0 ? (
-              <PortalCard padding="md" className="rounded-lg border-amber-200 bg-amber-50">
-                <div className="flex items-start gap-2 text-amber-800">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  <div>
-                    <p className="card-value text-amber-800">Complete the required marks</p>
-                    <ul className="card-description mt-2 space-y-1 text-amber-800">
-                      {errors.map((error) => <li key={error}>{error}</li>)}
-                    </ul>
-                  </div>
-                </div>
-              </PortalCard>
-            ) : null}
+            </div>
 
             {!isReadOnly ? (
-              <div className="space-y-2">
-                <FormFeedback id="mark-draft-save-feedback" title="Draft wasn’t saved" feedback={saveFeedback}/>
+              <div className="space-y-4">
                 {draftConflict && reload ? <>
                   <p className="card-description">Your entries are still shown. Loading the latest record will replace them.</p>
                   <PortalButton fullWidth onClick={async () => {
@@ -320,8 +315,8 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                   }}>Load latest draft</PortalButton>
                 </> : null}
                 {dirty || draftSaved ? <p role="status" className="card-description">{dirty ? 'Unsaved changes' : 'Draft saved'}</p> : null}
+                <div className="flex flex-wrap items-center justify-end gap-3">
                 <PortalButton
-                  fullWidth
                   icon={Save}
                   variant="secondary"
                   disabled={draftConflict}
@@ -330,7 +325,6 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                   Save draft
                 </PortalButton>
                 <PortalButton
-                  fullWidth
                   icon={CheckCircle2}
                   variant="primary"
                   disabled={task.canSubmit !== true || draftConflict}
@@ -339,10 +333,12 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
                 >
                   Submit marks
                 </PortalButton>
+                </div>
                 {task.canSubmit !== true ? <p id={`marks-submit-help-${task.id}`} className="card-description">Submission is unavailable for this task. You can still save a draft.</p> : null}
               </div>
             ) : null}
-          </aside>
+          </div>
+          </PortalCard>
         </div>
       )}
     </fieldset>

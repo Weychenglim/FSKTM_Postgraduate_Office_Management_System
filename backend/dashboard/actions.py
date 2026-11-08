@@ -272,7 +272,7 @@ def _timeline_actions(user, now):
         return []
 
     entries = SemesterTimelineEntry.objects.filter(
-        timeline__is_active=True,
+        timeline__is_published=True,
         timeline__academic_semester=semester,
         target_roles__contains=[role],
     ).select_related("timeline", "marks_period", "operational_period")
@@ -409,7 +409,7 @@ def build_dashboard_tasks(user, *, now=None, limit=MAX_DASHBOARD_ACTIONS):
     semester = current_effective_semester()
     active_timeline = (
         SemesterTimeline.objects.filter(
-            is_active=True,
+            is_published=True,
             academic_semester=semester,
         ).first()
         if semester

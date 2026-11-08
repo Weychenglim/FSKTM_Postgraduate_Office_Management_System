@@ -45,3 +45,33 @@ class PeriodTargetingConcurrencyTests(APITransactionTestCase):
             self.assertEqual(sorted(future.result(timeout=30) for future in futures), [0, 1])
         self.assertEqual(list(EvaluationTask.objects.values_list("profile__matric_no", "evaluator_role")),
                          [("in-scope", "PANEL")])
+
+    def test_concurrent_differently_named_publications_reserve_coverage_once(self):
+        from django.core.exceptions import ValidationError
+        from .models import EvaluationPeriod
+        from .services import publish_evaluation_period
+        first = self.period(name="First publication", assessment="P1")
+        second = self.period(name="Second publication", assessment="P1")
+        barrier = Barrier(2)
+
+        def publish(period):
+            close_old_connections()
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SET lock_timeout = '10s'")
+                    cursor.execute("SET statement_timeout = '20s'")
+                barrier.wait(timeout=10)
+                try:
+                    publish_evaluation_period(period=period, actor=self.office)
+                    return "published"
+                except ValidationError as exc:
+                    if "coverage" not in str(exc):
+                        raise
+                    return "conflict"
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            futures = [pool.submit(publish, period) for period in (first, second)]
+            self.assertEqual(sorted(future.result(timeout=30) for future in futures), ["conflict", "published"])
+        self.assertEqual(EvaluationPeriod.objects.filter(lifecycle_status="PUBLISHED").count(), 1)

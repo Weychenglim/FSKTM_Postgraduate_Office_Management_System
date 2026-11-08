@@ -116,6 +116,7 @@ export const PortalCard: React.FC<PortalCardProps> = ({
 
 interface PageHeaderProps {
   title: string;
+  titleAside?: React.ReactNode;
   subtitle?: string;
   actions?: React.ReactNode;
   backLabel?: string;
@@ -127,6 +128,7 @@ interface PageHeaderProps {
 
 export const PageHeader: React.FC<PageHeaderProps> = ({
   title,
+  titleAside,
   subtitle,
   actions,
   backLabel,
@@ -143,7 +145,10 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
           <span>{backLabel}</span>
         </button>
       )}
-      <h1 className="page-title focus:outline-none" tabIndex={-1}>{title}</h1>
+      {titleAside ? <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h1 className="page-title focus:outline-none" tabIndex={-1}>{title}</h1>
+        {titleAside}
+      </div> : <h1 className="page-title focus:outline-none" tabIndex={-1}>{title}</h1>}
       {subtitle && <p className={joinClasses('page-subtitle', subtitleClassName)}>{subtitle}</p>}
     </div>
     {actions && <div className="flex flex-wrap items-center gap-2 md:justify-end">{actions}</div>}

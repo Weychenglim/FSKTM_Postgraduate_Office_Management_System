@@ -1,3 +1,5 @@
+import { PencilLine, RotateCcw, X } from 'lucide-react';
+import { PortalModal, useModalTitle } from './PortalModal';
 import { DecisionDialog } from './DecisionDialog';
 import { completeDecision } from '../utils/decisionSubmission';
 import { useRecordDraft } from './RecordDraft';
@@ -5,8 +7,9 @@ import React, {useEffect, useRef, useState} from 'react';
 import type {MarkRecordDetail} from '../types';
 import {correctSubmittedMarkRecord, reopenSubmittedMarkRecord} from '../services/marksApi';
 import {validateSubmittedMarksCorrection} from '../utils/submittedMarksCorrection';
-import {formatMalaysiaDateTime} from '../utils/malaysiaDateTime';
-import {PortalButton, PortalCard, PortalConfirmModal} from './PortalPrimitives';
+import {formatMalaysiaDateTimeCompact as formatMalaysiaDateTime} from '../utils/malaysiaDateTime';
+import {PortalButton, PortalConfirmModal} from './PortalPrimitives';
+import {AlertMessage} from './AlertMessage';
 
 interface SubmittedMarksActionsProps {
   record: MarkRecordDetail;
@@ -15,6 +18,7 @@ interface SubmittedMarksActionsProps {
 }
 
 export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMarksActionsProps) {
+  const modalTitle = useModalTitle();
   const [mode, setMode] = useState<'correct' | 'reopen' | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [comments, setComments] = useState('');
@@ -38,6 +42,7 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
   const correctedTotal = components.reduce((total, component) => total + Number(values[component.id] || 0), 0);
   const changedScores = components.filter(component => Number(values[component.id]) !== Number(component.marksAwarded));
   const clearAction = () => {setMode(null); setValues({}); setComments(''); setReason(''); setError(''); setConfirmOpen(false);};
+  const requestClose = () => {if (dirty) setDiscardOpen(true); else clearAction();};
   const choose = (next: 'correct' | 'reopen') => {
     setMode(next); setError(''); setReason(''); setComments(record.entry.comments);
     setValues(Object.fromEntries(components.map(component => [component.id, component.marksAwarded || '0'])));
@@ -82,37 +87,39 @@ export function SubmittedMarksActions({record, onChanged, onReload}: SubmittedMa
     } finally { setBusy(false); }
   };
 
-  return <>{eligible ? <PortalCard padding="lg" className="rounded-lg">
-    <h2 className="section-label">Office Marks actions</h2>
-    <p className="card-description mt-2 text-slate-600">Changes require a reason and retain the original values in correction history.</p>
-    {error ? <p role="alert" className="card-description mt-3 text-red-700">{error}</p> : null}
+  return <>{eligible ? <div className="mt-6 border-t border-slate-200 pt-5">
+    {awaitingLatest && error ? <AlertMessage type="error" message={error} className="mt-3"/> : null}
     {awaitingLatest ? <div className="mt-4 space-y-3">
       <p className="card-description text-amber-800">Your change was saved. Review the latest mark record before making another Office change.</p>
       <PortalButton disabled={busy} onClick={() => void reviewLatest()}>Review latest record</PortalButton>
     </div> : <>
-      {!mode ? <div className="mt-4 flex flex-wrap gap-2">
-        {actions?.canCorrect ? <PortalButton onClick={() => choose('correct')}>Correct submitted marks</PortalButton> : null}
-        {actions?.canReopen ? <PortalButton onClick={() => choose('reopen')}>Reopen for Lecturer</PortalButton> : null}
-      </div> : <div className="mt-4 space-y-4">
-        <h3 className="section-label">{mode === 'correct' ? 'Correct submitted marks' : 'Reopen for Lecturer'}</h3>
+      {!mode ? <div className="submission-actions flex flex-wrap justify-end gap-3">
+        {actions?.canCorrect ? <PortalButton variant="primary" icon={PencilLine} onClick={() => choose('correct')}>Correct submitted marks</PortalButton> : null}
+        {actions?.canReopen ? <PortalButton icon={RotateCcw} onClick={() => choose('reopen')}>Reopen for Lecturer</PortalButton> : null}
+      </div> : <PortalModal isOpen={!!mode && !confirmOpen} busy={busy} labelledBy={modalTitle} className="max-w-3xl p-6 sm:p-8" onClose={requestClose}><div className="space-y-6">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 pb-5">
+          <h3 id={modalTitle} className="text-base font-semibold text-slate-900">{mode === 'correct' ? 'Correct submitted marks' : 'Reopen for Lecturer'}</h3>
+          <button type="button" aria-label="Close dialog" disabled={busy} onClick={requestClose} className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700 disabled:opacity-50"><X className="size-4" aria-hidden="true"/></button>
+        </div>
+        {error && !awaitingLatest ? <AlertMessage type="error" message={error}/> : null}
         {mode === 'correct' ? <>
-          <div className="grid gap-3 sm:grid-cols-2">{components.map(component => <label key={component.id} className="form-label">
+          <div className="grid gap-5 sm:grid-cols-2">{components.map(component => <label key={component.id} className="form-label block">
             {component.name} (maximum {component.maxMarks})
             <input type="number" min="0" max={component.maxMarks} step="0.01" disabled={busy}
-              className="form-control mt-1" value={values[component.id] || ''}
+              className="form-control mt-2 min-h-11 px-3 py-2.5 text-sm font-normal" value={values[component.id] || ''}
               onChange={event => setValues(current => ({...current, [component.id]: event.target.value}))}/>
           </label>)}</div>
-          <label className="form-label block">Corrected overall comments<textarea className="form-control mt-1" disabled={busy} value={comments} onChange={event => setComments(event.target.value)}/></label>
+          <label className="form-label block">Corrected overall comments<textarea className="form-control mt-2 min-h-24 px-3 py-2.5 text-sm font-normal" disabled={busy} value={comments} onChange={event => setComments(event.target.value)}/></label>
           <p className="card-description">Total: {record.entry.totalMark} → {Number.isFinite(correctedTotal) ? correctedTotal.toFixed(2) : '-'}</p>
         </> : <p className="card-description text-slate-600">Scores and comments are preserved. The entry returns to Draft so its assigned Lecturer can review and resubmit while the period remains open.</p>}
-        <label className="form-label block">{mode === 'correct' ? 'Correction reason' : 'Reopening reason'}<textarea className="form-control mt-1" required disabled={busy} value={reason} onChange={event => setReason(event.target.value)}/></label>
-        <div className="flex flex-wrap gap-2">
+        <label className="form-label block">{mode === 'correct' ? 'Correction reason' : 'Reopening reason'}<textarea className="form-control mt-2 min-h-24 px-3 py-2.5 text-sm font-normal" required disabled={busy} value={reason} onChange={event => setReason(event.target.value)}/></label>
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-5">
+          <PortalButton disabled={busy} onClick={requestClose}>Cancel</PortalButton>
           <PortalButton variant="primary" disabled={busy || !reason.trim()} onClick={review}>{mode === 'correct' ? 'Review correction' : 'Review reopening'}</PortalButton>
-          <PortalButton disabled={busy} onClick={() => {if(dirty)setDiscardOpen(true);else clearAction();}}>Cancel</PortalButton>
         </div>
-      </div>}
+      </div></PortalModal>}
     </>}
-  </PortalCard> : null}
+  </div> : null}
     <DecisionDialog isOpen={confirmOpen} busy={busy} kind="confirmation" decisionKey={record.recordId}
       context={<p>{record.student.name} · {record.student.studentId} · {record.evaluator.name}</p>}
       title={mode === 'correct' ? 'Save this correction?' : 'Reopen this submission?'}
@@ -135,7 +142,7 @@ export function MarkCorrectionHistoryView({events, components}: {
   events: MarkRecordDetail['correctionHistory']; components: MarkRecordDetail['rubric']['components'];
 }) {
   if (!events.length) return <p className="card-description">No corrections or reopening events.</p>;
-  return <div className="space-y-4">{events.map(event => {
+  return <div className="space-y-8">{events.map(event => {
     const scoreValues = (values: Record<string, unknown>) => values.scores && typeof values.scores === 'object' ? values.scores as Record<string, unknown> : {};
     const beforeScores = scoreValues(event.beforeValues); const afterScores = scoreValues(event.afterValues);
     const rows: Array<[string, unknown, unknown]> = [
@@ -143,16 +150,46 @@ export function MarkCorrectionHistoryView({events, components}: {
       ['Total mark', event.beforeValues.totalMark, event.afterValues.totalMark],
       ...components.filter(component => component.id in beforeScores || component.id in afterScores)
         .map(component => [component.name, beforeScores[component.id], afterScores[component.id]] as [string, unknown, unknown]),
-      ['Overall comments', event.beforeValues.comments, event.afterValues.comments],
     ];
-    return <article key={event.id} className="border-l-2 border-blue-200 pl-3 text-xs">
-      <p className="card-value text-slate-700">{event.action === 'CORRECT' ? 'Correction' : 'Reopened for Lecturer'}</p>
-      <p className="card-description mt-1 text-slate-600">{event.reason}</p>
-      <p className="card-description mt-1 text-slate-500">{event.actorName} · {formatMalaysiaDateTime(event.createdAt)}</p>
-      <details className="mt-2"><summary className="card-value cursor-pointer">View before and after</summary>
-        <div className="mt-2 overflow-x-auto"><table className="data-table"><thead><tr><th className="data-th p-2">Field</th><th className="data-th p-2">Before</th><th className="data-th p-2">After</th></tr></thead>
-          <tbody>{rows.map(([label, before, after]) => <tr key={label} className="border-t border-slate-100"><th className="data-td-strong p-2">{label}</th><td className="data-td p-2 whitespace-pre-wrap">{before == null ? '-' : String(before)}</td><td className="data-td p-2 whitespace-pre-wrap">{after == null ? '-' : String(after)}</td></tr>)}</tbody>
-        </table></div>
+    const displayValue = (value: unknown) => value == null || value === '' ? 'None' : String(value);
+    return <article key={event.id} className="min-w-0 border-l-2 border-blue-200 pl-3 text-xs">
+      <header className="min-w-0">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <p className="text-[13px] font-semibold leading-5 text-brand-navy">{event.action === 'CORRECT' ? 'Correction' : 'Reopened for Lecturer'}</p>
+          <time className="card-description text-slate-500" dateTime={event.createdAt}>{formatMalaysiaDateTime(event.createdAt)}</time>
+        </div>
+        <p className="card-description mt-1 [overflow-wrap:anywhere]">By {event.actorName} · {event.actorRole}</p>
+        <div className="mt-2 rounded-md bg-slate-50 px-3 py-2">
+          <p className="text-[11px] font-semibold text-slate-500">Reason</p>
+          <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-700 [overflow-wrap:anywhere]">{event.reason}</p>
+        </div>
+      </header>
+      <details className="mt-3 min-w-0">
+        <summary className="card-value cursor-pointer">View before and after</summary>
+        <div className="mt-2 min-w-0">
+          <table className="data-table w-full table-fixed">
+            <colgroup><col className="w-2/5"/><col className="w-[30%]"/><col className="w-[30%]"/></colgroup>
+            <thead><tr><th className="data-th p-2">Field</th><th className="data-th p-2">Before</th><th className="data-th p-2">After</th></tr></thead>
+            <tbody>{rows.map(([label, before, after]) => <tr key={label} className="border-t border-slate-100">
+              <th className="data-td-strong p-2 [overflow-wrap:anywhere]">{label}</th>
+              <td className="data-td p-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{before == null ? '-' : String(before)}</td>
+              <td className="data-td p-2 whitespace-pre-wrap [overflow-wrap:anywhere]">{after == null ? '-' : String(after)}</td>
+            </tr>)}</tbody>
+          </table>
+          <section className="mt-3 rounded-md border border-slate-200 p-3" aria-label="Overall comments before and after">
+            <h4 className="text-xs font-semibold text-slate-700">Overall comments</h4>
+            <div className="mt-2 grid min-w-0 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 rounded-md bg-slate-50 p-3">
+                <p className="text-[11px] font-semibold text-slate-500">Before</p>
+                <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-700 [overflow-wrap:anywhere]">{displayValue(event.beforeValues.comments)}</p>
+              </div>
+              <div className="min-w-0 rounded-md bg-slate-50 p-3">
+                <p className="text-[11px] font-semibold text-slate-500">After</p>
+                <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-slate-700 [overflow-wrap:anywhere]">{displayValue(event.afterValues.comments)}</p>
+              </div>
+            </div>
+          </section>
+        </div>
       </details>
     </article>;
   })}</div>;

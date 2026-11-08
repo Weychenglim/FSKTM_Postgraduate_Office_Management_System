@@ -30,6 +30,7 @@ def task_status(task):
 
 
 class RubricCreateSerializer(serializers.Serializer):
+    allowedEvaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False)
     familyCode = serializers.SlugField(max_length=64)
     name = serializers.CharField(max_length=255)
     description = serializers.CharField(required=False, allow_blank=True)
@@ -41,6 +42,7 @@ class RubricCreateSerializer(serializers.Serializer):
 
 
 class RubricUpdateSerializer(serializers.Serializer):
+    allowedEvaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False, required=False)
     name = serializers.CharField(max_length=255, required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     targetMark = serializers.DecimalField(
@@ -85,6 +87,7 @@ class RubricComponentInputSerializer(serializers.Serializer):
 
 
 class EvaluationPeriodCreateSerializer(serializers.Serializer):
+    assessment = serializers.ChoiceField(choices=["P1", "P2"], allow_blank=True, required=False)
     programmeScope = serializers.ChoiceField(choices=["ALL", "SELECTED"], required=False)
     programmes = serializers.ListField(child=serializers.CharField(max_length=255, allow_blank=False), required=False)
     evaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False, required=False)
@@ -97,6 +100,7 @@ class EvaluationPeriodCreateSerializer(serializers.Serializer):
 
 
 class EvaluationPeriodUpdateSerializer(serializers.Serializer):
+    assessment = serializers.ChoiceField(choices=["P1", "P2"], allow_blank=True, required=False)
     programmeScope = serializers.ChoiceField(choices=["ALL", "SELECTED"], required=False)
     programmes = serializers.ListField(child=serializers.CharField(max_length=255, allow_blank=False), required=False)
     evaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False, required=False)
@@ -125,6 +129,12 @@ class ReasonSerializer(serializers.Serializer):
 
 
 class EvaluationTaskSerializer(serializers.ModelSerializer):
+    periodName = serializers.CharField(source="period.name", read_only=True)
+    rubricName = serializers.CharField(source="period.rubric.name", read_only=True)
+    rubricVersion = serializers.IntegerField(source="period.rubric.version", read_only=True)
+    opensAt = serializers.DateTimeField(source="period.opens_at", read_only=True, allow_null=True)
+    closesAt = serializers.DateTimeField(source="period.closes_at", read_only=True, allow_null=True)
+    assignedAt = serializers.DateTimeField(source="assigned_at", read_only=True)
     studentId = serializers.CharField(source="profile.matric_no")
     studentName = serializers.CharField(source="profile.student_name")
     initials = serializers.SerializerMethodField()
@@ -148,6 +158,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
         model = EvaluationTask
         fields = [
             "id",
+            "periodName", "rubricName", "rubricVersion", "opensAt", "closesAt", "assignedAt",
             "studentId",
             "studentName",
             "initials",
@@ -261,13 +272,10 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
 class SubmittedEvaluationSerializer(EvaluationTaskSerializer):
     taskLifecycleStatus = serializers.CharField(source="lifecycle_status")
     periodId = serializers.IntegerField(source="period_id")
-    periodName = serializers.CharField(source="period.name")
-    rubricName = serializers.CharField(source="period.rubric.name")
-    rubricVersion = serializers.IntegerField(source="period.rubric.version")
 
     class Meta(EvaluationTaskSerializer.Meta):
         fields = EvaluationTaskSerializer.Meta.fields + [
-            "taskLifecycleStatus", "periodId", "periodName", "rubricName", "rubricVersion",
+            "taskLifecycleStatus", "periodId",
         ]
 
     def to_representation(self, obj):
