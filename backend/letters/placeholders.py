@@ -68,8 +68,8 @@ APPOINTMENT_PLACEHOLDERS = {
 REQUEST_PLACEHOLDERS = {
     "RECIPIENT": ("Recipient", "Who the letter is for, with the address the student typed"),
     "VALID_UNTIL": ("Valid Until", "The date the letter stops being valid, from the template"),
-    "BALANCE_SEMESTERS_MIN": ("Semesters Left (Minimum)", "Semesters until the expected completion, from the registry"),
-    "BALANCE_SEMESTERS_MAX": ("Semesters Left (Maximum)", "Semesters until the maximum semester, from the registry"),
+    "BALANCE_SEMESTERS_MIN": ("Semesters Left (Minimum)", "Semesters until the expected completion or the programme's minimum"),
+    "BALANCE_SEMESTERS_MAX": ("Semesters Left (Maximum)", "Semesters until the maximum semester"),
 }
 
 _APPOINTMENTS = (SUPERVISOR_LETTER, PANEL_LETTER, CO_SUPERVISOR_LETTER)

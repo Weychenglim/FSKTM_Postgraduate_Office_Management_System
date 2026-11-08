@@ -24,8 +24,8 @@ class AnnouncementAdmin(InspectionOnlyAdmin):
     search_fields = ("title", "content", "created_by_name")
     readonly_fields = ("attachment_file", "created_at", "updated_at")
     fieldsets = (
-        (None, {"fields": ("title", "content", "target", "priority", "status")}),
-        ("Schedule and targeting", {"fields": ("publish_at", "expires_at", "target_programmes", "target_intakes")}),
+        (None, {"fields": ("title", "content", "target", "also_targets", "priority", "status")}),
+        ("Schedule and targeting", {"fields": ("publish_at", "expires_at", "target_programmes", "target_intakes", "target_students")}),
         ("Attachment", {"fields": ("attachment_file",)}),
         ("Audit", {"fields": ("created_by", "created_by_name", "created_at", "updated_at")}),
     )

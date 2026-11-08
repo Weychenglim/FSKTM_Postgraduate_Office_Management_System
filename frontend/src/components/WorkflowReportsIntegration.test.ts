@@ -26,7 +26,7 @@ assert.match(app, /WorkflowReports/);
 assert.match(app, /isDashboardReportsRoute/);
 assert.match(adminDashboard, /onClick=\{\(\)=>navigate\(APP_ROUTES.dashboardReports\)\}>View Workflow Reports/);
 assert.doesNotMatch(adminDashboard, /label:'Workflow reports'/);
-assert.match(adminDashboard, /Manage Participants/);
+assert.doesNotMatch(adminDashboard, /Manage Participants/);
 assert.match(lecturerDashboard, /View Workflow Reports/);
 assert.match(coordinatorDashboard, /View Workflow Reports/);
 assert.doesNotMatch(studentDashboard, /View Workflow Reports/);

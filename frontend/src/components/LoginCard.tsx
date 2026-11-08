@@ -117,12 +117,9 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
         </div>
 
         <div className="w-full flex flex-col">
-          <h2 id="sign-in-header" className="page-title font-sans">
+          <h2 id="sign-in-header" className="page-title font-sans mb-6">
             Sign In
           </h2>
-          <p id="sign-in-subtext" className="page-subtitle mt-1 mb-6">
-            Authenticate to access your workspace.
-          </p>
 
           {alert && (
             <div className="mb-5">
@@ -215,7 +212,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                   </div>
                   <h4 id={helpTitle} className="section-heading">Password Recovery</h4>
                   <p className="card-description mt-2">
-                    To maintain FSKTM administration guidelines, please contact the postgraduate office desk with your registered Staff ID / Student Matric card to request password resets.
+                    Contact the postgraduate office with your Staff ID or matric card.
                   </p>
                   <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100 text-left w-full card-description">
                     <span className="card-label text-slate-400 block">Office Email:</span>
@@ -232,9 +229,6 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                     <Server className="w-6 h-6 text-blue-600" />
                   </div>
                   <h4 id={helpTitle} className="section-heading">IT Helpdesk Contact</h4>
-                  <p className="card-description mt-2">
-                    The FSKTM Tech Support is cataloged to assist with student and staff account provisioning, single sign-on issues, and database interruptions.
-                  </p>
                   <div className="mt-5 text-left w-full space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-[11px]">
                     <div className="flex justify-between"><span className="card-label">Operation:</span><span className="card-value">Mon to Fri (8AM to 5PM)</span></div>
                     <div className="flex justify-between"><span className="card-label">Service Counter:</span><span className="card-value">Block A, Level 2 Lab Office</span></div>

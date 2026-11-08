@@ -40,6 +40,7 @@ from .registry_columns import (
     suggest_mapping,
 )
 from .registry_profiles import layout_token, saved_mapping
+from .semesters import read as read_semester
 from .registry_programmes import parse_programme_map, programme_key, similar_programme
 from .validators import matric_problem, phone_problem
 
@@ -638,8 +639,12 @@ def _parse_defaults(raw, errors):
         problems.append(f'"{values["programme"]}" is not an approved programme.')
     if len(values["intake"]) > MAX_INTAKE_LENGTH:
         problems.append(f"Intake is longer than {MAX_INTAKE_LENGTH} characters.")
+    elif values["intake"] and read_semester(values["intake"]) is None:
+        problems.append("Choose an intake like 2026/2027 Semester I.")
     if len(values["semester"]) > MAX_SEMESTER_LENGTH:
         problems.append(f"Current semester is longer than {MAX_SEMESTER_LENGTH} characters.")
+    elif values["semester"] and read_semester(values["semester"]) is None:
+        problems.append("Choose a current semester like 2026/2027 Semester I.")
     if problems:
         errors["defaults"] = problems
     values["programme"] = programme
@@ -662,8 +667,12 @@ def _field_problem(matric, name, phone, intake="", semester=""):
         return problem
     if len(intake) > MAX_INTAKE_LENGTH:
         return f"intake is longer than {MAX_INTAKE_LENGTH} characters"
+    if intake and read_semester(intake) is None:
+        return "intake can't be read. Write it like 2026/2027 Semester I"
     if len(semester) > MAX_SEMESTER_LENGTH:
         return f"current_semester is longer than {MAX_SEMESTER_LENGTH} characters"
+    if semester and read_semester(semester) is None:
+        return "current_semester can't be read. Write it like 2026/2027 Semester I"
     return None
 
 

@@ -137,4 +137,5 @@ def send_reminders(doc_type, recipients):
         f"{message}\n\nUpload it in the portal: {portal_link(f'/files/upload?type={doc_type.code}')}\n\n"
         "You get this email because deadline reminders are on in your Settings.\n\n"
         f"{SIGN_OFF}",
+        wait=False,
     )

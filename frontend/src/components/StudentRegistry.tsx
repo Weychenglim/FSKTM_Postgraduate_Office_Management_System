@@ -13,34 +13,25 @@ import {
   UserPlus, 
   Search, 
   SlidersHorizontal, 
-  Eye, 
   Check, 
   X, 
   ChevronLeft, 
   ChevronRight, 
-  UserSquare, 
   UserCheck, 
   GraduationCap, 
   ShieldAlert, 
   ChevronDown,
   Mail,
   Calendar,
-  Layers,
   FileSpreadsheet,
   UploadCloud,
-  FileText,
   AlertTriangle,
   AlertCircle,
   Edit,
   Trash2,
   CheckCircle,
   MoreVertical,
-  Info,
   RefreshCw,
-  HelpCircle,
-  FileDown,
-  ArrowRightLeft,
-  Lock
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -49,15 +40,18 @@ import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { RegistryImportResult } from './RegistryImportResult';
 import { ImportSteps, RegistryImportMatch } from './RegistryImportMatch';
 import { NOT_CHOSEN, RegistryImportProgrammes } from './RegistryImportProgrammes';
-import { StatCard } from './StatCard';
+import { OverflowMenu } from './DocumentParts';
 import { describeProgramme } from '../utils/programmeLabel';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { historyTime } from '../utils/documentDisplay';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { APP_ROUTES, routeForNewProgrammeTransfer, routeForProgrammeTransfer } from '../constants/routes';
-import { getStudentTransfer, type StudentTransferSummary } from '../services/programmeTransfersApi';
+import { APP_ROUTES } from '../constants/routes';
+import { getSemesterMoveSummary, getStudentGraduationCheck, type GraduationStudent, type MoveSummary } from '../services/registrySemestersApi';
+import { canonicalSemester, intakeFilterOptions, matchesIntake, semesterChoices, semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
+import { StudentStatusCards } from './ParticipantStatusCards';
+import { StudentSemestersCard } from './StudentSemestersCard';
 import {
   ImportCommitResponse,
   ImportDefaults,
@@ -67,7 +61,6 @@ import {
   ImportPreviewResponse,
   ImportPreviewRow,
   ImportProgrammeValue,
-  RegistryImportBatch,
   StudentAcademicStatus,
   StudentAccountStatus,
   StudentRecord,
@@ -80,30 +73,29 @@ import {
   downloadImportTemplate,
   fieldErrors,
   getParticipant,
-  getRecentImports,
   getStudentById,
   getStudents,
   inspectStudentImport,
   previewStudentImport,
   sendAccessLink,
-  sendBatchInvitations,
   updateStudent,
 } from '../services';
 import {
   describeBlockers,
   distinctValues,
   studentStatusOptions,
+  inRegistryView,
+  registryViewOptions,
   summariseRegistry,
+  type RegistryView,
 } from '../utils/registryStatus';
 
 const NO_SUPERVISOR = '__none__';
-const ACADEMIC_STATUSES: StudentAcademicStatus[] = ['Active', 'Deferred', 'Graduated', 'Withdrawn'];
 import { PROGRAMME_OPTIONS, normaliseProgramme } from '../constants/programmes';
 import { CSV_HEADERS, reviewedFileName, rowsToCsv } from '../utils/csvImport';
 import { downloadCsv } from '../utils/csvExport';
 import { pageWindow } from '../utils/pageWindow';
 import {
-  BATCH_PROBLEM_COLUMNS,
   IMPORT_REPORT_COLUMNS,
   IMPORT_ROW_FILTERS,
   STUDENT_ID_RULE,
@@ -112,7 +104,6 @@ import {
   differenceWarning,
   filterImportRows,
   rowExplanation,
-  rowsAfterHeldSend,
   rowsForReview,
   skipNotice,
   summariseImportRows,
@@ -209,27 +200,6 @@ export const ProgrammeChip: React.FC<ProgrammeChipProps> = ({ label }) => {
   );
 };
 
-// Reusable Account Status Indicator
-interface AccountStatusIndicatorProps {
-  status: StudentAccountStatus;
-}
-
-export const AccountStatusIndicator: React.FC<AccountStatusIndicatorProps> = ({ status }) => {
-  const dotTone = {
-    Verified: 'success',
-    Suspended: 'danger',
-  } as const;
-
-  return (
-    <div className="flex items-center gap-2 select-none">
-      <StatusDot tone={dotTone[status]} pulse className="w-2 h-2" />
-      <span className="card-value">
-        {status}
-      </span>
-    </div>
-  );
-};
-
 // Reusable Action Button
 interface ActionButtonProps {
   onClick: () => void;
@@ -252,15 +222,10 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
 
 interface StudentRegistryProps {
   readOnly?: boolean;
-  /** Office staff and programme coordinators follow programme transfers. */
-  canSeeTransfers?: boolean;
-  onOpenParticipantLifecycle?: () => void;
 }
 
 export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   readOnly = false,
-  canSeeTransfers = false,
-  onOpenParticipantLifecycle,
 }) => {
   // Master Student Registry State: loaded from studentsApi (mock-backed today).
   const [students, setStudents] = useState<StudentRecord[]>([]);
@@ -296,17 +261,26 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [searchQuery, setSearchQuery] = useListState('StudentRegistry', 'searchQuery', '');
   const [selectedProgramme, setSelectedProgramme] = useListState<string>('StudentRegistry', 'selectedProgramme', 'All');
   const [selectedSemester, setSelectedSemester] = useListState<string>('StudentRegistry', 'selectedSemester', 'All');
-  const [selectedAcademicStatus, setSelectedAcademicStatus] = useListState<string>('StudentRegistry', 'selectedAcademicStatus', 'All');
+  const [statusView, setStatusView] = useListState<RegistryView>('StudentRegistry', 'statusView', 'All');
+  const [selectedIntake, setSelectedIntake] = useListState<string>('StudentRegistry', 'selectedIntake', 'All');
   const [selectedSupervisor, setSelectedSupervisor] = useListState<string>('StudentRegistry', 'selectedSupervisor', 'All');
   
   // Modals Dialog States
   const [viewingStudent, setViewingStudent] = useState<StudentRecord | null>(null);
-  const [transfer, setTransfer] = useState<StudentTransferSummary | null>(null);
+  const [moveSummary, setMoveSummary] = useState<MoveSummary | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    if (readOnly) return undefined;
+    let cancelled = false;
+    getSemesterMoveSummary().then((found) => { if (!cancelled) setMoveSummary(found); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [readOnly]);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const openStudent = searchParams.get('student');
 
-  // ?student=<matric> opens that Student Record, for example on the way back from a transfer.
+  // ?student=<matric> opens that Student Record, for example from a graduation check.
   useEffect(() => {
     if (!openStudent || viewingStudent || loading) return;
     const found = students.find((row) => row.id.toLowerCase() === openStudent.toLowerCase());
@@ -322,18 +296,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       cancelled = true;
     };
   }, [openStudent, students, loading]);
-
-  useEffect(() => {
-    setTransfer(null);
-    if (!viewingStudent) return;
-    let cancelled = false;
-    getStudentTransfer(viewingStudent.id)
-      .then((found) => !cancelled && setTransfer(found))
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [viewingStudent?.id]);
 
   const closeRecord = () => {
     setViewingStudent(null);
@@ -357,8 +319,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     phone: '',
     programme: '',
     intakeBatch: '',
-    semester: '',
-    sendCredentialsImmediately: true
+    semester: ''
   });
 
   // Bulk CSV Import Session States
@@ -384,12 +345,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [importSheet, setImportSheet] = useState<string | null>(null);
   const [importHeaderRow, setImportHeaderRow] = useState<number | null>(null);
   const [matchError, setMatchError] = useState<string | null>(null);
-  // Programme, intake and semester for every row, and whether activation
-  // emails go out now or are held to send later.
+  // Programme, intake and semester for every row.
   const [importDefaults, setImportDefaults] = useState<ImportDefaults>({});
-  const [sendInvitesNow, setSendInvitesNow] = useState(true);
-  const [heldBatchToSend, setHeldBatchToSend] = useState<RegistryImportBatch | null>(null);
-  const [sendingHeld, setSendingHeld] = useState(false);
   // Programme names in the file that are not approved programmes, and the
   // office's choice for each: an approved programme, or skip its rows.
   const [programmeValues, setProgrammeValues] = useState<ImportProgrammeValue[]>([]);
@@ -403,10 +360,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [dropIdSuffix, setDropIdSuffix] = useState(false);
   // False when every row is a student, with no row of column names.
   const [importHasHeader, setImportHasHeader] = useState(true);
-
-  const [recentImports, setRecentImports] = useState<RegistryImportBatch[]>([]);
-  const [recentImportsError, setRecentImportsError] = useState<string | null>(null);
-  const [showAllImports, setShowAllImports] = useState(false);
 
   // Record being edited inside CSV preview list, identified by its file line
   const [editingCsvLine, setEditingCsvLine] = useState<number | null>(null);
@@ -431,8 +384,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [statusSaving, setStatusSaving] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [statusBlockers, setStatusBlockers] = useState<string[]>([]);
+  const [graduationCheck, setGraduationCheck] = useState<GraduationStudent | null>(null);
+  const [earlyApproved, setEarlyApproved] = useState(false);
 
-  const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', intakeDate: '', semester: '' });
+  const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', programmeReason: '', intakeDate: '' });
   const [detailsSaving, setDetailsSaving] = useState(false);
   const [detailsError, setDetailsError] = useState<string | null>(null);
   // An edit clears the last save problem, so a fixed field no longer shows it.
@@ -454,10 +409,32 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       email: viewingStudent?.email ?? '',
       phone: viewingStudent?.phone ?? '',
       programme: viewingStudent?.programme ?? '',
-      intakeDate: viewingStudent?.intakeDate ?? '',
-      semester: viewingStudent?.semester ?? '',
+      programmeReason: '',
+      intakeDate: canonicalSemester(viewingStudent?.intakeDate ?? ''),
     });
   }, [viewingStudent?.id]);
+
+  // Choosing Graduated shows what Record graduations would say about this student.
+  useEffect(() => {
+    setGraduationCheck(null);
+    setEarlyApproved(false);
+    if (statusTarget !== 'Graduated' || !viewingStudent) return undefined;
+    let cancelled = false;
+    getStudentGraduationCheck(viewingStudent.id)
+      .then((found) => { if (!cancelled) setGraduationCheck(found); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [statusTarget, viewingStudent?.id]);
+
+  // Semesters decide the current semester, so the record is read again after a change.
+  const refreshViewingStudent = () => {
+    if (!viewingStudent) return;
+    const matric = viewingStudent.id;
+    getStudentById(matric)
+      .then((updated) => setViewingStudent((current) => (current?.id === matric ? updated : current)))
+      .catch(() => undefined);
+    loadStudents();
+  };
 
   const handleStatusChange = async () => {
     if (!viewingStudent || !statusTarget || !statusReason.trim()) return;
@@ -469,6 +446,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       const updated = await updateStudent(student.id, {
         academicStatus: statusTarget,
         statusReason: statusReason.trim(),
+        ...(earlyApproved ? { earlyCompletionApproved: true } : {}),
       });
       setViewingStudent(updated);
       setStatusTarget('');
@@ -499,9 +477,17 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     if (detailsDraft.name.trim() !== student.name) changes.name = detailsDraft.name.trim();
     if (detailsDraft.email.trim().toLowerCase() !== student.email.toLowerCase()) changes.email = detailsDraft.email.trim();
     if (detailsDraft.phone.trim() !== student.phone) changes.phone = detailsDraft.phone.trim();
-    if (detailsDraft.programme !== student.programme) changes.programme = detailsDraft.programme;
-    if (detailsDraft.intakeDate.trim() !== student.intakeDate) changes.intakeDate = detailsDraft.intakeDate.trim();
-    if (detailsDraft.semester.trim() !== student.semester) changes.semester = detailsDraft.semester.trim();
+    if (detailsDraft.programme !== student.programme) {
+      changes.programme = detailsDraft.programme;
+      if (student.hasResearchProfile) {
+        if (!detailsDraft.programmeReason.trim()) {
+          setDetailsError('Give a reason for the correction.');
+          return;
+        }
+        changes.programmeReason = detailsDraft.programmeReason.trim();
+      }
+    }
+    if (detailsDraft.intakeDate !== canonicalSemester(student.intakeDate)) changes.intakeDate = detailsDraft.intakeDate;
     if (Object.keys(changes).length === 0) {
       setDetailsError('Nothing has changed yet.');
       return;
@@ -511,6 +497,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     try {
       const { oldAddressTold, ...updated } = await updateStudent(student.id, changes);
       setViewingStudent(updated);
+      setDetailsDraft((draft) => ({ ...draft, programmeReason: '' }));
       loadStudents();
       triggerToast(
         !changes.email
@@ -523,7 +510,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       );
     } catch (err) {
       const fields = fieldErrors(err);
-      setDetailsError(fields.name ?? fields.email ?? fields.phone ?? (err instanceof Error ? err.message : 'Could not save the details.'));
+      setDetailsError(fields.name ?? fields.email ?? fields.phone ?? fields.programmeReason ?? (err instanceof Error ? err.message : 'Could not save the details.'));
     } finally {
       setDetailsSaving(false);
     }
@@ -622,7 +609,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
         semester: manualFormData.semester.trim(),
         intakeDate: manualFormData.intakeBatch,
         academicStatus: 'Active',
-        sendInvite: manualFormData.sendCredentialsImmediately,
       });
       invitationSent = created.invitationSent;
     } catch (err) {
@@ -635,9 +621,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
     loadStudents();
     setCurrentView('list');
-    if (!manualFormData.sendCredentialsImmediately) {
-      triggerToast(`Registered "${manualFormData.name}". No activation email was sent; send it from their profile when ready.`);
-    } else if (invitationSent === false) {
+    if (invitationSent === false) {
       triggerToast(`Registered "${manualFormData.name}", but the activation email could not be sent. Use Send Activation Link in their profile.`);
     } else {
       triggerToast(`Registered "${manualFormData.name}" and emailed their activation link.`);
@@ -651,8 +635,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       phone: '',
       programme: '',
       intakeBatch: '',
-      semester: '',
-      sendCredentialsImmediately: true
+      semester: ''
     });
   };
 
@@ -690,19 +673,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     fileInputRef.current?.click();
   };
 
-  const loadRecentImports = useCallback((limit: number) => {
-    setRecentImportsError(null);
-    getRecentImports(limit)
-      .then(setRecentImports)
-      .catch((err) => setRecentImportsError(err instanceof Error ? err.message : 'Could not load recent imports.'));
-  }, []);
-
-  useEffect(() => {
-    if (currentView === 'register' && registerActiveTab === 'bulk') {
-      loadRecentImports(showAllImports ? 50 : 5);
-    }
-  }, [currentView, registerActiveTab, showAllImports, loadRecentImports]);
-
   const clearImport = () => {
     setUploadedFile(null);
     setSourceFile(null);
@@ -718,7 +688,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setImportHeaderRow(null);
     setMatchError(null);
     setImportDefaults({});
-    setSendInvitesNow(true);
     setProgrammeValues([]);
     setProgrammeValueCount(0);
     setProgrammeChoices({});
@@ -739,7 +708,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     programmeMap: programmeChoices,
     fillEmail,
     idRule: dropIdSuffix ? STUDENT_ID_RULE : null,
-    sendInvites: sendInvitesNow,
   });
 
   // Edited rows are sent back in our own layout, so the server finds the
@@ -749,7 +717,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     programmeMap: programmeChoices,
     fillEmail,
     idRule: dropIdSuffix ? STUDENT_ID_RULE : null,
-    sendInvites: sendInvitesNow,
   });
 
   const reviewedFile = (rows: ImportPreviewRow[]) =>
@@ -796,13 +763,17 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   // A new file is described first (sheets, column names, suggested matches).
   // Our own template goes straight to checking rows; any other layout stops at
   // Match columns so the office confirms which column is which.
-  const previewImportFile = async (file: File, first?: ImportOptions) => {
+  const previewImportFile = async (picked: File, first?: ImportOptions) => {
     setIsProcessingCsv(true);
     setCsvFatalError(null);
     setEditingCsvLine(null);
     setImportResult(null);
     setMatchError(null);
     try {
+      // The file is sent again at each step, and the browser refuses to resend
+      // one that changed on disk (OneDrive and Excel both do this), saying only
+      // "Failed to fetch". So the import keeps its own copy from the start.
+      const file = new File([await picked.arrayBuffer()], picked.name, { type: picked.type, lastModified: picked.lastModified });
       const layout = await inspectStudentImport(file, first);
       setUploadedFile({ name: file.name, size: `${(file.size / 1024).toFixed(1)} KB` });
       setSourceFile(file);
@@ -954,7 +925,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   };
 
   // Creates every Ready row; duplicates are skipped and other problem rows are
-  // left out. The server records the run for Recent Imports.
+  // left out.
   const handleCommitVerifiedCsv = async () => {
     if (csvPreviewRecords.length === 0) return;
     const editedSet = rowsEdited || !sourceFile;
@@ -971,7 +942,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       });
       const { batch, rows } = result;
       loadStudents();
-      loadRecentImports(showAllImports ? 50 : 5);
 
       // The result panel lists every skipped and failed row. Only the rows that
       // were not imported stay in the preview, so they can be fixed and sent
@@ -993,43 +963,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     } finally {
       setSaving(false);
     }
-  };
-
-  // Activation emails an import held back go only to students from that
-  // import who are still active and have not set a password.
-  const handleSendHeld = async () => {
-    if (!heldBatchToSend) return;
-    setSendingHeld(true);
-    try {
-      const result = await sendBatchInvitations(heldBatchToSend.id);
-      const notes = [
-        result.failed ? `${result.failed} could not be sent.` : '',
-        result.alreadyActivated ? `${result.alreadyActivated} had already set a password.` : '',
-        result.suspended ? `${result.suspended} have sign-in suspended.` : '',
-      ].filter(Boolean);
-      triggerToast(
-        [`Sent ${result.sent} activation email${result.sent === 1 ? '' : 's'}.`, ...notes].join(' '),
-      );
-      setImportResult((current) =>
-        current && current.batch.id === result.batch.id
-          ? { batch: result.batch, rows: rowsAfterHeldSend(current.rows, result.students) }
-          : current,
-      );
-      loadRecentImports(showAllImports ? 50 : 5);
-    } catch (err) {
-      triggerToast(err instanceof Error ? err.message : 'The activation emails could not be sent.');
-    } finally {
-      setSendingHeld(false);
-      setHeldBatchToSend(null);
-    }
-  };
-
-  const downloadImportProblems = (batch: RegistryImportBatch) => {
-    downloadCsv(
-      reviewedFileName(batch.fileName).replace('-reviewed.csv', '-skipped-and-not-imported.csv'),
-      batch.problems,
-      BATCH_PROBLEM_COLUMNS,
-    );
   };
 
   const downloadImportReport = () => {
@@ -1068,17 +1001,18 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
     const matchesProgramme = selectedProgramme === 'All' || student.programme === selectedProgramme;
     const matchesSemester = selectedSemester === 'All' || student.semester === selectedSemester;
-    const matchesAcademic = selectedAcademicStatus === 'All' || student.academicStatus === selectedAcademicStatus;
     const matchesSupervisor = selectedSupervisor === 'All'
       || (selectedSupervisor === NO_SUPERVISOR ? !student.supervisor : student.supervisor === selectedSupervisor);
 
-    return matchesSearch && matchesProgramme && matchesSemester && matchesAcademic && matchesSupervisor;
+    return matchesSearch && matchesProgramme && matchesSemester && matchesSupervisor && matchesIntake(student.intakeLabel, selectedIntake) && inRegistryView(student, statusView);
   });
 
   const summary = summariseRegistry(students);
   const semesterOptions = distinctValues(students.map(s => s.semester));
   const supervisorOptions = distinctValues(students.map(s => s.supervisor));
-  const columnCount = 6;
+  const intakeOptions = intakeFilterOptions(students.map((student) => student.intakeLabel ?? ''));
+  const activeFilters = [selectedProgramme, selectedIntake, selectedSemester, selectedSupervisor].filter((value) => value !== 'All').length;
+  const columnCount = 5;
 
   // Paginated students records
   const totalPages = Math.ceil(filteredStudents.length / itemsPerPage) || 1;
@@ -1097,7 +1031,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const visibleImportRows = filterImportRows(csvPreviewRecords, importFilter);
   const skipText = skipNotice(importSummary);
   const filledEmailCount = csvPreviewRecords.filter((row) => row.emailFilled).length;
-  const heldCount = heldBatchToSend?.created ?? 0;
 
   // Unsaved edits on an open record, so leaving it asks before they are lost.
   const recordDirty = viewingStudent !== null && !readOnly && (
@@ -1105,8 +1038,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     || detailsDraft.email.trim().toLowerCase() !== viewingStudent.email.toLowerCase()
     || detailsDraft.phone.trim() !== viewingStudent.phone
     || detailsDraft.programme !== viewingStudent.programme
-    || detailsDraft.intakeDate.trim() !== viewingStudent.intakeDate
-    || detailsDraft.semester.trim() !== viewingStudent.semester
+    || detailsDraft.intakeDate !== canonicalSemester(viewingStudent.intakeDate)
     || statusTarget !== ''
     || statusReason.trim() !== ''
   );
@@ -1116,32 +1048,32 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       
       <PortalToast message={toastMessage} />
 
-      <PortalConfirmModal
-        isOpen={heldBatchToSend !== null}
-        title={`Send activation emails to ${heldCount} student${heldCount === 1 ? '' : 's'}?`}
-        message={`Only students from ${heldBatchToSend?.fileName ?? 'this import'} who have not set a password yet are emailed.`}
-        confirmLabel="Send Emails"
-        tone="info"
-        icon={Mail}
-        isLoading={sendingHeld}
-        onConfirm={() => void handleSendHeld()}
-        onCancel={() => setHeldBatchToSend(null)}
-      />
-
       <>
           {/* ========================================================== */}
           {/* SCREEN A: PRIMARY REGISTRY STUDENT DIRECTORY LIST VIEW */}
           {/* ========================================================== */}
           {currentView === 'list' && (
-        <div id="student-registry-directory-list" className="space-y-8">
+        <div id="student-registry-directory-list" className="space-y-6">
           <PageHeader
             title="Student Registry"
-            subtitle={readOnly ? 'Read-only view of the students in your scope.' : 'Manage student records, registrations and sign-in access.'}
-            actions={
-              <div className="flex items-center gap-3 select-none">
-                <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
-                  Export CSV
-                </PortalButton>
+                        actions={
+              <div className="flex flex-wrap items-center gap-2 select-none">
+                {readOnly ? (
+                  <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
+                    Export CSV
+                  </PortalButton>
+                ) : (
+                  <OverflowMenu
+                    label="More student actions"
+                    triggerLabel="More"
+                    triggerSize="md"
+                    actions={[
+                      { label: 'Update current semester', onSelect: () => navigate(APP_ROUTES.registryUpdateSemester) },
+                      { label: 'Record graduations', onSelect: () => navigate(APP_ROUTES.registryGraduations) },
+                      { label: 'Export CSV', onSelect: handleExportCSV },
+                    ]}
+                  />
+                )}
                 {!readOnly && (
                   <PortalButton
                     onClick={() => {
@@ -1159,247 +1091,276 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             }
           />
 
-          {(!readOnly || canSeeTransfers) && <RegistryModuleTabs active="students" office={!readOnly} />}
+          {!readOnly && <RegistryModuleTabs active="students" />}
 
-          {/* ==================== SUMMARY CARDS STATEMENTS GRID ==================== */}
-          <div id="student-summary-cards" className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
-            <StatCard label="Total Students" value={summary.total.toLocaleString()} caption={readOnly ? 'In your scope' : 'In the registry'} icon={GraduationCap} tone="blue" />
-            <StatCard label="Active" value={summary.active.toLocaleString()} caption="Currently studying" icon={UserCheck} tone="green" />
-            <StatCard label="Deferred" value={summary.deferred.toLocaleString()} caption="On approved deferment" icon={Calendar} tone="amber" />
-            <StatCard label="Graduated / Withdrawn" value={summary.exited.toLocaleString()} caption="No longer studying" icon={UserSquare} tone="slate" />
-            <StatCard label="Awaiting Activation" value={summary.awaitingActivation.toLocaleString()} caption="Password not set yet" icon={ShieldAlert} tone="purple" />
-          </div>
+          {!readOnly && moveSummary?.semester && semesterMoveWaiting(moveSummary) && (
+            <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-[13.5px] font-semibold text-blue-900">
+              <span>
+                {moveSummary.semester.isSpecial
+                  ? `The ${shortSemester(moveSummary.semester.label)} has started. Choose who is taking it.`
+                  : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} updating.`}
+              </span>
+              <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.registryUpdateSemester)}>Update current semester</PortalButton>
+            </div>
+          )}
 
-          {/* ==================== CENTRAL DATATABLE AND FILTERS ==================== */}
           <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs">
-            
-            {/* Filtering Box Controls */}
-            <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col gap-3 select-none">
 
-              {/* Real-time Search Box */}
-              <div className="relative w-full">
-                <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
-                  <Search className="w-4 h-4 text-slate-400" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Search by name, student ID, or contact email..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setCurrentPage(1); 
-                  }}
-                  className="w-full bg-white border border-slate-200 text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-3xs font-sans not-italic normal-case tracking-normal text-xs font-bold"
-                />
+            <div className="p-4 sm:p-5 flex flex-col gap-4 select-none">
+              <div role="group" aria-label="Show students by status" className="flex flex-wrap gap-2">
+                {registryViewOptions(summary, statusView, !readOnly).map(({ view, count }) => {
+                  const on = view === statusView;
+                  return (
+                    <button
+                      key={view}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => {
+                        setStatusView(view);
+                        setCurrentPage(1);
+                      }}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-bold transition cursor-pointer ${
+                        on ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {view}
+                      <span className={on ? 'text-white/70' : 'text-slate-400'}>{count.toLocaleString()}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-              {/* Dynamic Droplist selectors */}
-              <div className="flex flex-wrap items-center gap-2">
-                
-                <SelectMenu
-                  variant="filter"
-                  prefix="Programme"
-                  aria-label="Filter by programme"
-                  value={selectedProgramme}
-                  options={[
-                    { value: 'All', label: 'All programmes', triggerLabel: 'All' },
-                    ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
-                  ]}
-                  onChange={(programme) => {
-                    setSelectedProgramme(programme);
-                    setCurrentPage(1);
-                  }}
-                />
-
-                <SelectMenu
-                  variant="filter"
-                  prefix="Semester"
-                  aria-label="Filter by semester"
-                  value={selectedSemester}
-                  options={[
-                    { value: 'All', label: 'All semesters', triggerLabel: 'All' },
-                    ...semesterOptions.map((semester) => ({ value: semester, label: semester })),
-                  ]}
-                  onChange={(semester) => {
-                    setSelectedSemester(semester);
-                    setCurrentPage(1);
-                  }}
-                />
-
-                <SelectMenu
-                  variant="filter"
-                  prefix="Status"
-                  aria-label="Filter by academic status"
-                  value={selectedAcademicStatus}
-                  options={[
-                    { value: 'All', label: 'All statuses', triggerLabel: 'All' },
-                    ...ACADEMIC_STATUSES.map(statusOption),
-                  ]}
-                  onChange={(academicStatus) => {
-                    setSelectedAcademicStatus(academicStatus);
-                    setCurrentPage(1);
-                  }}
-                />
-
-                <SelectMenu
-                  variant="filter"
-                  prefix="Supervisor"
-                  aria-label="Filter by supervisor"
-                  value={selectedSupervisor}
-                  options={[
-                    { value: 'All', label: 'All supervisors', triggerLabel: 'All' },
-                    { value: NO_SUPERVISOR, label: 'No supervisor yet' },
-                    ...supervisorOptions.map((supervisor) => ({ value: supervisor, label: supervisor })),
-                  ]}
-                  onChange={(supervisor) => {
-                    setSelectedSupervisor(supervisor);
-                    setCurrentPage(1);
-                  }}
-                />
-
+              <div className="flex items-center gap-2">
+                <div className="relative min-w-0 flex-1">
+                  <span className="absolute inset-y-0 left-3.5 flex items-center pointer-events-none text-slate-400">
+                    <Search className="w-4 h-4 text-slate-400" />
+                  </span>
+                  <input
+                    type="text"
+                    aria-label="Search students"
+                    placeholder="Search name, ID or email"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="w-full bg-white border border-slate-200 text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-3xs font-sans not-italic normal-case tracking-normal text-[13px] font-semibold"
+                  />
+                </div>
                 <PortalButton
                   variant="secondary"
                   size="md"
                   icon={SlidersHorizontal}
-                  onClick={() => {
-                    setSearchQuery('');
-                    setSelectedProgramme('All');
-                    setSelectedSemester('All');
-                    setSelectedAcademicStatus('All');
-                    setSelectedSupervisor('All');
-                    setCurrentPage(1);
-                    triggerToast('All filters reset.');
-                  }}
+                  aria-expanded={filtersOpen}
+                  onClick={() => setFiltersOpen((open) => !open)}
                 >
-                  Reset Filters
+                  Filters{activeFilters > 0 ? ` (${activeFilters})` : ''}
                 </PortalButton>
               </div>
-            </div>
 
-            {/* DATATABLE LIST VIEW */}
-            <div className="overflow-x-auto">
-              <table className="data-table min-w-[860px]">
-                <thead>
-                  <tr className="data-thead bg-slate-50 select-none">
-                    <th className="data-th">
-                      Student Candidate
-                    </th>
-                    <th className="data-th">
-                      Programme
-                    </th>
-                    <th className="data-th">
-                      Supervisor
-                    </th>
-                    <th className="data-th text-center">
-                      Academic Status
-                    </th>
-                    <th className="data-th">
-                      Account Status
-                    </th>
-                    <th className="data-th text-center">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={columnCount} className="p-0 text-xs font-semibold">
-                        <LoadingState message="Loading students…" />
-                      </td>
-                    </tr>
-                  ) : error ? (
-                    <tr>
-                      <td colSpan={columnCount} className="p-0 text-xs font-semibold">
-                        <ErrorState message={error} onRetry={loadStudents} />
-                      </td>
-                    </tr>
-                  ) : displayedStudents.length === 0 ? (
-                    <tr>
-                      <td colSpan={columnCount} className="py-12 text-center text-slate-400 select-none text-xs font-bold">
-                        No matching students found. Adjust the search or filters and try again.
-                      </td>
-                    </tr>
-                  ) : (
-                    displayedStudents.map((student) => {
-                      return (
-                        <tr key={student.id} className="data-row">
-                          {/* Student identity details */}
-                          <td className="data-td">
-                            <div className="flex items-center gap-3 text-left">
-                              <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 select-none border border-black/5 shadow-3xs ${student.avatarBg}`}>
-                                {student.avatarText}
-                              </div>
-                              <div>
-                                <h4 className="section-label">
-                                  {student.name}
-                                </h4>
-                                <p className="text-[10px] text-slate-550 font-semibold tracking-wide font-mono mt-0.5">
-                                  {student.id}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
+              {filtersOpen && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <SelectMenu
+                    variant="filter"
+                    prefix="Programme"
+                    aria-label="Filter by programme"
+                    value={selectedProgramme}
+                    options={[
+                      { value: 'All', label: 'All programmes', triggerLabel: 'All' },
+                      ...PROGRAMME_OPTIONS.map((programme) => programmeOption(programme)),
+                    ]}
+                    onChange={(programme) => {
+                      setSelectedProgramme(programme);
+                      setCurrentPage(1);
+                    }}
+                  />
 
-                          {/* Programme column */}
-                          <td className="data-td">
-                            <ProgrammeChip label={student.programme} />
-                          </td>
+                  <SelectMenu
+                    variant="filter"
+                    prefix="Intake"
+                    aria-label="Filter by intake"
+                    value={selectedIntake}
+                    options={[{ value: 'All', label: 'All intakes', triggerLabel: 'All' }, ...intakeOptions]}
+                    onChange={(intake) => {
+                      setSelectedIntake(intake);
+                      setCurrentPage(1);
+                    }}
+                  />
 
-                          <td className="data-td">
-                            {student.supervisor ? (
-                              <div className="text-left">
-                                <span className="text-[11.5px] font-extrabold text-slate-800 block">{student.supervisor}</span>
-                                {student.supervisorStaffNo && (
-                                  <span className="text-[10px] font-mono font-semibold text-slate-500">{student.supervisorStaffNo}</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-[11px] font-semibold text-slate-400">Not assigned</span>
-                            )}
-                          </td>
+                  <SelectMenu
+                    variant="filter"
+                    prefix="Semester"
+                    aria-label="Filter by semester"
+                    value={selectedSemester}
+                    options={[
+                      { value: 'All', label: 'All semesters', triggerLabel: 'All' },
+                      ...semesterOptions.map((semester) => ({ value: semester, label: semester })),
+                    ]}
+                    onChange={(semester) => {
+                      setSelectedSemester(semester);
+                      setCurrentPage(1);
+                    }}
+                  />
 
-                          {/* Academic status column */}
-                          <td className="data-td text-center">
-                            <StatusChip status={student.academicStatus} />
-                          </td>
+                  <SelectMenu
+                    variant="filter"
+                    prefix="Supervisor"
+                    aria-label="Filter by supervisor"
+                    value={selectedSupervisor}
+                    options={[
+                      { value: 'All', label: 'All supervisors', triggerLabel: 'All' },
+                      { value: NO_SUPERVISOR, label: 'No supervisor yet' },
+                      ...supervisorOptions.map((supervisor) => ({ value: supervisor, label: supervisor })),
+                    ]}
+                    onChange={(supervisor) => {
+                      setSelectedSupervisor(supervisor);
+                      setCurrentPage(1);
+                    }}
+                  />
 
-                          {/* Account status column */}
-                          <td className="data-td">
-                            <AccountStatusIndicator status={student.accountStatus} />
-                          </td>
-
-                          {/* Action column */}
-                          <td className="data-td text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <PortalButton variant="secondary" size="sm" icon={Eye} onClick={() => setViewingStudent(student)}>
-                                Inspect
-                              </PortalButton>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
+                  {activeFilters > 0 && (
+                    <PortalButton
+                      variant="ghost"
+                      size="md"
+                      onClick={() => {
+                        setSelectedProgramme('All');
+                        setSelectedIntake('All');
+                        setSelectedSemester('All');
+                        setSelectedSupervisor('All');
+                        setCurrentPage(1);
+                      }}
+                    >
+                      Clear filters
+                    </PortalButton>
                   )}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
+
+            <table className="data-table">
+              <thead>
+                <tr className="data-thead border-t bg-slate-50 select-none">
+                  <th className="data-th">Student</th>
+                  <th className="data-th hidden md:table-cell">Programme</th>
+                  <th className="data-th hidden xl:table-cell">Supervisor</th>
+                  <th className="data-th">Status</th>
+                  <th className="data-th w-12"><span className="sr-only">Open</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={columnCount} className="p-0 text-xs font-semibold">
+                      <LoadingState message="Loading students…" />
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan={columnCount} className="p-0 text-xs font-semibold">
+                      <ErrorState message={error} onRetry={loadStudents} />
+                    </td>
+                  </tr>
+                ) : displayedStudents.length === 0 ? (
+                  <tr>
+                    <td colSpan={columnCount} className="py-12 text-center text-slate-400 select-none text-xs font-bold">
+                      No matching students.
+                    </td>
+                  </tr>
+                ) : (
+                  displayedStudents.map((student) => {
+                    const accountNote = student.accountStatus === 'Suspended'
+                      ? 'Suspended'
+                      : student.activated === false ? 'Awaiting activation' : null;
+                    return (
+                      <tr
+                        key={student.id}
+                        className="data-row cursor-pointer"
+                        onClick={() => {
+                          if (!window.getSelection()?.toString()) setViewingStudent(student);
+                        }}
+                      >
+                        <td className="data-td">
+                          <div className="flex items-center gap-3 text-left">
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 select-none border border-black/5 shadow-3xs ${student.avatarBg}`}>
+                              {student.avatarText}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="section-label">
+                                {student.name}
+                              </h4>
+                              <p className="text-[10px] text-slate-550 font-semibold tracking-wide font-mono mt-0.5">
+                                {student.id}
+                              </p>
+                              <p className="md:hidden mt-1 text-[11.5px] font-semibold text-slate-500">
+                                {describeProgramme(student.programme).field}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="data-td hidden md:table-cell">
+                          <ProgrammeChip label={student.programme} />
+                        </td>
+
+                        <td className="data-td hidden xl:table-cell">
+                          {student.supervisor ? (
+                            <div className="text-left">
+                              <span className="text-[11.5px] font-extrabold text-slate-800 block">{student.supervisor}</span>
+                              {student.supervisorStaffNo && (
+                                <span className="text-[10px] font-mono font-semibold text-slate-500">{student.supervisorStaffNo}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] font-semibold text-slate-400">Not assigned</span>
+                          )}
+                        </td>
+
+                        <td className="data-td">
+                          <StatusChip status={student.academicStatus} />
+                          {!readOnly && student.maximumFlag && (
+                            <span className={`mt-1 block text-[11px] font-bold ${student.maximumFlag === 'past' ? 'text-rose-700' : 'text-amber-700'}`}>
+                              {student.maximumFlag === 'past' ? 'Past the maximum' : 'Last semester'}
+                            </span>
+                          )}
+                          {accountNote && (
+                            <span className={`mt-1 block text-[11px] font-bold ${accountNote === 'Suspended' ? 'text-rose-700' : 'text-purple-700'}`}>
+                              {accountNote}
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="data-td w-12 pl-0 text-right">
+                          <button
+                            type="button"
+                            aria-label={`Open ${student.name}'s record`}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-brand-navy cursor-pointer"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setViewingStudent(student);
+                            }}
+                          >
+                            <ChevronRight className="w-4 h-4" aria-hidden="true" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
 
             {/* LOWER PORTAL PAGINATION FOOTER */}
-            <div className="px-6 py-4.5 bg-slate-50 border-t border-slate-[#e2e8f0] flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
-              
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+
               <div className="card-value text-left">
                 Showing <strong className="card-value">{filteredStudents.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}</strong> to{' '}
                 <strong className="card-value">
                   {Math.min(currentPage * itemsPerPage, filteredStudents.length)}
                 </strong>{' '}
-                of <strong className="card-value">{filteredStudents.length}</strong> entries{' '}
-                <span className="card-description">
-                  (Total {summary.total.toLocaleString()} overall)
-                </span>
+                of <strong className="card-value">{filteredStudents.length}</strong>
               </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-1.5">
+              {totalPages > 1 && <div className="flex flex-wrap items-center justify-center gap-1.5">
 
                 {/* Pagination previous trigger */}
                 <button
@@ -1451,7 +1412,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   <ChevronRight className="w-4 h-4" />
                 </button>
 
-              </div>
+              </div>}
 
             </div>
 
@@ -1467,14 +1428,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {currentView === 'register' && !readOnly && (
         <RecordPage
           title="Register New Students"
-          subtitle="Import students from a CSV or Excel file, or add one student at a time."
           backLabel="Back to Student Registry"
           onBack={() => setCurrentView('list')}
           pageKey="registry-student-registration"
           dirty={
             !!manualFormData.name || !!manualFormData.id || !!manualFormData.email || !!manualFormData.phone
             || !!manualFormData.programme || !!manualFormData.intakeBatch || !!manualFormData.semester
-            || !manualFormData.sendCredentialsImmediately || uploadedFile !== null
+            || uploadedFile !== null
           }
           busy={isProcessingCsv || saving}
         >{requestBack => <div id="student-registry-register-view" className="space-y-8 text-left select-none animate-fade-in">
@@ -1491,7 +1451,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           <div className={registerActiveTab === 'bulk' ? "grid grid-cols-1 lg:grid-cols-5 gap-6 items-start animate-fade-in" : "w-full animate-fade-in"}>
             
             {/* LEFT ACTIONS AREA FRAME */}
-            <div className={registerActiveTab === 'bulk' ? "lg:col-span-3 space-y-6" : "w-full space-y-6"}>
+            <div className={registerActiveTab === 'bulk' ? "lg:col-span-5 space-y-6" : "w-full space-y-6"}>
 
               {/* TAB 1: BULK IMPORT ACTIVE VIEW */}
               {registerActiveTab === 'bulk' && (
@@ -1502,8 +1462,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       result={importResult}
                       onDownloadReport={downloadImportReport}
                       onClose={() => setImportResult(null)}
-                      onSendHeld={() => setHeldBatchToSend(importResult.batch)}
-                      sendingHeld={sendingHeld}
                     />
                   )}
 
@@ -1512,9 +1470,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <div className="flex items-center justify-between gap-3 mb-4 select-none">
                       <div>
                         <h3 className="section-label">File Upload</h3>
-                        <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                          Drag and drop your student registry CSV or XLSX file below.
-                        </p>
                       </div>
                       
                       {/* Live excel icon placeholder */}
@@ -1680,8 +1635,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               {/* TAB 2: MANUAL SINGLE CANDIDATE ENTRY FORM MATCHING MOCKUP */}
               {registerActiveTab === 'single' && (
                 <div id="single-candidate-register-container" className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 shadow-3xs space-y-6">
-                  <IconHeading title="New Student Registration" description="Enter the student's personal and academic details."
-                    descriptionClassName="text-[11px] text-slate-500 font-semibold mt-0.5"
+                  <IconHeading title="New Student Registration"
                     icon={<span className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center shrink-0"><UserPlus className="w-5 h-5 text-brand-navy" /></span>}
                   />
 
@@ -1786,94 +1740,39 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         />
                       </div>
 
-                      {/* Intake Batch & Current Semester */}
+                      {/* Intake & Current Semester */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        {/* Intake Batch */}
+                        {/* Intake */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="intake-batch" className="form-label block">
-                            Intake Batch
-                          </label>
-                          <input
+                          <span id="intake-batch-label" className="form-label block">
+                            Intake
+                          </span>
+                          <SelectMenu
                             id="intake-batch"
-                            type="text"
-                            placeholder="e.g. 2023/2024"
+                            aria-labelledby="intake-batch-label"
+                            placeholder="Choose an intake"
                             value={manualFormData.intakeBatch}
-                            onChange={(e) => setManualFormData({ ...manualFormData, intakeBatch: e.target.value })}
-                            className="form-control form-control-md"
+                            options={semesterChoices()}
+                            onChange={(intakeBatch) => setManualFormData({ ...manualFormData, intakeBatch })}
                           />
                         </div>
 
                         {/* Current Semester */}
                         <div className="flex flex-col text-left">
-                          <label htmlFor="current-semester" className="form-label block">
+                          <span id="current-semester-label" className="form-label block">
                             Current Semester
-                          </label>
-                          <input
+                          </span>
+                          <SelectMenu
                             id="current-semester"
-                            type="text"
-                            list="registry-semester-options"
-                            placeholder="e.g. Semester I, 2026/2027 Session"
+                            aria-labelledby="current-semester-label"
+                            placeholder="Choose a semester"
                             value={manualFormData.semester}
-                            onChange={(e) => setManualFormData({ ...manualFormData, semester: e.target.value })}
-                            className="form-control form-control-md"
+                            options={semesterChoices({ special: true })}
+                            onChange={(semester) => setManualFormData({ ...manualFormData, semester })}
                           />
-                          <datalist id="registry-semester-options">
-                            {semesterOptions.map((semester) => (
-                              <option key={semester} value={semester} />
-                            ))}
-                          </datalist>
                         </div>
                       </div>
 
-                      <p className="text-[11px] font-semibold text-slate-500 leading-relaxed">
-                        Research title and supervisor are recorded later, through the supervisor
-                        application and appointment workflow.
-                      </p>
-                    </div>
-
-                    {/* ACCOUNT SETTINGS SECTION */}
-                    <div className="space-y-4 pt-4">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black tracking-widest uppercase text-slate-400">
-                          Account Settings
-                        </span>
-                        <div className="flex-1 h-[1px] bg-slate-100" />
-                      </div>
-
-                      {/* Info Box */}
-                      <div id="notice-box-credentials" className="bg-[#f0f5ff] border border-[#d0e0ff] text-[#1e3a8a] rounded-2xl p-4 flex items-start gap-3">
-                        <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
-                        <p className="card-description text-left">
-                          No password is created. The student receives an activation link and
-                          chooses their own password, so no credential is ever sent by email.
-                        </p>
-                      </div>
-
-                      {/* Send activation link now or later */}
-                      <label
-                        htmlFor="send-credentials-toggle"
-                        className="border border-slate-200 rounded-2xl p-5 flex items-start gap-4 bg-white shadow-3xs cursor-pointer"
-                      >
-                        <input
-                          id="send-credentials-toggle"
-                          type="checkbox"
-                          checked={manualFormData.sendCredentialsImmediately}
-                          onChange={(e) => setManualFormData({
-                            ...manualFormData,
-                            sendCredentialsImmediately: e.target.checked
-                          })}
-                          className="mt-0.5 w-4.5 h-4.5 shrink-0 accent-blue-600 cursor-pointer"
-                        />
-                        <span className="text-left space-y-1">
-                          <span className="block text-xs font-extrabold text-slate-900">
-                            Send activation link immediately
-                          </span>
-                          <span className="block text-[11px] text-slate-500 font-medium leading-normal">
-                            Email the student a link to set their password. Untick to register
-                            the account now and send the link later from their profile.
-                          </span>
-                        </span>
-                      </label>
                     </div>
 
                     {/* BOTTOM ACTIONS BAR */}
@@ -1893,38 +1792,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
             </div>
 
-            {/* RIGHT CONTEXTUAL INFO CARDS (40% WIDTH, ONLY FOR BULK TAB) */}
-            {registerActiveTab === 'bulk' && (
-              <div className="lg:col-span-2 lg:self-stretch flex flex-col">
-
-              {/* CARD 1: IMPORT GUIDELINES LIST, as tall as the upload card */}
-              <div className="flex-1 bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
-                <div className="flex items-center gap-3 mb-4 select-none">
-                  <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
-                    <Info className="w-5 h-5" />
-                  </div>
-                  <h3 className="section-label">Import Guidelines</h3>
-                </div>
-
-                <div className="space-y-4 text-xs">
-                  {[
-                    <>Upload the office&apos;s <strong className="text-slate-800 font-bold">own spreadsheet as it is</strong>: you confirm which column holds each detail. For a typed list, use the Excel template.</>,
-                    <>Programme must be one of the <strong className="text-slate-800 font-bold">approved programmes</strong>; any other name is chosen once, or its rows skipped.</>,
-                    <>Matric numbers and emails must be <strong className="text-slate-800 font-bold">unique</strong> in the file and not already registered. Duplicates are skipped and listed.</>,
-                    <>Every new student receives an <strong className="text-slate-800 font-bold">activation email</strong> to choose their own password, now or later.</>,
-                    <>CSV or XLSX, up to <strong className="text-slate-800 font-bold">2 MB and 1,000 students</strong> per import.</>,
-                  ].map((guideline, index) => (
-                    <div key={index} className="flex gap-3">
-                      <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 select-none font-sans">✓</div>
-                      <p className="text-slate-650 font-medium leading-relaxed">{guideline}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-            )}
-
             {/* The preview gets the full width: it is where the office works. */}
             {registerActiveTab === 'bulk' && (
               <div className="lg:col-span-5">
@@ -1936,7 +1803,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     busy={isProcessingCsv}
                     onMappingChange={setImportMapping}
                     defaults={importDefaults}
-                    semesterSuggestions={semesterOptions}
                     onDefaultsChange={setImportDefaults}
                     onSheetChange={(sheet) => void reinspectImport({ sheet })}
                     onHeaderRowChange={(row) => {
@@ -1963,9 +1829,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 select-none">
                         <div>
                           <h3 className="section-label">Import Preview & Validation</h3>
-                          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                            Check each row before the accounts are created.
-                          </p>
                           {uploadedFile && (
                             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
                               <ImportSteps current={importStep === 'check' ? 2 : 0} />
@@ -2310,21 +2173,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             </div>
                           )}
 
-                          <div role="group" aria-labelledby="registry-import-email-choice" className="flex flex-col items-end gap-1">
-                            <span id="registry-import-email-choice" className="text-[9.5px] uppercase font-black tracking-wider text-slate-400">
-                              Activation emails
-                            </span>
-                            <SegmentedControl<'now' | 'later'>
-                              options={['now', 'later'] as const}
-                              value={sendInvitesNow ? 'now' : 'later'}
-                              onChange={(choice) => setSendInvitesNow(choice === 'now')}
-                              labels={{ now: 'Send now', later: 'Send later' }}
-                            />
-                            {!sendInvitesNow && (
-                              <span className="text-[10px] font-semibold text-slate-500">Send them from Recent Imports when ready.</span>
-                            )}
-                          </div>
-
                           <PortalButton
                             variant="primary"
                             size="md"
@@ -2345,121 +2193,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
               </div>
             )}
 
-            {registerActiveTab === 'bulk' && (
-              <div className="lg:col-span-5 grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-                {/* CARD 2: CURRENT SEMESTER OVERVIEW CLOCK */}
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
-                  <div className="flex items-center gap-3 mb-4 select-none">
-                    <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 border border-pink-100 flex items-center justify-center shrink-0">
-                      <Layers className="w-5 h-5" />
-                    </div>
-                    <h3 className="section-label">Registry Snapshot</h3>
-                  </div>
-
-                  {/* Sub bento items */}
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                  
-                    {/* Item 1: Total count */}
-                    <div className="bg-blue-50/50 border border-blue-100/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                      <span className="card-label block">Total Registered</span>
-                      <h3 className="card-metric text-blue-700 mt-1">{students.length.toLocaleString()}</h3>
-                      <div className="absolute right-3 bottom-2 animate-pulse text-blue-500/10">
-                        <GraduationCap className="w-8 h-8" />
-                      </div>
-                    </div>
-
-                    {/* Item 2: Pending count */}
-                    <div className="bg-amber-50/50 border border-amber-150/75 rounded-2xl p-4 text-left select-none relative overflow-hidden group">
-                      <span className="card-label block">Awaiting Activation</span>
-                      <h3 className="card-metric text-amber-700 mt-1">
-                        {students.filter(s => s.activated === false).length.toLocaleString()}
-                      </h3>
-                      <div className="absolute right-3 bottom-2 text-amber-600/15">
-                        <ShieldAlert className="w-8 h-8" />
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-
-                {/* CARD 3: RECENT IMPORTS METADATA HISTORIES */}
-                <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-3xs text-left">
-                  <div className="flex items-center justify-between gap-3 mb-4 select-none">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center shrink-0">
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <h3 className="section-label">Recent Imports</h3>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAllImports(!showAllImports)}
-                      className="text-blue-600 hover:text-blue-800 text-xs font-bold cursor-pointer"
-                    >
-                      {showAllImports ? 'Show Recent' : 'View All'}
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    {recentImportsError && (
-                      <p className="text-[10.5px] font-semibold text-rose-600">{recentImportsError}</p>
-                    )}
-                    {!recentImportsError && recentImports.length === 0 && (
-                      <p className="text-[10.5px] font-semibold text-slate-400">No imports yet.</p>
-                    )}
-                    {recentImports.map((batch) => (
-                      <div
-                        key={batch.id}
-                        className="p-3 bg-[#f8fafc] border border-slate-200/50 rounded-xl flex items-center justify-between gap-3 text-left"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                            <FileSpreadsheet className="w-4.5 h-4.5" />
-                          </div>
-                          <div className="min-w-0">
-                            <span className="font-extrabold text-brand-navy text-[11px] block truncate select-all" title={batch.fileName}>
-                              {batch.fileName}
-                            </span>
-                            <span className="text-[9.5px] text-slate-400 font-bold block mt-0.5">
-                              {new Date(batch.createdAt).toLocaleDateString()} • {batchSummary(batch)}
-                            </span>
-                            {batch.uploadedBy && (
-                              <span className="text-[9.5px] text-slate-400 font-semibold block">by {batch.uploadedBy}</span>
-                            )}
-                            {batch.invitationsHeld && (
-                              <span className="mt-1 inline-flex items-center gap-1.5">
-                                <span className="text-[9.5px] font-black uppercase tracking-wide text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5">
-                                  Emails on hold
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => setHeldBatchToSend(batch)}
-                                  className="text-[10px] font-black text-blue-600 hover:underline cursor-pointer"
-                                >
-                                  Send now
-                                </button>
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        {batch.problems.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => downloadImportProblems(batch)}
-                            className="p-1 px-1.5 hover:bg-slate-200 rounded text-slate-400 hover:text-brand-navy transition cursor-pointer shrink-0"
-                            title="Download the rows that were skipped or not imported"
-                            aria-label={`Download the rows from ${batch.fileName} that were skipped or not imported`}
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
 
           </div>
 
@@ -2470,7 +2203,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      {viewingStudent ? <RecordPage title="Student Record" subtitle="Registry details, edits and sign-in access." backLabel="Back to Student Registry" onBack={closeRecord} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={statusSaving || saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
+      {viewingStudent ? <RecordPage title="Student Record" backLabel="Back to Student Registry" onBack={closeRecord} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={statusSaving || saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
 
               {/* Core student details body; only this part scrolls */}
               <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 mr-1 mb-3 ${THIN_SCROLLBAR}`}>
@@ -2498,32 +2231,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       Programme Mapped
                     </span>
                     <ProgrammeChip label={viewingStudent.programme} />
-                    {transfer?.pending ? (
-                      <div className="mt-2 space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11.5px] font-semibold text-amber-900">
-                        <p>
-                          Transfer to {transfer.pending.destination} waiting for{' '}
-                          {transfer.pending.waitingFor.length ? transfer.pending.waitingFor.join(' or ') : 'a programme coordinator'}.
-                        </p>
-                        {canSeeTransfers && (
-                          <button
-                            type="button"
-                            className="font-bold text-blue-700 hover:text-blue-900"
-                            onClick={() => navigate(routeForProgrammeTransfer(transfer.pending!.id), { state: { recordReturn: { path: `${APP_ROUTES.registry}?student=${encodeURIComponent(viewingStudent.id)}`, label: 'Student Record' } } })}
-                          >
-                            View transfer
-                          </button>
-                        )}
-                      </div>
-                    ) : !readOnly && transfer?.hasResearchProfile ? (
-                      <PortalButton
-                        size="sm"
-                        icon={ArrowRightLeft}
-                        className="mt-2"
-                        onClick={() => navigate(routeForNewProgrammeTransfer(viewingStudent.id), { state: { recordReturn: { path: `${APP_ROUTES.registry}?student=${encodeURIComponent(viewingStudent.id)}`, label: 'Student Record' } } })}
-                      >
-                        Request programme transfer
-                      </PortalButton>
-                    ) : null}
                   </div>
 
                   {/* Academic Status checks */}
@@ -2586,6 +2293,12 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
                 </div>
 
+                <StudentSemestersCard
+                  matric={viewingStudent.id}
+                  readOnly={readOnly}
+                  onChanged={refreshViewingStudent}
+                />
+
                 {!readOnly && (
                 <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
                   <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
@@ -2626,18 +2339,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         className="form-control form-control-sm normal-case tracking-normal"
                       />
                     </label>
-                    {transfer?.hasResearchProfile ? (
-                      <div className="flex flex-col gap-1 form-label">
-                        Programme
-                        <span className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-[11px] font-bold normal-case tracking-normal text-slate-700">
-                          <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden="true" />
-                          {viewingStudent.programme}
-                        </span>
-                        <span className="text-[10.5px] font-semibold normal-case tracking-normal text-slate-500">
-                          Has a research profile, so the programme changes through Request programme transfer.
-                        </span>
-                      </div>
-                    ) : (
                     <label className="flex flex-col gap-1 form-label">
                       Programme
                       <SelectMenu
@@ -2654,38 +2355,38 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         disabled={detailsSaving}
                       />
                     </label>
-                    )}
                     <label className="flex flex-col gap-1 form-label">
                       Intake
-                      <input
-                        type="text"
+                      <SelectMenu
+                        size="sm"
+                        aria-label="Intake"
+                        placeholder="Not recorded"
                         value={detailsDraft.intakeDate}
-                        onChange={(e) => editDetails({ intakeDate: e.target.value })}
+                        options={[{ value: '', label: 'Not recorded' }, ...semesterChoices({ keep: detailsDraft.intakeDate })]}
+                        onChange={(intakeDate) => editDetails({ intakeDate })}
                         disabled={detailsSaving}
-                        maxLength={32}
-                        placeholder="e.g. 2026/2027 Semester I"
-                        className="form-control form-control-sm normal-case tracking-normal"
                       />
-                    </label>
-                    <label className="flex flex-col gap-1 form-label">
-                      Current Semester
-                      <input
-                        type="text"
-                        list="registry-semester-options-edit"
-                        value={detailsDraft.semester}
-                        onChange={(e) => editDetails({ semester: e.target.value })}
-                        disabled={detailsSaving}
-                        maxLength={64}
-                        placeholder="e.g. Semester I, 2026/2027 Session"
-                        className="form-control form-control-sm normal-case tracking-normal"
-                      />
-                      <datalist id="registry-semester-options-edit">
-                        {semesterOptions.map((semester) => (
-                          <option key={semester} value={semester} />
-                        ))}
-                      </datalist>
                     </label>
                   </div>
+                  {detailsDraft.programme !== viewingStudent.programme && (
+                    <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                      <p className="text-[11.5px] font-semibold text-amber-900">
+                        Only fix a programme entered by mistake. A student who wants to change programme must withdraw and apply again.
+                      </p>
+                      {viewingStudent.hasResearchProfile && (
+                        <textarea
+                          aria-label="Reason for the correction"
+                          value={detailsDraft.programmeReason}
+                          onChange={(e) => editDetails({ programmeReason: e.target.value })}
+                          disabled={detailsSaving}
+                          rows={2}
+                          maxLength={1000}
+                          placeholder="Reason for the correction (required)"
+                          className="form-control form-control-sm resize-none"
+                        />
+                      )}
+                    </div>
+                  )}
                   {detailsError && (
                     <p role="alert" className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold">
                       {detailsError}
@@ -2733,6 +2434,20 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         placeholder="Reason for the change (required)"
                         className="form-control form-control-sm resize-none"
                       />
+                      {graduationCheck && graduationCheck.items.length > 0 && (
+                        <div className={`space-y-1.5 rounded-lg border p-3 text-[11.5px] font-semibold ${graduationCheck.group === 'stop' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
+                          <p className="font-extrabold">{graduationCheck.group === 'stop' ? 'This student cannot graduate yet.' : 'Check before graduating this student.'}</p>
+                          <ul className="list-disc space-y-0.5 pl-4">
+                            {graduationCheck.items.map((item) => <li key={`${item.code}:${item.recordId ?? ''}`}>{item.text}</li>)}
+                          </ul>
+                          {graduationCheck.early && graduationCheck.group !== 'stop' && (
+                            <label className="flex items-center gap-2 pt-0.5 font-bold">
+                              <input type="checkbox" className="h-4 w-4" checked={earlyApproved} onChange={(event) => setEarlyApproved(event.target.checked)} />
+                              Approved to finish one semester early
+                            </label>
+                          )}
+                        </div>
+                      )}
                       {statusError && (
                         <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold space-y-1.5">
                           <p>{statusError}</p>
@@ -2741,22 +2456,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                               {statusBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
                             </ul>
                           )}
-                          {statusBlockers.length > 0 && onOpenParticipantLifecycle && (
-                            <button
-                              type="button"
-                              onClick={onOpenParticipantLifecycle}
-                              className="underline font-black text-rose-800 cursor-pointer"
-                            >
-                              Resolve in Participant Lifecycle
-                            </button>
-                          )}
                         </div>
                       )}
                       <div className="flex justify-end">
                         <button
                           type="button"
                           onClick={handleStatusChange}
-                          disabled={statusSaving || !statusTarget || !statusReason.trim()}
+                          disabled={statusSaving || !statusTarget || !statusReason.trim() || graduationCheck?.group === 'stop' || (graduationCheck?.early === true && !earlyApproved)}
                           className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {statusSaving ? 'Saving…' : 'Apply Status Change'}
@@ -2765,6 +2471,19 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     </>
                   )}
                 </div>
+                )}
+
+                {!readOnly && (
+                  <StudentStatusCards
+                    key={viewingStudent.id}
+                    matric={viewingStudent.id}
+                    version={`${viewingStudent.academicStatus}:${statusBlockers.length}`}
+                    onChanged={(message) => {
+                      triggerToast(message);
+                      setStatusError(null);
+                      setStatusBlockers([]);
+                    }}
+                  />
                 )}
 
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-150 space-y-3">

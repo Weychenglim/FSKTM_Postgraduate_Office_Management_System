@@ -7,6 +7,7 @@ import { IconHeading } from './IconHeading';
 import React from 'react';
 import { AlertTriangle, ArrowRight, AtSign, Check, Columns3, History, Info, Rows3 } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
+import { semesterChoices } from '../utils/registrySemesters';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
@@ -59,8 +60,6 @@ interface RegistryImportMatchProps {
   layout: ImportInspectResponse;
   mapping: ImportMapping;
   defaults: ImportDefaults;
-  /** Semesters already in the registry, offered while typing. */
-  semesterSuggestions: string[];
   error?: string | null;
   busy: boolean;
   onMappingChange: (mapping: ImportMapping) => void;
@@ -89,7 +88,6 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
   layout,
   mapping,
   defaults,
-  semesterSuggestions,
   error,
   busy,
   onMappingChange,
@@ -152,7 +150,7 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <IconHeading as="h3" titleId="registry-import-match-title" title="Match Columns"
-          description="Check which column of your file holds each detail. Nothing is created until you check the rows and import."
+          description="Check which column holds each detail."
           descriptionClassName="text-[11px] text-slate-500 font-semibold mt-0.5"
           icon={<span className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0"><Columns3 className="w-5 h-5" /></span>}
         />
@@ -274,8 +272,6 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
       <div className="rounded-xl border border-slate-150 bg-slate-50/50 px-4 py-4 space-y-3">
         <IconHeading as="h4" className="gap-x-2" title="For Every Row"
           titleClassName="text-[10px] uppercase font-black tracking-wider text-slate-500"
-          description="Fills cells that are blank in your file, or a column it does not have. Values already in the file are kept."
-          descriptionClassName="text-[11px] font-semibold text-slate-500 mt-0.5"
           icon={<Rows3 className="w-4 h-4 text-slate-400 shrink-0" />}
         />
         <div className="grid gap-3 md:grid-cols-3">
@@ -290,36 +286,28 @@ export const RegistryImportMatch: React.FC<RegistryImportMatchProps> = ({
               disabled={busy}
             />
           </div>
-          <label className="flex flex-col">
+          <div className="flex flex-col">
             <span className="form-label">Intake</span>
-            <input
-              type="text"
-              value={defaults.intake ?? ''}
-              onChange={(event) => setDefault('intake', event.target.value)}
-              maxLength={32}
-              placeholder="e.g. 2026/2027 Semester I"
+            <SelectMenu
+              size="sm"
+              aria-label="Intake for every row"
+              value={defaults.intake ?? FROM_FILE}
+              options={[{ value: FROM_FILE, label: "Use the file's intake column" }, ...semesterChoices()]}
+              onChange={(value) => setDefault('intake', value)}
               disabled={busy}
-              className="form-control form-control-sm"
             />
-          </label>
-          <label className="flex flex-col">
+          </div>
+          <div className="flex flex-col">
             <span className="form-label">Current semester</span>
-            <input
-              type="text"
-              list="registry-import-semester-options"
-              value={defaults.semester ?? ''}
-              onChange={(event) => setDefault('semester', event.target.value)}
-              maxLength={64}
-              placeholder="e.g. Semester I, 2026/2027 Session"
+            <SelectMenu
+              size="sm"
+              aria-label="Current semester for every row"
+              value={defaults.semester ?? FROM_FILE}
+              options={[{ value: FROM_FILE, label: "Use the file's semester column" }, ...semesterChoices({ special: true })]}
+              onChange={(value) => setDefault('semester', value)}
               disabled={busy}
-              className="form-control form-control-sm"
             />
-            <datalist id="registry-import-semester-options">
-              {semesterSuggestions.map((semester) => (
-                <option key={semester} value={semester} />
-              ))}
-            </datalist>
-          </label>
+          </div>
         </div>
       </div>
 

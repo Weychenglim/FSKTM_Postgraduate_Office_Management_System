@@ -310,6 +310,7 @@ def notify_recipients(letter, *, replaces="", resend=0):
                 f"{message}\n\nOpen it in the portal: {link}\n\n"
                 "You get this email because email alerts are on in your Settings.\n\n"
                 f"{SIGN_OFF}",
+                wait=False,
             )
 
     transaction.on_commit(send)
@@ -488,7 +489,8 @@ def _end_reason(appointment):
 
 def revoke_after_end(model, appointment_id):
     """Run after an appointment ends: its letter is revoked and the people on it
-    are told. A letter still waiting for the office is withdrawn instead."""
+    are told. A letter still waiting for the office is withdrawn instead. An
+    appointment that ran its course keeps its letter, as the record that it happened."""
     try:
         appointment = model.objects.get(pk=appointment_id)
         if appointment.status == model.Status.ACTIVE:
@@ -498,7 +500,8 @@ def revoke_after_end(model, appointment_id):
         with transaction.atomic():
             for letter in GeneratedLetter.objects.select_for_update().filter(**{field: appointment}, status__in=LIVE):
                 if letter.status == GeneratedLetter.Status.ISSUED:
-                    revoke_appointment_letter(letter, actor=appointment.ended_by, reason=reason)
+                    if appointment.end_outcome != "COMPLETED":
+                        revoke_appointment_letter(letter, actor=appointment.ended_by, reason=reason)
                 else:
                     letter.status = GeneratedLetter.Status.WITHDRAWN
                     letter.withdrawn_at = timezone.now()

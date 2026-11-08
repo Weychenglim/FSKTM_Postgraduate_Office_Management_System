@@ -6,14 +6,16 @@ from datetime import date
 from importlib import import_module
 
 from django.apps import apps
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 from pypdf import PdfReader
 from rest_framework import status
 
-from accounts.models import StudentRegistry
+from accounts.models import Student, StudentRegistry, StudentSemester, User
+from accounts.semesters import read as read_semester
 
-from .confirmation import add_months, malay_date, malay_values, semesters_left
+from .confirmation import add_months, malay_date, malay_values, request_values, semesters_left
+from .details import letter_details
 from .management.commands.seed_letters import TEMPLATES
 from .models import GeneratedLetter, LetterTemplate
 from .recipients import recipient_block
@@ -355,6 +357,25 @@ class ValueTests(SimpleTestCase):
         self.assertEqual(semesters_left("Semester I, 2026/2027 Session", "2028"), "")
         self.assertEqual(semesters_left("Semester I, 2026/2027 Session", "2028", "2026/2027 Semester I"), "")
 
+    def test_a_special_semester_is_counted_when_it_is_named(self):
+        second = "Semester II, 2026/2027 Session"
+        special = "Special Semester, 2026/2027 Session"
+        self.assertEqual(semesters_left(second, special), "1")
+        self.assertEqual(semesters_left("Semester I, 2026/2027 Session", special), "2")
+        self.assertEqual(semesters_left(special, special), "0")
+        self.assertEqual(semesters_left(special, "Semester I, 2027/2028 Session"), "1")
+        self.assertEqual(semesters_left(special, "Semester II, 2029/2030 Session"), "6")
+
+    def test_a_count_of_semesters_uses_normal_semesters_from_the_intake(self):
+        intake = "2026/2027 Semester I"
+        self.assertEqual(semesters_left(intake, "8", intake), "7")
+        self.assertEqual(semesters_left("Special Semester, 2026/2027 Session", "8", intake), "6")
+        self.assertEqual(semesters_left("Semester I, 2027/2028 Session", "4", intake), "1")
+
+    def test_the_malay_page_names_a_special_semester(self):
+        malay = malay_values({"currentSemester": "Special Semester, 2026/2027 Session"})
+        self.assertEqual(malay["currentSemester"], "Semester Khas, Sesi 2026/2027")
+
     def test_malay_values(self):
         values = malay_values(
             {
@@ -378,3 +399,56 @@ class ValueTests(SimpleTestCase):
         details = {"organisation": "CIMB Bank Berhad", "organisationMs": "", "addressLine1": "", "city": "Kuala Lumpur"}
         self.assertEqual(recipient_block(details), "CIMB BANK BERHAD\nKUALA LUMPUR")
         self.assertEqual(recipient_block({**details, "organisationMs": "Bank CIMB"}, malay=True), "BANK CIMB\nKUALA LUMPUR")
+
+
+class RuleValueTests(TestCase):
+    def student(self, matric, *labels, **fields):
+        user = User.objects.create_user(
+            email=f"{matric.lower()}@example.test", password="pw", full_name="Rule Student", role=User.Role.STUDENT,
+        )
+        student = Student.objects.create(
+            user=user, matric_no=matric, programme="MASTER OF DATA SCIENCE (COURSEWORK)", intake_semester="2026/2027 Semester I",
+        )
+        if fields:
+            StudentRegistry.objects.create(student=student, **fields)
+        for label in labels:
+            semester = read_semester(label)
+            StudentSemester.objects.create(student=student, session=semester.session, term=semester.term)
+        return student
+
+    def balance(self, student):
+        values = request_values(letter_details(student), {})
+        return values["balanceSemestersMin"], values["balanceSemestersMax"]
+
+    def test_the_rule_fills_in_what_the_record_leaves_blank(self):
+        student = self.student("RV1", "Semester I, 2026/2027", "Semester II, 2026/2027", current_semester="Semester II, 2026/2027 Session")
+        details = letter_details(student)
+        self.assertEqual(details["maxSemester"], "Semester II, 2029/2030 Session")
+        self.assertEqual(self.balance(student), ("1 SEMESTER(S)", "6 SEMESTER(S)"))
+
+    def test_a_student_in_the_special_semester_gets_numbers_instead_of_blanks(self):
+        student = self.student(
+            "RV2", "Semester I, 2026/2027", "Semester II, 2026/2027", "Special Semester, 2026/2027",
+            current_semester="Special Semester, 2026/2027 Session",
+        )
+        self.assertEqual(self.balance(student), ("0 SEMESTER(S)", "6 SEMESTER(S)"))
+
+    def test_after_a_special_semester_the_maximum_stays_in_normal_semesters(self):
+        student = self.student(
+            "RV3", "Semester I, 2026/2027", "Semester II, 2026/2027", "Special Semester, 2026/2027", "Semester I, 2027/2028",
+            current_semester="Semester I, 2027/2028 Session",
+        )
+        self.assertEqual(self.balance(student), ("0 SEMESTER(S)", "5 SEMESTER(S)"))
+
+    def test_what_the_office_set_on_the_record_still_wins(self):
+        student = self.student(
+            "RV4", "Semester I, 2026/2027",
+            current_semester="Semester I, 2026/2027 Session",
+            max_semester="Semester I, 2027/2028 Session",
+            expected_completion="Semester II, 2026/2027 Session",
+        )
+        self.assertEqual(self.balance(student), ("1 SEMESTER(S)", "2 SEMESTER(S)"))
+
+    def test_with_no_semesters_on_record_the_minimum_stays_blank(self):
+        student = self.student("RV5", current_semester="Semester I, 2026/2027 Session")
+        self.assertEqual(self.balance(student)[0], "")

@@ -26,7 +26,7 @@ export interface StaffAccount {
   duties: StaffDuty[];
   programme: string;
   status: StaffAccountStatus;
-  lifecycle: 'ACTIVE' | 'RETIRING' | 'RETIRED' | null;
+  lifecycle: 'ACTIVE' | 'RETIRING' | 'RETIRED' | 'RESIGNED' | null;
   lastSignedIn: string | null;
   createdAt: string;
   isYou: boolean;

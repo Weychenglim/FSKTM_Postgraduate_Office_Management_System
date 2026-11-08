@@ -2,6 +2,8 @@
 
 Date: 2026-11-01. Owner: Xiang (Registry). Backend owner: Wey Cheng (`appointments`).
 
+**Removed on 2026-11-03: the Registry side of this plan was taken out, because UM (Master's Degree) Regulations 2024, regulation 16 does not allow a change of programme. Phase 8 no longer applies.**
+
 **Status: approved on 2026-11-01 with all seven recommended decisions. Phases 1 to 7 are built; phase 8 (the cutover) is Wey Cheng's next step.**
 
 Source: Wey Cheng's handoff notes `PROGRAMME_TRANSFER_HANDOFF_2026-10-13.md` and `PROGRAMME_TRANSFER_REGISTRY_HANDOFF_2026-10-26.md` (in `Final Year Project/HandOver from Weycheng/`). A sample page of the screens comes with this plan.

@@ -35,6 +35,7 @@ from .account_emails import activation_email, email_changed_email
 from .authorization import coordinator_scope_q
 from .models import Lecturer, OfficeStaff, RegistryImportBatch, Student, StudentRegistry
 from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
+from .programme_correction import ProgrammeCorrectionConflict, correct_programme
 from .programmes import APPROVED_PROGRAMMES
 from .registry_import import (
     ImportFileError,
@@ -47,6 +48,9 @@ from .registry_import import (
 from .registry_profiles import remember_layout
 from .registry_template import TEMPLATE_FILE_NAME, XLSX_CONTENT_TYPE, build_template
 from .registry_programmes import programme_values, remember_choices
+from .semesters import read as read_semester
+from .semester_rules import intake_label, maximum_flag, record_semester, rules_by_programme, seed_student
+from .semesters import read as read_semester
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
 from .tokens import activation_link
@@ -140,7 +144,7 @@ def _supervisor_of(student):
     return supervision[0].supervisor if supervision else None
 
 
-def to_record(student) -> dict:
+def to_record(student, rules=None) -> dict:
     """Shape a Student (+ optional registry row) as the frontend expects."""
     user = student.user
     registry = _registry_or_none(student)
@@ -148,7 +152,7 @@ def to_record(student) -> dict:
     supervisor_profile = supervisor._related_or_none("lecturer") if supervisor else None
     return {
         "id": student.matric_no,
-        "userId": student.pk,
+        "hasResearchProfile": user._related_or_none("research_profile") is not None,
         "name": user.full_name,
         "avatarText": _initials(user.full_name),
         "avatarBg": _avatar_bg(student.matric_no),
@@ -162,6 +166,8 @@ def to_record(student) -> dict:
         "supervisor": supervisor.full_name if supervisor else "",
         "supervisorStaffNo": supervisor_profile.staff_no if supervisor_profile else "",
         "intakeDate": student.intake_semester,
+        "intakeLabel": intake_label(student.intake_semester),
+        "maximumFlag": maximum_flag(student, rules, registry),
         # Lets the office spot accounts that were registered but never
         # activated, e.g. because the invitation bounced.
         "activated": user.has_usable_password(),
@@ -169,6 +175,13 @@ def to_record(student) -> dict:
         if (user.last_portal_login or user.last_login)
         else None,
     }
+
+
+def _readable_semester(value):
+    text = value.strip()
+    if text and read_semester(text) is None:
+        raise serializers.ValidationError("Choose a semester like 2026/2027 Semester I.")
+    return text
 
 
 class StudentRecordCreateSerializer(serializers.Serializer):
@@ -187,6 +200,12 @@ class StudentRecordCreateSerializer(serializers.Serializer):
         choices=Student.Status.choices, required=False, default=Student.Status.ACTIVE
     )
     sendInvite = serializers.BooleanField(required=False, default=True)
+
+    def validate_semester(self, value):
+        return _readable_semester(value)
+
+    def validate_intakeDate(self, value):
+        return _readable_semester(value)
 
     def validate_id(self, value):
         matric = value.strip()
@@ -234,9 +253,11 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     academicStatus = serializers.ChoiceField(
         choices=Student.Status.choices, required=False
     )
+    programmeReason = serializers.CharField(required=False, allow_blank=True, max_length=1000)
     statusReason = serializers.CharField(
         max_length=1000, allow_blank=True, required=False
     )
+    earlyCompletionApproved = serializers.BooleanField(required=False, default=False)
     accountStatus = serializers.ChoiceField(
         choices=["Verified", "Suspended"], required=False
     )
@@ -245,6 +266,12 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     )
     semester = serializers.CharField(max_length=64, allow_blank=True, required=False)
     intakeDate = serializers.CharField(max_length=32, allow_blank=True, required=False)
+
+    def validate_semester(self, value):
+        return _readable_semester(value)
+
+    def validate_intakeDate(self, value):
+        return _readable_semester(value)
 
     def validate_name(self, value):
         name = value.strip()
@@ -276,8 +303,8 @@ def student_records_view(request):
         return _create_student(request)
 
     queryset = _require_registry_reader(request).select_related(
-        "user", "registry"
-    ).prefetch_related(_active_supervision())
+        "user", "user__research_profile", "registry"
+    ).prefetch_related(_active_supervision(), "semesters")
     search = (request.query_params.get("search") or "").strip()
     if search:
         queryset = queryset.filter(
@@ -302,7 +329,8 @@ def student_records_view(request):
             )
         ).distinct()
 
-    return Response([to_record(student) for student in queryset])
+    rules = rules_by_programme()
+    return Response([to_record(student, rules) for student in queryset])
 
 
 def send_activation_email(user, connection=None) -> bool:
@@ -373,6 +401,7 @@ def _register_student(data):
         semester = data.get("semester", "")
         if semester:
             StudentRegistry.objects.create(student=student, current_semester=semester)
+        seed_student(student)
     return student
 
 
@@ -810,6 +839,7 @@ def student_record_detail_view(request, matric_no):
                     actor=request.user,
                     target_status=data["academicStatus"].upper(),
                     reason=reason,
+                    early_approved=data.get("earlyCompletionApproved", False),
                 )
             except PermissionError as exc:
                 return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)
@@ -824,19 +854,20 @@ def student_record_detail_view(request, matric_no):
 
         student_fields = []
         if "programme" in data and data["programme"] != student.programme:
-            # The research profile carries its own programme, and amendments
-            # require the two to match, so transfers go through that workflow.
+            # The research profile carries its own programme, and the two must match.
             if StudentResearchProfile.objects.filter(student_id=student.user_id).exists():
-                transaction.set_rollback(True)
-                return Response(
-                    {
-                        "error": (
-                            "This student has a research profile. Use Request programme transfer "
-                            "on the Student Record, so the record and the research profile change together."
-                        )
-                    },
-                    status=status.HTTP_409_CONFLICT,
-                )
+                programme_reason = data.get("programmeReason", "").strip()
+                if not programme_reason:
+                    transaction.set_rollback(True)
+                    return Response(
+                        {"programmeReason": ["Give a reason for the correction."]},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                try:
+                    correct_programme(student, data["programme"], actor=request.user, reason=programme_reason)
+                except ProgrammeCorrectionConflict as exc:
+                    transaction.set_rollback(True)
+                    return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
             student.programme = data["programme"]
             student_fields.append("programme")
         if "intakeDate" in data:
@@ -874,9 +905,13 @@ def student_record_detail_view(request, matric_no):
             blacklist_user_refresh_tokens(student.user)
 
         if "semester" in data:
+            typed = read_semester(data["semester"])
+            if typed:
+                record_semester(student, typed, actor=request.user)
             registry, _ = StudentRegistry.objects.get_or_create(student=student)
             registry.current_semester = data["semester"]
             registry.save(update_fields=["current_semester", "updated_at"])
+        seed_student(student, actor=request.user)
 
     student.refresh_from_db()
     payload = to_record(student)

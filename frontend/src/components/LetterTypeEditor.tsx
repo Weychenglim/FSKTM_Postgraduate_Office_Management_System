@@ -392,7 +392,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
 
       {shownStep === 'about' && (
         <div className="space-y-6">
-          <AppointmentSection title="When is this letter used?" description="This decides who gets the letter, and whether students fill in a form for it." icon={Settings2}>
+          <AppointmentSection title="When is this letter used?" icon={Settings2}>
             <fieldset>
               <legend className="sr-only">When is this letter used?</legend>
               <div className="grid gap-3 md:grid-cols-2">
@@ -431,7 +431,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
             {problems.purpose && <p role="alert" className="text-sm font-medium text-rose-800">{problems.purpose}</p>}
           </AppointmentSection>
 
-          <AppointmentSection title="Name and description" description="How the letter appears in lists, to students and to staff." icon={FileSignature}>
+          <AppointmentSection title="Name and description" icon={FileSignature}>
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Name" htmlFor="letter-template-name" error={problems.name}>
                 <input
@@ -445,7 +445,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
                   placeholder="For example: Student Confirmation Letter"
                 />
               </Field>
-              <Field label="Category" htmlFor="letter-template-type" hint="Shown under the name, to group similar letters.">
+              <Field label="Category" htmlFor="letter-template-type">
                 <SelectMenu id="letter-template-type" value={draft.type} options={typeOptions.map((type) => ({ value: type, label: type }))} onChange={(type) => set({ type })} />
               </Field>
               <div className="md:col-span-2">
@@ -462,7 +462,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
                 </Field>
               </div>
               {request && (
-                <Field label="Usually ready in (working days)" htmlFor="letter-template-ready-days" hint="Shown to students before they send a request. Leave blank to say nothing." error={problems.readyInDays}>
+                <Field label="Usually ready in (working days)" htmlFor="letter-template-ready-days" error={problems.readyInDays}>
                   <input
                     id="letter-template-ready-days"
                     type="text"
@@ -530,7 +530,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
                 <input id="letter-template-prefix" type="text" value={draft.referencePrefix} maxLength={64} onChange={(event) => { set({ referencePrefix: event.target.value }); clearProblem('referencePrefix'); }} className="form-control form-control-md" placeholder={DEFAULT_REFERENCE_PREFIX} />
               </Field>
               {request && (
-                <Field label="Valid for (months)" htmlFor="letter-template-valid-months" hint="For letters accepted only for a while, such as bank or student pass letters. Leave blank if it has no end date." error={problems.validMonths}>
+                <Field label="Valid for (months)" htmlFor="letter-template-valid-months" hint="Leave blank if it has no end date." error={problems.validMonths}>
                   <input id="letter-template-valid-months" type="text" inputMode="numeric" value={draft.validMonths} maxLength={2} onChange={(event) => { set({ validMonths: event.target.value.replace(/\D/g, '') }); clearProblem('validMonths'); }} className="form-control form-control-md w-40" placeholder="For example: 3" />
                 </Field>
               )}

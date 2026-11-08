@@ -156,7 +156,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
   // Notification preferences
   const [prefs, setPrefs] = useState<settingsApi.NotificationPreferences>({
     announcementAlerts: true,
-    emailNotifications: false,
+    emailNotifications: true,
     deadlineReminders: true,
     weeklySummary: false,
   });
@@ -177,7 +177,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
     <div id="settings-workspace" className="space-y-6 md:space-y-8 animate-fade-in">
       <PageHeader
         title="Settings"
-        subtitle="Manage your account, security, and notification preferences."
         actions={
           <PortalButton variant="danger" size="md" icon={LogOut} onClick={onLogout}>
             Sign Out
@@ -256,7 +255,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
 
           {/* Security */}
           <PortalCard>
-            <SectionTitle icon={ShieldCheck} title="Security" subtitle="Changing your password will sign you out on all devices. Please sign in again afterward." />
+            <SectionTitle icon={ShieldCheck} title="Security" subtitle="You'll be signed out on all devices." />
             <form onSubmit={handleSavePassword} className="mt-5">
               <FormInput
                 id="settings-current-pw"
@@ -300,11 +299,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
 
           {/* Notification preferences */}
           <PortalCard>
-            <SectionTitle icon={Bell} title="Notification Preferences" subtitle="Choose what you get notified about." />
+            <SectionTitle icon={Bell} title="Notification Preferences" />
             <div className="mt-4 divide-y divide-slate-150">
               <PrefRow
                 title="Announcement alerts"
-                description="Receive new non-urgent announcements in your notification feed."
+                description="Non-urgent announcements."
                 checked={prefs.announcementAlerts}
                 onChange={setPref('announcementAlerts')}
                 id="pref-ann"
@@ -312,7 +311,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
               {capabilities.emailNotifications && (
                 <PrefRow
                   title="Email alerts"
-                  description="Also email me the announcements and deadline reminders I receive."
+                  description="Also send them by email."
                   checked={prefs.emailNotifications}
                   onChange={setPref('emailNotifications')}
                   id="pref-email"
@@ -321,7 +320,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
               {capabilities.deadlineReminders && (
                 <PrefRow
                   title="Deadline reminders"
-                  description="Remind me a few days before timeline deadlines and Marks closing dates."
+                  description="A few days before each deadline."
                   checked={prefs.deadlineReminders}
                   onChange={setPref('deadlineReminders')}
                   id="pref-deadlines"
@@ -330,7 +329,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
               {capabilities.weeklySummary && (
                 <PrefRow
                   title="Weekly summary"
-                  description="Email me a weekly list of the notifications I have not read."
+                  description="Unread notifications, by email."
                   checked={prefs.weeklySummary}
                   onChange={setPref('weeklySummary')}
                   id="pref-summary"
@@ -342,7 +341,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
             </div>
             <p className="mt-3 flex items-start gap-2 rounded-xl bg-slate-50 border border-slate-150 px-3.5 py-2.5 card-description">
               <Info className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" />
-              <span>Urgent announcements and workflow notifications remain enabled. Existing notifications are retained.</span>
+              <span>Urgent notifications always stay on.</span>
             </p>
             <div className="flex justify-end mt-5">
               <PortalButton
@@ -386,7 +385,7 @@ const SummaryRow: React.FC<{ icon: React.ElementType; label: string; value: stri
   </div>
 );
 
-const SectionTitle: React.FC<{ icon: React.ElementType; title: string; subtitle: string }> = ({
+const SectionTitle: React.FC<{ icon: React.ElementType; title: string; subtitle?: string }> = ({
   icon: Icon,
   title,
   subtitle,

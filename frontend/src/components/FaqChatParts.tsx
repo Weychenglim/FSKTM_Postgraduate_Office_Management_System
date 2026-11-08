@@ -12,7 +12,6 @@ import type { FaqLink, FaqReply } from '../types';
 import { FAQ_PORTAL_LINKS, askedDifferently } from '../utils/faqText';
 import { passageSource } from '../utils/faqOffice';
 import { PortalButton } from './PortalPrimitives';
-import { AppointmentIcon } from './AppointmentPrimitives';
 import { AlertMessage } from './AlertMessage';
 import { FaqText } from './FaqText';
 
@@ -22,10 +21,16 @@ export const SMALL_NOTE = 'text-[12px] font-medium text-slate-500';
 
 export type ChatReply = Omit<FaqReply, 'questionId' | 'token'>;
 
+const BotMark: React.FC = () => (
+  <span aria-hidden="true" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-navy text-white">
+    <Bot className="h-4 w-4" />
+  </span>
+);
+
 export const AssistantRow: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="flex items-start gap-3">
-    <AppointmentIcon icon={Bot} tone="brand" />
-    <div className="min-w-0 max-w-2xl flex-1 space-y-3 rounded-2xl rounded-tl-md border border-slate-200 bg-slate-50 px-4 py-3.5 text-[13px] leading-relaxed text-slate-700">
+    <BotMark />
+    <div className="min-w-0 flex-1 space-y-3 rounded-2xl rounded-tl-md border border-slate-200 bg-white px-5 py-4 text-[13.5px] leading-relaxed text-slate-700 shadow-sm">
       <span className="sr-only">FAQ Chatbot:</span>
       {children}
     </div>
@@ -67,7 +72,7 @@ export const ContactBox: React.FC<{ text: string; passedOn?: boolean }> = ({ tex
 
 export const Thinking: React.FC = () => (
   <div className="flex items-center gap-3">
-    <AppointmentIcon icon={Bot} tone="brand" />
+    <BotMark />
     <p role="status" className={`${SMALL_NOTE} flex items-center gap-2`}>
       <span aria-hidden="true" className="flex gap-1">
         <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400" />
@@ -101,7 +106,7 @@ export const FaqReplyView: React.FC<FaqReplyViewProps> = ({ reply, asked, typed,
       <AssistantRow>
         <p className="card-label">{passageSource(passage)}</p>
         <blockquote className="whitespace-pre-line border-l-4 border-slate-300 pl-4 text-slate-700 [overflow-wrap:anywhere]">{passage.text}</blockquote>
-        <p className={SMALL_NOTE}>This is a passage from a document the PG Office uploaded, not a reviewed FAQ answer.</p>
+        <p className={SMALL_NOTE}>From a PG Office document, not a reviewed answer.</p>
         <PortalButton size="sm" icon={FileText} onClick={() => onOpenDocument(passage.documentId, passage.fileName)}>
           Open document
         </PortalButton>
@@ -176,14 +181,13 @@ export const FaqComposer: React.FC<FaqComposerProps> = ({ value, onChange, onSen
   return (
     <form
       ref={formRef}
-      className="space-y-2"
       onSubmit={event => {
         event.preventDefault();
         onSend();
       }}
     >
       <label htmlFor="faq-question" className="sr-only">Your question</label>
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm transition focus-within:border-slate-400 focus-within:ring-2 focus-within:ring-brand-navy/15">
         <textarea
           id="faq-question"
           ref={box}
@@ -199,13 +203,17 @@ export const FaqComposer: React.FC<FaqComposerProps> = ({ value, onChange, onSen
               onSend();
             }
           }}
-          className="form-control form-control-md flex-1 resize-none overflow-hidden text-[13px] font-medium leading-relaxed"
+          className="min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-3 py-2 text-[14px] font-medium leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 focus:ring-0"
         />
-        <PortalButton type="submit" variant="primary" icon={Send} disabled={!value.trim() || busy}>
-          Send
-        </PortalButton>
+        <button
+          type="submit"
+          aria-label="Send"
+          disabled={!value.trim() || busy}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-navy text-white transition hover:bg-brand-navy-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/40 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 cursor-pointer"
+        >
+          <Send aria-hidden="true" className="h-4 w-4" />
+        </button>
       </div>
-      <p className="card-caption">Press Enter to send, or Shift and Enter for a new line.</p>
     </form>
   );
 };

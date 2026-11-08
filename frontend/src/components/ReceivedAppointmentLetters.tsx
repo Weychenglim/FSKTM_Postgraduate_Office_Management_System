@@ -72,7 +72,6 @@ export const ReceivedAppointmentLetters: React.FC = () => {
     <section aria-label="Appointment letters" className="app-card appointment-workspace-card">
       <WorkspaceSectionHeader
         title="Appointment letters"
-        description="Sent to you when the coordinator approves you as a student's supervisor, panel member or supporting supervisor."
       />
       <WorkspaceFilterCard
         fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-3"

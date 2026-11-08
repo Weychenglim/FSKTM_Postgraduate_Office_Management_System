@@ -33,10 +33,8 @@ def make_student(matric_no, *, student_status=Student.Status.ACTIVE, registry=Tr
         password=PASSWORD,
         full_name=f"Student {matric_no}",
         role=User.Role.STUDENT,
+        email_notifications=email_alerts,
     )
-    if email_alerts:
-        User.objects.filter(pk=user.pk).update(email_notifications=True)
-        user.refresh_from_db()
     student = Student.objects.create(
         user=user,
         matric_no=matric_no,

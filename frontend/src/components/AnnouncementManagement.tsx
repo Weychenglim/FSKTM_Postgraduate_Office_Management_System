@@ -3,14 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   AlertTriangle,
+  Building2,
   Calendar,
   CalendarClock,
+  Check,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   FileText,
+  GraduationCap,
   Info,
   Lock,
   Megaphone,
@@ -18,6 +22,7 @@ import {
   Paperclip,
   Pencil,
   Plus,
+  Presentation,
   Radio,
   Search,
   SearchX,
@@ -28,7 +33,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot, getStatusBadgeTone, type BadgeTone } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, StatusBadge, StatusDot, getStatusBadgeTone, type BadgeTone } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { RecordPage } from './RecordPage';
 import { LoadingState, ErrorState } from './StateViews';
@@ -46,20 +51,18 @@ import { formatScheduleMoment, isScheduledFor, scheduleTime } from '../utils/ann
 import { toMalaysiaDateTimeLocalValue } from '../utils/malaysiaDateTime';
 import { describeProgramme } from '../utils/programmeLabel';
 import { pageWindow } from '../utils/pageWindow';
+import { audiencesOf, toggleAudience } from '../utils/announcementAudience';
 
 // AnnouncementItem now lives in src/types.
 
-// Target-audience chip options. "All" reaches everyone; "Students" is students-only.
-type AudienceOption = 'All' | 'Students' | 'Lecturers' | 'Staff' | 'Coordinators';
-const AUDIENCE_OPTIONS: AudienceOption[] = ['All', 'Students', 'Lecturers', 'Staff', 'Coordinators'];
-
-// Map the chip choice to the backend target value, and back again when editing.
-const targetForAudience = (a: AudienceOption): AnnouncementItem['target'] =>
-  a === 'Students' ? 'All Students' : a;
-const audienceFromTarget = (target: string): AudienceOption =>
-  target === 'All Students'
-    ? 'Students'
-    : (['All', 'Lecturers', 'Staff', 'Coordinators'].includes(target) ? (target as AudienceOption) : 'All');
+// Target-audience choices. Several groups can be picked; Everyone stands alone.
+const AUDIENCE_CHOICES: { value: AnnouncementItem['target']; label: string; icon: LucideIcon }[] = [
+  { value: 'All', label: 'Everyone', icon: Users },
+  { value: 'All Students', label: 'Students', icon: GraduationCap },
+  { value: 'Lecturers', label: 'Lecturers', icon: Presentation },
+  { value: 'Staff', label: 'Staff', icon: Building2 },
+  { value: 'Coordinators', label: 'Coordinators', icon: ClipboardCheck },
+];
 
 const toggled = (list: string[], value: string) =>
   list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -168,11 +171,15 @@ const PRIORITY_FILTER_OPTIONS: SelectMenuOption<PriorityFilter>[] = [
   })),
 ];
 
-// "Everyone", "Lecturers", or "Students: Data Science, Semester 1 2025/2026" when narrowed.
+// "Everyone", "All students · Lecturers", or "Students: Data Science, Semester 1 2025/2026" when narrowed.
 const audienceLine = (item: AnnouncementItem) => {
   const narrowed = targetingSummary(item);
-  if (!narrowed) return AUDIENCE_LABEL[item.target] ?? item.target;
-  return `${item.target === 'All Students' ? 'Students' : AUDIENCE_LABEL[item.target] ?? item.target}: ${narrowed}`;
+  return audiencesOf(item)
+    .map((target) => {
+      if (target === 'All Students' && item.targetStudentCount) return `Supervised students (${item.targetStudentCount})`;
+      return target === 'All Students' && narrowed ? `Students: ${narrowed}` : AUDIENCE_LABEL[target] ?? target;
+    })
+    .join(' · ');
 };
 
 // When it went out, or goes out for a scheduled one.
@@ -214,7 +221,9 @@ const StatusTile: React.FC<{
 // Headline, audience, priority, content, publish time, programmes, intakes
 // and the attachment removal, in that order.
 const formSnapshot = (values: unknown[]) => JSON.stringify(values);
-const EMPTY_FORM = formSnapshot(['', 'All', 'Info', '', '', [], [], false]);
+const EMPTY_FORM = formSnapshot(['', [], 'Info', '', '', [], [], false]);
+
+type PendingPublish = { draft: AnnouncementItem | null; count: number | null; schedule: boolean };
 
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
@@ -252,7 +261,7 @@ export const AnnouncementManagement: React.FC = () => {
 
   // --- 3. Draft Form States ---
   const [headline, setHeadline] = useState('');
-  const [targetAudience, setTargetAudience] = useState<AudienceOption>('All');
+  const [targetAudiences, setTargetAudiences] = useState<AnnouncementItem['target'][]>([]);
   const [priorityLevel, setPriorityLevel] = useState<'Urgent' | 'Info' | 'General'>('Info');
   const [contentBody, setContentBody] = useState('');
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -278,6 +287,15 @@ export const AnnouncementManagement: React.FC = () => {
   const [removeExistingAttachment, setRemoveExistingAttachment] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<AnnouncementItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [pendingPublish, setPendingPublish] = useState<PendingPublish | null>(null);
+
+  // The office picks any group. Coordinators and lecturers always send to their own students.
+  const scope = audienceOptions?.scope ?? 'office';
+  const ownStudents = scope !== 'office';
+  const sendTo = useMemo<AnnouncementItem['target'][]>(
+    () => (ownStudents ? ['All Students'] : targetAudiences),
+    [ownStudents, targetAudiences],
+  );
 
   // --- 4. Search, filters and pagination for the list ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -294,9 +312,14 @@ export const AnnouncementManagement: React.FC = () => {
   // Live "who will get this" preview, refreshed as the audience changes.
   useEffect(() => {
     let cancelled = false;
+    if (!sendTo.length) {
+      setRecipientCount(null);
+      return undefined;
+    }
     const timer = setTimeout(() => {
       getAnnouncementRecipientCount({
-        target: targetForAudience(targetAudience),
+        target: sendTo[0],
+        audiences: sendTo,
         priority: priorityLevel,
         targetProgrammes,
         targetIntakes,
@@ -308,13 +331,14 @@ export const AnnouncementManagement: React.FC = () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [targetAudience, priorityLevel, targetProgrammes, targetIntakes]);
+  }, [sendTo, priorityLevel, targetProgrammes, targetIntakes]);
 
   // --- 5. Handlers ---
-  const handleAudienceClick = (audience: AudienceOption) => {
-    setTargetAudience(audience);
-    if (audience !== 'Students') {
-      // Programme and intake targeting only applies to student announcements.
+  const handleAudienceClick = (audience: AnnouncementItem['target']) => {
+    const next = toggleAudience(targetAudiences, audience);
+    setTargetAudiences(next);
+    if (!next.includes('All Students')) {
+      // Programme and intake targeting only applies to students.
       setTargetProgrammes([]);
       setTargetIntakes([]);
     }
@@ -363,11 +387,12 @@ export const AnnouncementManagement: React.FC = () => {
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      const forStudents = targetAudience === 'Students';
+      const forStudents = sendTo.includes('All Students');
       const payload = {
         title: headline.trim(),
         content: contentBody,
-        target: targetForAudience(targetAudience),
+        target: sendTo[0],
+        audiences: sendTo,
         priority: priorityLevel,
         status,
         attachment: attachedFile,
@@ -419,7 +444,7 @@ export const AnnouncementManagement: React.FC = () => {
     setEditingStatus(draft.status);
     setHeadline(draft.title);
     setContentBody(draft.content ?? draft.summary ?? '');
-    setTargetAudience(audienceFromTarget(draft.target));
+    setTargetAudiences(audiencesOf(draft));
     setPriorityLevel(draft.priority);
     setPublishAtInput(toMalaysiaDateTimeLocalValue(draft.publishAt));
     setTargetProgrammes(draft.targetProgrammes ?? []);
@@ -430,7 +455,7 @@ export const AnnouncementManagement: React.FC = () => {
     setAttachedFile(null);
     initialDraft.current = formSnapshot([
       draft.title,
-      audienceFromTarget(draft.target),
+      audiencesOf(draft),
       draft.priority,
       draft.content ?? draft.summary ?? '',
       toMalaysiaDateTimeLocalValue(draft.publishAt),
@@ -449,13 +474,26 @@ export const AnnouncementManagement: React.FC = () => {
     );
   };
 
-  // Publish a draft straight from the list (no need to open it first).
+  // Publish a draft straight from the list, after saying how many people it reaches.
   const handlePublishDraft = async (draft: AnnouncementItem) => {
+    const audiences = audiencesOf(draft);
+    const count = await getAnnouncementRecipientCount({
+      target: audiences[0],
+      audiences,
+      priority: draft.priority,
+      targetProgrammes: draft.targetProgrammes ?? [],
+      targetIntakes: draft.targetIntakes ?? [],
+    }).catch(() => null);
+    setPendingPublish({ draft, count, schedule: isScheduledFor(toMalaysiaDateTimeLocalValue(draft.publishAt)) });
+  };
+
+  const publishDraft = async (draft: AnnouncementItem) => {
     try {
       const saved = await updateAnnouncement(draft.id, {
         title: draft.title,
         content: draft.content ?? draft.summary ?? '',
         target: draft.target,
+        audiences: audiencesOf(draft),
         priority: draft.priority,
         status: 'Active',
         attachment: null,
@@ -490,7 +528,24 @@ export const AnnouncementManagement: React.FC = () => {
       showToast('Error: Please provide descriptive Content Body details.');
       return;
     }
-    void submitAnnouncement('Active');
+    if (!sendTo.length) {
+      showToast('Error: Choose who it is for.');
+      return;
+    }
+    // Saving changes to a published notice doesn't send it again, so only a first send is confirmed.
+    if (editingId && editingStatus === 'Active') {
+      void submitAnnouncement('Active');
+      return;
+    }
+    setPendingPublish({ draft: null, count: recipientCount, schedule: willSchedule });
+  };
+
+  const confirmPublish = () => {
+    const pending = pendingPublish;
+    setPendingPublish(null);
+    if (!pending) return;
+    if (pending.draft) void publishDraft(pending.draft);
+    else void submitAnnouncement('Active');
   };
 
   // Submit flow: Save Draft
@@ -500,12 +555,16 @@ export const AnnouncementManagement: React.FC = () => {
       showToast('Error: Please enter at least a headline before saving as draft.');
       return;
     }
+    if (!sendTo.length) {
+      showToast('Error: Choose who it is for.');
+      return;
+    }
     void submitAnnouncement('Draft');
   };
 
   const resetForm = () => {
     setHeadline('');
-    setTargetAudience('All');
+    setTargetAudiences([]);
     setPriorityLevel('Info');
     setContentBody('');
     setAttachedFile(null);
@@ -525,7 +584,7 @@ export const AnnouncementManagement: React.FC = () => {
     !!attachedFile ||
     formSnapshot([
       headline,
-      targetAudience,
+      targetAudiences,
       priorityLevel,
       contentBody,
       publishAtInput,
@@ -580,7 +639,7 @@ export const AnnouncementManagement: React.FC = () => {
   const term = searchQuery.trim().toLowerCase();
   const filteredAnnouncements = historyItems.filter(item =>
     (statusFilter === 'any' || item.status === statusFilter) &&
-    (audienceFilter === 'any' || item.target === audienceFilter) &&
+    (audienceFilter === 'any' || audiencesOf(item).includes(audienceFilter)) &&
     (priorityFilter === 'any' || item.priority === priorityFilter) &&
     (!term || [
       item.title,
@@ -673,26 +732,57 @@ export const AnnouncementManagement: React.FC = () => {
             </div>
 
             {/* Field B: Target Audience Chips Row */}
-            <div className="space-y-2">
-              <label className="form-label block">
-                Target Audience
-              </label>
-              <SegmentedControl
-                options={AUDIENCE_OPTIONS}
-                value={targetAudience}
-                onChange={handleAudienceClick}
-                className="inline-flex flex-wrap"
-              />
-              <p className="text-[10px] text-slate-400 font-semibold">
-                {targetAudience === 'All'
-                  ? 'Reaches everyone (students, lecturers, staff, coordinators).'
-                  : `Reaches ${targetAudience} only.`}
+            {ownStudents ? (
+            <div className="space-y-1.5">
+              <span className="form-label block">Send to</span>
+              <p className="text-[13px] font-bold text-brand-navy">
+                {scope === 'supervisees'
+                  ? `The ${audienceOptions?.students ?? 0} ${audienceOptions?.students === 1 ? 'student' : 'students'} you supervise`
+                  : `Students in ${(audienceOptions?.programmes ?? []).map(programmeName).join(', ')}`}
               </p>
             </div>
+            ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span id="announcement-audience-label" className="form-label block">
+                  Target Audience
+                </span>
+                <span className="text-[10px] text-slate-400 font-semibold">Choose one or more.</span>
+              </div>
+              <div role="group" aria-labelledby="announcement-audience-label" className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-5 gap-3">
+                {AUDIENCE_CHOICES.map(({ value, label, icon: Icon }) => {
+                  const on = targetAudiences.includes(value);
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => handleAudienceClick(value)}
+                      className={`relative border rounded-xl p-3 flex flex-col items-center justify-center space-y-1.5 transition-all text-center cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 ${
+                        value === 'All' ? 'col-span-2 sm:col-span-4 xl:col-span-1' : ''
+                      } ${on ? 'border-brand-navy bg-slate-50 ring-1 ring-brand-navy' : 'border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      {on && (
+                        <span aria-hidden="true" className="absolute top-2 right-2 w-4 h-4 rounded-full bg-brand-navy text-white flex items-center justify-center">
+                          <Check className="w-2.5 h-2.5" strokeWidth={3.5} />
+                        </span>
+                      )}
+                      <Icon aria-hidden="true" className={`w-4 h-4 ${on ? 'text-brand-navy' : 'text-slate-400'}`} />
+                      <span className={`text-[9px] uppercase font-black tracking-widest ${on ? 'text-brand-navy' : 'text-slate-500'}`}>
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            )}
 
-            {/* Field B2: Registry targeting, for student announcements only */}
-            {targetAudience === 'Students' && (
+            {/* Field B2: Registry targeting, for the students in the audience only */}
+            {sendTo.includes('All Students') && scope !== 'supervisees' && (
               <div className="space-y-3 bg-slate-50/70 border border-slate-100 rounded-xl p-4">
+                <p className="text-[12px] font-extrabold text-brand-navy">Which students?</p>
+                {(scope === 'office' || (audienceOptions?.programmes.length ?? 0) > 1) && (
                 <ChipToggleGroup
                   label="Programmes"
                   options={audienceOptions?.programmes ?? []}
@@ -701,6 +791,7 @@ export const AnnouncementManagement: React.FC = () => {
                   emptyText="Programme list unavailable."
                   labelFor={programmeName}
                 />
+                )}
                 <ChipToggleGroup
                   label="Intakes"
                   options={audienceOptions?.intakes ?? []}
@@ -709,7 +800,7 @@ export const AnnouncementManagement: React.FC = () => {
                   emptyText="No intakes are recorded in the registry yet."
                 />
                 <p className="text-[10px] text-slate-400 font-semibold">
-                  Leave a group unselected to include every student in it.
+                  Leave empty for all students.
                 </p>
               </div>
             )}
@@ -848,7 +939,7 @@ export const AnnouncementManagement: React.FC = () => {
                   onChange={(e) => { setPublishAtInput(e.target.value); setScheduleError(null); }}
                   className={`form-control form-control-md ${scheduleError ? 'form-control-error' : ''}`}
                 />
-                <p className="text-[10px] text-slate-400 font-semibold">Empty publishes it as soon as you press Publish.</p>
+                <p className="text-[10px] text-slate-400 font-semibold">Leave empty to publish now.</p>
               </div>
               {scheduleError && (
                 <p role="alert" className="md:col-span-2 text-[11px] font-semibold text-rose-600">{scheduleError}</p>
@@ -859,7 +950,9 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="pt-6 border-t border-slate-100 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <p className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-1.5">
                 <Users className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                {recipientCount === null
+                {!sendTo.length
+                  ? 'Choose who it is for.'
+                  : recipientCount === null
                   ? 'Recipient count unavailable.'
                   : `${willSchedule ? 'Would reach' : 'Reaches'} ${recipientCount} ${recipientCount === 1 ? 'person' : 'people'} right now${
                       priorityLevel === 'Urgent' ? '.' : ', skipping anyone who turned alerts off.'
@@ -902,9 +995,6 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="section-label">Saved Drafts</h3>
-                <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-                  Unpublished announcements. Edit to keep working, or publish to broadcast.
-                </p>
               </div>
               <StatusBadge tone="warning" className="rounded-lg px-2.5 py-1 text-[9px] shrink-0">
                 {drafts.length} draft{drafts.length === 1 ? '' : 's'}
@@ -928,7 +1018,7 @@ export const AnnouncementManagement: React.FC = () => {
                         {draft.priority}
                       </StatusBadge>
                       <StatusBadge tone="neutral" className="rounded-md px-1.5 py-0.5 text-[8px]">
-                        {draft.target}
+                        {audiencesOf(draft).map((target) => AUDIENCE_LABEL[target] ?? target).join(', ')}
                       </StatusBadge>
                       {editingId === draft.id && (
                         <StatusBadge tone="info" className="rounded-md px-1.5 py-0.5 text-[8px]">
@@ -994,7 +1084,6 @@ export const AnnouncementManagement: React.FC = () => {
 
         <PageHeader
           title="Announcements"
-          subtitle="Create, schedule and manage announcements for the FSKTM community."
           actions={(
             <PortalButton variant="primary" icon={Plus} onClick={openComposer}>
               New announcement
@@ -1297,6 +1386,21 @@ export const AnnouncementManagement: React.FC = () => {
         isLoading={deleting}
         onConfirm={confirmDelete}
         onCancel={() => setPendingDelete(null)}
+      />
+
+      <PortalConfirmModal
+        isOpen={pendingPublish !== null}
+        title={
+          pendingPublish?.count == null
+            ? (pendingPublish?.schedule ? 'Schedule this announcement?' : 'Send this announcement now?')
+            : `${pendingPublish.schedule ? 'Schedule for' : 'Send to'} ${pendingPublish.count} ${pendingPublish.count === 1 ? 'person' : 'people'}?`
+        }
+        message={`"${pendingPublish?.draft?.title ?? headline.trim()}"`}
+        confirmLabel={pendingPublish?.schedule ? 'Schedule' : 'Send'}
+        tone="info"
+        icon={pendingPublish?.schedule ? CalendarClock : Send}
+        onConfirm={confirmPublish}
+        onCancel={() => setPendingPublish(null)}
       />
 
     </div>

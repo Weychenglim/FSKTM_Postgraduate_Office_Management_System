@@ -9,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
+from accounts.test_registry_semesters import semesters_for
 from appointments.models import (
     AppointmentWorkflowEvent,
     PanelAppointment,
@@ -236,6 +237,7 @@ class ParticipantLifecycleTests(APITestCase):
         SupervisorApplication.objects.filter(pk=self.application.pk).update(
             status=SupervisorApplication.Status.APPROVED
         )
+        semesters_for(self.student, "Semester I, 2026/2027", "Semester II, 2026/2027", "Semester I, 2027/2028")
 
         graduated = self._transition_student("GRADUATED", "Award confirmed")
 

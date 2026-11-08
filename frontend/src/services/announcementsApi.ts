@@ -25,6 +25,7 @@ export interface AnnouncementInput {
   title: string;
   content: string;
   target: AnnouncementItem['target'];
+  audiences?: AnnouncementItem['target'][];
   priority: AnnouncementItem['priority'];
   status: AnnouncementItem['status'];
   attachment?: File | null;
@@ -43,6 +44,7 @@ export function announcementForm(input: AnnouncementInput): FormData {
   form.append('title', input.title);
   form.append('content', input.content ?? '');
   form.append('target', input.target);
+  if (input.audiences !== undefined) form.append('audiences', JSON.stringify(input.audiences));
   form.append('priority', input.priority);
   form.append('status', input.status);
   if (input.publishAt !== undefined) form.append('publishAt', input.publishAt ?? '');
@@ -95,11 +97,13 @@ export async function getAnnouncementAudienceOptions(): Promise<AnnouncementAudi
 /** How many people an announcement with these settings would reach right now. */
 export async function getAnnouncementRecipientCount(input: {
   target: AnnouncementItem['target'];
+  audiences?: AnnouncementItem['target'][];
   priority: AnnouncementItem['priority'];
   targetProgrammes?: string[];
   targetIntakes?: string[];
 }): Promise<number> {
   const params = new URLSearchParams({ target: input.target, priority: input.priority });
+  for (const audience of input.audiences ?? []) params.append('audiences', audience);
   for (const programme of input.targetProgrammes ?? []) params.append('programmes', programme);
   for (const intake of input.targetIntakes ?? []) params.append('intakes', intake);
   const result = await request<{ recipients: number }>(`/announcements/recipient-count/?${params}`);

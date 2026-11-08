@@ -64,7 +64,14 @@ assert.equal(
     recordType: 'LECTURER_PARTICIPANT',
     recordId: 'DEMO-LECT-001',
   }),
-  '/dashboard/participant-lifecycle',
+  '/registry/staff',
+);
+assert.equal(
+  resolveWorkflowReportRecordRoute({
+    recordType: 'STUDENT_PARTICIPANT',
+    recordId: 'S 1',
+  }),
+  '/registry?student=S%201',
 );
 
 console.log('workflowReports tests passed');

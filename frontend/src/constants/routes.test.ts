@@ -6,7 +6,6 @@ import {
   routeForDashboardSemesters,
   routeForDashboardTimeline,
   routeForLecturerCapacity,
-  routeForParticipantLifecycle,
   routeForWorkflowReconciliation,
   routeForPanelAssignment,
   routeForPanelRecord,
@@ -30,7 +29,7 @@ assert.equal(routeForSidebarItem(SIDEBAR_ITEMS.SUPERVISOR_APPOINTMENTS), APP_ROU
 assert.equal(routeForDashboardTimeline(), '/dashboard/timeline');
 assert.equal(routeForDashboardSemesters(), '/dashboard/semesters');
 assert.equal(routeForLecturerCapacity(), '/dashboard/lecturer-capacity');
-assert.equal(routeForParticipantLifecycle(), '/dashboard/participant-lifecycle');
+assert.equal(isKnownAppPath('/registry/acting-coordinators'), true);
 assert.equal(routeForWorkflowReconciliation(), '/dashboard/workflow-reconciliation');
 assert.equal(sidebarItemForPath('/marks/records/MARK-001'), SIDEBAR_ITEMS.MARKS_ENTRY);
 assert.equal(sidebarItemForPath('/dashboard/timeline'), SIDEBAR_ITEMS.DASHBOARD);

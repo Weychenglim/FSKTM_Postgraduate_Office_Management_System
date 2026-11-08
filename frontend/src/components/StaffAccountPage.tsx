@@ -28,6 +28,7 @@ import { PortalButton, PortalToast } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
 import { OverflowMenu, type MenuAction } from './DocumentParts';
+import { LecturerStatusCards } from './ParticipantStatusCards';
 import { ActivationLinkDialog, DeleteDialog, EditDetailsDialog, ProgrammeDialog, SignInDialog } from './StaffAccountDialogs';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
@@ -140,7 +141,7 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
 
   const back = () => navigate(APP_ROUTES.registryStaff);
   const lecturerLike = account?.role === 'Lecturer' || account?.role === 'Programme Coordinator';
-  const retired = account?.lifecycle === 'RETIRED';
+  const left = account?.lifecycle === 'RETIRED' || account?.lifecycle === 'RESIGNED';
   const canAddDuty = account?.status !== 'SIGN_IN_OFF' && account?.lifecycle === 'ACTIVE';
 
   const menu: MenuAction[] = account && !account.isYou ? [
@@ -316,25 +317,29 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
                     <PortalButton variant="primary" icon={Mail} fullWidth isLoading={busy === 'link'} onClick={() => void sendLink()}>
                       Send password reset link
                     </PortalButton>
-                    <p className="text-[12px] leading-relaxed text-slate-500">The link lasts 30 minutes. The office never sees or sets a password.</p>
+                    <p className="text-[12px] leading-relaxed text-slate-500">The link lasts 30 minutes.</p>
                   </>
                 )}
                 {account.status === 'SIGN_IN_OFF' && (
                   <>
                     <p className="text-[13px] text-slate-700">
-                      {retired ? `${account.name} has retired, so sign-in stays off.` : `${account.name} can't sign in.`}
+                      {left ? `${account.name} has left, so sign-in stays off.` : `${account.name} can't sign in.`}
                     </p>
-                    {!retired && (
+                    {!left && (
                       <PortalButton variant="primary" fullWidth onClick={() => setDialog('signIn')}>Turn sign-in back on</PortalButton>
                     )}
                   </>
                 )}
               </section>
-              {lecturerLike && (
-                <p className="px-1 text-[12px] text-slate-500">
-                  Retiring or leaving? Use{' '}
-                  <Link to={APP_ROUTES.dashboardParticipantLifecycle} className="font-bold text-blue-700 hover:text-blue-900">Participant lifecycle</Link>.
-                </p>
+              {lecturerLike && account.lifecycle && (
+                <LecturerStatusCards
+                  staffId={account.staffId}
+                  name={account.name}
+                  onChanged={message => {
+                    setToast({ message, tone: 'success' });
+                    setReload(value => value + 1);
+                  }}
+                />
               )}
             </aside>
           </div>

@@ -51,6 +51,7 @@ globalThis.fetch = (async (input: RequestInfo | URL) => {
 try {
   const count = await getAnnouncementRecipientCount({
     target: 'All Students',
+    audiences: ['All Students', 'Lecturers'],
     priority: 'Urgent',
     targetProgrammes: ['A', 'B'],
     targetIntakes: ['Semester 1 2025/2026'],
@@ -62,6 +63,7 @@ try {
 const query = new URL(requested, 'http://portal.test').searchParams;
 assert.equal(new URL(requested, 'http://portal.test').pathname, '/api/announcements/recipient-count/');
 assert.equal(query.get('target'), 'All Students');
+assert.deepEqual(query.getAll('audiences'), ['All Students', 'Lecturers']);
 assert.equal(query.get('priority'), 'Urgent');
 assert.deepEqual(query.getAll('programmes'), ['A', 'B']);
 assert.deepEqual(query.getAll('intakes'), ['Semester 1 2025/2026']);

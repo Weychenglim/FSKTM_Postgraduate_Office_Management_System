@@ -55,14 +55,14 @@ const TAB_ROUTES: Record<Tab, string> = {
 const VIEWS: readonly FaqStatus[] = ['PUBLISHED', 'NEEDS_CHECKING', 'DRAFT', 'ARCHIVED'];
 const VIEW_LABEL: Record<FaqStatus, string> = { PUBLISHED: 'Live', NEEDS_CHECKING: 'To check', DRAFT: 'Drafts', ARCHIVED: 'Archived' };
 const VIEW_HEADING: Record<FaqStatus, { title: string; description: string; empty: string }> = {
-  PUBLISHED: { title: 'Live answers', description: 'What students get now. Open one to change it.', empty: 'No live answers yet.' },
+  PUBLISHED: { title: 'Live answers', description: 'What students get now.', empty: 'No live answers yet.' },
   NEEDS_CHECKING: {
     title: 'Imported answers to check',
-    description: "Imported from the office's FAQ.pdf. Students can't see them until they are checked and published.",
+    description: "Students can't see them until published.",
     empty: 'Nothing left to check.',
   },
-  DRAFT: { title: 'Drafts', description: 'Not shown to students until they are published.', empty: 'No drafts.' },
-  ARCHIVED: { title: 'Archived', description: "Kept for the record. Students can't see them.", empty: 'Nothing archived.' },
+  DRAFT: { title: 'Drafts', description: "Students can't see them until published.", empty: 'No drafts.' },
+  ARCHIVED: { title: 'Archived', description: "Students can't see them.", empty: 'Nothing archived.' },
 };
 const PAGE_SIZE = 25;
 
@@ -293,7 +293,6 @@ const AddToAnswer: React.FC<{ group: FaqQuestionGroup; onDone: (message: string)
     <fieldset className="space-y-3 rounded-xl bg-slate-50 p-4">
       <legend className="sr-only">Which answer covers it?</legend>
       <p className="text-[13px] font-bold text-slate-800">Which answer covers it?</p>
-      <p className="card-description">The question is added to that answer as another way students ask it.</p>
       {candidates === null ? (
         <p className="text-[13px] text-slate-500">Finding the closest answers...</p>
       ) : (
@@ -356,7 +355,7 @@ const QuestionsTab: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
     <section aria-label="Student questions" className="app-card appointment-workspace-card">
       <WorkspaceSectionHeader
         title="Questions the chatbot couldn't answer"
-        description="Questions with no answer, or where a student said the answer didn't help. Similar questions are grouped, and no names are kept."
+        description="Questions with no answer, or marked as not helpful."
       />
       {error ? (
         <ErrorState message={error} onRetry={load} />
@@ -454,7 +453,7 @@ const SettingsTab: React.FC = () => {
     <div className="space-y-6">
       <AppointmentSection
         title="When the chatbot can't help"
-        description="Shown when there is no answer, or a student says an answer didn't help. Give the email, the counter and its opening hours."
+        description="Shown when there is no answer."
         icon={MessageCircleQuestion}
       >
         <div className="grid gap-5 lg:grid-cols-2">
@@ -479,7 +478,7 @@ const SettingsTab: React.FC = () => {
 
       <AppointmentSection
         title="Popular questions on the start screen"
-        description="Up to four, picked from the live answers. Leave them empty to show the first question of each topic."
+        description="Up to four."
         icon={BookOpen}
       >
         <div className="grid gap-3 sm:grid-cols-2">
@@ -542,7 +541,6 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new' | 'test'
     <div id="faq-knowledge-base" className="space-y-6">
       <PageHeader
         title="FAQ Chatbot"
-        subtitle="The answers the chatbot gives students, and the questions it could not answer."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <PortalButton icon={FlaskConical} onClick={() => navigate(APP_ROUTES.faqTest)}>Test the chatbot</PortalButton>
@@ -553,7 +551,7 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new' | 'test'
 
       {searchStatus?.mode === 'keywords' && (
         <p role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-[13px] font-semibold text-amber-900">
-          The meaning search isn't available on the server, so the chatbot is matching keywords only. Answers still work, but paraphrases and Malay questions match less well.
+          Meaning search isn't available, so the chatbot is matching keywords only.
         </p>
       )}
 

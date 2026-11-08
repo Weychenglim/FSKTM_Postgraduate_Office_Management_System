@@ -143,6 +143,7 @@ export interface WorkflowReport {
     activeLecturers: number;
     retiringLecturers: number;
     retiredLecturers: number;
+    resignedLecturers: number;
   } | null;
   capacity: WorkflowCapacitySummary | null;
   reconciliation: {

@@ -96,7 +96,7 @@ class RecordEditingTests(RegistryHardeningBase):
         super().setUp()
         self.student = make_student("WGT270010", DS)
 
-    def test_programme_change_is_refused_when_a_research_profile_exists(self):
+    def test_programme_correction_needs_a_reason_when_a_research_profile_exists(self):
         supervisor = User.objects.create_user(
             email="sv.hard@example.test", password=PASSWORD, full_name="Supervisor", role=User.Role.LECTURER
         )
@@ -112,8 +112,8 @@ class RecordEditingTests(RegistryHardeningBase):
         response = self.client.patch(
             "/api/registry/students/WGT270010/", {"programme": CS, "phone": "012-1110000"}, format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("Request programme transfer", response.data["error"])
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("programmeReason", response.data)
         self.student.refresh_from_db()
         self.student.user.refresh_from_db()
         self.assertEqual(self.student.programme, DS)

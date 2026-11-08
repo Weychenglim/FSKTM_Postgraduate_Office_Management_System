@@ -85,10 +85,6 @@ export const NewVersionDialog: React.FC<DialogProps> = ({ document, isOpen, onCl
         <PortalButton variant="primary" icon={Upload} isLoading={busy} onClick={() => void send()}>Upload</PortalButton>
       </>}
     >
-      <p className="text-[13px] text-slate-600">
-        The new file replaces what people see. Older versions stay listed on this page.
-        {document.checkStatus === 'RETURNED' || document.checkStatus === 'ACCEPTED' ? ' The programme coordinator will check it again.' : ''}
-      </p>
       <input ref={input} type="file" className="sr-only" accept={acceptAttribute(['PDF', 'DOCX', 'IMAGE', 'XLSX', 'PPTX'])} onChange={event => setFile(event.target.files?.[0] ?? null)} />
       {file ? (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -334,7 +330,6 @@ export const SharingDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
               onChange={setProgramme}
             />
           )}
-          <p className="text-[12px] text-slate-500">Students never see staff files.</p>
         </>
       ) : (
         <>
@@ -411,7 +406,7 @@ export const ArchiveDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
         <PortalButton variant="danger" isLoading={busy} disabled={!reason.trim()} onClick={() => void send()}>Archive</PortalButton>
       </>}
     >
-      <p className="text-[13px] text-slate-600">The file is kept, but only the PG office and the programme coordinator can see it. You can restore it at any time.</p>
+      <p className="text-[13px] text-slate-600">Only the PG office and the programme coordinator will see it. You can restore it.</p>
       <label className="block space-y-1.5">
         <span className="sr-only">Reason</span>
         <textarea className="form-control min-h-20 px-3.5 py-3 text-[14px]" maxLength={500} value={reason} onChange={event => setReason(event.target.value)} placeholder="Why is it archived?" />

@@ -5,7 +5,7 @@
 
 import { IconHeading } from './IconHeading';
 import React from 'react';
-import { AlertTriangle, CheckCircle, Download, MailWarning, Send, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Download, X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { derivedNotes, differenceWarning, rowExplanation } from '../utils/registryImport';
@@ -15,9 +15,6 @@ interface RegistryImportResultProps {
   result: ImportCommitResponse;
   onDownloadReport: () => void;
   onClose: () => void;
-  /** Sends the activation emails this import held back. */
-  onSendHeld?: () => void;
-  sendingHeld?: boolean;
 }
 
 const ResultList: React.FC<{ title: string; note?: string; rows: ImportPreviewRow[] }> = ({ title, note, rows }) => (
@@ -61,8 +58,6 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
   result,
   onDownloadReport,
   onClose,
-  onSendHeld,
-  sendingHeld = false,
 }) => {
   const { batch, rows } = result;
   const registered = rows.filter((row) => row.result === 'skipped' && row.status === 'Already Registered');
@@ -70,10 +65,9 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
   const programmeSkipped = rows.filter((row) => row.result === 'skipped' && row.status === 'Programme Skipped');
   const notImported = rows.filter((row) => row.result === 'failed');
   const emailNotSent = rows.filter(
-    (row) => row.result === 'created' && row.invitationSent === false && !row.invitationHeld,
+    (row) => row.result === 'created' && row.invitationSent === false,
   );
   const filled = rows.filter((row) => row.result === 'created' && row.emailFilled);
-  const held = batch.invitationsHeld ? rows.filter((row) => row.result === 'created' && row.invitationHeld) : [];
   const counts = [
     { label: 'Created', value: batch.created, tone: 'text-emerald-700' },
     { label: 'Already registered', value: registered.length, tone: 'text-sky-700' },
@@ -107,26 +101,10 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
         ))}
       </dl>
 
-      {held.length > 0 && (
-        <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="flex items-start gap-2 text-[11.5px] font-bold text-amber-800">
-            <MailWarning className="w-4 h-4 mt-px shrink-0" />
-            <span>
-              Activation emails are on hold for {held.length} student{held.length === 1 ? '' : 's'}. Send them when you are
-              ready, here or from Recent Imports.
-            </span>
-          </p>
-          {onSendHeld && (
-            <PortalButton variant="primary" size="sm" icon={Send} onClick={onSendHeld} isLoading={sendingHeld} className="shrink-0">
-              Send Activation Emails Now
-            </PortalButton>
-          )}
-        </div>
-      )}
       {registered.length > 0 && (
         <ResultList
           title="Already registered, so skipped"
-          note="These students already have an account. Nothing about them was changed."
+          note="Already have an account. Not changed."
           rows={registered}
         />
       )}
@@ -134,28 +112,28 @@ export const RegistryImportResult: React.FC<RegistryImportResultProps> = ({
       {programmeSkipped.length > 0 && (
         <ResultList
           title="Programme skipped"
-          note="You chose to skip these programmes, so these rows were not imported."
+          note="Skipped programmes."
           rows={programmeSkipped}
         />
       )}
       {notImported.length > 0 && (
         <ResultList
           title="Not imported"
-          note="These rows are still listed below, so you can fix them and import again."
+          note="Fix them below and import again."
           rows={notImported}
         />
       )}
       {filled.length > 0 && (
         <ResultList
           title="Emails filled from the Student ID"
-          note="These students' activation emails go to their SiswaMail address, filled from the Student ID."
+          note="Emails go to their SiswaMail address."
           rows={filled}
         />
       )}
       {emailNotSent.length > 0 && (
         <ResultList
           title="Created, but the activation email was not sent"
-          note="Open each student's record and use Send Activation Link."
+          note="Send them from each student's record."
           rows={emailNotSent}
         />
       )}

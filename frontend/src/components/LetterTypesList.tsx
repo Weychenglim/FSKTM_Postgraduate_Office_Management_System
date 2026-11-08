@@ -58,7 +58,7 @@ export const LetterTypesList: React.FC<{
 
   return (
     <section aria-label="Letter types" className="app-card appointment-workspace-card">
-      <WorkspaceSectionHeader title="Letter types" description="The letters students can ask for and the ones sent after an appointment. Open one to change its form, wording or settings." />
+      <WorkspaceSectionHeader title="Letter types" />
       <WorkspaceFilterCard
         fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4"
         onReset={() => {

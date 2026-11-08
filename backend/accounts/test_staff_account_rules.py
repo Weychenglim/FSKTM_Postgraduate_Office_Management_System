@@ -325,7 +325,7 @@ class SignInTests(StaffRulesBase):
         User.objects.filter(pk=user.pk).update(is_active=False)
         response = self.switch(user, True)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("retired", response.data["error"])
+        self.assertIn("Returned to work", response.data["error"])
 
     def test_a_coordinator_cannot_come_back_to_a_taken_programme(self):
         self.client.post(url(self.coordinator, "programme/"), {"programme": ""}, format="json")

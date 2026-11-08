@@ -24,6 +24,7 @@ from accounts.models import Coordinator, ParticipantLifecycleAudit, Student, Use
 from accounts.participant_lifecycle import (
     ParticipantLifecycleConflict, transition_lecturer, transition_student,
 )
+from accounts.test_registry_semesters import semesters_for
 from appointments import co_supervision
 from appointments import test_appointment_lifecycle as primary
 from appointments.models import (
@@ -47,6 +48,7 @@ class CompoundLifecycleFixture:
     def setUp(self):
         self.assertTrue(str(connection.settings_dict['NAME']).startswith('test_'))
         primary.AppointmentLifecycleTests.setUp(self)
+        semesters_for(self.student, 'Semester I, 2026/2027', 'Semester II, 2026/2027', 'Semester I, 2027/2028')
         self.assertFalse(self.office.is_staff or self.office.is_superuser)
         self.panel_appointment = self._panel_appointment()
         nomination = co_supervision.nominate(

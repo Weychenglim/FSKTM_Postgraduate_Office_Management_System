@@ -61,7 +61,7 @@ export const RegistryImportProgrammes: React.FC<RegistryImportProgrammesProps> =
     >
       <IconHeading as="h4" titleId="registry-import-programmes-title" title="Programme Names In This File"
         titleClassName="text-[10px] uppercase font-black tracking-wider text-indigo-700"
-        description="These names are not on the approved list. Choose the programme each one means, or skip its rows. A choice covers every row with that name and is remembered for the next import."
+        description="Not on the approved list. Choose the programme each one means, or skip it."
         descriptionClassName="text-[11px] font-semibold text-slate-600 mt-0.5"
         icon={<span className="w-8 h-8 rounded-lg bg-white text-indigo-600 border border-indigo-100 flex items-center justify-center shrink-0"><GraduationCap className="w-4 h-4" /></span>}
       />

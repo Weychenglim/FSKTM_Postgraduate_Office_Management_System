@@ -104,7 +104,7 @@ class EndedAppointmentTests(LifecycleFixtures):
         self.appoint_supervisor(self.bella, self.supervisor)
         panel = self.appoint_panel(self.bella, self.panel)
         letter = GeneratedLetter.objects.get(panel_appointment=panel)
-        self.end(panel)
+        self.end(panel, "OTHER")
         letter.refresh_from_db()
         self.assertEqual(letter.status, GeneratedLetter.Status.REVOKED)
         self.assertRegex(letter.revoke_reason, r"^The panel member appointment ended on .+\.$")
@@ -114,10 +114,19 @@ class EndedAppointmentTests(LifecycleFixtures):
         primary = self.appoint_supervisor(self.ali, self.supervisor)
         supporting = self.appoint_supporting(self.ali, primary, self.helper)
         letter = GeneratedLetter.objects.get(co_supervisor_appointment=supporting)
-        self.end(supporting)
+        self.end(supporting, "WITHDRAWN")
         letter.refresh_from_db()
         self.assertEqual(letter.status, GeneratedLetter.Status.REVOKED)
         self.assertIn("supporting supervisor appointment ended", letter.revoke_reason)
+
+    def test_an_appointment_that_ran_its_course_keeps_its_letter(self):
+        appointment = self.appoint_supervisor(self.ali, self.supervisor)
+        letter = GeneratedLetter.objects.get(supervisor_appointment=appointment)
+        self.end(appointment, "COMPLETED")
+        letter.refresh_from_db()
+        self.assertEqual(letter.status, GeneratedLetter.Status.ISSUED)
+        self.assertEqual(letter.revoke_reason, "")
+        self.assertFalse(self.revoke_notices(letter).exists())
 
     def test_a_letter_waiting_for_the_office_is_withdrawn_instead(self):
         clear_sample_templates()

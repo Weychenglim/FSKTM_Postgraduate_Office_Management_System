@@ -157,7 +157,6 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
           <AppointmentIcon icon={ListChecks} tone="info" />
           <div className="min-w-0">
             <h2 id="letter-questions-heading" className="section-label">Questions students answer</h2>
-            <p className="card-description mt-1">In the order students see them. Their answers go on the letter where you place them.</p>
           </div>
         </div>
         {error && <p role="alert" className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p>}
@@ -188,7 +187,7 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <fieldset className="space-y-2">
                     <legend className="text-[12.5px] font-semibold text-slate-700">Purposes offered</legend>
-                    <p className="card-caption">None ticked offers every purpose. Purposes and their organisations are kept in Lists.</p>
+                    <p className="card-caption">None ticked offers every purpose.</p>
                     <div className="flex flex-wrap gap-2">
                       {(purposes ?? []).map((purpose) => {
                         const on = question.purposes?.includes(purpose.code) ?? false;
@@ -211,7 +210,6 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                   <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3">
                     <div>
                       <p id={`ask-address-${index}`} className="text-[12.5px] font-semibold text-slate-700">Ask for the address</p>
-                      <p className="card-caption">Students must fill it in; only the second line is optional.</p>
                     </div>
                     <ToggleSwitch id={`ask-address-switch-${index}`} checked={question.askAddress !== false} onChange={(on) => replace(index, { askAddress: on })} labelledBy={`ask-address-${index}`} className="py-0" />
                   </div>
