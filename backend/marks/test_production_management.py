@@ -55,6 +55,7 @@ class MarksConfigurationModelTests(TestCase):
             code="research-evaluation-v1",
             family_code="research-evaluation",
             version=1,
+            allowed_evaluator_roles=["SUPERVISOR", "PANEL"],
             target_mark=Decimal("100.00"),
             is_active=True,
         )
@@ -86,6 +87,7 @@ class MarksConfigurationModelTests(TestCase):
 
     def test_rubric_locks_when_referenced_by_published_period(self):
         EvaluationPeriod.objects.create(
+            assessment="P1",
             name="Semester 1 Evaluation",
             semester="Sem 1 2026/2027",
             academic_semester=self.academic_semester,
@@ -122,6 +124,7 @@ class MarksConfigurationModelTests(TestCase):
 
     def test_publishing_ready_period_is_audited(self):
         period = EvaluationPeriod.objects.create(
+            assessment="P1",
             name="Semester 1 Evaluation",
             semester="Sem 1 2026/2027",
             academic_semester=self.academic_semester,
@@ -152,6 +155,7 @@ class MarksConfigurationModelTests(TestCase):
         self.rubric.target_mark = Decimal("90.00")
         self.rubric.save(update_fields=["target_mark"])
         period = EvaluationPeriod.objects.create(
+            assessment="P1",
             name="Semester 1 Evaluation",
             semester="Sem 1 2026/2027",
             academic_semester=self.academic_semester,
@@ -188,6 +192,7 @@ class MarksConfigurationModelTests(TestCase):
 
     def test_lifecycle_partial_save_keeps_legacy_open_flag_in_sync(self):
         period = EvaluationPeriod.objects.create(
+            assessment="P1",
             name="Semester 1 Evaluation",
             semester="Sem 1 2026/2027",
             academic_semester=self.academic_semester,
@@ -272,6 +277,7 @@ class MarksConfigurationApiTests(APITestCase):
         created = self.client.post(
             "/api/marks/rubrics/",
             {
+                "allowedEvaluatorRoles": ["SUPERVISOR", "PANEL"],
                 "familyCode": "faculty-evaluation",
                 "name": "Faculty Evaluation",
                 "description": "Faculty-wide evaluation rubric.",
@@ -308,6 +314,7 @@ class MarksConfigurationApiTests(APITestCase):
             {
                 "name": "Semester 1 Evaluation",
                 "semesterId": self.academic_semester.pk,
+                "assessment": "P1",
                 "rubricId": rubric_id,
                 "opensAt": (now - timezone.timedelta(hours=1)).isoformat(),
                 "closesAt": (now + timezone.timedelta(days=7)).isoformat(),
@@ -438,7 +445,7 @@ class MarksConfigurationApiTests(APITestCase):
         self.assertFalse(Rubric.objects.get(pk=rubric_id).is_archived)
 
     def test_family_code_preserves_case_and_rejects_case_duplicate(self):
-        payload = {"familyCode": "CODE-Mixed01", "name": "TEST PANEL", "targetMark": "100.00"}
+        payload = {"allowedEvaluatorRoles": ["SUPERVISOR", "PANEL"], "familyCode": "CODE-Mixed01", "name": "TEST PANEL", "targetMark": "100.00"}
         response = self.client.post("/api/marks/rubrics/", payload, format="json")
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["familyCode"], "CODE-Mixed01")

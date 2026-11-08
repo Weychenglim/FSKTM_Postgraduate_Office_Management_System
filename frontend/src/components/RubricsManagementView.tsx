@@ -1,3 +1,4 @@
+import {PortalSelect} from './PortalSelect';
 import {RubricFamilyList, RubricVersionHistory} from './RubricFamilyList';
 import { MarksHeading } from './MarksPrimitives';
 /**
@@ -54,6 +55,7 @@ interface RubricsManagementViewProps {
 }
 
 type RubricForm = {
+  allowedEvaluatorRoles: Array<'SUPERVISOR' | 'PANEL'>;
   familyCode: string;
   name: string;
   description: string;
@@ -72,6 +74,7 @@ type ComponentForm = {
 };
 
 const RUBRIC_FIELDS = {
+  allowedEvaluatorRoles: {id:'rubric-allowed-roles',label:'Rubric for'},
   familyCode: {id: 'rubric-family-code', label: 'Family code'},
   name: {id: 'rubric-name', label: 'Name'},
   description: {id: 'rubric-description', label: 'Description'},
@@ -84,10 +87,11 @@ const COMPONENT_FIELDS = {
   maxMarks: {id: 'component-maximum', label: 'Maximum mark'},
   displayOrder: {id: 'component-order', label: 'Display order'},
 };
-const RUBRIC_FIELD_MAP = {family_code:'familyCode', familyCode:'familyCode', name:'name', description:'description', target_mark:'targetMark', targetMark:'targetMark'};
+const RUBRIC_FIELD_MAP = {allowed_evaluator_roles:'allowedEvaluatorRoles',allowedEvaluatorRoles:'allowedEvaluatorRoles',family_code:'familyCode', familyCode:'familyCode', name:'name', description:'description', target_mark:'targetMark', targetMark:'targetMark'};
 const COMPONENT_FIELD_MAP = {code:'code', name:'name', description:'description', max_marks:'maxMarks', maxMarks:'maxMarks', display_order:'displayOrder', displayOrder:'displayOrder'};
 
 const EMPTY_RUBRIC: RubricForm = {
+  allowedEvaluatorRoles: [],
   familyCode: '',
   name: '',
   description: '',
@@ -104,7 +108,7 @@ const EMPTY_COMPONENT: ComponentForm = {
   isActive: true,
   displayOrder: '1',
 };
-const metadataOf = (rubric: RubricVersion): RubricForm => ({familyCode: rubric.familyCode, name: rubric.name, description: rubric.description, targetMark: rubric.targetMark});
+const metadataOf = (rubric: RubricVersion): RubricForm => ({allowedEvaluatorRoles:rubric.allowedEvaluatorRoles ?? [],familyCode: rubric.familyCode, name: rubric.name, description: rubric.description, targetMark: rubric.targetMark});
 const componentOf = (component: RubricComponent): ComponentForm => ({id: Number(component.id), code: component.code || '', name: component.name, description: component.description, maxMarks: String(component.maxMarks), required: component.required, isActive: component.isActive ?? component.status === 'ACTIVE', displayOrder: String(component.displayOrder ?? 0)});
 const emptyComponentFor = (rubric: RubricVersion | null): ComponentForm => ({...EMPTY_COMPONENT, displayOrder: String((rubric?.components.length ?? 0) + 1)});
 const sameForm = (a: RubricForm | ComponentForm, b: RubricForm | ComponentForm) => JSON.stringify(a) === JSON.stringify(b);
@@ -299,12 +303,14 @@ const RubricsManagementContent: React.FC<RubricsManagementViewProps> = ({
 
   const saveRubric = async (event: React.FormEvent) => {
     event.preventDefault();
+    if(!rubricForm.allowedEvaluatorRoles.length){const feedback={message:'Choose who this rubric is for before saving.',fields:{allowedEvaluatorRoles:'Select Supervisor only, Panel only or Both.'}};setRubricFeedback(feedback);focusFeedback(feedback,{allowedEvaluatorRoles:'rubric-allowed-roles'},'rubric-save-feedback');return;}
     if(!startWrite())return;
     setRubricFeedback(null);
     try {
       const updated = creatingFamily
         ? await createRubricVersion(rubricForm)
         : await updateRubricVersion(selected!.id, {
+            allowedEvaluatorRoles: rubricForm.allowedEvaluatorRoles,
             name: rubricForm.name,
             description: rubricForm.description,
             targetMark: rubricForm.targetMark,
@@ -587,6 +593,10 @@ const RubricsManagementContent: React.FC<RubricsManagementViewProps> = ({
             />
               <FieldError id={`${RUBRIC_FIELDS.description.id}-error`} message={rubricFeedback?.fields.description}/>
           </label>
+          <label className="form-label sm:col-span-2">Rubric for
+            <PortalSelect id="rubric-allowed-roles" required disabled={Boolean(selected?.isLocked)||busy||Boolean(mutationBlock)} value={rubricForm.allowedEvaluatorRoles.length===2?'BOTH':rubricForm.allowedEvaluatorRoles[0]??''} onChange={event=>{const value=event.target.value;setRubricForm(current=>({...current,allowedEvaluatorRoles:value==='BOTH'?['SUPERVISOR','PANEL']:value?[value as 'SUPERVISOR'|'PANEL']:[]}));setRubricFeedback(current=>clearFeedbackFields(current,['allowedEvaluatorRoles']));}} className="form-control form-control-md mt-2 w-full"><option value="" disabled hidden>Select a role</option><option value="SUPERVISOR">Supervisor only</option><option value="PANEL">Panel only</option><option value="BOTH">Both</option></PortalSelect>
+            <FieldError id="rubric-allowed-roles-error" message={rubricFeedback?.fields.allowedEvaluatorRoles}/>
+          </label>
           <div className="sm:col-span-2"><FormFeedback id="rubric-save-feedback" title="Rubric wasn’t saved" feedback={rubricFeedback} fields={RUBRIC_FIELDS}/></div>
           {cloneError ? <div className="sm:col-span-2"><AlertMessage type="error" title="New version wasn’t created" message={cloneError}/></div> : null}
           <div className="sm:col-span-2 flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
@@ -667,6 +677,7 @@ const RubricsManagementContent: React.FC<RubricsManagementViewProps> = ({
             <div className="flex flex-wrap items-start justify-between gap-5">
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-3"><h2 className="section-heading break-words">Version {selected.version}</h2><StatusBadge tone={selected.isArchived ? 'neutral' : selected.isActive ? 'info' : 'neutral'}>{selected.isArchived ? 'Archived family' : selected.isActive ? 'Current' : 'Previous'}</StatusBadge></div>
+                <p className="card-description">Rubric for: {selected.allowedEvaluatorRoles?.length ? selected.allowedEvaluatorRoles.map(role=>role==='SUPERVISOR'?'Supervisor':'Panel').join(' and ') : 'Unconfigured'}</p>
                 {selected.description ? <p className="card-description max-w-2xl whitespace-pre-wrap break-words">{selected.description}</p> : null}
               </div>
               <div className="flex flex-wrap gap-3">
@@ -674,6 +685,7 @@ const RubricsManagementContent: React.FC<RubricsManagementViewProps> = ({
                 <PortalButton icon={selected.isArchived ? RotateCcw : Archive} variant={selected.isArchived ? 'secondary' : 'danger'} onClick={() => setArchiveTarget(selected)}>{selected.isArchived ? 'Restore family' : 'Archive family'}</PortalButton>
               </div>
             </div>
+            {selected.isLocked ? <AlertMessage className="mt-5" type="info" title="This version is locked" message="This rubric is in use. Select New version to create an editable copy." /> : null}
             <details className="mt-5 border-t border-slate-200 pt-4"><summary className="cursor-pointer text-sm font-semibold text-slate-700">Used by {selected.usage?.length ?? 0} evaluation {(selected.usage?.length ?? 0) === 1 ? 'period' : 'periods'}</summary>
               {selected.usage?.length ? <ul className="mt-4 max-h-72 overflow-auto divide-y divide-slate-100">{selected.usage.map(period => <li key={period.id} className="flex flex-wrap justify-between gap-3 py-3"><div><p className="card-value">{period.name}</p><p className="card-description mt-1">{period.semester}</p></div><StatusBadge tone="neutral">{period.status}</StatusBadge></li>)}</ul> : <p className="card-description mt-3">This version has not been assigned to an evaluation period.</p>}
             </details>

@@ -1,3 +1,4 @@
+import {assessmentLabel} from '../utils/assessment';
 import { MarkEntryRecipientPreview } from './MarkEntryRecipientPreview';
 export { MarkEntryRecipientPreview } from './MarkEntryRecipientPreview';
 import { PortalModal } from './PortalModal';
@@ -18,6 +19,7 @@ import {
   Archive,
   CalendarClock,
   History,
+  Trash2,
   CheckCircle2,
   Plus,
   Save,
@@ -81,6 +83,7 @@ interface MarkEntryPeriodConfigProps {
 }
 
 type PeriodForm = {
+  assessment: '' | 'P1' | 'P2';
   name: string;
   semesterId: string;
   rubricId: string;
@@ -92,6 +95,7 @@ type PeriodForm = {
 };
 
 const EMPTY_FORM: PeriodForm = {
+  assessment: '',
   name: '',
   semesterId: '',
   rubricId: '',
@@ -101,11 +105,12 @@ const EMPTY_FORM: PeriodForm = {
   programmes: [],
   evaluatorRoles: [],
 };
-const PERIOD_FIELDS=Object.fromEntries(['name','semesterId','rubricId','opensAt','closesAt','programmeScope','programmes','evaluatorRoles'].map(key=>[key,{id:`marks-period-${key}`,label:({name:'Period name',semesterId:'Academic semester',rubricId:'Rubric version',opensAt:'Opens at',closesAt:'Closes at',programmeScope:'Programme scope',programmes:'Programmes',evaluatorRoles:'Evaluator roles'} as Record<string,string>)[key]}]));
+const PERIOD_FIELDS=Object.fromEntries(['assessment','name','semesterId','rubricId','opensAt','closesAt','programmeScope','programmes','evaluatorRoles'].map(key=>[key,{id:`marks-period-${key}`,label:({assessment:'Assessment',name:'Period name',semesterId:'Academic semester',rubricId:'Rubric version',opensAt:'Opens at',closesAt:'Closes at',programmeScope:'Programme scope',programmes:'Programmes',evaluatorRoles:'Evaluator roles'} as Record<string,string>)[key]}]));
 const PERIOD_FIELD_MAP=Object.fromEntries(Object.keys(PERIOD_FIELDS).map(key=>[key,key]));
 const PERIOD_IDS=Object.fromEntries(Object.entries(PERIOD_FIELDS).map(([key,value])=>[key,value.id]));
 
 const periodToForm = (period: EvaluationPeriodOption): PeriodForm => ({
+  assessment: period.assessment || '',
   name: period.name,
   semesterId: period.semesterId ? String(period.semesterId) : '',
   rubricId: String(period.rubricId),
@@ -113,7 +118,7 @@ const periodToForm = (period: EvaluationPeriodOption): PeriodForm => ({
   closesAt: toDateTimeLocalValue(period.closesAt),
   programmeScope: period.programmeScope || 'ALL',
   programmes: period.programmes || [],
-  evaluatorRoles: period.evaluatorRoles || ['SUPERVISOR', 'PANEL'],
+  evaluatorRoles: period.evaluatorRoles || [],
 });
 
 export function MarksPeriodDeadlineControls({value,onChange,editable,error}: {
@@ -286,6 +291,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
         ?? '',
       ),
       rubricId: readyRubrics[0] ? String(readyRubrics[0].id) : '',
+      evaluatorRoles: readyRubrics[0]?.allowedEvaluatorRoles?.length === 1 ? [...readyRubrics[0].allowedEvaluatorRoles] : [],
     };
     setForm(initial);setNewBaseline(initial);
     setReason('');
@@ -382,6 +388,8 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
     event.preventDefault();
     if (pendingWrite.current || saving || selecting || loading || contextBlocked || savedReadBlocked || conflictBlocked || (selected && selected.lifecycleStatus !== 'DRAFT')) return;
     const requestedScope=contextSearch;
+    if (!form.assessment) {report({message:'Choose Research Project 1 or Research Project 2 before saving.',fields:{assessment:'Select an assessment explicitly.'}});return;}
+    if (!rolesCompatible) {report({message:'Choose a configured rubric and compatible evaluator roles.',fields:{evaluatorRoles:'The selected rubric must permit every selected role.'}});return;}
     const targetingError = validatePeriodTargeting(form);
     if (targetingError) { const key=!form.programmeScope?'programmeScope':form.programmeScope==='SELECTED'&&!form.programmes.length?'programmes':'evaluatorRoles';report({message:'Correct the highlighted fields, then save again.',fields:{[key]:targetingError}});return; }
     invalidatePreview();
@@ -391,6 +399,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
     let committed=false;
     try {
       const payload = {
+        assessment: form.assessment,
         name: form.name.trim(),
         semesterId: Number(form.semesterId),
         rubricId: Number(form.rubricId),
@@ -495,7 +504,10 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
   const savedFormSnapshot = JSON.stringify(selected ? periodToForm(selected) : newBaseline);
   const hasUnsavedChanges = formSnapshot !== savedFormSnapshot;
   const draftDirty=editorOpen&&(hasUnsavedChanges||!!reason.trim()||acknowledged);
-  const canPublish = !saving && !selecting && !previewLoading && !conflictBlocked && !savedReadBlocked && canPublishPeriodPreview(selected, formSnapshot, savedFormSnapshot, preview);
+  const assignedRubric = selected?.rubric && String(selected.rubric.id)===form.rubricId ? selected.rubric : rubrics.find(rubric=>String(rubric.id)===form.rubricId);
+  const allowedRoles = assignedRubric?.allowedEvaluatorRoles ?? [];
+  const rolesCompatible = allowedRoles.length > 0 && form.evaluatorRoles.length > 0 && form.evaluatorRoles.every(role=>allowedRoles.includes(role));
+  const canPublish = !!form.assessment && rolesCompatible && !saving && !selecting && !previewLoading && !conflictBlocked && !savedReadBlocked && canPublishPeriodPreview(selected, formSnapshot, savedFormSnapshot, preview);
   const selectableProgrammes = [...new Set([...programmeOptions, ...form.programmes])].sort();
 
   const loadRecipientPreview = async () => {
@@ -625,6 +637,8 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
         message={finalReview === 'publish' ? <div className="space-y-4">
           <div><p className="text-sm font-semibold text-slate-900">{selected?.name}</p><p className="mt-1">{selected?.semester}</p></div>
           <dl className="space-y-3 border-y border-slate-200 py-4">
+            <div><dt>Assessment</dt><dd>{assessmentLabel(selected?.assessment)}</dd></div>
+            <div><dt>Rubric version</dt><dd>{assignedRubric?.name ?? selected?.rubricName} · v{assignedRubric?.version ?? 'Unknown'}</dd></div>
             <div><dt className="text-xs text-slate-500">Programmes</dt><dd className="mt-1 text-slate-800">{selected?.programmeScope === 'SELECTED' ? selected.programmes?.join(', ') : 'All programmes'}</dd></div>
             <div><dt className="text-xs text-slate-500">Evaluators</dt><dd className="mt-1 text-slate-800">{(selected?.evaluatorRoles || ['SUPERVISOR', 'PANEL']).map(role => role === 'SUPERVISOR' ? 'Supervisor' : 'Panel').join(' and ')}</dd></div>
           </dl>
@@ -686,7 +700,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
             {selectionError?<ErrorState compact title="Couldn’t open the selected period" message={selectionError} onRetry={selectionTarget?()=>void selectPeriod(selectionTarget):undefined}/>:null}
             {emptyList && !archivedAvailable && !listFilters.search && listFilters.status === 'current' ? <PortalCard data-period-empty padding="lg">
               <EmptyState icon={CalendarClock} title="No evaluation periods yet" description={newPeriodDisabled ? 'No periods are configured. This semester is read-only.' : 'Create your first period to prepare marks entry.'} />
-            </PortalCard> : <MarkEntryPeriodList periods={periods} filters={listFilters} busy={saving || selecting} onManage={period => void selectPeriod(period)} onDelete={period => {setDeleteDraftError(null);setDeleteDraftTarget(period);}} onFiltersChange={next => {setListFilters(next);setIncludeArchived(next.status !== 'current');}} />}
+            </PortalCard> : <MarkEntryPeriodList periods={periods} filters={listFilters} busy={saving || selecting} onManage={period => void selectPeriod(period)} onFiltersChange={next => {setListFilters(next);setIncludeArchived(next.status !== 'current');}} />}
 
           </section> : (
 
@@ -695,9 +709,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
             <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
               <div ref={editorHeading} tabIndex={-1}>
                 <MarksHeading icon={CalendarClock}>{selected ? 'Period configuration' : 'New draft period'}</MarksHeading>
-                <p className="card-description mt-1">
-                  {selected && !draftEditable ? 'Published periods lock their dates, recipients and rubric. Manage extensions in Periods & deadlines.' : 'Saving a draft does not open marks entry.'}
-                </p>
+                {selected && !draftEditable ? <p className="card-description mt-1">Published periods lock their dates, recipients and rubric. Manage extensions in Periods &amp; deadlines.</p> : null}
               </div>
               <div className="flex flex-wrap items-center gap-3">
               {selected ? (
@@ -714,6 +726,12 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
             <form onSubmit={savePeriod} className="feedback-fields space-y-4">
               <fieldset disabled={saving || selecting || savedReadBlocked || conflictBlocked} className="period-config-sections">
               <section aria-labelledby="period-details-heading" className="period-config-section"><h3 id="period-details-heading" className="section-label mb-5">Period details</h3><div className="period-config-identity">
+              <label className="form-label block">Assessment
+                <PortalSelect {...fieldProps('assessment')} required disabled={!draftEditable} value={form.assessment} onChange={event=>updateForm(current=>({...current,assessment:event.target.value as PeriodForm['assessment']}))} className="form-control form-control-md mt-2 w-full">
+                  <option value="" disabled hidden>Select assessment</option><option value="P1">Research Project 1</option><option value="P2">Research Project 2</option>
+                </PortalSelect>{fieldError('assessment')}
+                {!draftEditable && !form.assessment ? <span className="card-description">Legacy assessment: unclassified</span>:null}
+              </label>
               <label className="form-label block">
                 Period name
                 <input
@@ -754,14 +772,14 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
                   {...fieldProps('rubricId')}
                   disabled={!draftEditable}
                   value={form.rubricId}
-                  onChange={(event) => updateForm((current) => ({ ...current, rubricId: event.target.value }))}
+                  onChange={(event) => {const rubricId=event.target.value;const roles=rubrics.find(row=>String(row.id)===rubricId)?.allowedEvaluatorRoles ?? [];updateForm(current=>({...current,rubricId,evaluatorRoles:roles.length===1?[...roles]:[]}));}}
                   className="form-control form-control-md mt-2 w-full disabled:bg-slate-100"
                 >
                   <option value="" disabled hidden={!!form.rubricId}>Select a ready rubric</option>
                   {selected && !readyRubrics.some(rubric => String(rubric.id) === form.rubricId) ? rubrics.filter(rubric => String(rubric.id) === form.rubricId).map(rubric => <option key={rubric.id} value={rubric.id} disabled>{rubric.name} · v{rubric.version} · Existing assignment</option>) : null}
                   {readyRubrics.map((rubric) => (
                     <option key={rubric.id} value={rubric.id}>
-                      {rubric.name} · v{rubric.version} · {rubric.targetMark} marks
+                      {rubric.name} · v{rubric.version} · {rubric.targetMark} marks{!rubric.allowedEvaluatorRoles?.length ? ' (configure roles)' : ''}
                     </option>
                   ))}
                 </PortalSelect>
@@ -791,10 +809,10 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
               <fieldset {...fieldProps('evaluatorRoles')} tabIndex={-1} disabled={!draftEditable} className="space-y-3 rounded-lg border border-slate-200 p-3">
                 <legend className="px-1 text-xs font-bold text-slate-700">Evaluator roles</legend>
                 {(['SUPERVISOR', 'PANEL'] as const).map((role) => <label key={role} className="card-description flex items-center gap-2">
-                  <input type="checkbox" checked={form.evaluatorRoles.includes(role)} onChange={(event) => updateForm((current) => ({ ...current, evaluatorRoles: event.target.checked ? [...current.evaluatorRoles, role] : current.evaluatorRoles.filter((value) => value !== role) }))} />
-                  {role === 'SUPERVISOR' ? 'Supervisor' : 'Panel'}
+                  <input type="checkbox" disabled={draftEditable && !allowedRoles.includes(role)} checked={form.evaluatorRoles.includes(role)} onChange={(event) => updateForm((current) => ({ ...current, evaluatorRoles: event.target.checked ? [...current.evaluatorRoles, role] : current.evaluatorRoles.filter((value) => value !== role) }))} />
+                  <span>{role === 'SUPERVISOR' ? 'Supervisor' : 'Panel'}</span>{draftEditable && !allowedRoles.includes(role) ? <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">Not available for this rubric</span> : null}
                 </label>)}
-                <p className="card-description">Selected roles share this rubric.</p>
+                {!allowedRoles.length ? <p className="card-description">Configure evaluator roles on the rubric before publication.</p> : null}
                 {fieldError('evaluatorRoles')}
               </fieldset>
               </div>
@@ -827,7 +845,11 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
               <FormFeedback id="marks-period-save-feedback" feedback={formFeedback} fields={PERIOD_FIELDS}/>
               {actionError?<AlertMessage type="error" title="Period wasn’t changed" message={actionError}/>:null}
               <div className="period-config-footer">
-                <div>{selected?.lifecycleStatus === 'DRAFT' && preview && canPublish ? <PortalButton icon={Users} onClick={() => setPreviewOpen(true)}>Preview recipients</PortalButton> : null}</div>
+                <div className="period-config-destructive-actions">
+                  {selected?.lifecycleStatus === 'DRAFT' ? <PortalButton variant="danger" icon={Trash2} disabled={saving || selecting || conflictBlocked || savedReadBlocked} onClick={() => {setDeleteDraftError(null);setDeleteDraftTarget(selected);}}>Delete draft</PortalButton> : null}
+                  {closed ? <PortalButton icon={Archive} variant="danger" isLoading={saving} disabled={conflictBlocked || savedReadBlocked} onClick={() => {setReason(''); openFinalReview('archive');}}>Archive period</PortalButton> : null}
+                  {selected?.lifecycleStatus === 'DRAFT' && preview && canPublish ? <PortalButton icon={Users} onClick={() => setPreviewOpen(true)}>Preview recipients</PortalButton> : null}
+                </div>
                 <div className="period-config-write-actions">
                 {draftEditable ? (
                   <PortalButton
@@ -852,18 +874,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
                   </PortalButton>
                 ) : null}
                 {published && selected && onManageTimeline ? <PortalButton icon={CalendarClock} disabled={saving || selecting} onClick={() => leaveTo(() => onManageTimeline(selected))}>Manage periods &amp; deadlines</PortalButton> : null}
-                {published ? <PortalButton variant="danger" icon={XCircle} disabled={saving || selecting || conflictBlocked || savedReadBlocked || hasUnsavedChanges} onClick={() => { if (selected) { setReason(''); setAcknowledged(false); setClosureContext({periodId:selected.id,search:contextSearch}); } }}>Close period early</PortalButton> : null}
-                {closed ? (
-                  <PortalButton
-                    icon={Archive}
-                    variant="danger"
-                    isLoading={saving}
-                    disabled={conflictBlocked||savedReadBlocked}
-                    onClick={() => { setReason(''); openFinalReview('archive'); }}
-                  >
-                    Archive
-                  </PortalButton>
-                ) : null}
+                {published ? <PortalButton variant="danger" icon={XCircle} disabled={saving || selecting || conflictBlocked || savedReadBlocked || hasUnsavedChanges} onClick={() => { if (selected) { setReason(''); setAcknowledged(false); setClosureContext({periodId:selected.id,search:contextSearch}); } }}>{selected?.effectiveStatus === 'CLOSED' ? 'Close period' : 'Close period early'}</PortalButton> : null}
                 </div>
               </div>
               </fieldset>

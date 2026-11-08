@@ -81,6 +81,7 @@ export interface MarksConfigurationAuditEvent {
 }
 
 export interface RubricVersion {
+  allowedEvaluatorRoles?: Array<'SUPERVISOR' | 'PANEL'>;
   isArchived?: boolean;
   usage?: {id: number; name: string; semester: string; status: string}[];
   id: number;
@@ -114,6 +115,7 @@ export interface EvaluationTaskTotals {
 }
 
 export interface EvaluationPeriodOption {
+  assessment?: '' | 'P1' | 'P2';
   id: number;
   name: string;
   semester: string;

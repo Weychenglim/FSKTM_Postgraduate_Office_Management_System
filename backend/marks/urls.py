@@ -4,6 +4,7 @@ from . import views
 
 
 urlpatterns = [
+    path('export/', views.export_mark_records_view),
     path("periods/<int:pk>/closure-preview/", views.period_closure_preview_view),
     path("tasks/<int:pk>/completion-windows/", views.completion_window_history_view),
     path("completion-windows/", views.completion_window_grant_view),

@@ -30,6 +30,7 @@ def task_status(task):
 
 
 class RubricCreateSerializer(serializers.Serializer):
+    allowedEvaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False)
     familyCode = serializers.SlugField(max_length=64)
     name = serializers.CharField(max_length=255)
     description = serializers.CharField(required=False, allow_blank=True)
@@ -41,6 +42,7 @@ class RubricCreateSerializer(serializers.Serializer):
 
 
 class RubricUpdateSerializer(serializers.Serializer):
+    allowedEvaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False, required=False)
     name = serializers.CharField(max_length=255, required=False)
     description = serializers.CharField(required=False, allow_blank=True)
     targetMark = serializers.DecimalField(
@@ -85,6 +87,7 @@ class RubricComponentInputSerializer(serializers.Serializer):
 
 
 class EvaluationPeriodCreateSerializer(serializers.Serializer):
+    assessment = serializers.ChoiceField(choices=["P1", "P2"], allow_blank=True, required=False)
     programmeScope = serializers.ChoiceField(choices=["ALL", "SELECTED"], required=False)
     programmes = serializers.ListField(child=serializers.CharField(max_length=255, allow_blank=False), required=False)
     evaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False, required=False)
@@ -97,6 +100,7 @@ class EvaluationPeriodCreateSerializer(serializers.Serializer):
 
 
 class EvaluationPeriodUpdateSerializer(serializers.Serializer):
+    assessment = serializers.ChoiceField(choices=["P1", "P2"], allow_blank=True, required=False)
     programmeScope = serializers.ChoiceField(choices=["ALL", "SELECTED"], required=False)
     programmes = serializers.ListField(child=serializers.CharField(max_length=255, allow_blank=False), required=False)
     evaluatorRoles = serializers.ListField(child=serializers.ChoiceField(choices=["SUPERVISOR", "PANEL"]), allow_empty=False, required=False)

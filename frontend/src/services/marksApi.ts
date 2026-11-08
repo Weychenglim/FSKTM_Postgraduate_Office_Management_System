@@ -19,7 +19,14 @@ import type {
   RubricVersion,
 } from '../types';
 import { buildMarkScorePayload } from '../utils/marksProductionManagement';
-import { ApiError, request } from './apiClient';
+import { ApiError, request, requestBlob } from './apiClient';
+
+export async function getMarksExport(recordIds: string[], scope: string): Promise<Blob> {
+  return requestBlob('/marks/export/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recordIds, scope }),
+  });
+}
 
 export async function getMarkRecords(): Promise<MarkRecord[]> {
   return request<MarkRecord[]>('/marks/');
@@ -62,6 +69,7 @@ export async function getEvaluationPeriod(
 }
 
 export type EvaluationPeriodPayload = {
+  assessment?: '' | 'P1' | 'P2';
   name: string;
   semesterId: number;
   rubricId: number;
@@ -144,6 +152,7 @@ export async function getRubricVersion(
 }
 
 export type RubricPayload = {
+  allowedEvaluatorRoles?: Array<'SUPERVISOR' | 'PANEL'>;
   familyCode: string;
   name: string;
   description: string;

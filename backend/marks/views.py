@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import F, Q
 from django.db.models.functions import Lower, Trim
 from django.utils import timezone
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -63,6 +64,32 @@ from .services import (
 
 
 User = get_user_model()
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def export_mark_records_view(request):
+    if not office_only(request.user):
+        return Response({'error': 'Only Office Staff/Admin can export marks.'}, status=403)
+    from .export import build_marks_workbook, export_tasks
+    ids = request.data.get('recordIds')
+    scope = request.data.get('scope', 'Selected records')
+    if (not isinstance(ids, list) or not ids or len(ids) > 20000 or
+            any(not isinstance(value, str) or not value.startswith('MRK-') or
+                not value[4:].isascii() or not value[4:].isdigit() or len(value) > 24 for value in ids) or
+            not isinstance(scope, str) or len(scope) > 4000):
+        return Response({'error': 'Supply 1–20,000 valid record IDs and a filter description.'}, status=400)
+    keys = {int(value[4:]) for value in ids}
+    if any(key > 9223372036854775807 for key in keys):
+        return Response({'error': 'Invalid record ID.'}, status=400)
+    tasks = list(export_tasks().filter(pk__in=keys))
+    if len(tasks) != len(keys):
+        return Response({'error': 'Some records no longer exist. Refresh the list and try again.'}, status=400)
+    response = HttpResponse(build_marks_workbook(tasks, scope),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="marks_records.xlsx"'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 def office_only(user):
@@ -132,6 +159,7 @@ def period_task_totals(period):
 
 def period_payload(period):
     return {
+        "assessment": period.assessment,
         "programmeScope": period.programme_scope,
         "programmes": period.programmes,
         "evaluatorRoles": period.evaluator_roles,
@@ -195,6 +223,7 @@ def rubric_component_payload(component):
 def rubric_payload(rubric, *, include_audit=False):
     payload = {
         "id": rubric.pk,
+        "allowedEvaluatorRoles": rubric.allowed_evaluator_roles,
         "familyCode": rubric.family_code,
         "code": rubric.code,
         "name": rubric.name,
@@ -343,6 +372,7 @@ def evaluation_periods_view(request):
         try:
             period = create_evaluation_period(
                 actor=request.user,
+                assessment=serializer.validated_data.get("assessment", ""),
                 name=serializer.validated_data["name"],
                 academic_semester=academic_semester,
                 rubric=rubric,
@@ -418,6 +448,7 @@ def evaluation_period_detail_view(request, pk):
     data = serializer.validated_data
     values = {}
     for source, target in (
+        ("assessment", "assessment"),
         ("name", "name"),
         ("opensAt", "opens_at"),
         ("closesAt", "closes_at"),
@@ -564,6 +595,7 @@ def rubrics_view(request):
             family_code=data["familyCode"],
             name=data["name"],
             description=data.get("description", ""),
+            allowed_evaluator_roles=data["allowedEvaluatorRoles"],
             target_mark=data["targetMark"],
         )
     except DjangoValidationError as exc:
@@ -594,6 +626,7 @@ def rubric_detail_view(request, pk):
     for source, target in (
         ("name", "name"),
         ("description", "description"),
+        ("allowedEvaluatorRoles", "allowed_evaluator_roles"),
         ("targetMark", "target_mark"),
         ("isActive", "is_active"),
     ):
