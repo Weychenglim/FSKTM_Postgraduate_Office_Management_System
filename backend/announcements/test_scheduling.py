@@ -196,20 +196,20 @@ class SchedulingTests(APITestCase):
         self.assertEqual(response.data["publishAt"], None)
         self.assertEqual(self.recipients(Announcement.objects.get(pk=response.data["id"])), {self.cs_sem1.pk})
 
-    def test_a_scheduled_notice_is_visible_to_its_author_and_the_office_only(self):
-        self.client.force_authenticate(self.lecturer)
+    def test_a_scheduled_notice_stays_with_the_office_until_it_publishes(self):
+        self.client.force_authenticate(self.office)
         response = self.client.post(
             "/api/announcements/",
             {"title": "Later", "content": "Body", "target": "Lecturers", "publishAt": later(hours=3)},
             format="json",
         )
         pk = response.data["id"]
-        self.assertIn(pk, self.listed_ids(self.lecturer))
         self.assertIn(pk, self.listed_ids(self.office))
+        self.assertNotIn(pk, self.listed_ids(self.lecturer))
         self.assertNotIn(pk, self.listed_ids(self.other_lecturer))
 
     def test_recipient_count_matches_delivery_and_is_for_senders(self):
-        self.client.force_authenticate(self.lecturer)
+        self.client.force_authenticate(self.office)
         count = lambda **params: self.client.get("/api/announcements/recipient-count/", params).data["recipients"]
         self.assertEqual(count(target="All Students", programmes=DATA_SCIENCE), 2)
         self.assertEqual(count(target="All Students", programmes=DATA_SCIENCE, priority="Urgent"), 3)
@@ -225,6 +225,7 @@ class SchedulingTests(APITestCase):
     def test_audience_options_list_programmes_and_intakes_for_senders(self):
         self.client.force_authenticate(self.office)
         options = self.client.get("/api/announcements/audience-options/").data
+        self.assertEqual(options["scope"], "office")
         self.assertEqual(options["programmes"], APPROVED_PROGRAMMES)
         self.assertEqual(options["intakes"], [SEM1, SEM2])
         self.client.force_authenticate(self.ds_sem1)

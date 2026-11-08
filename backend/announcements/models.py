@@ -46,6 +46,8 @@ class Announcement(models.Model):
     target = models.CharField(
         max_length=32, choices=Audience.choices, default=Audience.ALL
     )
+    # Further audiences when a notice goes to several groups, e.g. students and lecturers.
+    also_targets = models.JSONField(default=list, blank=True)
     priority = models.CharField(
         max_length=16, choices=Priority.choices, default=Priority.INFO
     )
@@ -60,6 +62,8 @@ class Announcement(models.Model):
     # Registry targeting for student announcements; an empty list means all.
     target_programmes = models.JSONField(default=list, blank=True)
     target_intakes = models.JSONField(default=list, blank=True)
+    # A lecturer's notice: the user ids of the students they supervised when it was saved.
+    target_students = models.JSONField(default=list, blank=True)
     # Optional file recipients can download (PDF, DOCX, etc.).
     attachment = models.FileField(
         upload_to="announcements/%Y/%m/", blank=True, null=True
@@ -83,6 +87,10 @@ class Announcement(models.Model):
         return f"{self.title} -> {self.target} ({self.status})"
 
     @property
+    def audiences(self):
+        return [self.target, *self.also_targets]
+
+    @property
     def summary(self):
         """Short, table-friendly preview of the body."""
         text = " ".join(self.content.split())
@@ -103,6 +111,7 @@ class Announcement(models.Model):
             "summary": self.summary,
             "content": self.content,
             "target": self.target,
+            "audiences": self.audiences,
             "priority": self.priority,
             "status": self.status,
             "dateCreated": localtime(self.created_at).strftime("%d %b %Y"),
@@ -114,6 +123,7 @@ class Announcement(models.Model):
             "expiresAt": localtime(self.expires_at).isoformat() if self.expires_at else None,
             "targetProgrammes": self.target_programmes,
             "targetIntakes": self.target_intakes,
+            "targetStudentCount": len(self.target_students),
         }
 
 
