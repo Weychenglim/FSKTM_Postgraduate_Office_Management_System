@@ -19,7 +19,7 @@ from .models import FaqDocument, FaqEntry, FaqVector
 from .views import require_office
 
 User = get_user_model()
-ASKERS = (User.Role.STUDENT, User.Role.COORDINATOR)
+ASKERS = (User.Role.STUDENT,)
 
 
 class FaqAskRateThrottle(SimpleRateThrottle):
@@ -38,7 +38,7 @@ class FaqAskRateThrottle(SimpleRateThrottle):
 
 def require_asker(request):
     if getattr(request.user, "role", None) not in ASKERS:
-        raise PermissionDenied("The FAQ chatbot is for students and programme coordinators.")
+        raise PermissionDenied("The FAQ chatbot is for students.")
 
 
 class AskSerializer(serializers.Serializer):

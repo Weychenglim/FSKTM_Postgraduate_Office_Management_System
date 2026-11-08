@@ -37,13 +37,16 @@ const LECTURER_MODULES: SidebarItemId[] = [
   SIDEBAR_ITEMS.SETTINGS,
 ];
 
+// Every module except the FAQ Chatbot, which is for students.
+const COORDINATOR_MODULES = Object.values(SIDEBAR_ITEMS).filter((item) => item !== SIDEBAR_ITEMS.FAQ_CHATBOT);
+
 /**
- * Modules each role may open. 'ALL' grants every module (Office Staff/Admin and
- * Programme Coordinator are full-access in the current scope).
+ * Modules each role may open. 'ALL' grants every module (Office Staff/Admin is
+ * full-access in the current scope).
  */
 export const ROLE_ALLOWED_MODULES: Record<UserRole, SidebarItemId[] | 'ALL'> = {
   'Office Staff/Admin': 'ALL',
-  'Programme Coordinator': 'ALL',
+  'Programme Coordinator': COORDINATOR_MODULES,
   Lecturer: LECTURER_MODULES,
   Student: STUDENT_MODULES,
 };

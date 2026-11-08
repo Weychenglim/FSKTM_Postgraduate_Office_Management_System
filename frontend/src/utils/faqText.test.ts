@@ -60,9 +60,9 @@ const component = readFileSync(resolve('src/components/FaqText.tsx'), 'utf8');
 assert.doesNotMatch(component, /dangerouslySetInnerHTML/);
 assert.match(component, /rel="noopener noreferrer"/);
 
-// students and coordinators ask; only the office manages the knowledge base
+// students ask; only the office manages the knowledge base
 const app = readFileSync(resolve('src/App.tsx'), 'utf8');
-assert.match(app, /isStudentWorkspace \|\| currentUser\.role === 'Programme Coordinator' \? \(\s*<StudentFAQChatbot \/>/);
+assert.match(app, /isStudentWorkspace \? \(\s*<StudentFAQChatbot \/>/);
 const chat = readFileSync(resolve('src/components/StudentFAQChatbot.tsx'), 'utf8');
 assert.doesNotMatch(chat, /setTimeout\(|mocks\/|AI Assistant/);
 

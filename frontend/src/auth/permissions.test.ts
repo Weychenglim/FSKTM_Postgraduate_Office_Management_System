@@ -43,3 +43,9 @@ assert.match(
 );
 
 console.log('permissions tests passed');
+
+assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.FAQ_CHATBOT), false);
+assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.REGISTRY), true);
+assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.SETTINGS), true);
+assert.equal(canAccessModule('Student', SIDEBAR_ITEMS.FAQ_CHATBOT), true);
+assert.equal(canAccessModule('Office Staff/Admin', SIDEBAR_ITEMS.FAQ_CHATBOT), true);

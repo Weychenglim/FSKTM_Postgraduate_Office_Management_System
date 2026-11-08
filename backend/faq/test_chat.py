@@ -188,6 +188,15 @@ class AskTests(ChatBase):
         self.assertEqual(response.data["categories"][0]["questions"][0]["question"], "How do I register courses every semester?")
         self.assertEqual(response.data["commonQuestions"], ["how do i register   courses every semester?"], "only questions a live answer still has")
 
+    def test_browsing_a_topic_lists_every_live_question(self):
+        for number in range(9):
+            self.entry(f"Fees question {number}?", "Answer.", self.fees)
+        self.entry("Old fees question?", "Answer.", self.fees, state=Status.ARCHIVED)
+        groups = {group["name"]: group["questions"] for group in self.client.get("/api/faq/start/").data["categories"]}
+        questions = [link["question"] for link in groups["Fees"]]
+        self.assertEqual(len([q for q in questions if q.startswith("Fees question")]), 9)
+        self.assertNotIn("Old fees question?", questions)
+
     def test_the_start_screen_suggests_questions_when_none_are_set(self):
         response = self.client.get("/api/faq/start/")
         self.assertEqual(response.data["commonQuestions"], ["How do I register courses every semester?", "How much is the tuition fee?"])
@@ -195,10 +204,10 @@ class AskTests(ChatBase):
 
 class AccessTests(ChatBase):
     def test_who_can_ask(self):
-        coordinator = self.user("chat.coord", User.Role.COORDINATOR)
-        self.client.force_authenticate(coordinator)
+        student = self.user("chat.asker", User.Role.STUDENT)
+        self.client.force_authenticate(student)
         self.assertEqual(self.ask("register courses").status_code, status.HTTP_200_OK)
-        for role in (User.Role.LECTURER, User.Role.OFFICE_ADMIN):
+        for role in (User.Role.COORDINATOR, User.Role.LECTURER, User.Role.OFFICE_ADMIN):
             self.client.force_authenticate(self.user(f"chat.{role.split()[0].lower()}", role))
             with self.subTest(role=role):
                 self.assertEqual(self.ask("register courses").status_code, status.HTTP_403_FORBIDDEN)
