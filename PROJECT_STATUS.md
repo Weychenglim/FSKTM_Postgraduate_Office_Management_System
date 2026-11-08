@@ -1,3 +1,37 @@
+## Email on by default, safer announcements, graduation ticking, FAQ for enrolled students (6 November 2026)
+
+- **Email alerts are on by default.** `User.email_notifications` now defaults to true, and migration `accounts.0019` switches it on for existing accounts. People can still turn it off in Settings. Emails started by a page (announcements, letter decisions, appointment letters, file checks, required documents) send in a background thread when the real mail server is in use, so the page doesn't wait. Scheduled commands still wait for the count. `EMAIL_TIMEOUT` (default 20 seconds) stops a slow mail server from hanging a request.
+- **Who can send an announcement to whom.** The office can send to any group. A programme coordinator can only send to the students of the programmes they coordinate, acting ones included. A lecturer can only send to the students they supervise or co-supervise; the user ids are kept on the new `Announcement.target_students` (migration `announcements.0008`), so the bell's catch-up never shows it to other students. The limits are checked when an announcement is created, when its audience changes and when it goes live. `audience-options` now returns a `scope`. Graduated and withdrawn students no longer receive announcements; deferred students still do.
+- **The announcement form.** Nothing is chosen until the office picks a group. Coordinators and lecturers see a fixed "Send to" line instead of the group cards. Publishing for the first time asks "Send to N people?" first. Saving changes to a published notice doesn't, because it isn't sent again.
+- **Record graduations.** "Select all" is gone, so every student is ticked by hand against the Senate's list. The confirm pop-up lists every ticked name and matric number.
+- **FAQ browsing** lists every live question in a topic, not just the first 6.
+- **FAQ content (dev database only, not in the repo).** Applicant questions, research and mixed mode answers, repeats and broken copies from the PDF import were archived (83). 22 new answers for enrolled coursework students were added from the Master's Degree Regulations 2024, the research project timeline and guideline, and UM's transcript, convocation and student pass pages. Six "To check" questions were answered and published. There are two new topics, Fees and funding, and Exams and grades. 56 answers are live and none are waiting to be checked. A re-import of FAQ.pdf or an older database dump brings the old set back.
+
+## Announcements can go to several groups (4 November 2026)
+
+The Target Audience on an announcement is now a multi-select: Everyone, or any mix of Students, Lecturers, Staff and Coordinators. Programme and intake chips narrow the students only; the other groups still get it in full. `Announcement.target` stays as the first group and the new `also_targets` holds the rest (migration `announcements.0007`), so existing rows and code that sends only `target` keep working.
+
+## FAQ Chatbot is for students only (3 November 2026)
+
+Programme coordinators no longer see the FAQ Chatbot in the menu, opening `/faq` sends them back to the dashboard, and the chat API refuses them. The change touches `auth/permissions.ts`. Students keep the chatbot and the office keeps the FAQ screens.
+
+
+## Real department and programme lists (3 November 2026)
+
+The Add account form now offers the faculty's real departments, as listed on fsktm.um.edu.my, instead of whatever values are in the data, so Demo names no longer appear there. Acting coordinators offers only the 3 approved programmes.
+
+## Register New Students simplified (3 November 2026)
+
+Activation emails now always go out straight away, on Bulk Import and on Single Student Entry, so the Send now or Send later choice and the emails-on-hold message are gone. The Recent Imports and Registry Snapshot cards are removed, along with an empty info box left on Single Student Entry. The report after each import is still offered. The backend keeps `sendInvites`, `imports/` and `imports/<id>/send-invitations/`, which the portal no longer calls.
+
+## Participant Lifecycle moved into Registry (3 November 2026)
+
+The Manage Participants button and page are gone from the Dashboard, and the old address now goes to Registry. Student status actions are on the Student Record, with waiting requests that can be cancelled and status history. Lecturers have Employment on their staff account page: mark as leaving, then retired or resigned. Their profile is kept, sign-in turns off, and Returned to work brings them back (migration `accounts.0018` adds Resigned). Retired lecturers can also return, which they could not before. Acting coordinators has its own Registry tab; only a coordinator can cover another programme. Reconcile Workflows stays on the Dashboard. The combined list of students and lecturers is gone. Changed Wey Cheng's `AdministrationDashboard.tsx`, `StudentProgressDossier.tsx`, `CoordinatorDelegations.tsx`, `workflowReports.ts`, `participant_lifecycle.py`, `routeLazyLoading.test.ts` and other tests and fixtures for that page.
+
+## Programme transfers removed from Student Registry (3 November 2026)
+
+UM (Master's Degree) Regulations 2024, regulation 16 does not allow a change of programme: the candidate withdraws and applies again, with a new duration of study and no fees carried over. So the Registry tab, list, request form, detail page, Student Record button, notices and the two Registry API routes are removed. The office can still fix a programme entered by mistake in Edit Details. For a student with a research profile this needs a reason, changes the record and the profile together, is logged in the profile's history, and is refused while a research change, transfer or nomination is waiting. Coordinators keep read-only Students with no tab bar. The old transfer pages' addresses now show Students. No database change. The transfer workflow in `appointments` and its form under Supervisor Appointments are unchanged, and are for Wey Cheng to remove or keep.
+
 ## Fewer words on Xiang's module screens (3 November 2026)
 
 Helper sentences, page subtitles and how-this-works panels were removed or shortened across sign-in, Settings, Announcements and Notifications, Student Registry and staff accounts, Programme transfers, File Management, Letter Generation and the FAQ Chatbot. A sentence stays only if it warns about something permanent, says why something is blocked, or someone would get stuck without it. Every changed screen was opened in a browser as office staff, coordinator, lecturer and student with no page errors.
