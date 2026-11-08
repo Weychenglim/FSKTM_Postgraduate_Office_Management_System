@@ -361,8 +361,8 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
         backLabel={backLabel}
         onBack={onBack}
         actions={internal && currentUserRole === 'Office Staff/Admin' ? (
-          <PortalButton data-office-preserve icon={UsersRound} onClick={() => onNavigateToRoute(APP_ROUTES.dashboardParticipantLifecycle)}>
-            Manage Participant
+          <PortalButton data-office-preserve icon={UsersRound} onClick={() => onNavigateToRoute(`${APP_ROUTES.registry}?student=${encodeURIComponent(studentId ?? '')}`)}>
+            Open Student Record
           </PortalButton>
         ) : undefined}
       />

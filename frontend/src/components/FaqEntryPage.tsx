@@ -439,7 +439,6 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
 
               <div className="space-y-1.5 border-t border-slate-100 pt-5">
                 <label htmlFor={`${ids}-alt`} className="form-label block">Other ways students ask it (optional)</label>
-                <p className="card-description">The chatbot also matches these. Add short forms, common wordings or Malay.</p>
                 <AltQuestions id={`${ids}-alt`} values={form.altQuestions} onChange={values => set('altQuestions', values)} />
                 {problems.altQuestions && <p role="alert" className="text-[12px] font-semibold text-rose-700">{problems.altQuestions}</p>}
               </div>
@@ -472,7 +471,6 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
                   options={linkOptions}
                   onChange={value => set('portalLink', (value === NO_BUTTON ? '' : value) as FaqPortalLink)}
                 />
-                <p className="card-caption">Optional. Opens a page in the portal, such as Letter Generation.</p>
               </div>
               {status !== 'ARCHIVED' && (
                 <div className="flex flex-col gap-2 border-t border-slate-100 pt-4">
@@ -520,7 +518,7 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
       <PortalConfirmModal
         isOpen={confirmDelete}
         title="Delete this answer?"
-        message="Students will no longer get this answer. It can't be undone; archiving keeps it instead. The history keeps a line with the question."
+        message="This can't be undone. Archive it to keep it."
         confirmLabel="Delete"
         cancelLabel="Keep it"
         tone="danger"

@@ -308,7 +308,6 @@ const NotificationsContent: React.FC<NotificationsAnnouncementsProps> = ({
 
       <PageHeader
         title="Notifications & Announcements"
-        subtitle="Broadcast announcements and your personal system notifications."
         backLabel="Back to Dashboard"
         onBack={onBack}
         actions={(

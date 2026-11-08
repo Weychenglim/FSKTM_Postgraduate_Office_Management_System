@@ -256,6 +256,18 @@ class RegistryImportTests(APITestCase):
         self.assertEqual(self.client.get("/api/registry/imports/").status_code, status.HTTP_403_FORBIDDEN)
         self.assertFalse(Student.objects.filter(matric_no="WGA260061").exists())
 
+    def test_a_semester_that_cannot_be_read_stops_the_row(self):
+        response = self._post(csv_file([
+            "student_id,full_name,programme,email,phone,intake,current_semester",
+            f"WGB260001,One Student,{DS},one@example.test,,next year,",
+            f"WGB260002,Two Student,{DS},two@example.test,,2026/2027 Semester I,sometime",
+            f"WGB260003,Three Student,{DS},three@example.test,,2026/2027 Semester I,2026/2027 Semester I",
+        ]), dry_run=True)
+        rows = {row["id"]: row for row in response.data["rows"]}
+        self.assertIn("intake can't be read", rows["WGB260001"]["issue"])
+        self.assertIn("current_semester can't be read", rows["WGB260002"]["issue"])
+        self.assertEqual(rows["WGB260003"]["status"], "Ready")
+
 
 class AlreadyRegisteredListingTests(APITestCase):
     """Skipped rows tell the office who is already in the registry."""

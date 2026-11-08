@@ -38,6 +38,7 @@ class AnnouncementSerializer(serializers.Serializer):
         choices=[choice.value for choice in Announcement.Audience],
         required=False,
     )
+    audiences = StringListField(required=False)
     priority = serializers.ChoiceField(
         choices=[choice.value for choice in Announcement.Priority],
         required=False,
@@ -64,6 +65,15 @@ class AnnouncementSerializer(serializers.Serializer):
             raise serializers.ValidationError("A headline title is required.")
         return value.strip()
 
+    def validate_audiences(self, value):
+        known = [choice.value for choice in Announcement.Audience]
+        for name in value:
+            if name not in known:
+                raise serializers.ValidationError(f"Unknown audience: {name}.")
+        if not value or Announcement.Audience.ALL.value in value:
+            return [Announcement.Audience.ALL.value]
+        return [name for name in known if name in value]
+
     def validate_targetProgrammes(self, value):
         programmes = []
         for name in value:
@@ -82,7 +92,13 @@ class AnnouncementSerializer(serializers.Serializer):
 
     def to_model_kwargs(self):
         """Return validated data keyed by model field names."""
-        return {
+        kwargs = {
             self.FIELD_MAP.get(key, key): value
             for key, value in self.validated_data.items()
         }
+        audiences = kwargs.pop("audiences", None)
+        if audiences:
+            kwargs["target"], kwargs["also_targets"] = audiences[0], audiences[1:]
+        elif "target" in kwargs:
+            kwargs["also_targets"] = []
+        return kwargs

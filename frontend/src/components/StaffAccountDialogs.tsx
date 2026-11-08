@@ -4,7 +4,6 @@
  */
 
 import React, { useEffect, useId, useState } from 'react';
-import { Link } from 'react-router';
 import type { ExistingAccount, ProgrammeMoveCheck, StaffAccountPage, StaffDetailsChange, StaffOptions, StaffWorkItem } from '../types';
 import { ApiError, fieldErrors } from '../services/apiClient';
 import {
@@ -15,7 +14,6 @@ import {
   setStaffSignIn,
   updateStaffAccount,
 } from '../services/staffAccountsApi';
-import { APP_ROUTES } from '../constants/routes';
 import { programmeName, waitingLine, workLabel } from '../utils/staffAccounts';
 import { PROGRAMME_OPTIONS } from '../constants/programmes';
 import { PortalButton } from './PortalPrimitives';
@@ -288,8 +286,7 @@ export const SignInDialog: React.FC<DialogProps> = ({ account, isOpen, onClose, 
           {account.role === 'Programme Coordinator' && work.some(item => item.key === 'managedProgrammes')
             ? 'Move them to "No programme" with Change programme first. '
             : ''}
-          Hand the rest over first, or start retirement in{' '}
-          <Link to={APP_ROUTES.dashboardParticipantLifecycle} className="font-bold underline">Participant lifecycle</Link>.
+          Hand the rest over first, or use Employment on this page.
         </p>
       </DialogShell>
     );
@@ -401,7 +398,7 @@ export const DeleteDialog: React.FC<Omit<DialogProps, 'onDone'> & { onDeleted: (
       </>}
     >
       <p className="text-[13px] text-slate-700">
-        Use this for an account added by mistake. It can't be undone. The history keeps a line with the name and email.
+        This can't be undone.
       </p>
       {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
     </DialogShell>

@@ -766,6 +766,9 @@ def _participant_lifecycle_summary(user, programme):
         "retiredLecturers": lecturers.filter(
             lifecycle_status=Lecturer.Lifecycle.RETIRED
         ).count(),
+        "resignedLecturers": lecturers.filter(
+            lifecycle_status=Lecturer.Lifecycle.RESIGNED
+        ).count(),
     }
     attention = [
         {

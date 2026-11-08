@@ -16,7 +16,8 @@ export type StudentAccountStatus = 'Verified' | 'Suspended';
 
 export interface StudentRecord {
   id: string; // e.g. "WGA210045"
-  userId?: number;
+  hasResearchProfile?: boolean;
+  maximumFlag?: '' | 'last' | 'past';
   name: string;
   avatarText: string;
   avatarBg: string;
@@ -29,6 +30,7 @@ export interface StudentRecord {
   supervisor: string;
   supervisorStaffNo?: string;
   intakeDate: string;
+  intakeLabel?: string;
   activated?: boolean;
   lastLogin?: string | null;
 }
@@ -120,20 +122,6 @@ export interface RegistryImportBatch {
   };
   problems: RegistryImportProblem[];
   createdAt: string;
-}
-
-export type BatchInvitationOutcome = 'sent' | 'failed' | 'alreadyActivated' | 'suspended';
-
-/** What sending a held import's activation emails did. */
-export interface BatchInvitationResult {
-  sent: number;
-  failed: number;
-  alreadyActivated: number;
-  suspended: number;
-  notFound: number;
-  /** Each student of the import, by the line of the file they came from. */
-  students: { id: string; line: number; outcome: BatchInvitationOutcome }[];
-  batch: RegistryImportBatch;
 }
 
 export interface ImportPreviewResponse {

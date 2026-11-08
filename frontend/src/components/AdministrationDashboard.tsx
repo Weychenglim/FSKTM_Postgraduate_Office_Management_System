@@ -1,7 +1,7 @@
 import {DashboardHeader} from './DashboardHeader';
 /** @license SPDX-License-Identifier: Apache-2.0 */
 import React from 'react';
-import {UsersRound,ChevronRight,CalendarDays,Gauge,FileChartColumn,BarChart3,CheckCircle2} from 'lucide-react';
+import {ChevronRight,CalendarDays,Gauge,FileChartColumn,BarChart3,CheckCircle2} from 'lucide-react';
 import {PortalButton,PortalCard} from './PortalPrimitives';
 import {ErrorState,LoadingState} from './StateViews';
 import {AlertMessage} from './AlertMessage';
@@ -59,7 +59,7 @@ export const AdministrationDashboard:React.FC<AdministrationDashboardProps>=({on
   </a>;
   const attentionRows=(rows:OfficeAttentionSummary[],label:string)=>rows.length>0&&<div className={`home-attention-section${label==='Waiting on others'?' home-waiting':''}`}><h3>{label}</h3>{rows.map(row=><a key={row.id} {...link(officeAttentionCategoryRoute(row))} className="home-attention-link" data-office-attention={row.id}><div><span>{row.title}</span><small className={row.urgency!=='normal'?`home-${row.urgency}`:undefined}>{row.urgency!=='normal'&&<i aria-hidden="true"/>}{row.detail}</small></div><ChevronRight size={15} aria-hidden="true"/></a>)}</div>;
   return <div id="admin-dashboard-container" className="office-home text-left pb-12">
-    <DashboardHeader context={<OfficeSemesterContext compact onNavigate={navigate}/>} actions={<div className="home-heading-actions"><PortalButton variant="secondary" icon={BarChart3} onClick={()=>navigate(APP_ROUTES.dashboardReports)}>View Workflow Reports</PortalButton><PortalButton data-office-preserve variant="secondary" icon={UsersRound} onClick={()=>navigate(APP_ROUTES.dashboardParticipantLifecycle)}>Manage Participants</PortalButton></div>}/>
+    <DashboardHeader context={<OfficeSemesterContext compact onNavigate={navigate}/>} actions={<div className="home-heading-actions"><PortalButton variant="secondary" icon={BarChart3} onClick={()=>navigate(APP_ROUTES.dashboardReports)}>View Workflow Reports</PortalButton></div>}/>
     <div className="home-layout-container"><div className="home-overview-grid">
       <PortalCard padding="none" id="office-needs-attention" className="home-attention" role="region" aria-label="Needs attention">
         <header><h2 className="section-heading">Needs attention</h2></header>

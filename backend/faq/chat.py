@@ -13,7 +13,6 @@ from .text import clean_question
 Outcome = FaqQuestion.Outcome
 TOKEN_SALT = "faq.question"
 TOKEN_AGE = 60 * 60 * 24 * 7
-START_QUESTIONS_PER_CATEGORY = 6
 RELATED_SHARE = 0.8
 
 
@@ -183,7 +182,7 @@ def start_screen():
     for entry in FaqEntry.objects.published().select_related("category").order_by("category__position", "position", "pk"):
         live.add(same_wording(entry.question))
         group = categories.setdefault(entry.category_id, {"id": str(entry.category_id), "name": entry.category.name, "questions": []})
-        if len(group["questions"]) < START_QUESTIONS_PER_CATEGORY and entry.question:
+        if entry.question:
             group["questions"].append({"id": str(entry.pk), "question": entry.question})
     # A common question only shows while a live answer still has that question.
     common = [text for text in chatbot.common_questions if same_wording(text) in live][:4]

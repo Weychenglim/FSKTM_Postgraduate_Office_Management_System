@@ -8,7 +8,6 @@ student (D1, D7). Every change is kept as an ``AccountChange`` row.
 Technical Administrator accounts never appear here.
 """
 import hashlib
-from itertools import chain
 
 from django.contrib.auth.hashers import UNUSABLE_PASSWORD_PREFIX
 from django.contrib.auth.models import Permission
@@ -53,6 +52,15 @@ OFFICE = User.Role.OFFICE_ADMIN
 LECTURER = User.Role.LECTURER
 COORDINATOR = User.Role.COORDINATOR
 STAFF_ROLES = (OFFICE, LECTURER, COORDINATOR)
+# As listed on fsktm.um.edu.my/departments-and-unit, plus the office itself.
+FACULTY_DEPARTMENTS = [
+    "Department of Artificial Intelligence",
+    "Department of Computer System & Technology",
+    "Department of Information Systems",
+    "Department of Software Engineering",
+    "Multimedia Unit",
+    "Postgraduate Office",
+]
 ROLE_FILTERS = {"OFFICE": OFFICE, "LECTURER": LECTURER, "COORDINATOR": COORDINATOR}
 
 ACTIVE = "ACTIVE"
@@ -454,15 +462,8 @@ def account_history(user):
 
 
 def staff_options():
-    """What the Add account form offers: departments already in use, and
-    each programme with the coordinator who manages it, if any."""
-    departments = {}
-    for value in chain(
-        Lecturer.objects.values_list("department", flat=True),
-        OfficeStaff.objects.values_list("department", flat=True),
-    ):
-        if value.strip():
-            departments.setdefault(value.strip().casefold(), value.strip())
+    """What the Add account form offers: the faculty's departments, and each
+    programme with the coordinator who manages it, if any."""
     programmes = []
     for programme in APPROVED_PROGRAMMES:
         holder = programme_coordinator(programme)
@@ -473,7 +474,7 @@ def staff_options():
             }
         )
     return {
-        "departments": sorted(departments.values(), key=str.casefold),
+        "departments": FACULTY_DEPARTMENTS,
         "programmes": programmes,
     }
 
@@ -685,9 +686,9 @@ def set_sign_in(*, actor, account_id, on, reason=""):
     if on:
         if user.is_active:
             raise StaffAccountError({"error": "Sign-in is already on."}, status=409)
-        if lecturer is not None and lecturer.lifecycle_status == Lecturer.Lifecycle.RETIRED:
+        if lecturer is not None and lecturer.lifecycle_status in (Lecturer.Lifecycle.RETIRED, Lecturer.Lifecycle.RESIGNED):
             raise StaffAccountError(
-                {"error": "This lecturer has retired, so sign-in stays off."}, status=409
+                {"error": "This lecturer has left. Use Returned to work to turn sign-in back on."}, status=409
             )
         coordinator = _part(lecturer, "coordinator")
         if user.role == COORDINATOR and coordinator and coordinator.programme_managed.strip():

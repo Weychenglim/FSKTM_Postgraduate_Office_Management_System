@@ -7,7 +7,6 @@ const registry = readFileSync(resolve('src/components/StudentRegistry.tsx'), 'ut
 assert.match(registry, /accept="\.csv,\.xlsx"/, 'bulk import must accept CSV and XLSX');
 assert.match(registry, /previewStudentImport\(/, 'preview must be checked by the server');
 assert.match(registry, /commitStudentImport\(/, 'commit must go through the import endpoint');
-assert.match(registry, /getRecentImports\(/, 'Recent Imports must come from recorded batches');
 assert.doesNotMatch(registry, /parseStudentCsv|revalidateRows/, 'rows are validated on the server');
 
 for (const fabricated of [

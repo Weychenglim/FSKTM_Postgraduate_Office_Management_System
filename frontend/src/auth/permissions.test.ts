@@ -52,3 +52,8 @@ assert.equal(canAccessModule('Lecturer', SIDEBAR_ITEMS.MARKS_ENTRY), true);
 for (const module of Object.values(SIDEBAR_ITEMS).filter(module => module !== SIDEBAR_ITEMS.MARKS_ENTRY)) {
   assert.equal(canAccessModule('Programme Coordinator', module), true);
 }
+assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.FAQ_CHATBOT), false);
+assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.REGISTRY), true);
+assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.SETTINGS), true);
+assert.equal(canAccessModule('Student', SIDEBAR_ITEMS.FAQ_CHATBOT), true);
+assert.equal(canAccessModule('Office Staff/Admin', SIDEBAR_ITEMS.FAQ_CHATBOT), true);

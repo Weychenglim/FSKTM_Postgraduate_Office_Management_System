@@ -8,7 +8,7 @@
 // the printed letter previewed beside it as it is typed.
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Bold, ChevronDown, Italic, List, ListChecks, Pencil, Plus, Trash2, Underline } from 'lucide-react';
+import { Bold, ChevronDown, Italic, List, ListChecks, PenLine, Pencil, Plus, Trash2, Underline } from 'lucide-react';
 import { PortalButton, SegmentedControl } from './PortalPrimitives';
 import { AlertMessage } from './AlertMessage';
 import { AppointmentSection } from './AppointmentPrimitives';
@@ -79,6 +79,7 @@ interface LetterWordingEditorProps {
 export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values, onChange, placeholders, problems, onEdited, onMessage }) => {
   const [language, setLanguage] = useState<'en' | 'ms'>('en');
   const [insertOpen, setInsertOpen] = useState(false);
+  const [blanksOpen, setBlanksOpen] = useState(false);
   const [blankLabel, setBlankLabel] = useState('');
   const [blankError, setBlankError] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pendingCursor = useRef<number | null>(null);
   const insertMenuRef = useRef<HTMLDivElement>(null);
+  const blanksMenuRef = useRef<HTMLDivElement>(null);
 
   const purpose = values.purpose;
   const request = purpose === 'REQUEST';
@@ -168,6 +170,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
     const trail = after.length && !/^[\s).,;:]/.test(after) ? ' ' : '';
     const insertion = `${lead}[${using.toLabel.get(tag) ?? tag}]${trail}`;
     setInsertOpen(false);
+    setBlanksOpen(false);
     store(before + insertion + after, using);
     pendingCursor.current = before.length + insertion.length;
   };
@@ -279,8 +282,9 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
     { title: 'From the request', tags: offeredTags.filter((p) => p.group === 'request').map((p) => ({ tag: p.tag, hint: p.source })) },
     { title: 'From the appointment', tags: offeredTags.filter((p) => p.group === 'appointment').map((p) => ({ tag: p.tag, hint: p.source })) },
     { title: 'Student answers', tags: studentQuestions.map((q) => ({ tag: `{{${q.name}}}`, hint: 'The student answers it on the form' })) },
-    { title: 'Office fills in', tags: fields.map((f) => ({ tag: `{{${f.name}}}`, hint: 'The office types it in when approving' })) },
-  ].filter((group) => group.tags.length > 0 || group.title === 'Office fills in');
+  ].filter((group) => group.tags.length > 0);
+  const menuButton = 'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 cursor-pointer';
+  const menuItem = 'flex w-full items-center rounded-lg px-2 py-1.5 text-left text-[12.5px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer';
 
   return (
     <div className="space-y-6">
@@ -290,7 +294,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
             <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-3">
               <div className="min-w-0">
                 <h3 className="section-label">Wording</h3>
-                <p className="card-description mt-1">The letterhead, reference number, date and signature are added for you.</p>
               </div>
               <SegmentedControl<'en' | 'ms'>
                 options={['en', 'ms'] as const}
@@ -310,8 +313,8 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                   type="button"
                   aria-haspopup="true"
                   aria-expanded={insertOpen}
-                  onClick={() => setInsertOpen(!insertOpen)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 cursor-pointer"
+                  onClick={() => { setInsertOpen(!insertOpen); setBlanksOpen(false); }}
+                  className={menuButton}
                 >
                   <Plus aria-hidden="true" className="w-3.5 h-3.5" />
                   Insert detail
@@ -319,7 +322,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                 </button>
                 {insertOpen && (
                   <FloatingMenu anchor={insertMenuRef} onClose={() => setInsertOpen(false)} width={320} className="rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                    <p className="px-2 pb-2 card-caption">Goes in where the cursor is, and is filled in for each letter.</p>
                     {insertGroups.map((group) => (
                       <div key={group.title} className="py-1">
                         <p className="px-2 pb-1 card-label">{group.title}</p>
@@ -329,42 +331,70 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                             type="button"
                             onClick={() => insertTag(item.tag)}
                             title={item.hint || undefined}
-                            className="flex w-full items-center rounded-lg px-2 py-1.5 text-left text-[12.5px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer"
+                            className={menuItem}
                           >
                             {labels.toLabel.get(item.tag) ?? item.tag}
                           </button>
                         ))}
-                        {group.title === 'Office fills in' && (
-                          <div className="mt-1 space-y-2 px-2 pb-1">
-                            <label htmlFor="office-detail-label" className="block text-[12px] font-semibold text-slate-600">New blank the office fills in when approving</label>
-                            <div className="flex gap-2">
-                              <input
-                                id="office-detail-label"
-                                type="text"
-                                value={blankLabel}
-                                maxLength={80}
-                                onChange={(event) => { setBlankLabel(event.target.value); setBlankError(null); }}
-                                onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addBlank(); } }}
-                                placeholder="For example: Attendance (%)"
-                                className="form-control form-control-sm"
-                              />
-                              <PortalButton size="sm" variant="primary" onClick={addBlank}>Add</PortalButton>
-                            </div>
-                            {blankError && <p role="alert" className="text-[12px] text-rose-800">{blankError}</p>}
-                          </div>
-                        )}
                       </div>
                     ))}
-                    {request && studentQuestions.length === 0 && (
-                      <p className="px-2 py-1 card-caption">To ask the student something, add a question in the Student form step.</p>
+                  </FloatingMenu>
+                )}
+              </div>
+              <div ref={blanksMenuRef} className="relative ml-1">
+                <button
+                  type="button"
+                  aria-haspopup="true"
+                  aria-expanded={blanksOpen}
+                  onClick={() => { setBlanksOpen(!blanksOpen); setInsertOpen(false); setBlankError(null); }}
+                  className={menuButton}
+                >
+                  <PenLine aria-hidden="true" className="w-3.5 h-3.5" />
+                  Office fills in
+                  <ChevronDown aria-hidden="true" className="w-3.5 h-3.5 text-slate-400" />
+                </button>
+                {blanksOpen && (
+                  <FloatingMenu anchor={blanksMenuRef} onClose={() => setBlanksOpen(false)} width={320} className="rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                    {fields.length > 0 && (
+                      <div className="border-b border-slate-100 pb-2 mb-2">
+                        {fields.map((field) => (
+                          <button
+                            key={field.name}
+                            type="button"
+                            onClick={() => insertTag(`{{${field.name}}}`)}
+                            title="The office types it in when approving"
+                            className={menuItem}
+                          >
+                            {labels.toLabel.get(`{{${field.name}}}`) ?? field.label}
+                          </button>
+                        ))}
+                      </div>
                     )}
+                    <div className="space-y-2 px-2 py-1">
+                      <label htmlFor="office-detail-label" className="block text-[12px] font-semibold text-slate-600">New blank</label>
+                      <div className="flex gap-2">
+                        <input
+                          id="office-detail-label"
+                          type="text"
+                          autoFocus={fields.length === 0}
+                          value={blankLabel}
+                          maxLength={80}
+                          onChange={(event) => { setBlankLabel(event.target.value); setBlankError(null); }}
+                          onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addBlank(); } }}
+                          placeholder="For example: Attendance (%)"
+                          className="form-control form-control-sm"
+                        />
+                        <PortalButton size="sm" variant="primary" onClick={addBlank}>Add</PortalButton>
+                      </div>
+                      {blankError && <p role="alert" className="text-[12px] text-rose-800">{blankError}</p>}
+                    </div>
                   </FloatingMenu>
                 )}
               </div>
             </div>
             {language === 'ms' && !values.contentMs.trim() && (
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-blue-50/60 px-5 py-3">
-                <p className="text-[12.5px] font-medium text-blue-900">The Malay letter is printed as a second page. Leave it empty for an English-only letter.</p>
+                <p className="text-[12.5px] font-medium text-blue-900">Leave empty for an English-only letter.</p>
                 {values.content.trim() && <PortalButton size="sm" onClick={() => { onChange({ contentMs: values.content }); onEdited('contentMs'); }}>Start from the English text</PortalButton>}
               </div>
             )}
@@ -388,7 +418,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                 </p>
               )}
               <p className="card-caption">
-                Details in [square brackets] are filled in for each letter. A line such as | Name | [Student Name] | prints as a row of a details table.
+                Details in [square brackets] are filled in for each letter.
               </p>
             </div>
           </div>
@@ -397,7 +427,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
             <div className="space-y-3 px-5 pt-5 pb-3">
               <div>
                 <h3 className="section-label">Preview</h3>
-                <p className="card-description mt-1">Changes as you type. Details still to be filled in are highlighted.</p>
               </div>
               <form
                 className="flex flex-wrap items-center gap-2"
@@ -443,7 +472,6 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
       {(fields.length > 0 || problems.customFields) && (
         <AppointmentSection
           title="Blanks the office fills in"
-          description="The office types these in when approving each letter, for details the portal does not hold. Add one from Insert detail."
           icon={ListChecks}
         >
           {problems.customFields && <p role="alert" className="text-sm font-medium text-rose-800">{problems.customFields}</p>}

@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 from accounts.admin import StudentAdmin, StudentInline
 from accounts.models import Student, User
 from accounts.participant_lifecycle import transition_student
+from accounts.test_registry_semesters import semesters_for
 from . import test_appointment_lifecycle as fixture
 from .models import SupervisorApplication
 from .supervisor_handoff import _resolve_research_profile
@@ -48,6 +49,7 @@ class AmendmentLifecycleTests(APITestCase):
 
     def test_graduation_cancels_pending_transfer(self):
         pk = self.request_amendment('TRANSFER')
+        semesters_for(self.student, "Semester I, 2026/2027", "Semester II, 2026/2027", "Semester I, 2027/2028")
         transition_student(matric_no=self.student.matric_no, actor=self.office,
                            target_status='GRADUATED', reason='Programme completed.')
         self.assertEqual(self.status_of(pk), 'CANCELLED')

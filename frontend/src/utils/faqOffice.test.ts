@@ -67,6 +67,6 @@ assert.equal(passageSource({ title: 'Thesis guide', page: null }), 'From Thesis 
 assert.equal(groupLine(group({ lastOutcome: 'DOCUMENT' }), 'today'), 'Asked 3 times · last on today · the chatbot showed a passage from a document');
 assert.equal(sidebarItemForPath(APP_ROUTES.faqDocuments), SIDEBAR_ITEMS.FAQ_CHATBOT);
 const chat = readFileSync(resolve('src/components/FaqChatParts.tsx'), 'utf8');
-assert.match(chat, /not a reviewed FAQ answer/);
+assert.match(chat, /not a reviewed answer/);
 
 console.log('faqOffice.test.ts passed');

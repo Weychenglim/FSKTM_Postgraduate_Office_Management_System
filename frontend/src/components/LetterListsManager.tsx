@@ -271,9 +271,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
               List
             </PortalButton>
           </div>
-          {simpleLists.length === 0 ? (
-            <p className="card-caption px-1">For "Choose from a list" questions, such as embassies.</p>
-          ) : (
+          {simpleLists.length > 0 && (
             <ul className="space-y-1">
               {simpleLists.map((list) => {
                 const active = selection?.listId === list.id;
@@ -443,7 +441,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
               </table>
             )}
             <p className="card-caption">
-              Hidden entries are not offered on new requests but stay on letters already asked for. Only entries no letter used can be deleted.
+              Only entries no letter used can be deleted.
               {hiddenCount > 0 && !showHidden ? ' Show hidden entries to put them in order.' : ''}
             </p>
           </div>
@@ -459,7 +457,6 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
             {isRecipients && (
               <fieldset className="space-y-3 border-t border-slate-100 pt-4">
                 <legend className="card-value text-slate-800">Saved address (optional)</legend>
-                <p className="card-caption">Filled in for the student, who can still change it.</p>
                 <input aria-label="Address line 1" className="form-control form-control-sm" maxLength={120} placeholder="Address line 1" value={itemForm.addressLine1} onChange={(event) => setItemForm({ ...itemForm, addressLine1: event.target.value })} />
                 <input aria-label="Address line 2" className="form-control form-control-sm" maxLength={120} placeholder="Address line 2" value={itemForm.addressLine2} onChange={(event) => setItemForm({ ...itemForm, addressLine2: event.target.value })} />
                 <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
@@ -503,7 +500,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void savePaste(); }}>
             <div>
               <h2 id={pasteTitle} className="section-heading">Paste many {noun.toLowerCase()}s</h2>
-              <p className="card-description mt-1">One name per line, for example copied from a column in Excel. Names already listed are skipped.</p>
+              <p className="card-description mt-1">One name per line.</p>
             </div>
             <textarea autoFocus rows={8} aria-label="Names, one per line" className="form-control form-control-md resize-y" value={pasting} onChange={(event) => setPasting(event.target.value)} />
             <p className="card-caption">{pasting.split('\n').filter((line) => line.trim()).length} name{pasting.split('\n').filter((line) => line.trim()).length === 1 ? '' : 's'}</p>
@@ -541,7 +538,6 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void saveList(); }}>
             <div>
               <h2 id={listTitle} className="section-heading">{listForm.id ? 'Edit list' : 'Make a list'}</h2>
-              <p className="card-description mt-1">A letter's "Choose from a list" question offers its entries.</p>
             </div>
             <label className="form-label block">Name<input autoFocus className="form-control form-control-md mt-1" maxLength={120} placeholder="For example: Embassies" value={listForm.name} onChange={(event) => setListForm({ ...listForm, name: event.target.value })} /></label>
             <label className="form-label block">One entry is called<input className="form-control form-control-md mt-1" maxLength={60} placeholder="For example: Embassy" value={listForm.itemNoun} onChange={(event) => setListForm({ ...listForm, itemNoun: event.target.value })} /></label>

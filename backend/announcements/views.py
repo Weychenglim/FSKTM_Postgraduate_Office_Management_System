@@ -30,8 +30,10 @@ from rest_framework.exceptions import NotFound, PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from accounts.authorization import coordinator_programmes
 from accounts.models import Student
-from accounts.programmes import APPROVED_PROGRAMMES
+from accounts.programmes import APPROVED_PROGRAMMES, normalise_programme
+from appointments.models import CoSupervisorAppointment, SupervisorAppointment
 
 from .emails import ANNOUNCEMENT, SIGN_OFF, email_users, portal_link
 from .models import Announcement, Notification
@@ -60,6 +62,9 @@ AUDIENCE_TO_ROLE = {
     Announcement.Audience.STAFF: User.Role.OFFICE_ADMIN,
     Announcement.Audience.COORDINATORS: User.Role.COORDINATOR,
 }
+
+# Students who have left no longer get announcements.
+GONE = (Student.Status.GRADUATED, Student.Status.WITHDRAWN)
 
 
 # Helpers
@@ -92,6 +97,66 @@ def _require_can_manage(request, announcement):
         raise PermissionDenied("You can only modify announcements you created.")
 
 
+def _supervisee_ids(user):
+    return list(
+        Student.objects.filter(
+            Q(
+                supervisor_appointments__supervisor=user,
+                supervisor_appointments__status=SupervisorAppointment.Status.ACTIVE,
+            )
+            | Q(
+                co_supervisor_appointments__supervisor=user,
+                co_supervisor_appointments__status=CoSupervisorAppointment.Status.ACTIVE,
+            )
+        )
+        .exclude(status__in=GONE)
+        .values_list("user_id", flat=True)
+        .distinct()
+    )
+
+
+def _my_programmes(user):
+    return list(dict.fromkeys(normalise_programme(p) or p for p in coordinator_programmes(user)))
+
+
+def _sender_scope(user):
+    """None for the office. Coordinators reach the students of the programmes
+    they coordinate, lecturers the students they supervise."""
+    role = getattr(user, "role", None)
+    if role == User.Role.COORDINATOR:
+        return {"programmes": _my_programmes(user)}
+    if role == User.Role.LECTURER:
+        return {"students": _supervisee_ids(user)}
+    return None
+
+
+def _apply_sender_scope(announcement, author):
+    """Hold a coordinator's or lecturer's notice to their own students.
+    Returns an error dict, or None."""
+    scope = _sender_scope(author)
+    if scope is None:
+        announcement.target_students = []
+        return None
+    if announcement.audiences != [Announcement.Audience.STUDENTS]:
+        return {"audiences": "You can only send announcements to your own students."}
+    if "programmes" in scope:
+        mine = scope["programmes"]
+        if not mine:
+            return {"audiences": "You don't coordinate a programme right now."}
+        if any(programme not in mine for programme in announcement.target_programmes):
+            return {"targetProgrammes": "You can only send to the programmes you coordinate."}
+        if not announcement.target_programmes:
+            announcement.target_programmes = mine
+        announcement.target_students = []
+        return None
+    if announcement.target_programmes or announcement.target_intakes:
+        return {"target": "Your announcements go to the students you supervise."}
+    if not scope["students"]:
+        return {"audiences": "You don't supervise any students right now."}
+    announcement.target_students = scope["students"]
+    return None
+
+
 def _audiences_for(user):
     """The audiences a user belongs to: everyone, plus their own role's audience."""
     role = getattr(user, "role", None)
@@ -106,8 +171,22 @@ def _own_student(user):
     return user._related_or_none("student")
 
 
+def _addressed_q(user):
+    """Announcements addressed to one of this user's audiences."""
+    audiences = _audiences_for(user)
+    addressed = Q(target__in=audiences)
+    for audience in audiences:
+        addressed |= Q(also_targets__contains=[audience.value])
+    return addressed
+
+
 def _matches_targeting(user, announcement):
-    """True unless the notice is narrowed to programmes or intakes this user is not in."""
+    """False when a student is outside the programmes or intakes a notice is
+    narrowed to. The narrowing only concerns students, not its other audiences."""
+    if getattr(user, "role", None) != User.Role.STUDENT:
+        return True
+    if announcement.target_students and user.pk not in announcement.target_students:
+        return False
     if not announcement.target_programmes and not announcement.target_intakes:
         return True
     student = _own_student(user)
@@ -122,10 +201,13 @@ def _matches_targeting(user, announcement):
 
 def _targeting_q(user):
     """The queryset form of ``_matches_targeting``."""
+    if getattr(user, "role", None) != User.Role.STUDENT:
+        return Q()
+    listed = Q(target_students=[]) | Q(target_students__contains=[user.pk])
     student = _own_student(user)
     if student is None:
-        return Q(target_programmes=[], target_intakes=[])
-    return (
+        return listed & Q(target_programmes=[], target_intakes=[])
+    return listed & (
         Q(target_programmes=[]) | Q(target_programmes__contains=[student.programme])
     ) & (Q(target_intakes=[]) | Q(target_intakes__contains=[student.intake_semester]))
 
@@ -141,7 +223,7 @@ def _can_read(user, announcement):
         return True
     if (
         announcement.status == Announcement.Status.ACTIVE
-        and announcement.target in _audiences_for(user)
+        and any(audience in _audiences_for(user) for audience in announcement.audiences)
         and _matches_targeting(user, announcement)
     ):
         return True
@@ -170,19 +252,31 @@ def _present(announcement, user):
 
 
 def _recipients_for(announcement):
-    """Active users this announcement should reach: its audience, narrowed to
-    the targeted programmes and intakes when it has any."""
-    active = User.objects.filter(is_active=True).exclude(role=User.TECHNICAL_ADMIN)
-    if announcement.target == Announcement.Audience.ALL:
-        recipients = active
-    else:
-        role = AUDIENCE_TO_ROLE.get(announcement.target)
-        recipients = active.filter(role=role) if role else User.objects.none()
-    if announcement.target_programmes:
-        recipients = recipients.filter(student__programme__in=announcement.target_programmes)
-    if announcement.target_intakes:
-        recipients = recipients.filter(student__intake_semester__in=announcement.target_intakes)
-    return recipients
+    """Active users this announcement should reach: everyone in its audiences,
+    with students narrowed to the targeted programmes and intakes when it has any.
+    Graduated and withdrawn students are left out."""
+    active = (
+        User.objects.filter(is_active=True)
+        .exclude(role=User.TECHNICAL_ADMIN)
+        .exclude(student__status__in=GONE)
+    )
+    if Announcement.Audience.ALL in announcement.audiences:
+        return active
+    reached = Q(pk__in=[])
+    for audience in announcement.audiences:
+        role = AUDIENCE_TO_ROLE.get(audience)
+        if role is None:
+            continue
+        group = Q(role=role)
+        if audience == Announcement.Audience.STUDENTS:
+            if announcement.target_students:
+                group &= Q(pk__in=announcement.target_students)
+            if announcement.target_programmes:
+                group &= Q(student__programme__in=announcement.target_programmes)
+            if announcement.target_intakes:
+                group &= Q(student__intake_semester__in=announcement.target_intakes)
+        reached |= group
+    return active.filter(reached)
 
 
 def _fan_out(announcement):
@@ -236,12 +330,12 @@ def deliver_missed_announcements(user, now=None):
     Each one is dated when it first went out, so the feed keeps its order."""
     if not user.is_active or user.role == User.TECHNICAL_ADMIN:
         return 0
+    student = _own_student(user)
+    if student is not None and student.status in GONE:
+        return 0
     now = now or timezone.now()
     missed = (
-        Announcement.objects.filter(
-            status=Announcement.Status.ACTIVE,
-            target__in=_audiences_for(user),
-        )
+        Announcement.objects.filter(_addressed_q(user), status=Announcement.Status.ACTIVE)
         .filter(_targeting_q(user))
         .filter(Q(expires_at__isnull=True) | Q(expires_at__gt=now))
         .exclude(notifications__recipient=user)
@@ -282,6 +376,7 @@ def _email_announcement(announcement, users):
         f"Read it in the portal: {portal_link('/notifications')}\n\n"
         "You get this email because email alerts are on in your Settings.\n\n"
         f"{SIGN_OFF}",
+        wait=False,
     )
 
 
@@ -338,9 +433,9 @@ def _publishable(announcement):
 
 def _targeting_errors(announcement):
     if (announcement.target_programmes or announcement.target_intakes) and (
-        announcement.target != Announcement.Audience.STUDENTS
+        Announcement.Audience.STUDENTS not in announcement.audiences
     ):
-        return {"target": "Programme and intake targeting is only for announcements to All Students."}
+        return {"target": "Programme and intake targeting needs students in the audience."}
     return None
 
 
@@ -410,10 +505,11 @@ def announcements_list(request):
         queryset = Announcement.objects.all()
         if not _is_office_admin(request.user):
             # Published notices addressed to the caller, plus a sender's own work.
-            visible = Q(
-                status=Announcement.Status.ACTIVE,
-                target__in=_audiences_for(request.user),
-            ) & _targeting_q(request.user)
+            visible = (
+                Q(status=Announcement.Status.ACTIVE)
+                & _addressed_q(request.user)
+                & _targeting_q(request.user)
+            )
             if _is_sender(request.user):
                 visible |= Q(created_by=request.user)
             queryset = queryset.filter(visible)
@@ -430,7 +526,7 @@ def announcements_list(request):
         created_by_name=getattr(request.user, "full_name", "") or request.user.email,
         **serializer.to_model_kwargs(),
     )
-    invalid = _prepare(announcement, timezone.now())
+    invalid = _apply_sender_scope(announcement, request.user) or _prepare(announcement, timezone.now())
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
 
@@ -487,6 +583,7 @@ def announcement_detail(request, pk):
         )
 
     was_active = announcement.status == Announcement.Status.ACTIVE
+    was_live = announcement.status in LIVE_STATUSES
     previous_file = announcement.attachment.name if announcement.attachment else ""
     partial = request.method == "PATCH"
     serializer = AnnouncementSerializer(data=request.data, partial=partial)
@@ -498,7 +595,13 @@ def announcement_detail(request, pk):
     elif remove_attachment:
         announcement.attachment = None
 
-    invalid = _prepare(announcement, timezone.now())
+    reach_changed = not partial or any(
+        key in serializer.validated_data for key in ("target", "audiences", "targetProgrammes", "targetIntakes")
+    )
+    invalid = None
+    if reach_changed or (announcement.status in LIVE_STATUSES and not was_live):
+        invalid = _apply_sender_scope(announcement, announcement.created_by)
+    invalid = invalid or _prepare(announcement, timezone.now())
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
 
@@ -519,16 +622,28 @@ def announcement_detail(request, pk):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def audience_options(request):
-    """The programmes and intakes a student announcement can be narrowed to."""
+    """Who the caller may send to: the office anyone, a coordinator the students
+    of their programmes, a lecturer the students they supervise."""
     _require_sender(request)
+    scope = _sender_scope(request.user)
+    if scope is not None and "students" in scope:
+        return Response({"scope": "supervisees", "programmes": [], "intakes": [], "students": len(scope["students"])})
+    students = Student.objects.filter(user__is_active=True).exclude(status__in=GONE)
+    programmes = APPROVED_PROGRAMMES
+    if scope is not None:
+        programmes = scope["programmes"]
+        students = students.filter(programme__in=programmes)
     intakes = (
-        Student.objects.filter(user__is_active=True)
-        .exclude(intake_semester="")
+        students.exclude(intake_semester="")
         .values_list("intake_semester", flat=True)
         .distinct()
         .order_by("intake_semester")
     )
-    return Response({"programmes": APPROVED_PROGRAMMES, "intakes": list(intakes)})
+    return Response({
+        "scope": "office" if scope is None else "programme",
+        "programmes": programmes,
+        "intakes": list(intakes),
+    })
 
 
 @api_view(["GET"])
@@ -536,23 +651,24 @@ def audience_options(request):
 def recipient_count(request):
     """How many people an announcement with these settings would reach now.
 
-    Query: ``target``, ``priority``, and repeated ``programmes`` / ``intakes``.
+    Query: ``target`` or repeated ``audiences``, ``priority``, and repeated
+    ``programmes`` / ``intakes``.
     Like delivery, a non-Urgent notice skips people who turned alerts off.
     """
     _require_sender(request)
     params = request.query_params
-    serializer = AnnouncementSerializer(
-        data={
-            "target": params.get("target") or Announcement.Audience.ALL,
-            "priority": params.get("priority") or Announcement.Priority.INFO,
-            "targetProgrammes": params.getlist("programmes"),
-            "targetIntakes": params.getlist("intakes"),
-        },
-        partial=True,
-    )
+    fields = {
+        "target": params.get("target") or Announcement.Audience.ALL,
+        "priority": params.get("priority") or Announcement.Priority.INFO,
+        "targetProgrammes": params.getlist("programmes"),
+        "targetIntakes": params.getlist("intakes"),
+    }
+    if params.getlist("audiences"):
+        fields["audiences"] = params.getlist("audiences")
+    serializer = AnnouncementSerializer(data=fields, partial=True)
     serializer.is_valid(raise_exception=True)
     draft = Announcement(**serializer.to_model_kwargs())
-    invalid = _targeting_errors(draft)
+    invalid = _apply_sender_scope(draft, request.user) or _targeting_errors(draft)
     if invalid:
         return Response(invalid, status=status.HTTP_400_BAD_REQUEST)
     recipients = _recipients_for(draft)

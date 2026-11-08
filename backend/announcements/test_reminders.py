@@ -67,9 +67,9 @@ class EmailPreferenceTests(TestCase):
 
 class AnnouncementEmailTests(APITestCase):
     def setUp(self):
-        self.office = make_user("office.mail@example.test", User.Role.OFFICE_ADMIN)
+        self.office = make_user("office.mail@example.test", User.Role.OFFICE_ADMIN, email_notifications=False)
         self.emailed = make_user("emailed@example.test", email_notifications=True)
-        self.feed_only = make_user("feedonly@example.test")
+        self.feed_only = make_user("feedonly@example.test", email_notifications=False)
         self.alerts_off = make_user("quiet@example.test", email_notifications=True, announcement_alerts=False)
         self.lecturer = make_user("lect.mail@example.test", User.Role.LECTURER, email_notifications=True)
         self.client.force_authenticate(self.office)
@@ -118,11 +118,11 @@ class DeadlineReminderTests(TestCase):
     def setUp(self):
         self.now = timezone.now()
         self.today = timezone.localdate(self.now)
-        self.office = make_user("office.rem@example.test", User.Role.OFFICE_ADMIN)
+        self.office = make_user("office.rem@example.test", User.Role.OFFICE_ADMIN, email_notifications=False)
         self.student = make_user("student.rem@example.test", email_notifications=True)
         self.quiet_student = make_user("student.quiet.rem@example.test", deadline_reminders=False)
-        self.lecturer = make_user("lect.rem@example.test", User.Role.LECTURER)
-        self.coordinator = make_user("coord.rem@example.test", User.Role.COORDINATOR)
+        self.lecturer = make_user("lect.rem@example.test", User.Role.LECTURER, email_notifications=False)
+        self.coordinator = make_user("coord.rem@example.test", User.Role.COORDINATOR, email_notifications=False)
         for user, staff_no in ((self.lecturer, "REM-L1"), (self.coordinator, "REM-C1")):
             Lecturer.objects.create(user=user, staff_no=staff_no)
         self.semester = AcademicSemester.objects.create(

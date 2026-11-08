@@ -262,6 +262,7 @@ def send_check_notice(document, number):
         f"{message}\n\nOpen it in the portal: {portal_link(f'/files/documents/{document.pk}')}\n\n"
         "You get this email because email alerts are on in your Settings.\n\n"
         f"{SIGN_OFF}",
+        wait=False,
     )
 
 

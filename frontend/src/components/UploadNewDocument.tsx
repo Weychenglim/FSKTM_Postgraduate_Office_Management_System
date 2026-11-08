@@ -327,12 +327,6 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                   onChange={code => chooseType(code)}
                   disabled={!types.length}
                 />
-                {suggested && type && (
-                  <p className="flex items-center gap-2 text-[12.5px] font-semibold text-blue-800">
-                    <Sparkles className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    Picked from the file name. Change it if that is wrong.
-                  </p>
-                )}
                 <FieldError message={errors.type} />
               </Section>
             )}
@@ -395,7 +389,6 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
             {staff && (
               staffFile ? (
                 <Section title="Who can see it?">
-                  <p className="text-[13px] text-slate-600">A staff file is not about any student. Students never see it; to send a file to students, use an announcement.</p>
                   <fieldset className="space-y-1">
                     <legend className="sr-only">Who can see it</legend>
                     {STAFF_AUDIENCES.map(item => (
@@ -498,7 +491,6 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                             {label}
                           </label>
                         ))}
-                        <p className="pt-1 text-[11.5px] text-slate-500">The PG office always sees uploads. Students never see staff uploads.</p>
                       </fieldset>
                     )}
                   </dd>

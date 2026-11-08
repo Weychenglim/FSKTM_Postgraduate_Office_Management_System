@@ -91,9 +91,9 @@ export const OfficeLetterRequests: React.FC<OfficeLetterRequestsProps> = ({
 // ---------------- The queue ----------------
 
 const SUMMARY: ReadonlyArray<{ status: GeneratedLetterStatus; title: string; description: string; icon: typeof Clock; tone: 'warning' | 'success' | 'danger' }> = [
-  { status: 'Pending', title: 'Waiting for a decision', description: 'Requests to check, fill in and approve or reject.', icon: Clock, tone: 'warning' },
-  { status: 'Issued', title: 'Approved', description: 'Letters issued and ready for the student.', icon: CheckCircle2, tone: 'success' },
-  { status: 'Rejected', title: 'Not approved', description: 'Requests turned down, with the reason given.', icon: XCircle, tone: 'danger' },
+  { status: 'Pending', title: 'Waiting for a decision', description: 'To check and decide.', icon: Clock, tone: 'warning' },
+  { status: 'Issued', title: 'Approved', description: 'Ready for the student.', icon: CheckCircle2, tone: 'success' },
+  { status: 'Rejected', title: 'Not approved', description: 'Turned down.', icon: XCircle, tone: 'danger' },
 ];
 
 const LetterRequestQueue: React.FC<{
@@ -815,7 +815,7 @@ const FieldRow: React.FC<{
             className={`form-control form-control-sm ${error ? 'form-control-error' : ''}`}
           />
           <p id={`${id}-hint`} className={`text-[10.5px] font-semibold ${error ? 'text-rose-600' : 'text-slate-400'}`}>
-            {error || (fromOffice ? field.hint : "The student's record has no value for this. What you type is used on this letter only.")}
+            {error || (fromOffice ? field.hint : "Not on the student's record. Used on this letter only.")}
           </p>
         </>
       ) : (

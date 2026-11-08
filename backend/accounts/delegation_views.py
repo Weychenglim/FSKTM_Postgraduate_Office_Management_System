@@ -5,8 +5,9 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .delegations import grant_delegation, is_office, recognised_programmes, require_office, revoke_delegation, serialize_delegation
+from .delegations import grant_delegation, is_office, require_office, revoke_delegation, serialize_delegation
 from .models import CoordinatorDelegation, Lecturer, User
+from .programmes import APPROVED_PROGRAMMES
 
 
 class GrantSerializer(serializers.Serializer):
@@ -40,7 +41,7 @@ def delegations_view(request):
 def options_view(request):
     require_office(request.user)
     users = User.objects.filter(is_active=True, role=User.Role.COORDINATOR, lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE, lecturer__coordinator__isnull=False).select_related('lecturer__coordinator')
-    return Response({'programmes': recognised_programmes(), 'coordinators': [{'id': user.pk, 'name': user.full_name, 'programme': user.lecturer.coordinator.programme_managed.strip()} for user in users]})
+    return Response({'programmes': APPROVED_PROGRAMMES, 'coordinators': [{'id': user.pk, 'name': user.full_name, 'programme': user.lecturer.coordinator.programme_managed.strip()} for user in users]})
 
 
 @api_view(['POST'])

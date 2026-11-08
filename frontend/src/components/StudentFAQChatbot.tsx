@@ -5,14 +5,12 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowRight, BookOpen, Bot, CalendarDays, ClipboardList, FileText, GraduationCap, MailOpen, MessageCircleQuestion, Microscope, RotateCcw, type LucideIcon } from 'lucide-react';
+import { BadgeCheck, BookOpen, CalendarDays, ChevronRight, ClipboardList, FileText, GraduationCap, Info, MailOpen, Microscope, RotateCcw, Wallet, type LucideIcon } from 'lucide-react';
 import type { FaqLink, FaqReply, FaqStart } from '../types';
 import { ApiError } from '../services/apiClient';
 import { askFaq, downloadFaqDocument, getFaqStart, openFaqAnswer, sendFaqFeedback } from '../services/faqApi';
 import { PageHeader, PortalButton } from './PortalPrimitives';
-import { AppointmentIcon } from './AppointmentPrimitives';
 import { FloatingMenu } from './FloatingMenu';
-import { AlertMessage } from './AlertMessage';
 import { AssistantRow, ContactBox, FaqComposer, FaqReplyView, QuestionList, SMALL_NOTE, Thinking, YouBubble } from './FaqChatParts';
 
 type Feedback = 'none' | 'sending' | 'yes' | 'no';
@@ -25,10 +23,11 @@ type ChatItem =
 
 type NewItem = ChatItem extends infer Item ? (Item extends ChatItem ? Omit<Item, 'id'> : never) : never;
 
-const CARD = 'flex h-full w-full items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy/30 cursor-pointer';
 const TOPIC_ICONS: ReadonlyArray<[RegExp, LucideIcon]> = [
   [/research|thesis|dissertation/i, Microscope],
   [/graduat|complet/i, GraduationCap],
+  [/fee|fund/i, Wallet],
+  [/exam|grade/i, BadgeCheck],
   [/admission|offer/i, MailOpen],
   [/registration|course/i, ClipboardList],
   [/semester/i, CalendarDays],
@@ -41,6 +40,51 @@ const problemText = (err: unknown) =>
     ? 'You have asked a lot of questions in a short time. Please wait a moment, then try again.'
     : 'Something went wrong while looking for an answer.';
 
+/** Pick a topic on one side and read its questions on the other, without leaving the page. */
+const TopicBrowser: React.FC<{ topics: FaqStart['categories']; disabled: boolean; onPick: (link: FaqLink) => void }> = ({ topics, disabled, onPick }) => {
+  const [openId, setOpenId] = useState('');
+  const open = topics.find(topic => topic.id === openId) ?? topics[0];
+  if (!open) return null;
+  return (
+    <div className="app-card overflow-hidden md:grid md:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="flex flex-wrap gap-2 border-b border-slate-100 p-3 md:block md:space-y-1 md:border-b-0 md:border-r md:bg-slate-50/70">
+        {topics.map(topic => {
+          const Icon = topicIcon(topic.name);
+          const on = topic.id === open.id;
+          return (
+            <button
+              key={topic.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setOpenId(topic.id)}
+              className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-semibold transition cursor-pointer md:w-full ${on ? 'bg-brand-navy text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 md:border-transparent md:bg-transparent'}`}
+            >
+              <Icon aria-hidden="true" className={`h-4 w-4 shrink-0 ${on ? 'text-white' : 'text-slate-400'}`} />
+              <span className="min-w-0 flex-1">{topic.name}</span>
+              <span className={`shrink-0 text-[11.5px] font-bold ${on ? 'text-slate-300' : 'text-slate-400'}`}>{topic.questions.length}</span>
+            </button>
+          );
+        })}
+      </div>
+      <ul aria-label={`Questions about ${open.name}`} className="divide-y divide-slate-100">
+        {open.questions.map(link => (
+          <li key={link.id}>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={() => onPick(link)}
+              className="group flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[13.5px] font-semibold text-brand-navy transition hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none disabled:opacity-50 cursor-pointer"
+            >
+              <span className="min-w-0 [overflow-wrap:anywhere]">{link.question}</span>
+              <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-slate-500" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 export const StudentFAQChatbot: React.FC = () => {
   const navigate = useNavigate();
   const [start, setStart] = useState<FaqStart | null>(null);
@@ -50,7 +94,7 @@ export const StudentFAQChatbot: React.FC = () => {
   const [input, setInput] = useState('');
   const nextId = useRef(1);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const composerRef = useRef<HTMLFormElement>(null);
+  const newestQuestion = useRef<HTMLDivElement>(null);
   const topicsButton = useRef<HTMLDivElement>(null);
   const [topicsOpen, setTopicsOpen] = useState(false);
   const hasAsked = items.length > 0;
@@ -70,10 +114,10 @@ export const StudentFAQChatbot: React.FC = () => {
     inputRef.current?.focus({ preventScroll: true });
   }, [hasAsked]);
 
-  // The newest message and the question box stay in view as the page grows.
+  // Each new question moves to the top, so its answer is read from the start.
   useEffect(() => {
-    if (items.length || busy) composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [items.length, busy]);
+    if (items.length) newestQuestion.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [items.length]);
 
   const add = (item: NewItem) => setItems(current => [...current, { ...item, id: nextId.current++ } as ChatItem]);
 
@@ -175,85 +219,70 @@ export const StudentFAQChatbot: React.FC = () => {
     />
   );
 
-  const composer = <FaqComposer value={input} onChange={setInput} onSend={() => ask(input)} busy={busy} formRef={composerRef} inputRef={inputRef} />;
+  const composer = <FaqComposer value={input} onChange={setInput} onSend={() => ask(input)} busy={busy} inputRef={inputRef} placeholder="Ask a question" />;
 
   const contact = start?.contactText || 'For anything about your own application, records or results, contact the PG Office.';
+  const lastQuestionId = [...items].reverse().find(item => item.kind === 'you')?.id;
+
+  if (!hasAsked) {
+    return (
+      <div id="student-faq-chatbot-view" className="mx-auto max-w-5xl space-y-8 text-left font-sans animate-fade-in">
+        <section aria-labelledby="faq-welcome" className="relative overflow-hidden rounded-3xl bg-brand-navy px-5 py-10 text-center shadow-sm sm:px-10 sm:py-14">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.4),transparent_55%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.18),transparent_50%)]" />
+          <div className="relative mx-auto max-w-2xl space-y-5">
+            <div className="space-y-2">
+              <h1 id="faq-welcome" className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">What would you like to know?</h1>
+              <p className="text-[13.5px] font-medium text-slate-300">Answers come from the PG Office FAQ. I can't see your own records.</p>
+            </div>
+            <div className="text-left">{composer}</div>
+            {start && start.commonQuestions.length > 0 && (
+              <div className="flex flex-wrap justify-center gap-2" aria-label="Popular questions" role="group">
+                {start.commonQuestions.map(question => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => ask(question)}
+                    className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60 cursor-pointer"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section aria-labelledby="faq-topics" className="space-y-3">
+          <h2 id="faq-topics" className="section-heading">Browse by topic</h2>
+          {start ? (
+            <TopicBrowser topics={start.categories} disabled={busy} onPick={link => pick(link)} />
+          ) : startProblem ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="card-description">The topics could not be loaded.</p>
+              <PortalButton size="sm" icon={RotateCcw} onClick={loadStart}>Try again</PortalButton>
+            </div>
+          ) : (
+            <p className="card-description">Loading topics…</p>
+          )}
+        </section>
+
+        <p className="flex items-start justify-center gap-2 text-[12.5px] font-medium text-slate-500">
+          <Info aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span className="whitespace-pre-line"><span className="font-bold text-slate-600">About your own case: </span>{contact}</span>
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div id="student-faq-chatbot-view" className="mx-auto max-w-4xl space-y-6 text-left font-sans animate-fade-in">
+    <div id="student-faq-chatbot-view" className="mx-auto max-w-3xl space-y-6 text-left font-sans animate-fade-in">
       <PageHeader
         title="FAQ Chatbot"
-        subtitle="Ask about postgraduate procedures. Answers come from the PG Office FAQ."
-        actions={hasAsked ? <PortalButton icon={RotateCcw} onClick={startOver}>Start over</PortalButton> : undefined}
-      />
-
-      {!hasAsked ? (
-        <>
-          <section aria-label="Ask a question" className="app-card space-y-5 p-5 shadow-sm sm:p-7">
-            <div className="flex items-start gap-3">
-              <AppointmentIcon icon={Bot} tone="brand" />
-              <div className="min-w-0">
-                <h2 className="text-base font-extrabold text-brand-navy">Hi! What would you like to know?</h2>
-                <p className="card-description mt-1">Ask in your own words. I answer from the PG Office FAQ and can't see your own records.</p>
-              </div>
-            </div>
-            {composer}
-          </section>
-
-          {start && start.commonQuestions.length > 0 && (
-            <section aria-labelledby="faq-popular" className="space-y-3">
-              <h2 id="faq-popular" className="section-label">Popular questions</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {start.commonQuestions.map(question => (
-                  <button key={question} type="button" className={CARD} onClick={() => ask(question)}>
-                    <AppointmentIcon icon={MessageCircleQuestion} tone="info" />
-                    <span className="min-w-0 flex-1 pt-2 text-[13px] font-semibold text-brand-navy [overflow-wrap:anywhere]">{question}</span>
-                    <ArrowRight aria-hidden="true" className="mt-2.5 h-4 w-4 shrink-0 text-slate-400" />
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <section aria-labelledby="faq-topics" className="space-y-3">
-            <h2 id="faq-topics" className="section-label">Browse by topic</h2>
-            {start ? (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {start.categories.map(topic => (
-                  <button key={topic.id} type="button" className={CARD} onClick={() => showTopic(topic)}>
-                    <AppointmentIcon icon={topicIcon(topic.name)} tone="brand" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-[13px] font-semibold text-brand-navy">{topic.name}</span>
-                      <span className="card-caption">{topic.questions.length} question{topic.questions.length === 1 ? '' : 's'}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            ) : startProblem ? (
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="card-description">The topics could not be loaded.</p>
-                <PortalButton size="sm" icon={RotateCcw} onClick={loadStart}>Try again</PortalButton>
-              </div>
-            ) : (
-              <p className="card-description">Loading topics…</p>
-            )}
-          </section>
-
-          <AlertMessage type="info" title="About your own case" message={<p className="whitespace-pre-line">{contact}</p>} />
-        </>
-      ) : (
-        <section aria-label="Chat" className="app-card overflow-hidden shadow-sm">
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
-            <div className="flex min-w-0 items-center gap-3">
-              <AppointmentIcon icon={Bot} tone="brand" />
-              <div className="min-w-0">
-                <h2 className="section-label">FAQ Chatbot</h2>
-                <p className="card-description">Answers from the PG Office FAQ</p>
-              </div>
-            </div>
+        actions={
+          <>
             {start && start.categories.length > 0 && (
-              <div ref={topicsButton} className="shrink-0">
-                <PortalButton size="sm" icon={BookOpen} aria-haspopup="menu" aria-expanded={topicsOpen} onClick={() => setTopicsOpen(open => !open)}>
+              <div ref={topicsButton}>
+                <PortalButton icon={BookOpen} aria-haspopup="menu" aria-expanded={topicsOpen} onClick={() => setTopicsOpen(open => !open)}>
                   Topics
                 </PortalButton>
                 {topicsOpen && (
@@ -278,36 +307,43 @@ export const StudentFAQChatbot: React.FC = () => {
                 )}
               </div>
             )}
-          </header>
+            <PortalButton icon={RotateCcw} onClick={startOver}>Start over</PortalButton>
+          </>
+        }
+      />
 
-          <div role="log" aria-live="polite" aria-label="Conversation" className="space-y-5 px-5 py-6">
-            {items.map(item => {
-              if (item.kind === 'you') return <YouBubble key={item.id} text={item.text} />;
-              if (item.kind === 'topic') {
-                return (
-                  <AssistantRow key={item.id}>
-                    <p>Questions about {item.name}:</p>
-                    <QuestionList questions={item.questions} disabled={busy} onPick={link => pick(link)} />
-                  </AssistantRow>
-                );
-              }
-              if (item.kind === 'problem') {
-                return (
-                  <AssistantRow key={item.id}>
-                    <p role="alert">{item.text}</p>
-                    {item.retry && <PortalButton size="sm" icon={RotateCcw} disabled={busy} onClick={item.retry}>Try again</PortalButton>}
-                  </AssistantRow>
-                );
-              }
-              return <React.Fragment key={item.id}>{renderReply(item)}</React.Fragment>;
-            })}
+      <section role="log" aria-live="polite" aria-label="Conversation" className="space-y-5">
+        {items.map(item => {
+          if (item.kind === 'you') {
+            return (
+              <div key={item.id} ref={item.id === lastQuestionId ? newestQuestion : undefined} className="scroll-mt-24">
+                <YouBubble text={item.text} />
+              </div>
+            );
+          }
+          if (item.kind === 'topic') {
+            return (
+              <AssistantRow key={item.id}>
+                <p>Questions about {item.name}:</p>
+                <QuestionList questions={item.questions} disabled={busy} onPick={link => pick(link)} />
+              </AssistantRow>
+            );
+          }
+          if (item.kind === 'problem') {
+            return (
+              <AssistantRow key={item.id}>
+                <p role="alert">{item.text}</p>
+                {item.retry && <PortalButton size="sm" icon={RotateCcw} disabled={busy} onClick={item.retry}>Try again</PortalButton>}
+              </AssistantRow>
+            );
+          }
+          return <React.Fragment key={item.id}>{renderReply(item)}</React.Fragment>;
+        })}
 
-            {busy && <Thinking />}
-          </div>
+        {busy && <Thinking />}
+      </section>
 
-          <div className="border-t border-slate-200 bg-slate-50/70 px-5 py-4">{composer}</div>
-        </section>
-      )}
+      {composer}
     </div>
   );
 };

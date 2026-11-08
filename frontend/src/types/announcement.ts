@@ -14,6 +14,8 @@ export interface AnnouncementItem {
   title: string;
   summary: string;
   target: AnnouncementTarget;
+  /** Every group it goes to; `target` is the first of them. */
+  audiences?: AnnouncementTarget[];
   priority: AnnouncementPriority;
   dateCreated: string;
   status: AnnouncementStatus;
@@ -33,10 +35,17 @@ export interface AnnouncementItem {
   /** Registry targeting for student announcements; empty means every student. */
   targetProgrammes?: string[];
   targetIntakes?: string[];
+  /** Set on a lecturer's notice: how many of their students it went to. */
+  targetStudentCount?: number;
 }
 
-/** What a student announcement can be narrowed to. */
+/**
+ * Who the caller may send to. The office picks any group; a coordinator sends
+ * to the students of their programmes; a lecturer to the students they supervise.
+ */
 export interface AnnouncementAudienceOptions {
+  scope?: 'office' | 'programme' | 'supervisees';
   programmes: string[];
   intakes: string[];
+  students?: number;
 }

@@ -5,7 +5,8 @@ export type ParticipantLifecycleStatus =
   | 'GRADUATED'
   | 'WITHDRAWN'
   | 'RETIRING'
-  | 'RETIRED';
+  | 'RETIRED'
+  | 'RESIGNED';
 
 export interface ParticipantBlockers {
   pendingCoSupervisorNominations?: number;
@@ -61,6 +62,7 @@ export interface ParticipantLifecycleSummary {
   activeLecturers: number;
   retiringLecturers: number;
   retiredLecturers: number;
+  resignedLecturers: number;
 }
 
 export interface ParticipantLifecycleListResponse {

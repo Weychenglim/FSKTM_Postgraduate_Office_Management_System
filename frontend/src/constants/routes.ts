@@ -20,8 +20,10 @@ export const APP_ROUTES = {
   registry: '/registry',
   registryStaff: '/registry/staff',
   registryStaffNew: '/registry/staff/new',
-  registryTransfers: '/registry/transfers',
-  registryTransferNew: '/registry/transfers/new',
+  registryProgrammes: '/registry/programmes',
+  registryActingCoordinators: '/registry/acting-coordinators',
+  registryUpdateSemester: '/registry/update-semester',
+  registryGraduations: '/registry/graduations',
   faq: '/faq',
   faqEntries: '/faq/entries',
   faqEntryNew: '/faq/entries/new',
@@ -108,19 +110,11 @@ export const routeForFaqEntry = (entryId: string): string =>
 export const routeForStaffAccount = (accountId: string): string =>
   `${APP_ROUTES.registryStaff}/${encodeURIComponent(accountId)}`;
 
-export const routeForProgrammeTransfer = (transferId: string | number): string =>
-  `${APP_ROUTES.registryTransfers}/${encodeURIComponent(String(transferId))}`;
-
-export const routeForNewProgrammeTransfer = (matric: string): string =>
-  `${APP_ROUTES.registryTransferNew}?student=${encodeURIComponent(matric)}`;
-
 export const routeForDashboardTimeline = (): string => APP_ROUTES.dashboardTimeline;
 
 export const routeForDashboardSemesters = (): string => APP_ROUTES.dashboardSemesters;
 
 export const routeForDashboardReports = (): string => APP_ROUTES.dashboardReports;
-
-export const routeForParticipantLifecycle = (): string => APP_ROUTES.dashboardParticipantLifecycle;
 
 export const routeForWorkflowReconciliation = (): string => APP_ROUTES.dashboardWorkflowReconciliation;
 
@@ -311,9 +305,6 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
   }
 
   if (target.targetModule === 'REGISTRY') {
-    if (target.recordType === 'PROGRAMME_TRANSFER' && target.recordId) {
-      return routeForProgrammeTransfer(target.recordId);
-    }
     return APP_ROUTES.registry;
   }
 

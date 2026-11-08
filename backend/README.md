@@ -284,25 +284,54 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 
 **History.** Every change is an `AccountChange` row with who, when and what. Rows cannot be edited or deleted, and keep the name and email as text after an account is deleted.
 
-## Programme transfers in Student Registry (`/api/registry/`)
+## Programme changes in Student Registry
 
-The office starts a transfer from the Student Record; the coordinator of the student's current programme approves it, then the coordinator of the new programme. The workflow, its records and its rules stay in `appointments.research_amendments` (`/api/appointments/research-amendments/`, kind `TRANSFER`); Registry only reads them.
+UM (Master's Degree) Regulations 2024, regulation 16 does not allow a change of programme: the candidate withdraws and applies again. So Student Registry has no transfer.
 
-| Method | Path | Who | Returns |
-| ------ | ---- | --- | ------- |
-| GET | `students/<matric>/transfer/` | Anyone who can read that record | `{studentId, hasResearchProfile, canRequest, pending}`; the office also gets `blockers`, `currentCoordinators`, `destinations` (each with its coordinators), `team` and `unfinishedTasks` |
-| GET | `programme-coordinators/` | Office and programme coordinators | `{programmes: [{programme, coordinators}]}`, regular and acting coordinators today |
+- A student record carries `hasResearchProfile`.
+- The office fixes a programme entered by mistake in Edit Details. With a research profile, the edit needs `programmeReason`: the record and the profile change together, logged as a `CORRECTION` revision with who, when, why and the old value. It answers 409 while a research change, transfer or nomination is waiting. Without a research profile, the record simply changes.
+- `accounts.programme_correction` calls `_lock_student`, `_no_pending`, `_no_nominations`, `snapshot` and `_apply` in `appointments.research_amendments`, so keep those when removing the `TRANSFER` workflow.
+- The `TRANSFER` workflow in `appointments.research_amendments` and its form under Supervisor Appointments are separate and stay until their owner removes them.
 
-- A student record also carries `userId`, which the transfer API needs.
-- A student with a research profile changes programme only through a transfer; a direct programme edit answers 409 and says to use Request programme transfer. Students without one are edited directly.
-- When nobody coordinates the student's current programme, a new transfer starts at the new programme's coordinator (its first history entry goes straight to `PENDING_DESTINATION_COORDINATOR`).
-- Notices (`accounts.transfer_notices`, target `REGISTRY` / `PROGRAMME_TRANSFER`): the coordinators who must decide next, and when it ends, the student and the office user who started it. The person acting is never told about their own step.
+## People leaving and acting coordinators in Student Registry
+
+Participant Lifecycle has no page of its own. The office does this inside Registry, using `/api/accounts/participants/` and `/api/accounts/coordinator-delegations/`; `/dashboard/participant-lifecycle` now goes to Registry.
+
+- **Students:** the Student Record changes status, and shows waiting requests (with cancel and a reason) and status history.
+- **Lecturers:** the staff account page has Employment: `ACTIVE` to `RETIRING` (shown as Leaving), then `RETIRED` or `RESIGNED`, or back to `ACTIVE`. Open work stops the last step. Retired and resigned lecturers keep their profile, have sign-in off, and can go back to `ACTIVE`, which turns sign-in on. It answers 409 if someone else now coordinates their programme.
+- **Acting coordinators:** a Registry tab. Only a Programme Coordinator can cover another programme, for set dates, alongside its regular coordinator.
+
+## Semesters and graduation in Student Registry (`/api/registry/`)
+
+How long a programme takes, how far along each student is, and acting on many students at once. Everything is Office only unless stated. See `docs/superpowers/plans/2026-11-02-semesters-and-graduation.md` for the UM rules behind it.
+
+| Method | Path | What it does |
+| ------ | ---- | ------------ |
+| GET, PUT | `programme-rules/` | Minimum, maximum and whether a Special Semester counts, for each approved programme. Send `fromSession` and `fromTerm` to set a rule for that intake and later ones; earlier intakes keep their rule. Edits are kept in `ProgrammeRuleChange`. |
+| DELETE | `programme-rules/<id>/` | Remove a rule for new intakes. Those students go back to the rule before it. A programme's first rule stays. |
+| GET | `students/<matric>/semesters/` | Anyone who can read that record: semesters studied, minimum, maximum semester, and the rows. |
+| POST | `students/<matric>/semesters/` | Add a semester (`session`, `term`, `outcome`). |
+| PATCH, DELETE | `students/<matric>/semesters/<id>/` | Correct or remove one. The record's current semester follows the latest row. |
+| PUT | `students/<matric>/semester-extension/` | Up to 3 semesters past the maximum, with a reason. |
+| GET | `semester-move/` | Who still needs the active semester (the Update current semester page). `?summary=1` gives only the counts, for the Students tab. Anyone whose intake is later is left out and counted as `notStarted`. |
+| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Only the active semester, and running it twice changes nothing. Later intakes are skipped. Deferred students get the semester as leave, except a Special Semester. |
+| GET | `graduation/` | The Record graduations page: Active students near or past the minimum, as `ready`, `check` and `stop`, each with their intake and what is unfinished. Students 2 or more below the minimum, or who have not started, are only counted (`tooEarly`). |
+| POST | `graduation/` | Graduate (`matrics`, `earlyApproved`, `reason`). Each student is checked again and graduated separately; the result lists `graduated` and `skipped` with why. |
+| GET | `students/<matric>/graduation-check/` | The same check for one student. |
+
+- **Counting:** `accounts.semester_rules` counts semesters studied from `StudentSemester` rows. The maximum semester is the intake plus the programme's maximum, in normal semesters, moved later only by medical or mobility leave and extensions.
+- **The minimum is enforced in `transition_student`,** so Student Record and Manage Participants cannot get around it. One semester below needs `early_approved` (Regulation 20(3)), which only Student Registry sends. Further below, or with no semester rows, is refused.
+- **Stops graduating:** unfinished marks; waiting supervisor, supporting supervisor or panel requests; too few semesters; no semester record. **Only warns:** letter requests, documents owed, files waiting for a check, a waiting transfer or research change, past the maximum, no rule for the programme.
+- CGPA and credits are in Maya, so the office works from the Senate's list.
+- A student's semesters come from their intake and current semester when they are registered or imported, and from migration `accounts.0016` for existing students. Past Special Semesters cannot be inferred, so the office adds them.
+- Notices (`accounts.lifecycle_notices`, target `DASHBOARD` / `STUDENT_STATUS`): the student, whenever their academic status changes.
+- An appointment that ends as `COMPLETED` keeps its issued letter (`letters.appointment_letters.revoke_after_end`). Other endings still revoke it.
 
 ## FAQ knowledge base endpoints (`/api/faq/`)
 
 The chatbot's answers (UC28, UC29).
 
-**Asking** (students and programme coordinators; lecturers have no FAQ menu):
+**Asking** (students only; lecturers and programme coordinators have no FAQ menu):
 
 | Method | Path | Body | Returns |
 | ------ | ---- | ---- | ------- |

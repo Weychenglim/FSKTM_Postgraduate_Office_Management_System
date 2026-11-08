@@ -170,6 +170,7 @@ def _email_student(letter, subject, message):
             f"{message}\n\nOpen it in the portal: {portal_link('/letters/my-letters')}\n\n"
             "You get this email because email alerts are on in your Settings.\n\n"
             f"{SIGN_OFF}",
+            wait=False,
         )
     )
 

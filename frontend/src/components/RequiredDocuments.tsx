@@ -129,7 +129,7 @@ export const RequiredDocuments: React.FC<{ canManageTypes: boolean }> = ({ canMa
       <PortalConfirmModal
         isOpen={reminding !== null}
         title={`Remind students about the ${reminding?.label ?? ''}?`}
-        message={`${reminding ? stillToHandIn(reminding) : 0} students still have to hand it in. They get a notice in the portal, and an email if they have deadline reminders on. You can remind them once a day.`}
+        message={`${reminding ? stillToHandIn(reminding) : 0} students still have to hand it in. You can remind them once a day.`}
         confirmLabel="Send reminder"
         cancelLabel="Not now"
         tone="info"

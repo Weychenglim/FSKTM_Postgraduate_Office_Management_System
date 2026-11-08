@@ -67,14 +67,21 @@ class AudienceReadingTests(AnnouncementReviewBase):
             self.client.force_authenticate(reader)
             self.assertEqual(self.client.get(f"/api/announcements/{notice.pk}/").status_code, status.HTTP_200_OK)
 
+    def authored(self, target):
+        # Lecturers now send only to their own students, so an older notice is made directly.
+        return Announcement.objects.create(
+            title="Notice", content="Body", target=target, status=Announcement.Status.ACTIVE,
+            created_by=self.author, created_by_name=self.author.full_name,
+        )
+
     def test_an_author_still_reads_their_own_notice_for_another_audience(self):
-        notice = self.publish(self.author, target="Staff")
+        notice = self.authored("Staff")
         self.client.force_authenticate(self.author)
         self.assertEqual(self.client.get(f"/api/announcements/{notice.pk}/").status_code, status.HTTP_200_OK)
 
     def test_the_payload_says_who_may_manage_it(self):
-        notice = self.publish(self.author, target="Lecturers")
-        expectations = {self.author: True, self.other_lecturer: False, self.office: True}
+        notice = self.authored("Lecturers")
+        expectations ={self.author: True, self.other_lecturer: False, self.office: True}
         for reader, can_manage in expectations.items():
             self.client.force_authenticate(reader)
             payload = self.client.get(f"/api/announcements/{notice.pk}/").data

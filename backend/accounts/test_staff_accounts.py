@@ -21,6 +21,7 @@ from .models import (
     User,
 )
 from .programmes import APPROVED_PROGRAMMES
+from .staff_accounts import FACULTY_DEPARTMENTS
 from .tokens import ACTIVATION, activation_token_generator, password_link_kind
 
 STAFF = "/api/registry/staff/"
@@ -350,7 +351,7 @@ class ListTests(StaffAccountsBase):
     def test_options_list_departments_and_programme_coordinators(self):
         Lecturer.objects.filter(user=self.alpha).update(department=" Artificial Intelligence ")
         data = self.client.get(f"{STAFF}options/").data
-        self.assertEqual(data["departments"], ["Artificial Intelligence", "Postgraduate Office", "Software Engineering"])
+        self.assertEqual(data["departments"], FACULTY_DEPARTMENTS)
         by_programme = {row["programme"]: row["coordinator"] for row in data["programmes"]}
         self.assertEqual(by_programme[CS], {"id": str(self.coord.pk), "name": "Beta Coordinator"})
         self.assertIsNone(by_programme[DS])

@@ -18,7 +18,6 @@ const routeModules = [
   'AdministrationDashboard',
   'TimelineManagement',
   'AcademicSemesterManagement',
-  'ParticipantLifecycleManagement',
   'WorkflowReconciliationCentre',
   'LecturerCapacityManagement',
   'FileRepository',
