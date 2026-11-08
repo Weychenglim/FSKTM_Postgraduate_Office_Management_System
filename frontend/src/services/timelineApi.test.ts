@@ -16,6 +16,7 @@ try {
   assert.equal(calls.length, 1, 'Preview makes only one nonmutating preview request');
   assert.equal(calls[0].url, '/api/dashboard/timeline/upload/preview/');
   assert.equal(calls[0].body?.get('semesterId'), '42');
+  assert.equal(calls[0].body?.get('mode'), 'ADD');
   assert.equal(await (calls[0].body?.get('file') as File).text(), await file.text());
   assert.equal(calls[0].body?.get('previewToken'), null);
   await uploadTimelineFile(file, 42, preview.previewToken, true);
@@ -23,6 +24,7 @@ try {
   assert.equal(calls[1].url, '/api/dashboard/timeline/upload/');
   assert.equal(calls[1].body?.get('previewToken'), reviewed.previewToken);
   assert.equal(calls[1].body?.get('acknowledgeWarnings'), 'true');
+  assert.equal(calls[1].body?.get('mode'), 'ADD');
   assert.equal(await (calls[1].body?.get('file') as File).text(), await file.text());
   await downloadTimelineTemplate(42);
   assert.equal(calls[2].url, '/api/dashboard/timeline/template/?semesterId=42');

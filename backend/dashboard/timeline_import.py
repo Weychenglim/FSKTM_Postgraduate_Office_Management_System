@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from django.core import signing
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from .excel import parse_timeline_workbook
@@ -24,7 +25,8 @@ def fingerprint(semester, lock=False):
         if lock:
             query = query.select_for_update()
         return list(query.order_by('pk').values())
-    timelines = SemesterTimeline.objects.filter(academic_semester=semester, is_active=True)
+    timelines = SemesterTimeline.objects.filter(academic_semester=semester).filter(
+        Q(is_active=True) | Q(is_published=True))
     state = {
         'semester': list(type(semester).objects.filter(pk=semester.pk).values()),
         'timelines': values(timelines),
@@ -43,7 +45,9 @@ def digest(upload):
     return result
 
 
-def prepare_rows(upload, semester):
+def prepare_rows(upload, semester, mode='ADD'):
+    if mode not in {'ADD', 'REPLACE'}:
+        raise ValidationError('Choose Add events or Replace calendar.')
     errors = validate_timeline_upload(upload)
     if errors:
         raise ValidationError(errors)
@@ -54,7 +58,7 @@ def prepare_rows(upload, semester):
     today = timezone.localdate(timezone=MALAYSIA)
     current_links = list(SemesterTimelineEntry.objects.filter(
         timeline__academic_semester=semester, timeline__is_active=True,
-    ).exclude(operational_period__isnull=True, marks_period__isnull=True))
+    ).exclude(operational_period__isnull=True, marks_period__isnull=True)) if mode == 'REPLACE' else []
     preserved = set()
     for row in rows:
         code = row.pop('activity_code')
@@ -90,19 +94,22 @@ def display_rows(rows):
 
 
 @transaction.atomic
-def create_preview(upload, semester, actor):
+def create_preview(upload, semester, actor, mode='ADD'):
     semester = type(semester).objects.select_for_update().get(pk=semester.pk)
     if semester.lifecycle_status not in {"DRAFT", "ACTIVE"}:
         raise ValidationError("Timeline changes require a Draft or Active academic semester.")
     state = fingerprint(semester, lock=True)
-    rows, warnings = prepare_rows(upload, semester)
+    rows, warnings = prepare_rows(upload, semester, mode)
+    existing = SemesterTimelineEntry.objects.filter(timeline__academic_semester=semester, timeline__is_active=True).count()
     token = signing.dumps({'actor': actor.pk, 'semester': semester.pk,
-        'file': digest(upload), 'state': state}, salt=PREVIEW_SALT, compress=True)
+        'file': digest(upload), 'state': state, 'mode': mode}, salt=PREVIEW_SALT, compress=True)
     return {'previewToken': token, 'warnings': warnings, 'rows': display_rows(rows),
-            'importedCount': len(rows), 'requiresAcknowledgement': bool(warnings)}
+            'importedCount': len(rows), 'mode': mode, 'existingCount': existing,
+            'resultingCount': len(rows) + (existing if mode == 'ADD' else 0),
+            'requiresAcknowledgement': bool(warnings)}
 
 
-def verify_preview(token, upload, semester, actor):
+def verify_preview(token, upload, semester, actor, mode='ADD'):
     if not isinstance(token, str):
         raise ValidationError("A valid preview token is required.")
     try:
@@ -110,6 +117,6 @@ def verify_preview(token, upload, semester, actor):
     except signing.BadSignature:
         raise ValidationError('Preview expired or invalid. Preview the file again.')
     expected = {'actor': actor.pk, 'semester': semester.pk,
-                'file': digest(upload), 'state': fingerprint(semester, lock=True)}
+                'file': digest(upload), 'state': fingerprint(semester, lock=True), 'mode': mode}
     if payload != expected:
         raise ValidationError('The file, actor, semester or timeline/period data changed. Preview again.')

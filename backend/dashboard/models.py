@@ -15,6 +15,9 @@ class SemesterTimeline(models.Model):
     semester = models.CharField(max_length=128)
     session = models.CharField(max_length=64)
     is_active = models.BooleanField(default=True, db_index=True)
+    is_published = models.BooleanField(default=False, db_index=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    content_digest = models.CharField(max_length=64, blank=True)
     source_filename = models.CharField(max_length=255, blank=True)
     uploaded_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -29,6 +32,11 @@ class SemesterTimeline(models.Model):
     class Meta:
         ordering = ["-uploaded_at", "-created_at"]
         constraints = [
+            models.UniqueConstraint(fields=["academic_semester"],
+                condition=Q(is_published=True, academic_semester__isnull=False),
+                name="one_published_timeline_per_semester"),
+            models.CheckConstraint(condition=Q(is_active=False) | Q(is_published=False),
+                name="published_timeline_is_snapshot"),
             models.UniqueConstraint(
                 fields=["academic_semester"],
                 condition=Q(
@@ -44,6 +52,8 @@ class SemesterTimeline(models.Model):
 
 
 class SemesterTimelineEntry(models.Model):
+    # Stable reminder identity across publication copies, including deleted draft rows.
+    source_entry_id = models.PositiveBigIntegerField(null=True, blank=True, editable=False)
     class Level(models.TextChoices):
         P1 = "P1", "Research Project (P1)"
         P2 = "P2", "Research Project (P2)"
@@ -130,6 +140,7 @@ class TimelineAuditLog(models.Model):
         EDIT_ENTRY = "EDIT_ENTRY", "Edit Entry"
         DELETE_ENTRY = "DELETE_ENTRY", "Delete Entry"
         EXTEND = "EXTEND", "Extend event"
+        PUBLISH = "PUBLISH", "Publish calendar"
 
     actor = models.ForeignKey(
         settings.AUTH_USER_MODEL,

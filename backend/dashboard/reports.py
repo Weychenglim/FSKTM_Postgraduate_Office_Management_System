@@ -640,7 +640,7 @@ def _timeline_rows(
         "timeline__academic_semester",
         "marks_period", "operational_period",
     ).filter(
-        timeline__is_active=True,
+        timeline__is_published=True,
     )
     entries = _filter_semester(
         entries,

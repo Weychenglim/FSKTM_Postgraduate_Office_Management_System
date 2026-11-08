@@ -237,10 +237,14 @@ class TimelineAuditLogSerializer(serializers.Serializer):
         return getattr(obj.actor, "full_name", "") or obj.actor.email
 
 
-def active_timeline_payload(timeline, user=None):
+def active_timeline_payload(timeline, user=None, management=False):
     entries = list(timeline.entries.select_related("operational_period", "marks_period"))
     if user is not None and user.role == user.Role.STUDENT:
         entries = [entry for entry in entries if not entry.marks_period_id]
+    if user is not None and not management:
+        role = {user.Role.STUDENT: 'STUDENT', user.Role.LECTURER: 'LECTURER',
+                user.Role.COORDINATOR: 'LECTURER', user.Role.OFFICE_ADMIN: 'OFFICE_STAFF'}.get(user.role)
+        entries = [entry for entry in entries if role in entry.target_roles]
     grouped = []
     for level in ["P1", "P2"]:
         level_entries = [entry for entry in entries if entry.level == level]

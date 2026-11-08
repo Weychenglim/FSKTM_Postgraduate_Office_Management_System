@@ -263,7 +263,7 @@ def get_active_timeline():
         return None
     return (
         SemesterTimeline.objects.filter(
-            is_active=True,
+            is_published=True,
             academic_semester=semester,
         )
         .prefetch_related("entries")
@@ -329,11 +329,18 @@ def derive_entry_status(deadline_start, deadline_end):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+@transaction.atomic
 def active_timeline_view(request):
     if request.query_params.get("semesterId"):
         denied = admin_required_response(request.user)
         if denied:
             return denied
+        semester = get_timeline_semester(request)
+        if semester is not None:
+            AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+            from .timeline_import import fingerprint
+            # Lock period sources before reading both visible rows and their review token.
+            fingerprint(semester, lock=True)
         timeline = get_managed_timeline(request)
     else:
         timeline = get_active_timeline()
@@ -345,7 +352,30 @@ def active_timeline_view(request):
                 "levels": [],
             }
         )
-    return Response(active_timeline_payload(timeline, user=request.user))
+    payload = active_timeline_payload(timeline, user=request.user,
+        management=bool(request.query_params.get('semesterId')))
+    if request.query_params.get('semesterId'):
+        from .calendar_publication import publication_state
+        payload['publication'] = publication_state(timeline, request.user)
+    return Response(payload)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def publish_timeline_view(request):
+    denied = admin_required_response(request.user)
+    if denied:
+        return denied
+    semester = get_timeline_semester(request)
+    if semester is None:
+        return timeline_locked_response()
+    from .calendar_publication import publish_calendar
+    try:
+        draft = publish_calendar(semester, request.user, request.data.get('reviewToken'))
+    except (ValidationError, SemesterTimeline.DoesNotExist) as exc:
+        return Response({'error': ' '.join(exc.messages) if isinstance(exc, ValidationError)
+            else 'Create a calendar draft before publishing.'}, status=409)
+    return Response(active_timeline_payload(draft))
 
 
 @api_view(["GET"])
@@ -379,7 +409,7 @@ def preview_timeline_upload_view(request):
     if semester is None:
         return timeline_locked_response()
     try:
-        return Response(create_preview(uploaded_file, semester, request.user))
+        return Response(create_preview(uploaded_file, semester, request.user, request.data.get('mode', 'ADD')))
     except ValidationError as exc:
         return Response({"errors": exc.messages}, status=400)
 
@@ -412,27 +442,39 @@ def upload_timeline_view(request):
         if semester.lifecycle_status not in {"DRAFT", "ACTIVE"}:
             return timeline_locked_response()
         try:
-            verify_preview(token, uploaded_file, semester, request.user)
+            verify_preview(token, uploaded_file, semester, request.user, request.data.get('mode', 'ADD'))
         except ValidationError as exc:
             return Response({"errors": exc.messages}, status=409)
         try:
-            rows, warnings = prepare_rows(uploaded_file, semester)
+            rows, warnings = prepare_rows(uploaded_file, semester, request.data.get('mode', 'ADD'))
         except ValidationError as exc:
             return Response({"errors": exc.messages}, status=400)
         if warnings and str(request.data.get("acknowledgeWarnings", "")).lower() != "true":
             return Response({"errors": ["Acknowledge all preview warnings before importing."]}, status=400)
         current = SemesterTimeline.objects.filter(academic_semester=semester, is_active=True)
         replaced = current.exists()
-        current.update(is_active=False, replaced_at=timezone.now())
-        timeline = SemesterTimeline.objects.create(
-            academic_semester=semester, semester=semester.get_term_display(),
-            session=semester.academic_session, source_filename=uploaded_file.name,
-            uploaded_by=request.user, is_active=True)
+        adding = request.data.get('mode', 'ADD') == 'ADD'
+        timeline = current.first() if adding else None
+        if timeline is None:
+            current.update(is_active=False, replaced_at=timezone.now())
+            timeline = SemesterTimeline.objects.create(
+                academic_semester=semester, semester=semester.get_term_display(),
+                session=semester.academic_session, source_filename=uploaded_file.name,
+                uploaded_by=request.user, is_active=True)
+        elif adding:
+            next_order = timeline.entries.aggregate(value=Max('display_order'))['value'] or 0
+            next_steps = {level: timeline.entries.filter(level=level).aggregate(value=Max('step'))['value'] or 0
+                for level in ('P1', 'P2')}
+            for row in rows:
+                next_steps[row['level']] += 1
+                next_order += 1
+                row['step'] = next_steps[row['level']]
+                row['display_order'] = next_order
         SemesterTimelineEntry.objects.bulk_create([
             SemesterTimelineEntry(timeline=timeline, **row) for row in rows])
         TimelineAuditLog.objects.create(actor=request.user, timeline=timeline,
-            action=TimelineAuditLog.Action.REPLACE if replaced else TimelineAuditLog.Action.UPLOAD,
-            summary=f"Imported {len(rows)} timeline entries from {uploaded_file.name}.")
+            action=TimelineAuditLog.Action.REPLACE if replaced and not adding else TimelineAuditLog.Action.UPLOAD,
+            summary=f"{'Added' if adding else 'Replaced draft with'} {len(rows)} calendar events from {uploaded_file.name}."[:500])
     return Response({"importedCount": len(rows), "timeline": active_timeline_payload(timeline)}, status=201)
 
 

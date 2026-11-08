@@ -1,3 +1,37 @@
+## Assessment display names (8 November 2026)
+
+Assessment options, period lists/search and publication review display Research Project 1 and Research Project 2. Shared assessmentLabel maps existing P1/P2 identifiers without rewriting data or resetting test records; no reseed or migration is needed.
+
+## Historical assessment classification removed (8 November 2026)
+
+Classification UI and non-draft assessment update exception removed at user request, superseding previous classification documentation. Four unclassified UAT test periods were backed up privately and backfilled as P1 with audit reasons. Existing marks remain unchanged. New periods still require assessment; duplicate publication guards remain enforced.
+
+## Calendar publication presentation (8 November 2026)
+
+PageHeader has an optional titleAside slot, leaving existing consumers unchanged. Its title row vertically centres the heading and status with a 12px gap. TimelineManagement uses it for a compact rectangular publication status tag (borderless lavender Unpublished with indigo text and a decorative dot, subtle green Published with a matching dot) and places the medium PortalButton with Lucide Send in PageHeader.actions only when unpublished changes exist. Publish uses the shared primary medium button with only a 40px minimum-height utility; custom typography, tracking, corner and shadow overrides were removed to match Add events. Publishing uses the shared loading spinner. The semester lifecycle badge remains separate. Review counts, signed tokens, API guards and backend behavior remain unchanged.
+
+## Marks assessment and rubric compatibility (8 November 2026)
+
+Migration marks.0013 adds rubric-version allowed_evaluator_roles (API allowedEvaluatorRoles) and period assessment P1/P2 fields, retaining blank legacy values. Publication requires explicit compatible rubric roles and assessment. Semester-first then period/rubric locks serialize competing publications and role edits. Coverage checks use semester/assessment/programmes/roles, including closed periods and archived periods with tasks; archived unused drafts do not reserve coverage. Null-FK historical periods with the same normalized semester label conservatively reserve coverage without automatic linking. One-time CLASSIFY records historical identity with a reason and creates no work, so existing unknown/duplicate history can be labelled honestly; new publication remains guarded. Used rubric roles remain immutable; clone then configure. Existing deadline extensions and legacy task-generation/replacement remain available. Forms expose deliberate selections and a review showing saved assessment, rubric/version, programmes and roles. Excel exports include Assessment. No new dependency or historical score rewrite.
+
+## Marks workbook export (8 November 2026)
+
+Marks export uses the shared PortalButton primary/small styling and icon prop, matching appointment exports and keeping the icon beside the label with the shared loading state.
+
+Office-only POST `/api/marks/export/` validates 1–20,000 existing MRK IDs. The UI sends its complete filtered dataset through authenticated requestBlob with explicit JSON content type. Backend marks.export builds XLSX with the existing openpyxl dependency and fresh database values. Detail queries preload profiles/evaluators, rubrics/components, scores and completion windows. A separate active-assignment query computes completion independently of selection filters. Excel text is explicitly string-typed to prevent formula interpretation; scores remain numeric. Draft content is excluded from results. Response caching is disabled. UI includes matching count, pending/duplicate protection and retryable errors. No schema, grade aggregation, external Forms integration or new dependency.
+
+## Calendar template instructions aligned with publication (8 November 2026)
+
+Updated the existing `dashboard.excel.build_template_workbook` generator's Instructions sheet and Target Roles header help. The workbook keeps its seven-column import format, examples, validation, wrapped instruction rows and scrollable layout. Template tests reject the former automatic-replacement/no-publish wording and cover additive import, duplicate behavior, count review, draft/publication boundaries, linked-event positioning, audiences and semester visibility. No parser, API, schema or dependency change.
+
+## Calendar publication boundary (8 November 2026)
+
+`SemesterTimeline.is_active` continues identifying the single editable semester draft, preserving editor and period-connection entry IDs. A separate `is_published` timeline stores the public copy; conditional uniqueness and a check constraint prevent multiple publications or a mutable/public row. Schema migration `dashboard.0009_calendar_publication` precedes data migration `dashboard.0010_preserve_published_calendars` to commit PostgreSQL deferred indexes before copying data. The data migration copies existing non-Draft-semester calendars, including closed/archived reporting history; Draft-semester calendars stay private. Publication copies retain stable source entry IDs for reminder idempotency.
+
+`calendar_publication.py` owns content digests, actor-bound expiring review tokens and atomic publication. Managed reads hold the semester/period locks across serialization and token creation; publication uses the same parent lock, checks the full fingerprint and records PUBLISH audit evidence. Immutable public event facts are isolated from calendar drafts, while current linked events deliberately retain live authoritative period projections. Superseded publications freeze projected dates/status and release live period foreign keys so they cannot permanently block draft-period cleanup.
+
+Import preview/confirmation signatures include ADD/REPLACE. ADD appends using generated per-level steps/display order; REPLACE archives only the editable version, keeps its prior link-preservation rules and leaves publication untouched. Preview includes existing/incoming/resulting counts. Frontend import changes invalidate review and replacement consent. Calendar publication uses the shared DecisionDialog for count review, duplicate-write protection, stale-review recovery and committed-refresh failure handling. Audience filtering is enforced server-side; management requests remain Office-only and see the full draft.
+
 ## Phase six feedback integration (1 November 2026)
 
 Existing DecisionFeedbackProvider ownership now covers requirement configuration, participant/delegation commands, Workflow exports, appointment letters, notification updates and the remaining Panel recommendation success emitter. A small useDraftDiscard hook reuses PortalConfirmModal for local replacement consent; DraftNavigationGuard retains route/session/unload ownership. Participant management aggregates delegation drafts through RecordDraft so there is one route blocker. Confirmed local Back clears owned drafts before navigation to avoid a second discard prompt. Synchronous refs prevent duplicate writes/exports; post-commit reads cannot turn a successful command into a failed save. Conflicted delegation/participant editors remain blocked and preserve their draft when latest reads fail. No API/schema/dependency or security-rule changes.
@@ -2108,3 +2142,6 @@ Request summary labels and values use `supervisionDetailLabel` and `supervisionD
 # Draft evaluation period deletion (7 November 2026)
 
 The existing evaluation-period detail endpoint accepts `DELETE` for authorized Office Staff/Admin. A transactional service locks the semester and draft period, enforces draft-only deletion, rejects periods with evaluation tasks or linked timeline entries, and records a configuration audit snapshot before deletion. The frontend Mark Entry period editor uses the shared `PortalButton` and `PortalConfirmModal`; a successful deletion returns to the filtered period list and removes the deleted period anchor from the URL while retaining semester scope. Protected foreign-key references are translated into a conflict response rather than an unhandled server error.
+
+
+Period configuration groups draft deletion and closed-period archiving in the left side of the footer, using the shared PortalButton and existing confirmation flows. Footer button text uses a consistent line height.

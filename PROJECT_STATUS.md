@@ -1,3 +1,55 @@
+## Assessment display names (8 November 2026)
+
+Assessment options, period lists/search and publication review display Research Project 1 and Research Project 2. Shared assessmentLabel maps existing P1/P2 identifiers without rewriting data or resetting test records; no reseed or migration is needed.
+
+## Historical assessment classification removed (8 November 2026)
+
+Classification UI and non-draft assessment update exception removed at user request, superseding previous classification documentation. Four unclassified UAT test periods were backed up privately and backfilled as P1 with audit reasons. Existing marks remain unchanged. Verification: 23 backend safeguards tests, 24 mounted browser checks and production build passed. UAT backend restarted. New periods still require assessment; duplicate publication guards remain enforced.
+
+## Compact calendar publishing completed (8 November 2026)
+
+Calendar status now uses a small vertically centred rectangular tag beside the title: borderless lavender Unpublished with indigo text and a small matching dot, or subtle green Published with a green dot. Removed the former orange text and check icon. Publishing now matches the shared Add events primary styling, using medium sizing, a paper-plane icon and 40px minimum height; it hides after publication and returns for new saved changes. Added coverage for published/unpublished visibility without writes. Fresh verification: 96 mounted calendar checks across 1440/390/320 widths and production build passed; existing ExcelJS chunk advisory remains. Browser fixtures exercise behavior without production styling; no fresh visual screenshot review was performed.
+
+## Calendar edit notification clarified (8 November 2026)
+
+Changed only the successful event-edit notification to: "Changes saved. Click Publish calendar to make them visible to your selected audiences." Requirements and architecture reviewed; publication behavior and design are unchanged. Verified the message in source and checked whitespace; no behavioral tests needed for this copy-only change.
+
+## UAT database and backend refreshed (8 November 2026)
+
+Backed up the isolated five-module UAT database to an ignored private PostgreSQL dump, applied dashboard.0009/0010 and marks.0013, and restarted only its backend on port 8003. No pending migrations remain; Django system check passed. Authenticated calendar GET requests directly and through the port 3003 frontend proxy both returned 200 with publication metadata and three events. The preservation migration copied the existing active calendar into a published snapshot; no unpublished differences remain until another edit. UI notification improvements remain pending. Requirements and architecture reviewed; no design change in this operational refresh.
+
+## Marks publication safeguards completed locally (8 November 2026)
+
+Implemented explicit rubric-version allowed roles, P1/P2 assessment, duplicate semester/assessment/programme/role coverage checks and audited one-time legacy classification. Configured roles are enforced server-side and incompatible UI selections are disabled. Both is deliberate; used rubric versions require cloning. Publication review identifies assessment, rubric/version, programmes and roles. Existing legacy publications and their tasks/marks continue operating. Legacy classification creates no work and permits honest historical duplicates; publication remains guarded. Closed and archived history can be classified. Excel exports now identify Assessment. Prior calendar/export edits are preserved.
+
+Verification: full marks suite passed, 216 tests in an isolated PostgreSQL database with a test-only fast password hasher, including a real simultaneous-publication race and a populated 0012-to-0013 migration preserving configuration, assignments, draft/submitted marks and feedback. Another 28 export/calendar/linked-period integration checks passed (overlap with marks suite), two frontend utility/API scripts passed, and 136 mounted browser checks passed (24 safeguards, 102 rubric, 10 export). Production build, Django system check, migration-state check, UTF-8 validation and whitespace check passed. Existing limitations remain: two baseline TypeScript errors (MarkEntryDetail missing AlertTriangle, phaseSixFeedback obsolete header prop); six pre-existing period-browser scenarios also fail on original HEAD sources. These failures were retained, not weakened. Existing ExcelJS chunk advisory remains. No fresh authenticated whole-shell journey was performed.
+
+Applied pending marks.0012 and new marks.0013 to the default local database after an ignored backup at backend/.env.marks-publication-safeguards-backup-20261108.json. All original columns/rows across 14 marks tables compare exactly unchanged; that local database contained no marks rows. Populated preservation is covered by the migration regression above. No manual period publication, historical classification, commit, push or deployment.
+
+## Marks Excel export completed locally (8 November 2026)
+
+Button follow-up: matched the Supervisor requests export control with the compact primary navy Export Excel button, shared icon prop and loading spinner. Removed the nested icon that stacked above its label. Ten mounted desktop/mobile checks pass, including button variant, size, icon placement and existing download behaviour.
+
+Implemented Office Download Excel for all matching records across every page: Summary, three programme result tabs and Outstanding. Includes submitted scores only, independent active-assignment completion, rubric/component breakdown, traceability metadata, numeric marks, text-safe IDs, frozen headings and filters. Unknown legacy programmes retain an additional tab. Draft scores/comments are excluded. Existing calendar work is preserved; no academic data write or migration.
+
+Verification: 37 backend tests passed (six export regressions plus 31 existing marks workflow tests), frontend API contract passed, and ten mounted browser scenarios passed at desktop/mobile widths (full selection, status filters, empty selection, duplicate suppression and failure/retry). Independent review caught a missing JSON header; corrected with a failing-then-passing regression. Production build passed with the existing ExcelJS chunk advisory. TypeScript reports the two pre-existing errors documented below (MarkEntryDetail AlertTriangle and phaseSixFeedback obsolete header prop). No commit, push or deployment.
+
+## Downloadable calendar template corrected (8 November 2026)
+
+Replaced obsolete instructions claiming that imports always replace the calendar and that saving/importing immediately exposes events without publishing. The downloadable guide now covers Add/Replace, duplicate imports, reviewed counts, draft saving, Publish calendar, retention of the last publication, targeted audiences, Draft-semester visibility and separate submission windows. Clarified replacement's linked-event preservation rules and Target Roles header help.
+
+Verification: five template tests passed after reproducing the obsolete wording with failing assertions. Exercised the actual template download view against local records: HTTP 200, ten updated instruction notes, seven unchanged input columns, wrapped instruction text and all three examples still parse successfully. Requirements/design/status updated. No academic data write, migration, commit or deployment.
+
+## Calendar import/publication completed locally (8 November 2026)
+
+Implemented Add events (default) and Replace calendar with signed mode/state review, existing/incoming/resulting counts and fresh replacement consent. Office saves drafts and publishes an explicitly reviewed semester calendar; later edits/deletions/imports retain the prior publication. Public audiences, dashboard actions, reminders, student tracking, dossiers and calendar reports read published copies. Period publication/enforcement remains independent; linked dates/status retain authoritative period projections.
+
+Focused review corrected historical-calendar preservation, payload/token concurrency, workbook consent reuse and superseded period-link ownership. Retirement freezes dates/status, audits former links and permits draft-period cleanup after unlinking and republishing. No actionable review findings remain.
+
+Verification: 109 backend tests passed (66 calendar/import/extension contracts plus 43 dashboard/report/linked-period/reminder consumers) using isolated PostgreSQL test databases and a test-only fast password hasher. After splitting schema/data migration, the 10 publication tests passed again. Five focused frontend test scripts, all 93 mounted browser scenarios (31 at each of 1440/390/320px), production build, migration-state check and whitespace check passed. Full TypeScript remains blocked by two confirmed HEAD/baseline errors: missing AlertTriangle import in MarkEntryDetail.tsx and obsolete onHelpdeskTrigger prop in phaseSixFeedback.fixture.tsx. Existing large ExcelJS chunk advisory remains. Fresh authenticated full-shell/native acceptance was not performed.
+
+Applied schema migration 0009 and preservation migration 0010 to the local development database after an ignored calendar-only backup at backend/.env.calendar-publication-backup-20261108-022110.json. Initial combined migration hit PostgreSQL deferred-index/pending-trigger ordering and rolled back; separating schema and data resolved it. Verified all original 2 calendars, 15 events and 7 audits unchanged, one preserved publication, and managed calendar API HTTP 200 with a clean publication state. All three mandatory project documents updated. No manual publication of a new draft, commit, push or deployment performed.
+
 ## Phase six feedback integration completed (1 November 2026)
 
 Completed F13 requirement-save outcomes and F17 participant/delegation draft protection, nested exit ownership, synchronous duplicate-write guards, conflict/permission retention and latest-read recovery. Workflow reports, appointment letters and announcement attachments now describe prepared browser handoffs; notification read updates are quiet on success and expose explicit failures; remaining Panel recommendation success uses the shared queue. Routed participant Back clears confirmed drafts before navigation, avoiding a second discard prompt.
@@ -4401,3 +4453,36 @@ Removed Coordinator Marks Entry module access through the shared permission map,
 - 2026-11-07: Added a shared-style “Delete draft” action to Mark Entry period configuration. Confirmation calls the draft-only DELETE endpoint; the backend preserves the delete audit snapshot and refuses deletion when tasks, timeline links, or other protected records exist. Review caught and fixed PostgreSQL's nullable-join row-lock error, and covered concurrent already-deleted drafts. All 20 `marks.test_production_management` tests passed using the existing test database; focused frontend Marks/semester tests, production build, Python syntax compilation and Django system check passed. `npm run lint` still reports the two previously known unrelated TypeScript errors in `MarkEntryDetail.tsx` (`AlertTriangle`) and `phaseSixFeedback.fixture.tsx` (`onHelpdeskTrigger`).
 - 2026-11-07: Positioned the standard-size “Delete draft” danger button in the period card header beside its Draft status badge. The footer remains focused on Preview, Save and Publish actions. Frontend production build passed.
 - 2026-11-07: Moved “Delete draft” below “Manage period” in the Action column for draft rows. “Manage period” is kept to one line without increasing the table’s minimum width, and deletion confirmation/errors remain available from the list action. Verification: frontend production build and diff whitespace check.
+
+
+Moved Delete draft from the list to the period footer and aligned Archive with the same placement and shared button size. Existing deletion and archive safeguards remain in place.
+
+- Right-aligned the Mark Entry Periods action heading and buttons to reduce unused space at the table edge.
+
+- Corrected the Action heading alignment override in the period list.
+
+- Redistributed period list column widths, giving Rubric more room and left-aligning Action with its buttons.
+
+- Adjusted period list widths to give Period and Academic semester more room.
+
+- Renamed the closed evaluation period footer action to Archive period.
+
+- Clarified the closure action label for published evaluation periods whose scheduled deadline has passed.
+
+- Clarified the rubric role selector and removed its explanatory hint; existing unset roles remain unconfigured until explicitly selected.
+
+- Removed the unconfigured entry from rubric role dropdown choices while retaining required selection.
+
+- Matched the rubric version role summary label to the edit dialog.
+
+- Separated rubric role setup guidance from the version description using an informational notice.
+
+- Simplified period assessment and evaluator-role controls while preserving role restrictions.
+
+- Moved draft publication guidance into a separate notice near the period actions.
+
+- Removed the draft publication notice from the period configuration.
+
+- Adjusted period footer button icons for optical alignment with their labels.
+
+- Replaced rubric role setup notice with general guidance for locked versions.

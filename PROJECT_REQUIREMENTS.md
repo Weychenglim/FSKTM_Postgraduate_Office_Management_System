@@ -1,3 +1,39 @@
+## Assessment display names (8 November 2026)
+
+Assessment options, period lists/search and publication review display Research Project 1 and Research Project 2. Shared assessmentLabel maps existing P1/P2 identifiers without rewriting data or resetting test records; no reseed or migration is needed.
+
+## Historical assessment classification removed (8 November 2026)
+
+Classification UI and non-draft assessment update exception removed at user request, superseding previous classification documentation. Four unclassified UAT test periods were backed up privately and backfilled as P1 with audit reasons. Existing marks remain unchanged. New periods still require assessment; duplicate publication guards remain enforced.
+
+## Compact calendar publication control (8 November 2026)
+
+Calendar publishing sits in the page title's action area, wrapping below the title on narrow screens, consistently across Calendar, Entries and History. Place a small rectangular Unpublished status tag beside the Calendar title, with a soft lavender background, dark indigo 11px text, a small matching status dot, semibold weight, 6px corners and vertical centre alignment with the title. Use the standard primary PortalButton styling, matching Add events, with medium sizing, uppercase PUBLISH CALENDAR, a paper-plane icon and a 40px minimum height. Hide it once published and show a subtly green Published tag beside the title; restore it after another saved change. Publishing shows a spinner and prevents repeat clicks. Keep the semester Active badge beside its selector and publication counts in the review dialog.
+
+## Marks publication safeguards (8 November 2026)
+
+Each rubric version explicitly permits Supervisor, Panel or Both; components inherit this setting. Used versions remain immutable and must be cloned for changes. Evaluation periods identify Project I (P1) or Project II (P2). Publication rejects incompatible roles and duplicate coverage for the same academic semester, assessment, overlapping programme scope and evaluator role, regardless of period names, dates or rubric versions. Distinct P1/P2 assessments and disjoint programmes/roles remain valid. Legacy assessments and rubric compatibility are not guessed from names. Office may classify an unclassified historical period once with an audit reason; existing marks and assignment settings remain unchanged. Ambiguous legacy coverage blocks new overlapping publication until classified. Existing published periods continue operating; general editing or automated replacement of submitted work is outside this change.
+
+Historical classification records identity without creating work, including genuine legacy duplicates. Publication remains blocked by that coverage. Closed periods and archived periods containing tasks reserve coverage; unused archived periods can be replaced. Excel results explicitly identify P1/P2 or unclassified legacy records.
+
+## Office marks Excel export (8 November 2026)
+
+The export control matches Supervisor requests: compact navy Export Excel button with an inline download icon.
+
+Office downloads all marks records matching current search, programme, semester, evaluator, status, period and monitoring filters across every page. Tabs: Summary, Data Science, Cyber Security, Artificial Intelligence and Outstanding. Programme tabs contain submitted evaluator results only, with student/record IDs, research title, semester, period, evaluator role, assignment/period lifecycle, rubric/version, numeric component marks, total/maximum and submission/update timestamps. No combined grade or draft scores/feedback. Summary checks all active assignments for each matching student and period independently of filters; students without matching assignments are not listed. Outstanding respects filters and labels historical assignments. Unknown legacy programmes retain submitted results in an additional Other programmes tab. Exports identify filters, matching count and Malaysia export time, with frozen headings and filters. Google Form-only history and importing it are outside scope.
+
+## Downloadable calendar template guidance (8 November 2026)
+
+The Excel Instructions sheet explains Add events as the default (no duplicate merging), Replace calendar as replacement of the entire draft, existing/incoming/resulting count review and replacement acknowledgement. It explicitly distinguishes saving a draft from Publish calendar, preserves audience and semester visibility rules, and keeps submission-window controls separate. Linked-event preservation guidance applies specifically to replacement and includes the event's position within its P1/P2 group.
+
+## Calendar draft publication and explicit imports (8 November 2026)
+
+Office edits, creates, deletes and imports semester calendar events into an editable draft. Import offers Add events (default) and Replace calendar. Preview shows existing, incoming and resulting counts; replacement requires fresh acknowledgement for that workbook. Signed confirmation binds the mode, actor, file, semester and reviewed calendar/period state.
+
+Publish calendar reviews the whole selected semester draft and replaces its published calendar atomically. Later calendar edits remain private until another publication. Selected audiences see only their published events on reload/focus refresh; dashboard tasks, reminders, student tracking, dossiers and calendar reports use published calendars. Draft-semester publication does not make that semester the current dashboard. Publishing never opens, publishes or closes an operational/marks submission window. Linked events continue projecting their owning period's authoritative dates/status; window changes remain controlled by Periods & deadlines.
+
+Existing visible and historical calendars are preserved during migration; existing Draft semesters remain unpublished. Empty drafts can be published to remove all public events. No approval workflow, automatic duplicate merging or real-time push is added.
+
 ## Phase six feedback scope (1 November 2026)
 
 Requirement saves publish one shared outcome and distinguish a committed write from a failed refresh. Participant and coordinator-delegation drafts require discard consent before replacement or exit; conflict/permission failures retain input and block stale resubmission until successful latest-record review. Seeded delegation dates are clean. Report, appointment-letter and announcement-attachment exports describe a prepared browser handoff; explicit notification read updates are quiet on success and expose failures. Existing permissions, academic transitions, reasons and Malaysia date rules remain authoritative.
@@ -2037,3 +2073,12 @@ Programme Coordinators must not see or open the Marks Entry module. Office and L
 Office Staff/Admin can permanently delete an unpublished evaluation-period draft from its configuration page. Deletion requires explicit confirmation, discards any unsaved edits, and is rejected when the draft has evaluation tasks or a linked semester timeline entry. Published and closed periods retain their existing lifecycle and archival rules.
 
 From the Mark Entry Periods list, each draft row exposes Delete draft in its Action column below Manage period. Manage period stays on one line; non-draft rows show only Manage period.
+
+
+Draft deletion is available inside the period configuration footer. Closed periods place Archive in the same footer position and use the same danger button treatment.
+
+- Published evaluation periods past their deadline offer Close period; those still within their schedule offer Close period early. Formal closure retains the unfinished-work review.
+
+- Rubric editing labels evaluator role selection “Rubric for” and identifies existing unset roles as not configured; a role selection remains required before saving.
+
+- Unconfigured rubric roles use a prompt rather than a selectable dropdown option; selecting a role remains required.
