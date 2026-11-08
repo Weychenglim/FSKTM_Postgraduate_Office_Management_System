@@ -64,7 +64,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     announcement_alerts = models.BooleanField(default=True)
     # Settings switches for notification email, deadline reminders and the
     # weekly summary email (announcements/emails.py applies them).
-    email_notifications = models.BooleanField(default=False)
+    email_notifications = models.BooleanField(default=True)
     deadline_reminders = models.BooleanField(default=True)
     weekly_summary = models.BooleanField(default=False)
     # Set True when an account is created with a temporary password (FR-04); the

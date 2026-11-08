@@ -156,7 +156,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
   // Notification preferences
   const [prefs, setPrefs] = useState<settingsApi.NotificationPreferences>({
     announcementAlerts: true,
-    emailNotifications: false,
+    emailNotifications: true,
     deadlineReminders: true,
     weeklySummary: false,
   });

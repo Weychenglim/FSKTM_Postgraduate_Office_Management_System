@@ -216,6 +216,7 @@ class AppointmentLetterTests(AppointmentLetterFixtures):
 
     def test_email_follows_each_persons_settings(self):
         User.objects.filter(pk=self.supervisor.pk).update(email_notifications=True)
+        User.objects.filter(pk=self.ali.user.pk).update(email_notifications=False)
         self.make_template()
         self.appoint_supervisor(self.ali, self.supervisor)
 

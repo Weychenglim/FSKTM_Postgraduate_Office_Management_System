@@ -7,9 +7,15 @@
 - document: needs "Email alerts" (the office accepted or returned the person's file)
 
 Sending never raises: a mail outage must not undo the in-app notification.
+Pages pass ``wait=False`` so a real mail server sends in the background and
+the person who clicked doesn't wait for every email.
 """
+import threading
+
 from django.conf import settings
 from django.core.mail import send_mass_mail
+
+SMTP_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
 ANNOUNCEMENT = "announcement"
 DEADLINE = "deadline"
@@ -36,12 +42,18 @@ def portal_link(path):
     return f"{settings.FRONTEND_URL.rstrip('/')}{path}"
 
 
-def email_users(users, kind, subject, message):
-    """Email every active user whose switches allow ``kind``. Returns how many were sent."""
+def _send(messages):
+    return send_mass_mail(messages, fail_silently=True)
+
+
+def email_users(users, kind, subject, message, *, wait=True):
+    """Email every active user whose switches allow ``kind``. Returns how many
+    were sent, or how many were handed to the background send."""
     allowed = [user for user in users if user.is_active and user.email and allows(user, kind)]
     if not allowed:
         return 0
-    return send_mass_mail(
-        [(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email]) for user in allowed],
-        fail_silently=True,
-    )
+    messages = [(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email]) for user in allowed]
+    if wait or settings.EMAIL_BACKEND != SMTP_BACKEND:
+        return _send(messages)
+    threading.Thread(target=_send, args=(messages,), daemon=True).start()
+    return len(messages)

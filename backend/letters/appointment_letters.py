@@ -310,6 +310,7 @@ def notify_recipients(letter, *, replaces="", resend=0):
                 f"{message}\n\nOpen it in the portal: {link}\n\n"
                 "You get this email because email alerts are on in your Settings.\n\n"
                 f"{SIGN_OFF}",
+                wait=False,
             )
 
     transaction.on_commit(send)
