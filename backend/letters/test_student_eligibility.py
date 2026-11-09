@@ -53,7 +53,7 @@ class StudentLetterEligibilityTests(APITestCase):
                     response = self.client.get(path)
                     self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, path)
                     self.assertEqual(response.data["code"], "letters_need_active_status")
-                    self.assertIn(student_status, response.data["detail"])
+                    self.assertIn(Student.Status(student_status).label, response.data["detail"])
 
     def test_a_student_regains_letters_when_active_again(self):
         user = self.student("ELIG200", Student.Status.DEFERRED)

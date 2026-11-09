@@ -4,7 +4,11 @@ from .models import Lecturer, Student, User
 
 
 def student_is_workflow_eligible(student):
-    return bool(student and student.status == Student.Status.ACTIVE)
+    if not student or student.status != Student.Status.ACTIVE:
+        return False
+    from .semester_rules import active_semester, starts_later
+
+    return not (student.intake_semester and starts_later(student, active_semester()))
 
 
 def user_is_assignable_lecturer(user):

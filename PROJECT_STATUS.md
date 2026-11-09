@@ -1,3 +1,27 @@
+## Student status, graduation and project stage restructured (9 November 2026)
+
+One status was answering several questions, and two of its values did not match UM's rules. Each question now has its own place, following UM Master's Regulations 2024 and how PeopleSoft, Workday and Banner keep these apart.
+
+- **Status** shows Not started, Active, On semester leave, Waiting for Senate, Graduated, Withdrawn, Terminated or Passed away. The stored value for leave stays `Deferred`, so other modules keep working. Not started and Waiting for Senate are shown, not stored. `Terminated` and `Deceased` are new stored values.
+- **Named actions replace the status dropdown** on the Student Record: Record semester leave, End leave, Finished studies, Record Senate decision, Back to Active, Correct a mistake, Record withdrawal, Record termination, Reinstate.
+- **Semester record:** rows say Registered, not Studied. Leave is Personal, Medical or Mobility. Leave lasts one semester, and the next activation returns the student to Active. Changing the active semester's row moves the status too, so the two cannot disagree.
+- **Warnings only:** two or three normal semesters not registered, personal leave used up, four medical semesters in a row, Failed and Exit after the maximum. They show on the Semesters card and on the Current semester page. The portal never ends candidature by itself.
+- **Letters:** a student who did not register, or has not started, cannot ask for one. A student waiting for the Senate still can, for the faculty's provisional letter.
+- **Graduation, two steps:** Finished studies checks unfinished work and keeps the student out of the next semester. The last semester can be the active one or, when the office marks late, the one before it, including the normal semester before a Special Semester. Record Senate decision saves the real Senate date against one record per meeting, and can tick students from an uploaded list. Graduating from the Student Record's status update is refused, so there is one route.
+- **Project stage (RP1/RP2):** new `ProjectRegistration` and append-only history, a Project stages page, and `accounts.project_stages.project_stages(academic_semester, student_ids)` for Marks. States are `CONFIRMED`, `NO_PROJECT`, `NOT_CONFIRMED` and `NOT_STUDYING`. **Marks does not call it yet,** so wrong tasks can still be created until Wey Cheng adds the check.
+- **Retention:** a Data retention page lists who is past `STUDENT_RETENTION_YEARS` (default 8). **Nothing is removed.** Removal needs UM's disposal schedule (National Archives Act 2003, s.25) and agreement on clearing appointment and Marks records.
+- **Migration:** `accounts.0021`. `LEAVE_EXEMPT` rows become Medical leave.
+
+## Students move to a new semester when it is activated (9 November 2026)
+
+The office used to activate a semester and then remember to update the students on a second page. Now activating a normal semester does both.
+
+- **What happens:** Active students get the semester as Studied and Deferred students get it as On leave. Later intakes, Graduated and Withdrawn students are skipped. It runs right after activation commits (`activate_semester` calls `move_everyone_on`), so a failed move leaves the semester active and Student Registry still offers the update.
+- **Special Semester:** not automatic, because only some students take it. The office ticks who is taking it, as before.
+- **Not registered:** a new semester outcome, in UM's own words. It does not count as a semester studied and the maximum stays the same. The office marks it on the Current semester page (renamed from Update current semester) or on the Student Record.
+- **Students tab:** says how many moved for the first 14 days. It still asks if someone is not on the semester, such as a student added afterwards.
+- **Migration:** `accounts.0020`. The new columns have database defaults, so older code keeps working on a migrated database.
+- **Limit:** the portal cannot see Maya, so every Active student is assumed to have registered until the office marks them.
 ## Assessment display names (8 November 2026)
 
 Assessment options, period lists/search and publication review display Research Project 1 and Research Project 2. Shared assessmentLabel maps existing P1/P2 identifiers without rewriting data or resetting test records; no reseed or migration is needed.
@@ -49,6 +73,17 @@ Focused review corrected historical-calendar preservation, payload/token concurr
 Verification: 109 backend tests passed (66 calendar/import/extension contracts plus 43 dashboard/report/linked-period/reminder consumers) using isolated PostgreSQL test databases and a test-only fast password hasher. After splitting schema/data migration, the 10 publication tests passed again. Five focused frontend test scripts, all 93 mounted browser scenarios (31 at each of 1440/390/320px), production build, migration-state check and whitespace check passed. Full TypeScript remains blocked by two confirmed HEAD/baseline errors: missing AlertTriangle import in MarkEntryDetail.tsx and obsolete onHelpdeskTrigger prop in phaseSixFeedback.fixture.tsx. Existing large ExcelJS chunk advisory remains. Fresh authenticated full-shell/native acceptance was not performed.
 
 Applied schema migration 0009 and preservation migration 0010 to the local development database after an ignored calendar-only backup at backend/.env.calendar-publication-backup-20261108-022110.json. Initial combined migration hit PostgreSQL deferred-index/pending-trigger ordering and rolled back; separating schema and data resolved it. Verified all original 2 calendars, 15 events and 7 audits unchanged, one preserved publication, and managed calendar API HTTP 200 with a clean publication state. All three mandatory project documents updated. No manual publication of a new draft, commit, push or deployment performed.
+
+## FAQ chatbot: AI replies on top of the search (8 November 2026)
+
+The search stays as it is and is the fallback. When it finds answers, a free OpenRouter model writes a short reply from the top 4 published answers. Students see the reply, a "Written by AI from the PG Office FAQ" line and links to the official answers. Any error, slow model, spent limit or failed check gives the usual answer. Off by default (`FaqSettings.ai_enabled`, migration `faq.0005`). The office switch is under Settings, and shows today's use.
+
+- **FAQ only:** the model is asked only when the search is sure the FAQ has the answer. Unsure questions keep the usual choices and no match goes to the counter. An unrelated question after a real one is searched alone.
+- **Checks on each reply:** it must name the answers it used. Every link, email, sum of money and number must be in those answers (a student's own number is allowed beside one from the FAQ). The reply and each longer part of it must come from those answers, so off-topic text is refused even if the model writes it. Personal details are removed before sending, and hosts that train on prompts are refused.
+- **Office view:** Test the chatbot names the model and answers used, or why it fell back. Student questions shows what the AI said when a student marks it unhelpful.
+- **Follow-ups:** a question can use up to 2 earlier turns of the same chat.
+- **Moving back to keywords:** turn the switch off. The new columns have database defaults, so older code keeps working on a migrated database.
+- **Real-model test (9 November 2026):** `evaluate_faq_ai` scored 57 of 124 questions: 53 right, 0 wrong, 4 left to the search. All 18 real replies were right, and 35 off-topic questions never reached a model. Flint is now the first model, because Dots-3-Note timed out on 16 of 20 questions. The other 67 questions wait on the free limit. The AI stays off until the office turns it on. UM's AI policy check with the supervisor is still open.
 
 ## Email on by default, safer announcements, graduation ticking, FAQ for enrolled students (6 November 2026)
 

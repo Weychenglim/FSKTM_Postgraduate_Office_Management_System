@@ -31,8 +31,8 @@ export function getFaqStart(): Promise<FaqStart> {
   return request<FaqStart>(`${BASE}/start/`);
 }
 
-export function askFaq(question: string): Promise<FaqReply> {
-  return post<FaqReply>('/ask/', { question });
+export function askFaq(question: string, earlier?: { questionId: string; token: string }): Promise<FaqReply> {
+  return post<FaqReply>('/ask/', { question, ...(earlier ?? {}) });
 }
 
 /** A choice or related question the student picked. */
@@ -112,7 +112,7 @@ export function getFaqSettings(): Promise<FaqChatbotSettings> {
   return request<FaqChatbotSettings>(`${BASE}/settings/`);
 }
 
-export function saveFaqSettings(input: Partial<Pick<FaqChatbotSettings, 'contactText' | 'commonQuestions'>>): Promise<FaqChatbotSettings> {
+export function saveFaqSettings(input: Partial<Pick<FaqChatbotSettings, 'contactText' | 'commonQuestions' | 'aiEnabled'>>): Promise<FaqChatbotSettings> {
   return request<FaqChatbotSettings>(`${BASE}/settings/`, json('PATCH', input));
 }
 

@@ -118,6 +118,8 @@ const ProgrammeRules = lazyNamed('ProgrammeRules', () => import('./components/Pr
 const ActingCoordinators = lazyNamed('ActingCoordinators', () => import('./components/ActingCoordinators'));
 const UpdateCurrentSemester = lazyNamed('UpdateCurrentSemester', () => import('./components/UpdateCurrentSemester'));
 const RecordGraduations = lazyNamed('RecordGraduations', () => import('./components/RecordGraduations'));
+const ProjectStages = lazyNamed('ProjectStages', () => import('./components/ProjectStages'));
+const DataRetention = lazyNamed('DataRetention', () => import('./components/DataRetention'));
 const StaffLecturersRegistry = lazyNamed('StaffLecturersRegistry', () => import('./components/StaffLecturersRegistry'));
 const StudentDashboard = lazyNamed('StudentDashboard', () => import('./components/StudentDashboard'));
 const LecturerDashboard = lazyNamed('LecturerDashboard', () => import('./components/LecturerDashboard'));
@@ -756,6 +758,10 @@ export default function App() {
               currentUser.role === 'Office Staff/Admin' ? <UpdateCurrentSemester /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryGraduations ? (
               currentUser.role === 'Office Staff/Admin' ? <RecordGraduations /> : <Navigate to={APP_ROUTES.registry} replace />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryProjectStages ? (
+              currentUser.role === 'Office Staff/Admin' ? <ProjectStages /> : <Navigate to={APP_ROUTES.registry} replace />
+            ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryRetention ? (
+              currentUser.role === 'Office Staff/Admin' ? <DataRetention /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryActingCoordinators ? (
               currentUser.role === 'Office Staff/Admin' ? <ActingCoordinators /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && isStaffRoute && currentUser.role !== 'Office Staff/Admin' ? (

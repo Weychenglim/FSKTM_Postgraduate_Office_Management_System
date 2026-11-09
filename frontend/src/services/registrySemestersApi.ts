@@ -1,3 +1,4 @@
+import type { StudentRecord } from '../types';
 import { request } from './apiClient';
 
 const BASE = '/registry';
@@ -47,7 +48,8 @@ export const removeProgrammeRule = (id: number) =>
   request<{ rules: ProgrammeRule[] }>(`${BASE}/programme-rules/${id}/`, { method: 'DELETE' }).then(data => data.rules);
 
 export type SemesterTerm = 'SEMESTER_I' | 'SEMESTER_II' | 'SPECIAL';
-export type SemesterOutcome = 'STUDIED' | 'LEAVE' | 'LEAVE_EXEMPT';
+export type LeaveOutcome = 'LEAVE' | 'LEAVE_MEDICAL' | 'LEAVE_MOBILITY';
+export type SemesterOutcome = 'STUDIED' | LeaveOutcome | 'NOT_REGISTERED';
 
 export interface StudentSemesterRow {
   id: number;
@@ -57,6 +59,12 @@ export interface StudentSemesterRow {
   outcome: SemesterOutcome;
   outcomeLabel: string;
   note: string;
+}
+
+export interface SemesterWarning {
+  level: 'check' | 'stop';
+  code: string;
+  text: string;
 }
 
 export interface StudentSemesters {
@@ -77,6 +85,7 @@ export interface StudentSemesters {
   startsAfterIntake: boolean;
   extensionSemesters: number;
   extensionReason: string;
+  warnings: SemesterWarning[];
   rows: StudentSemesterRow[];
 }
 
@@ -106,17 +115,40 @@ export interface MoveStudent {
   current: string;
 }
 
+export interface SemesterStudent {
+  rowId: number;
+  matric: string;
+  name: string;
+  programme: string;
+  intake: string;
+  avatarText: string;
+  avatarBg: string;
+  outcome: SemesterOutcome;
+}
+
 export interface MoveSummary {
   semester: { id: number; label: string; session: string; term: SemesterTerm; isSpecial: boolean } | null;
   waiting: number;
   notStarted: number;
-  lastMove: { by: string; at: string; moved: number; leftOut: number } | null;
+  lastMove: { by: string; at: string; moved: number; leftOut: number; backFromLeave: number; automatic: boolean } | null;
 }
 
 export interface MoveState extends MoveSummary {
   students?: MoveStudent[];
   movingFrom: string;
-  deferred: number;
+  onSemester?: SemesterStudent[];
+  onLeave?: number;
+  attention?: AttentionStudent[];
+}
+
+export interface AttentionStudent {
+  matric: string;
+  name: string;
+  programme: string;
+  intake: string;
+  avatarText: string;
+  avatarBg: string;
+  warnings: SemesterWarning[];
 }
 
 export const getSemesterMoveSummary = () => request<MoveSummary>(`${BASE}/semester-move/?summary=1`);
@@ -146,8 +178,29 @@ export interface GraduationStudent {
   group: 'ready' | 'check' | 'stop';
   tooEarly: boolean;
   early: boolean;
+  onP2?: boolean;
   items: GraduationItem[];
 }
+
+export interface WaitingStudent {
+  matric: string;
+  name: string;
+  programme: string;
+  intake: string;
+  avatarText: string;
+  avatarBg: string;
+  lastSemester: string;
+  early: boolean;
+  items: GraduationItem[];
+}
+
+export interface LastSemesterChoice {
+  session: string;
+  term: SemesterTerm;
+  label: string;
+}
+
+export type GraduationCheck = GraduationStudent & { lastSemesters: LastSemesterChoice[] };
 
 export interface GraduationGroups {
   ready: GraduationStudent[];
@@ -157,17 +210,103 @@ export interface GraduationGroups {
 
 export interface GraduationOverview extends GraduationGroups {
   tooEarly: number;
+  waiting: WaitingStudent[];
+  lastSemesters: LastSemesterChoice[];
 }
 
-export interface GraduationResult {
-  graduated: Array<{ matric: string; name: string }>;
+export interface StepResult {
+  finished?: Array<{ matric: string; name: string }>;
+  graduated?: Array<{ matric: string; name: string }>;
+  returned?: Array<{ matric: string; name: string }>;
   skipped: Array<{ matric: string; name: string; why: string }>;
+}
+
+export interface SenateListMatch {
+  matched: string[];
+  notWaiting: Array<{ matric: string; name: string; status: string }>;
+  notFound: string[];
 }
 
 export const getGraduationOverview = () => request<GraduationOverview>(`${BASE}/graduation/`);
 
-export const graduateStudents = (input: { matrics: string[]; earlyApproved: string[]; reason: string }) =>
-  request<GraduationResult>(`${BASE}/graduation/`, json('POST', input));
+export const finishStudents = (input: { matrics: string[]; earlyApproved: string[]; lastSession: string; lastTerm: string }) =>
+  request<StepResult>(`${BASE}/graduation/finish/`, json('POST', input));
+
+export const recordSenateDecision = (input: { matrics: string[]; decidedOn: string; reference: string }) =>
+  request<StepResult>(`${BASE}/graduation/senate/`, json('POST', input));
+
+export const returnToActive = (input: { matrics: string[]; reason: string }) =>
+  request<StepResult>(`${BASE}/graduation/return/`, json('POST', input));
+
+export const correctGraduation = (matric: string, reason: string) =>
+  request<StudentRecord>(`${BASE}/graduation/correct/`, json('POST', { matric, reason }));
+
+export const matchSenateList = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return request<SenateListMatch>(`${BASE}/graduation/match-list/`, { method: 'POST', body: form });
+};
 
 export const getStudentGraduationCheck = (matric: string) =>
-  request<GraduationStudent>(`${student(matric)}/graduation-check/`);
+  request<GraduationCheck>(`${student(matric)}/graduation-check/`);
+
+export type StatusAction = 'LEAVE' | 'END_LEAVE' | 'WITHDRAW' | 'TERMINATE' | 'DECEASED' | 'REINSTATE';
+
+export const studentStatusAction = (matric: string, input: { action: StatusAction; reason: string; outcome?: LeaveOutcome; exitReason?: string }) =>
+  request<StudentRecord>(`${student(matric)}/status-action/`, json('POST', input));
+
+export type ProjectStageChoice = 'P1' | 'P2' | 'NONE';
+
+interface StagePerson {
+  matric: string;
+  name: string;
+  programme: string;
+  intake: string;
+  avatarText: string;
+  avatarBg: string;
+  revision: number;
+}
+
+export interface StageToConfirm extends StagePerson {
+  suggested: '' | 'P1' | 'P2';
+  attention: boolean;
+}
+
+export interface ConfirmedStage extends StagePerson {
+  stage: ProjectStageChoice;
+}
+
+export interface ProjectStagesPage {
+  semester: { id: number; label: string } | null;
+  semesters: Array<{ id: number; label: string }>;
+  toConfirm: StageToConfirm[];
+  confirmed: ConfirmedStage[];
+  notStudying: number;
+  noActivity: number;
+}
+
+export interface MarksImpact {
+  notStarted: number;
+  draft: number;
+  submitted: number;
+}
+
+export const getProjectStages = (semesterId: number | null) =>
+  request<ProjectStagesPage>(`${BASE}/project-stages/${semesterId ? `?semester=${semesterId}` : ''}`);
+
+export const confirmProjectStages = (semesterId: number, items: Array<{ matric: string; stage: ProjectStageChoice }>) =>
+  request<{ confirmed: string[] }>(`${BASE}/project-stages/`, json('POST', { semesterId, items }));
+
+export const getProjectStageImpact = (semesterId: number, matric: string, stage: string) =>
+  request<MarksImpact>(`${BASE}/project-stages/impact/?semester=${semesterId}&matric=${encodeURIComponent(matric)}&stage=${stage}`);
+
+export const correctProjectStage = (input: { semesterId: number; matric: string; stage: string; reason: string; revision: number; acknowledged: boolean }) =>
+  request<{ revision: number }>(`${BASE}/project-stages/correct/`, json('POST', input));
+
+export interface RetentionPage {
+  years: number;
+  soon: number;
+  due: Array<{ matric: string; name: string; programme: string; intake: string; avatarText: string; avatarBg: string; status: string; endedOn: string; dueOn: string }>;
+}
+
+export const getRetention = () => request<RetentionPage>(`${BASE}/retention/`);

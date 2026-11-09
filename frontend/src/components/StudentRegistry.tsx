@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge, StatusDot } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { RegistryImportResult } from './RegistryImportResult';
 import { ImportSteps, RegistryImportMatch } from './RegistryImportMatch';
@@ -46,8 +46,9 @@ import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { historyTime } from '../utils/documentDisplay';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
-import { getSemesterMoveSummary, getStudentGraduationCheck, type GraduationStudent, type MoveSummary } from '../services/registrySemestersApi';
-import { canonicalSemester, intakeFilterOptions, matchesIntake, semesterChoices, semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
+import { getSemesterMoveSummary, type MoveSummary } from '../services/registrySemestersApi';
+import { StudentStatusActions } from './StudentStatusActions';
+import { canonicalSemester, intakeFilterOptions, matchesIntake, semesterChoices, semesterMovedNotice, semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
 import { StudentStatusCards } from './ParticipantStatusCards';
@@ -61,18 +62,16 @@ import {
   ImportPreviewResponse,
   ImportPreviewRow,
   ImportProgrammeValue,
-  StudentAcademicStatus,
   StudentAccountStatus,
+  StudentDisplayStatus,
   StudentRecord,
 } from '../types';
 import type { StudentRecordUpdate } from '../services';
 import {
-  ApiError,
   commitStudentImport,
   createStudent,
   downloadImportTemplate,
   fieldErrors,
-  getParticipant,
   getStudentById,
   getStudents,
   inspectStudentImport,
@@ -81,9 +80,8 @@ import {
   updateStudent,
 } from '../services';
 import {
-  describeBlockers,
   distinctValues,
-  studentStatusOptions,
+  shownStatus,
   inRegistryView,
   registryViewOptions,
   summariseRegistry,
@@ -127,14 +125,18 @@ type RegisterTab = (typeof REGISTER_TABS)[number];
 
 // Reusable Status Chip for Academic Status
 interface StatusChipProps {
-  status: StudentAcademicStatus;
+  status: StudentDisplayStatus;
 }
 
 const ACADEMIC_TONE = {
+  'Not started': 'neutral',
   Active: 'success',
+  'On semester leave': 'warning',
+  'Waiting for Senate': 'info',
   Graduated: 'info',
   Withdrawn: 'danger',
-  Deferred: 'warning',
+  Terminated: 'danger',
+  'Passed away': 'neutral',
 } as const;
 
 export const StatusChip: React.FC<StatusChipProps> = ({ status }) => {
@@ -179,12 +181,6 @@ const programmeOption = (programme: string, note?: string): SelectMenuOption => 
     leading: <ProgrammeIcon label={programme} small />,
   };
 };
-
-const statusOption = (status: StudentAcademicStatus): SelectMenuOption<StudentAcademicStatus> => ({
-  value: status,
-  label: status,
-  leading: <StatusDot tone={ACADEMIC_TONE[status]} className="w-2 h-2" />,
-});
 
 export const ProgrammeChip: React.FC<ProgrammeChipProps> = ({ label }) => {
   const { field, detail } = describeProgramme(label);
@@ -379,13 +375,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     setTimeout(() => setToastMessage(null), 3800);
   };
 
-  const [statusTarget, setStatusTarget] = useState<StudentAcademicStatus | ''>('');
-  const [statusReason, setStatusReason] = useState('');
-  const [statusSaving, setStatusSaving] = useState(false);
-  const [statusError, setStatusError] = useState<string | null>(null);
-  const [statusBlockers, setStatusBlockers] = useState<string[]>([]);
-  const [graduationCheck, setGraduationCheck] = useState<GraduationStudent | null>(null);
-  const [earlyApproved, setEarlyApproved] = useState(false);
 
   const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', programmeReason: '', intakeDate: '' });
   const [detailsSaving, setDetailsSaving] = useState(false);
@@ -399,10 +388,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const [accessChange, setAccessChange] = useState<StudentAccountStatus | null>(null);
 
   useEffect(() => {
-    setStatusTarget('');
-    setStatusReason('');
-    setStatusError(null);
-    setStatusBlockers([]);
     setDetailsError(null);
     setDetailsDraft({
       name: viewingStudent?.name ?? '',
@@ -414,18 +399,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     });
   }, [viewingStudent?.id]);
 
-  // Choosing Graduated shows what Record graduations would say about this student.
-  useEffect(() => {
-    setGraduationCheck(null);
-    setEarlyApproved(false);
-    if (statusTarget !== 'Graduated' || !viewingStudent) return undefined;
-    let cancelled = false;
-    getStudentGraduationCheck(viewingStudent.id)
-      .then((found) => { if (!cancelled) setGraduationCheck(found); })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [statusTarget, viewingStudent?.id]);
-
   // Semesters decide the current semester, so the record is read again after a change.
   const refreshViewingStudent = () => {
     if (!viewingStudent) return;
@@ -434,38 +407,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       .then((updated) => setViewingStudent((current) => (current?.id === matric ? updated : current)))
       .catch(() => undefined);
     loadStudents();
-  };
-
-  const handleStatusChange = async () => {
-    if (!viewingStudent || !statusTarget || !statusReason.trim()) return;
-    const student = viewingStudent;
-    setStatusSaving(true);
-    setStatusError(null);
-    setStatusBlockers([]);
-    try {
-      const updated = await updateStudent(student.id, {
-        academicStatus: statusTarget,
-        statusReason: statusReason.trim(),
-        ...(earlyApproved ? { earlyCompletionApproved: true } : {}),
-      });
-      setViewingStudent(updated);
-      setStatusTarget('');
-      setStatusReason('');
-      loadStudents();
-      triggerToast(`${student.name} is now ${updated.academicStatus}.`);
-    } catch (err) {
-      setStatusError(err instanceof Error ? err.message : 'Could not change the academic status.');
-      if (err instanceof ApiError && err.status === 409) {
-        try {
-          const record = await getParticipant('STUDENT', student.id);
-          setStatusBlockers(describeBlockers({ ...record.blockers }));
-        } catch {
-          setStatusBlockers([]);
-        }
-      }
-    } finally {
-      setStatusSaving(false);
-    }
   };
 
   // Only fields that actually changed are sent, so an untouched value (for
@@ -567,7 +508,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       { header: 'Student ID', value: (s) => s.id },
       { header: 'Full Name', value: (s) => s.name },
       { header: 'Programme', value: (s) => s.programme },
-      { header: 'Academic Status', value: (s) => s.academicStatus },
+      { header: 'Academic Status', value: (s) => shownStatus(s) },
       { header: 'Account Status', value: (s) => s.accountStatus },
       { header: 'Current Semester', value: (s) => s.semester },
       { header: 'Intake', value: (s) => s.intakeDate },
@@ -1039,8 +980,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     || detailsDraft.phone.trim() !== viewingStudent.phone
     || detailsDraft.programme !== viewingStudent.programme
     || detailsDraft.intakeDate !== canonicalSemester(viewingStudent.intakeDate)
-    || statusTarget !== ''
-    || statusReason.trim() !== ''
   );
 
   return (
@@ -1068,8 +1007,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     triggerLabel="More"
                     triggerSize="md"
                     actions={[
-                      { label: 'Update current semester', onSelect: () => navigate(APP_ROUTES.registryUpdateSemester) },
-                      { label: 'Record graduations', onSelect: () => navigate(APP_ROUTES.registryGraduations) },
+                      { label: 'Current semester', onSelect: () => navigate(APP_ROUTES.registryUpdateSemester) },
+                      { label: 'Graduation', onSelect: () => navigate(APP_ROUTES.registryGraduations) },
+                      { label: 'Project stages', onSelect: () => navigate(APP_ROUTES.registryProjectStages) },
+                      { label: 'Data retention', onSelect: () => navigate(APP_ROUTES.registryRetention) },
                       { label: 'Export CSV', onSelect: handleExportCSV },
                     ]}
                   />
@@ -1093,14 +1034,16 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
           {!readOnly && <RegistryModuleTabs active="students" />}
 
-          {!readOnly && moveSummary?.semester && semesterMoveWaiting(moveSummary) && (
+          {!readOnly && moveSummary?.semester && (semesterMoveWaiting(moveSummary) || semesterMovedNotice(moveSummary)) && (
             <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-[13.5px] font-semibold text-blue-900">
               <span>
-                {moveSummary.semester.isSpecial
-                  ? `The ${shortSemester(moveSummary.semester.label)} has started. Choose who is taking it.`
-                  : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} updating.`}
+                {!semesterMoveWaiting(moveSummary)
+                  ? semesterMovedNotice(moveSummary)
+                  : moveSummary.semester.isSpecial
+                    ? `The ${shortSemester(moveSummary.semester.label)} has started. Choose who is taking it.`
+                    : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} updating.`}
               </span>
-              <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.registryUpdateSemester)}>Update current semester</PortalButton>
+              <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.registryUpdateSemester)}>{semesterMoveWaiting(moveSummary) ? 'Update current semester' : 'See who'}</PortalButton>
             </div>
           )}
 
@@ -1316,7 +1259,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         </td>
 
                         <td className="data-td">
-                          <StatusChip status={student.academicStatus} />
+                          <StatusChip status={shownStatus(student)} />
                           {!readOnly && student.maximumFlag && (
                             <span className={`mt-1 block text-[11px] font-bold ${student.maximumFlag === 'past' ? 'text-rose-700' : 'text-amber-700'}`}>
                               {student.maximumFlag === 'past' ? 'Past the maximum' : 'Last semester'}
@@ -2203,7 +2146,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       {/* ========================================================== */}
       {/* MODAL DETAILED OVERLAY: VIEW PROFILE DETAILS (EYE TRIGGER) */}
       {/* ========================================================== */}
-      {viewingStudent ? <RecordPage title="Student Record" backLabel="Back to Student Registry" onBack={closeRecord} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={statusSaving || saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
+      {viewingStudent ? <RecordPage title="Student Record" backLabel="Back to Student Registry" onBack={closeRecord} pageKey={`registry-student:${viewingStudent.id}`} dirty={recordDirty} busy={saving || detailsSaving}>{requestBack => <section className="space-y-5 rounded-2xl border border-slate-200 bg-white text-left">
 
               {/* Core student details body; only this part scrolls */}
               <div className={`flex-1 min-h-0 overflow-y-auto p-6 md:p-8 space-y-6 mr-1 mb-3 ${THIN_SCROLLBAR}`}>
@@ -2238,7 +2181,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     <span className="card-label block mb-1">
                       Academic Status
                     </span>
-                    <StatusChip status={viewingStudent.academicStatus} />
+                    <StatusChip status={shownStatus(viewingStudent)} />
                   </div>
 
                   {/* Semester details */}
@@ -2294,6 +2237,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 </div>
 
                 <StudentSemestersCard
+                  key={`semesters:${viewingStudent.id}:${shownStatus(viewingStudent)}`}
                   matric={viewingStudent.id}
                   readOnly={readOnly}
                   onChanged={refreshViewingStudent}
@@ -2406,83 +2350,23 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 )}
 
                 {!readOnly && (
-                <div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">
-                  <h4 className="text-[10px] uppercase font-black tracking-wider text-slate-450 block">
-                    Change Academic Status
-                  </h4>
-                  {studentStatusOptions(viewingStudent.academicStatus).length === 0 ? (
-                    <p className="text-[10.5px] text-slate-500 font-bold">
-                      {viewingStudent.academicStatus} is a final status. No further changes are available.
-                    </p>
-                  ) : (
-                    <>
-                      <SelectMenu<StudentAcademicStatus>
-                        size="sm"
-                        aria-label="New academic status"
-                        placeholder="Select new status"
-                        value={statusTarget}
-                        options={studentStatusOptions(viewingStudent.academicStatus).map(statusOption)}
-                        onChange={setStatusTarget}
-                        disabled={statusSaving}
-                      />
-                      <textarea
-                        value={statusReason}
-                        onChange={(e) => setStatusReason(e.target.value)}
-                        disabled={statusSaving}
-                        rows={2}
-                        maxLength={1000}
-                        placeholder="Reason for the change (required)"
-                        className="form-control form-control-sm resize-none"
-                      />
-                      {graduationCheck && graduationCheck.items.length > 0 && (
-                        <div className={`space-y-1.5 rounded-lg border p-3 text-[11.5px] font-semibold ${graduationCheck.group === 'stop' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-900'}`}>
-                          <p className="font-extrabold">{graduationCheck.group === 'stop' ? 'This student cannot graduate yet.' : 'Check before graduating this student.'}</p>
-                          <ul className="list-disc space-y-0.5 pl-4">
-                            {graduationCheck.items.map((item) => <li key={`${item.code}:${item.recordId ?? ''}`}>{item.text}</li>)}
-                          </ul>
-                          {graduationCheck.early && graduationCheck.group !== 'stop' && (
-                            <label className="flex items-center gap-2 pt-0.5 font-bold">
-                              <input type="checkbox" className="h-4 w-4" checked={earlyApproved} onChange={(event) => setEarlyApproved(event.target.checked)} />
-                              Approved to finish one semester early
-                            </label>
-                          )}
-                        </div>
-                      )}
-                      {statusError && (
-                        <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-[10.5px] text-rose-700 font-bold space-y-1.5">
-                          <p>{statusError}</p>
-                          {statusBlockers.length > 0 && (
-                            <ul className="list-disc pl-4 font-semibold">
-                              {statusBlockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={handleStatusChange}
-                          disabled={statusSaving || !statusTarget || !statusReason.trim() || graduationCheck?.group === 'stop' || (graduationCheck?.early === true && !earlyApproved)}
-                          className="px-4 py-2 bg-slate-900 shadow-3xs text-white uppercase text-[10px] font-black tracking-wide rounded-xl hover:bg-slate-800 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {statusSaving ? 'Saving…' : 'Apply Status Change'}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
+                  <StudentStatusActions
+                    key={`actions:${viewingStudent.id}`}
+                    student={viewingStudent}
+                    onChanged={(updated, message) => {
+                      setViewingStudent(updated);
+                      loadStudents();
+                      triggerToast(message);
+                    }}
+                  />
                 )}
 
                 {!readOnly && (
                   <StudentStatusCards
                     key={viewingStudent.id}
                     matric={viewingStudent.id}
-                    version={`${viewingStudent.academicStatus}:${statusBlockers.length}`}
-                    onChanged={(message) => {
-                      triggerToast(message);
-                      setStatusError(null);
-                      setStatusBlockers([]);
-                    }}
+                    version={`${viewingStudent.academicStatus}:${shownStatus(viewingStudent)}`}
+                    onChanged={triggerToast}
                   />
                 )}
 

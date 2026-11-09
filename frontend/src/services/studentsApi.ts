@@ -43,7 +43,6 @@ export interface StudentRecordUpdate {
   programmeReason?: string;
   academicStatus?: StudentRecord['academicStatus'];
   statusReason?: string;
-  earlyCompletionApproved?: boolean;
   accountStatus?: StudentRecord['accountStatus'];
   phone?: string;
   semester?: string;

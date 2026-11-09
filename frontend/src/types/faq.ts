@@ -30,7 +30,14 @@ export interface FaqPassageCard {
   text: string;
 }
 
+/** A short reply the AI wrote from the official answers in `sources`. */
+export interface FaqAiReply {
+  text: string;
+  sources: FaqLink[];
+}
+
 export interface FaqReply {
+  ai?: FaqAiReply | null;
   outcome: FaqOutcome;
   answer: FaqAnswerCard | null;
   choices: FaqLink[];
@@ -133,6 +140,9 @@ export interface FaqTryCandidate {
 
 export interface FaqTryReply extends Omit<FaqReply, 'questionId' | 'token'> {
   match: 'Strong' | 'Possible' | 'None';
+  aiStatus: '' | 'USED' | 'NOT_COVERED' | 'REJECTED' | 'UNAVAILABLE';
+  aiReason: string;
+  aiModel: string;
   passageConfidence: number | null;
   candidates: FaqTryCandidate[];
 }
@@ -146,6 +156,8 @@ export interface FaqQuestionGroup {
   notHelpful: number;
   lastOutcome: 'ANSWERED' | 'CHOICES' | 'DOCUMENT' | 'NO_MATCH';
   lastEntry: FaqLink | null;
+  /** What the AI replied, when a student marked that reply as not helpful. */
+  lastAiAnswer?: string;
   ids: string[];
 }
 
@@ -159,6 +171,11 @@ export interface FaqQuestionStats {
 export interface FaqChatbotSettings {
   contactText: string;
   commonQuestions: string[];
+  aiEnabled: boolean;
+  /** False until the server has an API key. */
+  aiConfigured: boolean;
+  aiUsedToday: number;
+  aiDailyLimit: number;
   updatedBy: string;
   updatedAt: string;
 }

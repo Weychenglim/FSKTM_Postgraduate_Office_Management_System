@@ -1,7 +1,7 @@
 """Student Registry and staff account routes, mounted under /api/registry/ by the project URLconf."""
 from django.urls import path
 
-from . import registry_graduation, registry_semesters, registry_views, staff_views
+from . import registry_actions, registry_graduation, registry_project_stages, registry_semesters, registry_views, retention, staff_views
 
 urlpatterns = [
     path("students/", registry_views.student_records_view, name="registry-students"),
@@ -9,6 +9,15 @@ urlpatterns = [
     path("programme-rules/<int:rule_id>/", registry_semesters.programme_rule_detail_view, name="registry-programme-rule-detail"),
     path("semester-move/", registry_semesters.semester_move_view, name="registry-semester-move"),
     path("graduation/", registry_graduation.graduation_view, name="registry-graduation"),
+    path("graduation/finish/", registry_graduation.graduation_finish_view, name="registry-graduation-finish"),
+    path("graduation/senate/", registry_graduation.graduation_senate_view, name="registry-graduation-senate"),
+    path("graduation/return/", registry_graduation.graduation_return_view, name="registry-graduation-return"),
+    path("graduation/correct/", registry_graduation.graduation_correct_view, name="registry-graduation-correct"),
+    path("graduation/match-list/", registry_graduation.graduation_match_list_view, name="registry-graduation-match-list"),
+    path("project-stages/", registry_project_stages.project_stages_view, name="registry-project-stages"),
+    path("project-stages/impact/", registry_project_stages.project_stage_impact_view, name="registry-project-stage-impact"),
+    path("project-stages/correct/", registry_project_stages.project_stage_correct_view, name="registry-project-stage-correct"),
+    path("retention/", retention.retention_view, name="registry-retention"),
     path(
         "students/import/",
         registry_views.student_import_view,
@@ -38,6 +47,11 @@ urlpatterns = [
         "students/<str:matric_no>/semesters/<int:row_id>/",
         registry_semesters.student_semester_detail_view,
         name="registry-student-semester",
+    ),
+    path(
+        "students/<str:matric_no>/status-action/",
+        registry_actions.student_status_action_view,
+        name="registry-student-status-action",
     ),
     path(
         "students/<str:matric_no>/graduation-check/",

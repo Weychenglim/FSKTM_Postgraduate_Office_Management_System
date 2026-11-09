@@ -756,7 +756,7 @@ def _participant_lifecycle_summary(user, programme):
         "activeStudents": students.filter(status=Student.Status.ACTIVE).count(),
         "deferredStudents": students.filter(status=Student.Status.DEFERRED).count(),
         "graduatedStudents": students.filter(status=Student.Status.GRADUATED).count(),
-        "withdrawnStudents": students.filter(status=Student.Status.WITHDRAWN).count(),
+        "withdrawnStudents": students.filter(status__in=[Student.Status.WITHDRAWN, Student.Status.TERMINATED, Student.Status.DECEASED]).count(),
         "activeLecturers": lecturers.filter(
             lifecycle_status=Lecturer.Lifecycle.ACTIVE
         ).count(),

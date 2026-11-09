@@ -273,6 +273,21 @@ FAQ_KEYWORD_POSSIBLE_MATCH = float(os.getenv("FAQ_KEYWORD_POSSIBLE_MATCH", "0.22
 FAQ_DOCUMENT_MATCH = float(os.getenv("FAQ_DOCUMENT_MATCH", "0.6"))
 FAQ_ASK_THROTTLE_RATE = os.getenv("FAQ_ASK_THROTTLE_RATE", "30/minute")
 FAQ_QUESTION_RETENTION_DAYS = int(os.getenv("FAQ_QUESTION_RETENTION_DAYS", "365"))
+# AI replies on top of the search (faq/ai.py). Without a key, or until the
+# office turns them on in FAQ Settings, the chatbot answers from the search alone.
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+FAQ_AI_CLIENT = os.getenv("FAQ_AI_CLIENT", "faq.ai.OpenRouterClient")
+FAQ_AI_MODELS = [
+    model.strip()
+    for model in os.getenv(
+        "FAQ_AI_MODELS", "recursive/flint-v1.0:free,dots-studio/dots-3-note-preview:free"
+    ).split(",")
+    if model.strip()
+]
+FAQ_AI_TIMEOUT_SECONDS = float(os.getenv("FAQ_AI_TIMEOUT_SECONDS", "20"))
+FAQ_AI_DAILY_LIMIT = int(os.getenv("FAQ_AI_DAILY_LIMIT", "45"))
+FAQ_AI_STUDENT_DAILY_LIMIT = int(os.getenv("FAQ_AI_STUDENT_DAILY_LIMIT", "10"))
+FAQ_AI_PAUSE_SECONDS = int(os.getenv("FAQ_AI_PAUSE_SECONDS", "600"))
 
 # Django REST Framework + SimpleJWT
 REST_FRAMEWORK = {

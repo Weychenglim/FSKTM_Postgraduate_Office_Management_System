@@ -110,7 +110,8 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
   if (loadError) return <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-[12px] font-bold text-rose-700">{loadError}</p>;
   if (!progress) return <p className="rounded-xl border border-slate-200 bg-white p-4 text-[12px] font-semibold text-slate-500">Loading the semesters...</p>;
 
-  const notices = [maximumNotice(progress), intakeNotice(progress)].filter(Boolean) as SemesterNotice[];
+  const warnings: SemesterNotice[] = (progress.warnings ?? []).map(warning => ({ tone: warning.level === 'stop' ? 'rose' : 'amber', text: warning.text }));
+  const notices = [maximumNotice(progress), intakeNotice(progress), ...warnings].filter(Boolean) as SemesterNotice[];
   return (
     <section aria-label="Semesters" className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
       <h4 className="section-label">Semesters</h4>

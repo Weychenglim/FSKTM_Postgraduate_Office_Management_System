@@ -1,12 +1,11 @@
 import assert from 'node:assert/strict';
 
 import type { StudentRecord } from '../types';
-import { describeBlockers, distinctValues, inRegistryView, registryViewOptions, studentStatusOptions, summariseRegistry } from './registryStatus';
+import { describeBlockers, distinctValues, inRegistryView, registryViewOptions, shownStatus, summariseRegistry } from './registryStatus';
 
-assert.deepEqual(studentStatusOptions('Active'), ['Deferred', 'Graduated', 'Withdrawn']);
-assert.deepEqual(studentStatusOptions('Deferred'), ['Active', 'Withdrawn']);
-assert.deepEqual(studentStatusOptions('Graduated'), []);
-assert.deepEqual(studentStatusOptions('Withdrawn'), []);
+assert.equal(shownStatus({ academicStatus: 'Deferred' }), 'On semester leave');
+assert.equal(shownStatus({ academicStatus: 'Deceased' }), 'Passed away');
+assert.equal(shownStatus({ academicStatus: 'Active', displayStatus: 'Waiting for Senate' }), 'Waiting for Senate');
 
 assert.deepEqual(
   describeBlockers({
@@ -33,10 +32,10 @@ assert.deepEqual(
     record({ academicStatus: 'Graduated' }),
     record({ academicStatus: 'Withdrawn', activated: false }),
   ]),
-  { total: 5, active: 2, deferred: 1, graduated: 1, withdrawn: 1, awaitingActivation: 2, nearMaximum: 0 },
+  { total: 5, notStarted: 0, active: 2, onLeave: 1, waiting: 0, graduated: 1, withdrawn: 1, terminated: 0, passedAway: 0, awaitingActivation: 2, nearMaximum: 0 },
 );
 const noStudents = summariseRegistry([]);
-assert.deepEqual(noStudents, { total: 0, active: 0, deferred: 0, graduated: 0, withdrawn: 0, awaitingActivation: 0, nearMaximum: 0 });
+assert.deepEqual(noStudents, { total: 0, notStarted: 0, active: 0, onLeave: 0, waiting: 0, graduated: 0, withdrawn: 0, terminated: 0, passedAway: 0, awaitingActivation: 0, nearMaximum: 0 });
 
 const names = (summary: ReturnType<typeof summariseRegistry>, selected: Parameters<typeof registryViewOptions>[1], office = true) =>
   registryViewOptions(summary, selected, office).map(({ view }) => view);
@@ -47,7 +46,7 @@ const mixed = summariseRegistry([
 assert.deepEqual(names(noStudents, 'All'), ['All'], 'empty statuses stay hidden');
 assert.deepEqual(names(mixed, 'All'), ['All', 'Active', 'Awaiting activation', 'Near maximum']);
 assert.deepEqual(names(mixed, 'All', false), ['All', 'Active', 'Awaiting activation'], 'near maximum is for the office');
-assert.deepEqual(names(noStudents, 'Deferred'), ['All', 'Deferred'], 'the chosen status stays visible at zero');
+assert.deepEqual(names(noStudents, 'On semester leave'), ['All', 'On semester leave'], 'the chosen status stays visible at zero');
 
 assert.equal(inRegistryView(record({ academicStatus: 'Graduated' }), 'All'), true);
 assert.equal(inRegistryView(record({ academicStatus: 'Graduated' }), 'Graduated'), true);

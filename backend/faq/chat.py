@@ -6,6 +6,7 @@ from django.conf import settings
 from django.core import signing
 from django.utils import timezone
 
+from . import ai
 from .models import FaqEntry, FaqQuestion, FaqSettings
 from .search import MAX_CHOICES, MAX_RELATED, NONE, POSSIBLE, STRONG, find, find_passage
 from .text import clean_question
@@ -91,6 +92,7 @@ def reply_for(text):
         "passage": None,
         "contactText": "",
         "mode": result.mode,
+        "ai": None,
     }
     top = result.top
     if result.band == STRONG:
@@ -111,11 +113,41 @@ def reply_for(text):
     return reply, result
 
 
-def ask(text, *, typed=True):
+def with_ai_reply(reply, attempt):
+    """The student's reply, written by the AI from the official answers it used."""
+    return {
+        **reply,
+        "outcome": Outcome.ANSWERED,
+        "answer": entry_card(attempt.sources[0]),
+        "choices": [],
+        "related": [],
+        "passage": None,
+        "contactText": "",
+        "ai": {"text": attempt.text, "sources": [_link(item) for item in attempt.sources]},
+    }
+
+
+def conversation(question_id, token):
+    """The last turns of this chat, oldest first. They are read from what was
+    saved, through a signed token, so a student can't make up an earlier reply."""
+    latest = question_for(question_id, token) if question_id and token else None
+    turns = []
+    while latest is not None and len(turns) < ai.MAX_TURNS:
+        turns.insert(0, latest)
+        latest = latest.follows
+    return turns
+
+
+def ask(text, *, typed=True, question_id=None, token=None, student=None):
     text = clean_question(text)
     if not text:
         raise ChatRefused("Type a question.")
     reply, result = reply_for(text)
+    earlier = conversation(question_id, token)
+    attempt = ai.attempt(text, result, earlier, student=student)
+    used_ai = attempt is not None and attempt.status == FaqQuestion.AiStatus.USED
+    if used_ai:
+        reply = with_ai_reply(reply, attempt)
     top = result.top
     if reply["passage"]:
         score = result.passage.confidence
@@ -129,6 +161,10 @@ def ask(text, *, typed=True):
         document_id=int(reply["passage"]["documentId"]) if reply["passage"] else None,
         score=round(score, 4) if score is not None else None,
         search_mode=result.mode,
+        ai_status=attempt.status if attempt else "",
+        ai_answer=attempt.text if used_ai else "",
+        ai_model=attempt.model if attempt else "",
+        follows=earlier[-1] if earlier else None,
     )
     return {**reply, "questionId": str(saved.pk), "token": token_for(saved)}
 
@@ -158,6 +194,7 @@ def open_entry(entry_id, *, question_id=None, token=None):
         "passage": None,
         "contactText": "",
         "mode": result.mode,
+        "ai": None,
         "questionId": str(saved.pk),
         "token": token_for(saved),
     }
@@ -199,8 +236,14 @@ def try_question(text):
     reply, result = reply_for(text)
     band = {STRONG: "Strong", POSSIBLE: "Possible", NONE: "None"}[result.band]
     match = getattr(result, "passage", None)
+    attempt = ai.attempt(text, result)
+    if attempt is not None and attempt.status == FaqQuestion.AiStatus.USED:
+        reply = with_ai_reply(reply, attempt)
     return {
         **reply,
+        "aiStatus": attempt.status if attempt else "",
+        "aiReason": attempt.reason if attempt else "",
+        "aiModel": attempt.model if attempt else "",
         "match": band,
         "passageConfidence": round(match.confidence, 3) if match is not None else None,
         "candidates": [

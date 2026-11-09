@@ -313,10 +313,19 @@ How long a programme takes, how far along each student is, and acting on many st
 | POST | `students/<matric>/semesters/` | Add a semester (`session`, `term`, `outcome`). |
 | PATCH, DELETE | `students/<matric>/semesters/<id>/` | Correct or remove one. The record's current semester follows the latest row. |
 | PUT | `students/<matric>/semester-extension/` | Up to 3 semesters past the maximum, with a reason. |
-| GET | `semester-move/` | Who still needs the active semester (the Update current semester page). `?summary=1` gives only the counts, for the Students tab. Anyone whose intake is later is left out and counted as `notStarted`. |
-| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Only the active semester, and running it twice changes nothing. Later intakes are skipped. Deferred students get the semester as leave, except a Special Semester. |
-| GET | `graduation/` | The Record graduations page: Active students near or past the minimum, as `ready`, `check` and `stop`, each with their intake and what is unfinished. Students 2 or more below the minimum, or who have not started, are only counted (`tooEarly`). |
-| POST | `graduation/` | Graduate (`matrics`, `earlyApproved`, `reason`). Each student is checked again and graduated separately; the result lists `graduated` and `skipped` with why. |
+| GET | `semester-move/` | Who is on the active semester and who still needs it (the Current semester page). `?summary=1` gives only the counts, for the Students tab. Anyone whose intake is later is left out and counted as `notStarted`. |
+| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Activating a normal semester already does this for everyone, so this is for a Special Semester and for anyone who arrives afterwards. Only the active semester, and running it twice changes nothing. Later intakes and students waiting for the Senate are skipped. |
+| GET | `graduation/` | The Graduation page: Active students near or past the minimum as `ready`, `check` and `stop`, plus `waiting` (finished, waiting for the Senate) and `lastSemesters`. Students 2 or more below the minimum, or who have not started, are only counted (`tooEarly`). |
+| POST | `graduation/finish/` | Step 1: mark as finished (`matrics`, `earlyApproved`, `lastSession`, `lastTerm`). Each student is checked separately. Unfinished Marks and waiting requests stop a student here. A later Registered semester is removed. |
+| POST | `graduation/senate/` | Step 2: record the Senate's decision (`matrics`, `decidedOn`, `reference`). Only students waiting for the Senate. The Senate date is kept. |
+| POST | `graduation/return/` | Back to Active (`matrics`, `reason`). |
+| POST | `graduation/correct/` | Undo a wrong entry (`matric`, `reason`). The student goes back to waiting for the Senate. Closed appointments stay closed. |
+| POST | `graduation/match-list/` | Read an Excel, CSV or PDF copy of the Senate's list (`file`) and say who is `matched`, `notWaiting` or `notFound`. The file is not kept. |
+| POST | `students/<matric>/status-action/` | Record what happened (`action`: `LEAVE`, `END_LEAVE`, `WITHDRAW`, `TERMINATE`, `DECEASED`, `REINSTATE`; `reason`; `outcome` for leave; `exitReason` for termination). |
+| GET, POST | `project-stages/` | The students to confirm and those confirmed for a semester (`?semester=`), or confirm stages (`semesterId`, `items`). Suggestions are worked out here and never stored. |
+| GET | `project-stages/impact/` | What changing a confirmed stage would touch in Marks (`semester`, `matric`, `stage`). |
+| POST | `project-stages/correct/` | Change or void a confirmed stage (`semesterId`, `matric`, `stage`, `reason`, `revision`, `acknowledged`). |
+| GET | `retention/` | Who has passed the retention period (`STUDENT_RETENTION_YEARS`, default 8). Nothing is removed. |
 | GET | `students/<matric>/graduation-check/` | The same check for one student. |
 
 - **Counting:** `accounts.semester_rules` counts semesters studied from `StudentSemester` rows. The maximum semester is the intake plus the programme's maximum, in normal semesters, moved later only by medical or mobility leave and extensions.
@@ -380,6 +389,17 @@ The chatbot's answers (UC28, UC29).
 - The results of 2026-10-16 are in `docs/faq/evaluation-results.json`. Combined (0.69 / 0.42): top-1 91.2%, top-3 94.1%, answered right 64.7%, helped 89.2%, 2 wrong answers, 90% of off-topic refused, about 12 ms per question.
 - Keyword search alone has its own cut-offs (`FAQ_KEYWORD_STRONG_MATCH` 0.61, `FAQ_KEYWORD_POSSIBLE_MATCH` 0.22), because it scores on another scale.
 - `faq.test_evaluation` fails if keyword search drops below its level. With `FAQ_REAL_MODEL_TESTS=1` it also checks the combined search.
+
+**AI replies** (`faq/ai.py`, off until the office turns them on in Settings):
+- The search still chooses the answers. The model only writes a short reply from the top 4 published answers. Any error, slow model, spent limit or failed check gives the student the usual search answer.
+- Set `OPENROUTER_API_KEY` in `backend/.env` only, never in a `VITE_` variable. `FAQ_AI_MODELS` lists the models in order and only `:free` ones are ever called. Requests refuse hosts that train on prompts.
+- Not sent to the model: names, student IDs and profiles. Emails, IC, passport, phone and matric numbers typed in a question are removed first.
+- **FAQ only.** The model is asked only when the search is sure the FAQ has the answer (Strong). Unsure questions keep the usual choices and no match goes to the counter, as before. A question typed exactly as the FAQ words it and a clicked question never reach the model either.
+- Only a question that reads like a follow-up ("what if", "and", "it", "kalau") uses the question before it. Anything else is searched alone and sends no earlier turns, so an unrelated question can't borrow the last match.
+- A reply is shown only if it names the answers it used, every link, email and sum of money in it is in those answers, and every other number is too, or is the student's own number beside one from the FAQ. The reply and each longer part of it must also come from those answers: half its words shared, or for Malay some words shared and close in meaning. Words from the student's question do not count.
+- Limits: `FAQ_AI_DAILY_LIMIT` (45) and `FAQ_AI_STUDENT_DAILY_LIMIT` (10) model calls a day. The same question is reused for 24 hours at no cost. After a rate limit the AI rests for `FAQ_AI_PAUSE_SECONDS` (600).
+- Tests use `faq.fake_ai.FakeAiClient` through `FAQ_AI_CLIENT` and never reach the internet.
+- `python manage.py evaluate_faq_ai [--limit 40]` measures real replies on the trap questions in `docs/faq/ai-test-questions.json` plus the evaluation set. It saves after each question to `docs/faq/evaluation-ai-results.json`, stops at the free limit, and carries on from there next run.
 
 **Reference documents** (handbooks and guides the chatbot may quote):
 

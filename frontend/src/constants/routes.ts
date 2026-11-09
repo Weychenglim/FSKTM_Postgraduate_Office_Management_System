@@ -24,6 +24,8 @@ export const APP_ROUTES = {
   registryActingCoordinators: '/registry/acting-coordinators',
   registryUpdateSemester: '/registry/update-semester',
   registryGraduations: '/registry/graduations',
+  registryProjectStages: '/registry/project-stages',
+  registryRetention: '/registry/data-retention',
   faq: '/faq',
   faqEntries: '/faq/entries',
   faqEntryNew: '/faq/entries/new',

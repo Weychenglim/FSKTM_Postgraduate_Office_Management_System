@@ -9,7 +9,9 @@
 // the API rejects anything outside this set, and the values reach the UI
 // unchecked (apiClient casts the JSON response), so a drifted union here is
 // invisible to the compiler but breaks status colours and filters at runtime.
-export type StudentAcademicStatus = 'Active' | 'Graduated' | 'Deferred' | 'Withdrawn';
+export type StudentAcademicStatus = 'Active' | 'Graduated' | 'Deferred' | 'Withdrawn' | 'Terminated' | 'Deceased';
+
+export type StudentDisplayStatus = 'Not started' | 'Active' | 'On semester leave' | 'Waiting for Senate' | 'Graduated' | 'Withdrawn' | 'Terminated' | 'Passed away';
 
 // Derived from User.is_active by the registry serializer.
 export type StudentAccountStatus = 'Verified' | 'Suspended';
@@ -23,6 +25,9 @@ export interface StudentRecord {
   avatarBg: string;
   programme: string;
   academicStatus: StudentAcademicStatus;
+  displayStatus?: StudentDisplayStatus;
+  exitReasonLabel?: string;
+  senateDate?: string | null;
   accountStatus: StudentAccountStatus;
   semester: string;
   email: string;

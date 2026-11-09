@@ -34,6 +34,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.models import User
+from accounts.semester_rules import enrolment_problem
 from announcements.emails import LETTER, SIGN_OFF, email_users, portal_link
 from announcements.models import Notification
 
@@ -397,9 +398,11 @@ def _review(letter):
         problem = "The student's account no longer exists."
     elif letter.student.status != letter.student.Status.ACTIVE:
         problem = (
-            f"The student's status is now {letter.student.status}. Letters are issued only "
+            f"The student's status is now {letter.student.get_status_display()}. Letters are issued only "
             "to Active students, so reject this request with the reason."
         )
+    elif enrolment_problem(letter.student):
+        problem = "The student is not enrolled this semester, so reject this request with the reason."
     else:
         problem = None
     today = timezone.localdate()

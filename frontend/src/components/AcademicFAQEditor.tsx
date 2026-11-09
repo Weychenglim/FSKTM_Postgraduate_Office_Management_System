@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { AlertTriangle, BarChart3, BookOpen, CheckCircle2, Download, FileText, FlaskConical, MessageCircleQuestion, Plus, Search, Settings2 } from 'lucide-react';
+import { AlertTriangle, BarChart3, BookOpen, CheckCircle2, Download, FileText, FlaskConical, MessageCircleQuestion, Plus, Search, Settings2, Sparkles } from 'lucide-react';
 import type {
   FaqCategorySummary,
   FaqChatbotSettings,
@@ -38,9 +38,11 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { useListState } from './ListState';
 import { OfficeToolViews } from './OfficeToolPrimitives';
 import { AppointmentSection } from './AppointmentPrimitives';
+import { ToggleSwitch } from './ToggleSwitch';
 import { WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader } from './RequestWorkspacePrimitives';
 import { SummaryCardButton } from './SummaryCardButton';
 import { ContactBox } from './FaqChatParts';
+import { FaqText } from './FaqText';
 import { FaqEntryPage } from './FaqEntryPage';
 import { FaqDocumentsTab } from './FaqDocumentsTab';
 import { FaqTestChat } from './FaqTestChat';
@@ -373,6 +375,12 @@ const QuestionsTab: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
                   {groupLine(group, historyTime(group.lastAsked))}
                   {group.notHelpful > 0 && <span className="ml-2 rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">Didn't help</span>}
                 </p>
+                {group.lastAiAnswer && (
+                  <div className="rounded-xl bg-slate-50 px-3 py-2 text-[12.5px] text-slate-600 [overflow-wrap:anywhere]">
+                    <p className="font-bold text-slate-700">The AI replied:</p>
+                    <FaqText text={group.lastAiAnswer} />
+                  </div>
+                )}
               </div>
               {adding === group.key ? (
                 <AddToAnswer group={group} onDone={settled} onCancel={() => setAdding(null)} />
@@ -401,6 +409,7 @@ const SettingsTab: React.FC = () => {
   const [live, setLive] = useState<string[]>([]);
   const [contact, setContact] = useState('');
   const [common, setCommon] = useState<string[]>(['', '', '', '']);
+  const [aiOn, setAiOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
@@ -409,6 +418,7 @@ const SettingsTab: React.FC = () => {
     setSettings(found);
     setContact(found.contactText);
     setCommon([0, 1, 2, 3].map(index => found.commonQuestions[index] ?? ''));
+    setAiOn(found.aiEnabled);
   };
 
   const load = useCallback(() => {
@@ -431,7 +441,7 @@ const SettingsTab: React.FC = () => {
   const save = async () => {
     setBusy(true);
     try {
-      fill(await saveFaqSettings({ contactText: contact, commonQuestions: common }));
+      fill(await saveFaqSettings({ contactText: contact, commonQuestions: common, ...(settings?.aiConfigured ? { aiEnabled: aiOn } : {}) }));
       setToast({ message: 'Settings saved. Students see them now.', tone: 'success' });
     } catch (err) {
       setToast({ message: errorText(err, 'Could not save the settings.'), tone: 'danger' });
@@ -496,6 +506,20 @@ const SettingsTab: React.FC = () => {
             </div>
           ))}
         </div>
+      </AppointmentSection>
+
+      <AppointmentSection title="AI replies" description="Short replies written only from the live answers." icon={Sparkles}>
+        {settings.aiConfigured ? (
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p id={`${ids}-ai`} className="text-[14px] font-bold text-slate-800">Reply with AI</p>
+              <p id={`${ids}-ai-use`} className="text-[12px] text-slate-500">Used today: {settings.aiUsedToday} of {settings.aiDailyLimit}</p>
+            </div>
+            <ToggleSwitch id={`${ids}-ai-switch`} checked={aiOn} onChange={setAiOn} labelledBy={`${ids}-ai`} describedBy={`${ids}-ai-use`} className="shrink-0 py-0" />
+          </div>
+        ) : (
+          <p className="text-[13px] text-slate-600">Add the API key on the server to use this.</p>
+        )}
       </AppointmentSection>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
