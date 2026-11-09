@@ -47,7 +47,7 @@ import { historyTime } from '../utils/documentDisplay';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
 import { getSemesterMoveSummary, getStudentGraduationCheck, type GraduationStudent, type MoveSummary } from '../services/registrySemestersApi';
-import { canonicalSemester, intakeFilterOptions, matchesIntake, semesterChoices, semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
+import { canonicalSemester, intakeFilterOptions, matchesIntake, semesterChoices, semesterMovedNotice, semesterMoveWaiting, shortSemester, studentCount } from '../utils/registrySemesters';
 import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
 import { StudentStatusCards } from './ParticipantStatusCards';
@@ -1068,7 +1068,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     triggerLabel="More"
                     triggerSize="md"
                     actions={[
-                      { label: 'Update current semester', onSelect: () => navigate(APP_ROUTES.registryUpdateSemester) },
+                      { label: 'Current semester', onSelect: () => navigate(APP_ROUTES.registryUpdateSemester) },
                       { label: 'Record graduations', onSelect: () => navigate(APP_ROUTES.registryGraduations) },
                       { label: 'Export CSV', onSelect: handleExportCSV },
                     ]}
@@ -1093,14 +1093,16 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
           {!readOnly && <RegistryModuleTabs active="students" />}
 
-          {!readOnly && moveSummary?.semester && semesterMoveWaiting(moveSummary) && (
+          {!readOnly && moveSummary?.semester && (semesterMoveWaiting(moveSummary) || semesterMovedNotice(moveSummary)) && (
             <div role="status" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-blue-200 bg-blue-50 px-5 py-3 text-[13.5px] font-semibold text-blue-900">
               <span>
-                {moveSummary.semester.isSpecial
-                  ? `The ${shortSemester(moveSummary.semester.label)} has started. Choose who is taking it.`
-                  : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} updating.`}
+                {!semesterMoveWaiting(moveSummary)
+                  ? semesterMovedNotice(moveSummary)
+                  : moveSummary.semester.isSpecial
+                    ? `The ${shortSemester(moveSummary.semester.label)} has started. Choose who is taking it.`
+                    : `${shortSemester(moveSummary.semester.label)} has started. ${studentCount(moveSummary.waiting)} still ${moveSummary.waiting === 1 ? 'needs' : 'need'} updating.`}
               </span>
-              <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.registryUpdateSemester)}>Update current semester</PortalButton>
+              <PortalButton size="sm" onClick={() => navigate(APP_ROUTES.registryUpdateSemester)}>{semesterMoveWaiting(moveSummary) ? 'Update current semester' : 'See who'}</PortalButton>
             </div>
           )}
 

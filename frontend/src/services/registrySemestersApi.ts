@@ -47,7 +47,7 @@ export const removeProgrammeRule = (id: number) =>
   request<{ rules: ProgrammeRule[] }>(`${BASE}/programme-rules/${id}/`, { method: 'DELETE' }).then(data => data.rules);
 
 export type SemesterTerm = 'SEMESTER_I' | 'SEMESTER_II' | 'SPECIAL';
-export type SemesterOutcome = 'STUDIED' | 'LEAVE' | 'LEAVE_EXEMPT';
+export type SemesterOutcome = 'STUDIED' | 'LEAVE' | 'LEAVE_EXEMPT' | 'NOT_REGISTERED';
 
 export interface StudentSemesterRow {
   id: number;
@@ -106,17 +106,30 @@ export interface MoveStudent {
   current: string;
 }
 
+export interface SemesterStudent {
+  rowId: number;
+  matric: string;
+  name: string;
+  programme: string;
+  intake: string;
+  avatarText: string;
+  avatarBg: string;
+  outcome: SemesterOutcome;
+}
+
 export interface MoveSummary {
   semester: { id: number; label: string; session: string; term: SemesterTerm; isSpecial: boolean } | null;
   waiting: number;
   notStarted: number;
-  lastMove: { by: string; at: string; moved: number; leftOut: number } | null;
+  lastMove: { by: string; at: string; moved: number; leftOut: number; onLeave: number; automatic: boolean } | null;
 }
 
 export interface MoveState extends MoveSummary {
   students?: MoveStudent[];
   movingFrom: string;
   deferred: number;
+  onSemester?: SemesterStudent[];
+  onLeave?: number;
 }
 
 export const getSemesterMoveSummary = () => request<MoveSummary>(`${BASE}/semester-move/?summary=1`);

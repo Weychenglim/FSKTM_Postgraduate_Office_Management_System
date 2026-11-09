@@ -24,9 +24,10 @@ export const OUTCOME_OPTIONS: Array<{ value: SemesterOutcome; label: string; des
   { value: 'STUDIED', label: 'Studied', description: 'Counts toward the minimum.' },
   { value: 'LEAVE', label: 'On leave', description: 'Does not count toward the minimum. The maximum stays the same.' },
   { value: 'LEAVE_EXEMPT', label: 'On medical or mobility leave', description: 'Does not count, and pushes the maximum back one semester.' },
+  { value: 'NOT_REGISTERED', label: 'Not registered', description: 'Does not count toward the minimum. The maximum stays the same.' },
 ];
 
-export const OUTCOME_TONE: Record<SemesterOutcome, BadgeTone> = { STUDIED: 'success', LEAVE: 'warning', LEAVE_EXEMPT: 'info' };
+export const OUTCOME_TONE: Record<SemesterOutcome, BadgeTone> = { STUDIED: 'success', LEAVE: 'warning', LEAVE_EXEMPT: 'info', NOT_REGISTERED: 'danger' };
 
 /** Sessions run on consecutive years, like 2026/2027. */
 export function validSession(session: string): boolean {
@@ -130,9 +131,23 @@ export function findStudents<T extends { name: string; matric: string }>(student
   return students.filter(student => student.name.toLowerCase().includes(text) || student.matric.toLowerCase().includes(text));
 }
 
-/** Whether the Students tab should offer to move students: a semester has started and nobody has been moved yet. */
-export const semesterMoveWaiting = (summary: { semester: unknown; waiting: number; lastMove: unknown } | null) =>
-  Boolean(summary?.semester && summary.waiting > 0 && !summary.lastMove);
+/** Whether the Students tab should ask about students who aren't on the semester. Most students never take a Special Semester, so that only asks once. */
+export const semesterMoveWaiting = (summary: { semester: { isSpecial?: boolean } | null; waiting: number; lastMove: unknown } | null) =>
+  Boolean(summary?.semester && summary.waiting > 0 && !(summary.semester.isSpecial && summary.lastMove));
+
+const MOVED_NOTICE_DAYS = 14;
+
+/** What the portal did by itself when the semester started. Shown for its first two weeks. */
+export function semesterMovedNotice(
+  summary: { semester: { label: string } | null; lastMove: { at: string; moved: number; onLeave: number; automatic: boolean } | null } | null,
+  now: Date = new Date(),
+): string | null {
+  const move = summary?.lastMove;
+  if (!summary?.semester || !move?.automatic) return null;
+  if (now.getTime() - new Date(move.at).getTime() > MOVED_NOTICE_DAYS * 86_400_000) return null;
+  const leave = move.onLeave ? ` ${move.onLeave} on leave.` : '';
+  return `${studentCount(move.moved)} moved to ${shortSemester(summary.semester.label)}.${leave}`;
+}
 
 /** Where to go to sort out something unfinished. */
 export function fixLink(item: Pick<GraduationItem, 'fix' | 'recordId'>, matric: string): { label: string; to: string } | null {

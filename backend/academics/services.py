@@ -218,6 +218,10 @@ def activate_semester(semester, *, actor, reason, preview_token=None, acknowledg
         reason,
         before,
     )
+    from accounts.semester_rules import move_everyone_on
+
+    # Runs after the commit so a failed move leaves the semester active. Registry still offers it.
+    transaction.on_commit(lambda: move_everyone_on(semester, actor), robust=True)
     return semester
 
 

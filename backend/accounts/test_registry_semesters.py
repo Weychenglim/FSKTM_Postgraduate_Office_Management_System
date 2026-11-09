@@ -8,6 +8,7 @@ from accounts.models import (
     Student,
     StudentRegistry,
     StudentSemester,
+    StudentSemesterMove,
     User,
 )
 from accounts.semester_rules import minimum_problem, progress_of, rule_for, rules_by_programme
@@ -382,6 +383,133 @@ class MoveStudentsApiTests(APITestCase):
         self.portal.save()
         self.assertEqual(self.client.get(self.url).data["semester"], None)
         self.assertEqual(self.client.post(self.url, self.body("MV1"), format="json").status_code, 409)
+
+
+class SemesterMovesOnActivationTests(APITestCase):
+    url = "/api/registry/semester-move/"
+    STUDIED_LAST = "2025/2026 Semester II"
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from academics.models import AcademicSemester
+        from academics.test_capacity_helpers import publish_test_capacity_plan
+
+        cls.office = User.objects.create_user(
+            email="office@example.test", password="pw", full_name="Office Person", role=User.Role.OFFICE_ADMIN,
+        )
+        today = timezone.localdate()
+        AcademicSemester.objects.create(
+            code="2025-2026-S2", academic_session="2025/2026", term="SEMESTER_II", created_by=cls.office,
+            starts_on=today - timedelta(days=120), ends_on=today - timedelta(days=1), lifecycle_status="ACTIVE",
+        )
+        cls.target = AcademicSemester.objects.create(
+            code="2026-2027-S1", academic_session="2026/2027", term="SEMESTER_I", created_by=cls.office,
+            starts_on=today, ends_on=today + timedelta(days=100),
+        )
+        publish_test_capacity_plan(cls.target, cls.office)
+        cls.one = make_student("AM1", intake=cls.STUDIED_LAST, current="Semester II, 2025/2026 Session")
+        semesters_for(cls.one, "Semester II, 2025/2026")
+        cls.later = make_student("AM2", intake="2026/2027 Semester II")
+        cls.deferred = make_student("AM3", intake=cls.STUDIED_LAST, status=Student.Status.DEFERRED)
+        cls.gone = make_student("AM4", intake=cls.STUDIED_LAST, status=Student.Status.GRADUATED)
+
+    def setUp(self):
+        self.client.force_authenticate(self.office)
+
+    def activate(self):
+        from academics.services import activate_semester
+
+        with self.captureOnCommitCallbacks(execute=True):
+            activate_semester(self.target, actor=self.office, reason="New semester")
+
+    def make_it_special(self):
+        self.target.term = "SPECIAL"
+        self.target.code = "2026-2027-SP"
+        self.target.save()
+
+    def test_activating_a_normal_semester_moves_active_students_and_records_leave(self):
+        self.activate()
+        row = self.one.semesters.get(session="2026/2027", term="SEMESTER_I")
+        self.assertEqual((row.outcome, row.created_by), (StudentSemester.Outcome.STUDIED, self.office))
+        self.assertEqual(StudentRegistry.objects.get(student=self.one).current_semester, "Semester I, 2026/2027 Session")
+        self.assertEqual(progress_of(self.one).studied, 2)
+        leave = self.deferred.semesters.get()
+        self.assertEqual(leave.outcome, StudentSemester.Outcome.LEAVE)
+        self.assertEqual(leave.note, "On deferment when this semester started")
+        self.assertFalse(self.later.semesters.exists())
+        self.assertFalse(self.gone.semesters.exists())
+        move = StudentSemesterMove.objects.get()
+        self.assertEqual((move.moved_count, move.on_leave_count, move.automatic, move.moved_by), (1, 1, True, self.office))
+
+    def test_the_students_tab_is_told_and_has_nothing_to_ask(self):
+        self.activate()
+        summary = self.client.get(self.url, {"summary": "1"}).data
+        self.assertEqual(summary["waiting"], 0)
+        last = summary["lastMove"]
+        self.assertEqual((last["moved"], last["onLeave"], last["automatic"]), (1, 1, True))
+
+    def test_the_page_lists_who_is_on_the_semester(self):
+        self.activate()
+        data = self.client.get(self.url).data
+        self.assertEqual([row["matric"] for row in data["onSemester"]], ["AM1"])
+        self.assertEqual(data["onSemester"][0]["outcome"], "STUDIED")
+        self.assertEqual(data["onLeave"], 1)
+        self.assertEqual(data["students"], [])
+
+    def test_someone_who_arrives_afterwards_still_waits(self):
+        self.activate()
+        make_student("AM5", intake="2026/2027 Semester I")
+        data = self.client.get(self.url).data
+        self.assertEqual([row["matric"] for row in data["students"]], ["AM5"])
+        self.assertEqual(data["waiting"], 1)
+
+    def test_running_it_again_changes_nothing(self):
+        from accounts.semester_rules import move_everyone_on
+
+        self.activate()
+        self.assertIsNone(move_everyone_on(self.target, self.office))
+        self.assertEqual(self.one.semesters.count(), 2)
+        self.assertEqual(StudentSemesterMove.objects.count(), 1)
+
+    def test_a_special_semester_moves_nobody(self):
+        self.make_it_special()
+        self.activate()
+        self.assertFalse(StudentSemester.objects.filter(term="SPECIAL").exists())
+        self.assertFalse(StudentSemesterMove.objects.exists())
+        data = self.client.get(self.url).data
+        self.assertEqual([row["matric"] for row in data["students"]], ["AM1", "AM2"])
+        self.assertEqual((data["onSemester"], data["lastMove"]), ([], None))
+
+    def test_a_failed_move_leaves_the_semester_active_and_can_be_redone(self):
+        from unittest.mock import patch
+
+        with patch("accounts.semester_rules.move_everyone_on", side_effect=RuntimeError("no")), self.assertLogs("django.test", "ERROR"):
+            self.activate()
+        self.target.refresh_from_db()
+        self.assertEqual(self.target.lifecycle_status, "ACTIVE")
+        self.assertEqual(self.client.get(self.url, {"summary": "1"}).data["waiting"], 1)
+        done = self.client.post(self.url, {"semesterId": self.target.pk, "matrics": ["AM1"]}, format="json")
+        self.assertEqual(done.data["moved"], 1)
+        self.assertEqual(self.client.get(self.url, {"summary": "1"}).data["lastMove"]["automatic"], False)
+
+    def test_not_registered_is_recorded_and_does_not_count_as_studied(self):
+        self.activate()
+        maximum = progress_of(self.one).maximum_semester
+        row = self.one.semesters.get(session="2026/2027", term="SEMESTER_I")
+        response = self.client.patch(
+            f"/api/registry/students/AM1/semesters/{row.pk}/", {"outcome": "NOT_REGISTERED"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["rows"][-1]["outcomeLabel"], "Not registered")
+        fresh = Student.objects.get(pk=self.one.pk)
+        self.assertEqual(progress_of(fresh).studied, 1)
+        self.assertEqual(progress_of(fresh).maximum_semester, maximum)
+        self.assertEqual(self.client.get(self.url).data["onSemester"][0]["outcome"], "NOT_REGISTERED")
+        self.assertEqual(self.client.get(self.url, {"summary": "1"}).data["waiting"], 0)
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])

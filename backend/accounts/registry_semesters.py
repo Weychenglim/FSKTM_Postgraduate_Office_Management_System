@@ -28,6 +28,10 @@ from .registry_views import (
 )
 from .semester_rules import (
     intake_label,
+    not_on_semester,
+    on_semester,
+    put_deferred_on_leave,
+    put_on_semester,
     record_semester,
     rows_of,
     rule_for,
@@ -41,6 +45,8 @@ from .semesters import SEMESTER_I, SEMESTER_II, from_parts
 from .semesters import read as read_semester
 
 MAX_EXTENSION = 3
+ON_LEAVE = [StudentSemester.Outcome.LEAVE, StudentSemester.Outcome.LEAVE_EXEMPT]
+ON_THE_LIST = [StudentSemester.Outcome.STUDIED, StudentSemester.Outcome.NOT_REGISTERED]
 
 
 def _rule_from(rule):
@@ -297,29 +303,8 @@ def _active_semester():
     return portal, from_parts(portal.academic_session, portal.term)
 
 
-def _on_semester(semester):
-    return StudentSemester.objects.filter(session=semester.session, term=semester.term).values("student_id")
-
-
-def _not_on_semester(semester, *, wanted_status=Student.Status.ACTIVE):
-    """(students to update, how many start later). A student whose intake is after this semester has not begun."""
-    students = (
-        Student.objects.filter(status=wanted_status)
-        .exclude(pk__in=_on_semester(semester))
-        .select_related("user", "registry")
-        .order_by("user__full_name")
-    )
-    ready, later = [], 0
-    for student in students:
-        if starts_later(student, semester):
-            later += 1
-        else:
-            ready.append(student)
-    return ready, later
-
-
 def _move_payload(portal, semester):
-    waiting, not_started = _not_on_semester(semester)
+    waiting, not_started = not_on_semester(semester)
     last = (
         StudentSemesterMove.objects.filter(session=semester.session, term=semester.term)
         .select_related("moved_by")
@@ -340,13 +325,41 @@ def _move_payload(portal, semester):
             "at": last.created_at.isoformat(),
             "moved": last.moved_count,
             "leftOut": last.left_out_count,
+            "onLeave": last.on_leave_count,
+            "automatic": last.automatic,
         } if last else None,
     }
 
 
+def _on_semester_rows(semester):
+    rows = (
+        StudentSemester.objects.filter(
+            session=semester.session,
+            term=semester.term,
+            outcome__in=ON_THE_LIST,
+            student__status=Student.Status.ACTIVE,
+        )
+        .select_related("student__user")
+        .order_by("student__user__full_name")
+    )
+    return [
+        {
+            "rowId": row.pk,
+            "matric": row.student.matric_no,
+            "name": row.student.user.full_name,
+            "programme": row.student.programme,
+            "intake": intake_label(row.student.intake_semester),
+            "avatarText": _initials(row.student.user.full_name),
+            "avatarBg": _avatar_bg(row.student.matric_no),
+            "outcome": row.outcome,
+        }
+        for row in rows
+    ]
+
+
 def _move_rows(semester):
     rows = []
-    for student in _not_on_semester(semester)[0]:
+    for student in not_on_semester(semester)[0]:
         registry = _registry_or_none(student)
         rows.append(
             {
@@ -374,39 +387,15 @@ class MoveStudentsSerializer(serializers.Serializer):
     matrics = serializers.ListField(child=serializers.CharField(max_length=64), allow_empty=False, max_length=5000)
 
 
-def _put_on_semester(students, semester, *, outcome, actor, note=""):
-    """Add this semester to each student, and make it their current one."""
-    StudentSemester.objects.bulk_create(
-        [
-            StudentSemester(
-                student=student, session=semester.session, term=semester.term, outcome=outcome, note=note, created_by=actor,
-            )
-            for student in students
-        ],
-        ignore_conflicts=True,
-    )
-    registries = {row.student_id: row for row in StudentRegistry.objects.filter(student__in=students)}
-    missing, changed = [], []
-    for student in students:
-        registry = registries.get(student.pk)
-        if registry is None:
-            missing.append(StudentRegistry(student=student, current_semester=semester.label))
-            continue
-        current = read_semester(registry.current_semester)
-        if current is None or current.key < semester.key:
-            registry.current_semester = semester.label
-            changed.append(registry)
-    StudentRegistry.objects.bulk_create(missing)
-    StudentRegistry.objects.bulk_update(changed, ["current_semester"])
-
-
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def semester_move_view(request):
-    """Office: put students on the active semester, all in one go.
+    """Office: who is on the active semester, and put on anyone who isn't yet.
 
-    Only the active semester can be used, and a student has one row per semester,
-    so running this twice changes nothing. Anyone whose intake is later is skipped.
+    Activating a normal semester already moves everyone. This is for a Special
+    Semester and for anyone who arrived after that. Only the active semester can
+    be used, and a student has one row per semester, so running this twice changes
+    nothing. Anyone whose intake is later is skipped.
     """
     _require_office_admin(request)
     portal, semester = _active_semester()
@@ -421,11 +410,15 @@ def semester_move_view(request):
         payload = _move_payload(portal, semester)
         if request.query_params.get("summary") != "1":
             rows = _move_rows(semester)
-            deferred = _not_on_semester(semester, wanted_status=Student.Status.DEFERRED)[0]
+            deferred = not_on_semester(semester, wanted_status=Student.Status.DEFERRED)[0]
             payload.update(
                 students=rows,
                 movingFrom=_usual_semester(rows),
                 deferred=0 if semester.is_special else len(deferred),
+                onSemester=[] if semester.is_special else _on_semester_rows(semester),
+                onLeave=StudentSemester.objects.filter(
+                    session=semester.session, term=semester.term, outcome__in=ON_LEAVE,
+                ).count(),
             )
         return Response(payload)
 
@@ -439,25 +432,21 @@ def semester_move_view(request):
         )
     wanted = {matric.strip().casefold(): matric.strip() for matric in data["matrics"] if matric.strip()}
     with transaction.atomic():
-        on_it = set(_on_semester(semester).values_list("student_id", flat=True))
+        on_it = set(on_semester(semester).values_list("student_id", flat=True))
         active = list(Student.objects.filter(status=Student.Status.ACTIVE).select_for_update())
         waiting = [student for student in active if student.pk not in on_it and not starts_later(student, semester)]
         moving = [student for student in waiting if student.matric_no.casefold() in wanted]
         known = {student.matric_no.casefold() for student in active}
-        _put_on_semester(moving, semester, outcome=StudentSemester.Outcome.STUDIED, actor=request.user)
-        if not semester.is_special:
-            deferred = [
-                student
-                for student in Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=on_it)
-                if not starts_later(student, semester)
-            ]
-            _put_on_semester(
-                deferred, semester, outcome=StudentSemester.Outcome.LEAVE, actor=request.user,
-                note="On deferment when this semester started",
-            )
+        put_on_semester(moving, semester, outcome=StudentSemester.Outcome.STUDIED, actor=request.user)
+        on_leave = put_deferred_on_leave(semester, on_it, actor=request.user)
         left_out = len(waiting) - len(moving)
         StudentSemesterMove.objects.create(
-            session=semester.session, term=semester.term, moved_count=len(moving), left_out_count=left_out, moved_by=request.user,
+            session=semester.session,
+            term=semester.term,
+            moved_count=len(moving),
+            left_out_count=left_out,
+            on_leave_count=on_leave,
+            moved_by=request.user,
         )
     return Response(
         {

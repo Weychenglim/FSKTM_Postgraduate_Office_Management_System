@@ -313,8 +313,8 @@ How long a programme takes, how far along each student is, and acting on many st
 | POST | `students/<matric>/semesters/` | Add a semester (`session`, `term`, `outcome`). |
 | PATCH, DELETE | `students/<matric>/semesters/<id>/` | Correct or remove one. The record's current semester follows the latest row. |
 | PUT | `students/<matric>/semester-extension/` | Up to 3 semesters past the maximum, with a reason. |
-| GET | `semester-move/` | Who still needs the active semester (the Update current semester page). `?summary=1` gives only the counts, for the Students tab. Anyone whose intake is later is left out and counted as `notStarted`. |
-| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Only the active semester, and running it twice changes nothing. Later intakes are skipped. Deferred students get the semester as leave, except a Special Semester. |
+| GET | `semester-move/` | Who is on the active semester and who still needs it (the Current semester page). `?summary=1` gives only the counts, for the Students tab. Anyone whose intake is later is left out and counted as `notStarted`. |
+| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Activating a normal semester already does this for everyone, so this is for a Special Semester and for anyone who arrives afterwards. Only the active semester, and running it twice changes nothing. Later intakes are skipped. Deferred students get the semester as leave, except a Special Semester. |
 | GET | `graduation/` | The Record graduations page: Active students near or past the minimum, as `ready`, `check` and `stop`, each with their intake and what is unfinished. Students 2 or more below the minimum, or who have not started, are only counted (`tooEarly`). |
 | POST | `graduation/` | Graduate (`matrics`, `earlyApproved`, `reason`). Each student is checked again and graduated separately; the result lists `graduated` and `skipped` with why. |
 | GET | `students/<matric>/graduation-check/` | The same check for one student. |

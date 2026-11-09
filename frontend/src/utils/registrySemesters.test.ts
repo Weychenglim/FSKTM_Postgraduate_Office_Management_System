@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { StudentSemesters } from '../services/registrySemestersApi';
 import { APP_ROUTES } from '../constants/routes';
-import { canonicalSemester, filterPeople, findStudents, fixLink, intakeFilterOptions, intakeNotice, matchesIntake, NO_INTAKE, semesterChoices, semesterParts, maximumNotice, semesterCount, semesterMoveWaiting, shortSemester, studentCount, validSession, shortProgramme } from './registrySemesters';
+import { canonicalSemester, filterPeople, findStudents, fixLink, intakeFilterOptions, intakeNotice, matchesIntake, NO_INTAKE, OUTCOME_OPTIONS, OUTCOME_TONE, semesterChoices, semesterParts, maximumNotice, semesterCount, semesterMovedNotice, semesterMoveWaiting, shortSemester, studentCount, validSession, shortProgramme } from './registrySemesters';
 
 assert.equal(semesterCount(1), '1 semester');
 assert.equal(semesterCount(3), '3 semesters');
@@ -37,8 +37,22 @@ assert.deepEqual(findStudents(found, '0002').map(row => row.name), ['Lim Wei Jie
 assert.equal(semesterMoveWaiting(null), false);
 assert.equal(semesterMoveWaiting({ semester: null, waiting: 3, lastMove: null }), false);
 assert.equal(semesterMoveWaiting({ semester: {}, waiting: 0, lastMove: null }), false);
-assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: {} }), false);
+assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: {} }), true);
 assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: null }), true);
+assert.equal(semesterMoveWaiting({ semester: { isSpecial: true }, waiting: 3, lastMove: null }), true);
+assert.equal(semesterMoveWaiting({ semester: { isSpecial: true }, waiting: 3, lastMove: {} }), false);
+
+const automatic = { at: '2026-11-01T00:00:00Z', moved: 83, onLeave: 3, automatic: true };
+const movedOn = { label: 'Semester II, 2026/2027 Session' };
+const soon = new Date('2026-11-05T00:00:00Z');
+assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: automatic }, soon), '83 students moved to Semester II, 2026/2027. 3 on leave.');
+assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: { ...automatic, onLeave: 0 } }, soon), '83 students moved to Semester II, 2026/2027.');
+assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: { ...automatic, automatic: false } }, soon), null);
+assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: automatic }, new Date('2026-11-16T00:00:00Z')), null);
+assert.equal(semesterMovedNotice({ semester: null, lastMove: automatic }, soon), null);
+assert.equal(semesterMovedNotice(null), null);
+assert.equal(OUTCOME_OPTIONS.some(option => option.value === 'NOT_REGISTERED'), true);
+assert.equal(OUTCOME_TONE.NOT_REGISTERED, 'danger');
 
 assert.deepEqual(fixLink({ fix: 'record', recordId: null }, 'A/1'), { label: 'Open record', to: '/registry?student=A%2F1' });
 assert.deepEqual(fixLink({ fix: 'transfer', recordId: 7 }, 'M1'), { label: 'Open request', to: '/supervisor-appointments/research-changes/7' });

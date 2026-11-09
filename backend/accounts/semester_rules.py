@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
-from .models import ProgrammeRule, StudentRegistry, StudentSemester
+from .models import ProgrammeRule, Student, StudentRegistry, StudentSemester, StudentSemesterMove
 from .registry_programmes import programme_key
 from .semesters import Semester, from_parts, nth_normal, read, seeded_semesters
 
@@ -224,6 +224,89 @@ def record_semester(student, semester, *, actor=None, outcome=STUDIED, note=""):
     if created:
         sync_current(student)
     return row, created
+
+
+def on_semester(semester):
+    return StudentSemester.objects.filter(session=semester.session, term=semester.term).values("student_id")
+
+
+def not_on_semester(semester, *, wanted_status=Student.Status.ACTIVE):
+    """(students to update, how many start later). A student whose intake is after this semester has not begun."""
+    students = (
+        Student.objects.filter(status=wanted_status)
+        .exclude(pk__in=on_semester(semester))
+        .select_related("user", "registry")
+        .order_by("user__full_name")
+    )
+    ready, later = [], 0
+    for student in students:
+        if starts_later(student, semester):
+            later += 1
+        else:
+            ready.append(student)
+    return ready, later
+
+
+def put_on_semester(students, semester, *, outcome, actor, note=""):
+    """Add this semester to each student, and make it their current one."""
+    StudentSemester.objects.bulk_create(
+        [
+            StudentSemester(
+                student=student, session=semester.session, term=semester.term, outcome=outcome, note=note, created_by=actor,
+            )
+            for student in students
+        ],
+        ignore_conflicts=True,
+    )
+    registries = {row.student_id: row for row in StudentRegistry.objects.filter(student__in=students)}
+    missing, changed = [], []
+    for student in students:
+        registry = registries.get(student.pk)
+        if registry is None:
+            missing.append(StudentRegistry(student=student, current_semester=semester.label))
+            continue
+        current = read(registry.current_semester)
+        if current is None or current.key < semester.key:
+            registry.current_semester = semester.label
+            changed.append(registry)
+    StudentRegistry.objects.bulk_create(missing)
+    StudentRegistry.objects.bulk_update(changed, ["current_semester"])
+
+
+def put_deferred_on_leave(semester, already_on, *, actor):
+    """A normal semester counts as leave for anyone on deferment. Returns how many."""
+    if semester.is_special:
+        return 0
+    deferred = [
+        student
+        for student in Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=already_on)
+        if not starts_later(student, semester)
+    ]
+    put_on_semester(deferred, semester, outcome=LEAVE, actor=actor, note="On deferment when this semester started")
+    return len(deferred)
+
+
+@transaction.atomic
+def move_everyone_on(portal, actor=None):
+    """Activating a normal semester moves everyone on it. Only some take a Special Semester, so the office picks those."""
+    semester = from_parts(portal.academic_session, portal.term)
+    if semester is None or semester.is_special:
+        return None
+    already_on = set(on_semester(semester).values_list("student_id", flat=True))
+    active = Student.objects.filter(status=Student.Status.ACTIVE).select_for_update()
+    moving = [student for student in active if student.pk not in already_on and not starts_later(student, semester)]
+    put_on_semester(moving, semester, outcome=STUDIED, actor=actor)
+    on_leave = put_deferred_on_leave(semester, already_on, actor=actor)
+    if not moving and not on_leave:
+        return None
+    return StudentSemesterMove.objects.create(
+        session=semester.session,
+        term=semester.term,
+        moved_count=len(moving),
+        on_leave_count=on_leave,
+        moved_by=actor,
+        automatic=True,
+    )
 
 
 def mark_current_semester_as_leave(student):

@@ -755,6 +755,7 @@ class StudentSemester(models.Model):
         LEAVE = "LEAVE", "On leave"
         # Medical and mobility leave do not use up the maximum (Regulation 8(11)).
         LEAVE_EXEMPT = "LEAVE_EXEMPT", "On medical or mobility leave"
+        NOT_REGISTERED = "NOT_REGISTERED", "Not registered"
 
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="semesters")
     session = models.CharField(max_length=9)
@@ -792,6 +793,8 @@ class StudentSemesterMove(models.Model):
     term = models.CharField(max_length=16, choices=StudentSemester.Term.choices)
     moved_count = models.PositiveIntegerField(default=0)
     left_out_count = models.PositiveIntegerField(default=0)
+    on_leave_count = models.PositiveIntegerField(default=0, db_default=0)
+    automatic = models.BooleanField(default=False, db_default=False)
     moved_by = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,

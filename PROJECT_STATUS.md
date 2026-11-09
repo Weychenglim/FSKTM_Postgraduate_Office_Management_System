@@ -1,3 +1,14 @@
+## Students move to a new semester when it is activated (9 November 2026)
+
+The office used to activate a semester and then remember to update the students on a second page. Now activating a normal semester does both.
+
+- **What happens:** Active students get the semester as Studied and Deferred students get it as On leave. Later intakes, Graduated and Withdrawn students are skipped. It runs right after activation commits (`activate_semester` calls `move_everyone_on`), so a failed move leaves the semester active and Student Registry still offers the update.
+- **Special Semester:** not automatic, because only some students take it. The office ticks who is taking it, as before.
+- **Not registered:** a new semester outcome, in UM's own words. It does not count as a semester studied and the maximum stays the same. The office marks it on the Current semester page (renamed from Update current semester) or on the Student Record.
+- **Students tab:** says how many moved for the first 14 days. It still asks if someone is not on the semester, such as a student added afterwards.
+- **Migration:** `accounts.0020`. The new columns have database defaults, so older code keeps working on a migrated database.
+- **Limit:** the portal cannot see Maya, so every Active student is assumed to have registered until the office marks them.
+
 ## Email on by default, safer announcements, graduation ticking, FAQ for enrolled students (6 November 2026)
 
 - **Email alerts are on by default.** `User.email_notifications` now defaults to true, and migration `accounts.0019` switches it on for existing accounts. People can still turn it off in Settings. Emails started by a page (announcements, letter decisions, appointment letters, file checks, required documents) send in a background thread when the real mail server is in use, so the page doesn't wait. Scheduled commands still wait for the count. `EMAIL_TIMEOUT` (default 20 seconds) stops a slow mail server from hanging a request.
