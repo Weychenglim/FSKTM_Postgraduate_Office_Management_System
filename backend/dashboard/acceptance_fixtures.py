@@ -66,6 +66,8 @@ class ReportingAcceptanceFixture:
             title='PRIVATE Office calendar', detail='PRIVATE internal calendar details', action_owner='Office',
             deadline_start=today, deadline_end=today + timedelta(days=3), target_roles=['OFFICE_STAFF'],
         )
+        from .calendar_publication import publication_state, publish_calendar
+        publish_calendar(self.semester, self.office, publication_state(self.timeline, self.office)['reviewToken'])
 
     def dossier_url(self, student=None):
         return f'/api/dashboard/progress/{(student or self.student).matric_no}/'

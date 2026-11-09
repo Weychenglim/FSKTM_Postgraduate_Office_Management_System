@@ -119,6 +119,11 @@ class LecturerSubmissionHistoryTests(APITestCase):
         row = next(row for row in queue.data if row['id'] == self.task.pk)
         self.assertEqual(row.get('submittedAt'), history.data[0]['submittedAt'])
         self.assertEqual(row['submittedDate'], '02 Jan 2026')
+        for key in ['periodName', 'rubricName', 'rubricVersion', 'opensAt', 'closesAt', 'assignedAt']:
+            self.assertEqual(row[key], history.data[0][key])
+        self.assertEqual(row['periodName'], self.period.name)
+        self.assertEqual(row['rubricName'], self.rubric.name)
+        self.assertEqual(parse_datetime(row['assignedAt']), self.task.assigned_at)
 
     def test_unknown_submission_dates_sort_after_known_dates(self):
         self.submitted(self.task)

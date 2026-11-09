@@ -1,7 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import F, Q
+from django.db.models.functions import Lower, Trim
 from django.utils import timezone
+from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -49,6 +51,7 @@ from .services import (
     create_rubric,
     create_rubric_component,
     correct_submitted_marks,
+    delete_draft_evaluation_period,
     ensure_active_period_tasks,
     ensure_period_tasks,
     publish_evaluation_period,
@@ -61,6 +64,32 @@ from .services import (
 
 
 User = get_user_model()
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def export_mark_records_view(request):
+    if not office_only(request.user):
+        return Response({'error': 'Only Office Staff/Admin can export marks.'}, status=403)
+    from .export import build_marks_workbook, export_tasks
+    ids = request.data.get('recordIds')
+    scope = request.data.get('scope', 'Selected records')
+    if (not isinstance(ids, list) or not ids or len(ids) > 20000 or
+            any(not isinstance(value, str) or not value.startswith('MRK-') or
+                not value[4:].isascii() or not value[4:].isdigit() or len(value) > 24 for value in ids) or
+            not isinstance(scope, str) or len(scope) > 4000):
+        return Response({'error': 'Supply 1–20,000 valid record IDs and a filter description.'}, status=400)
+    keys = {int(value[4:]) for value in ids}
+    if any(key > 9223372036854775807 for key in keys):
+        return Response({'error': 'Invalid record ID.'}, status=400)
+    tasks = list(export_tasks().filter(pk__in=keys))
+    if len(tasks) != len(keys):
+        return Response({'error': 'Some records no longer exist. Refresh the list and try again.'}, status=400)
+    response = HttpResponse(build_marks_workbook(tasks, scope),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="marks_records.xlsx"'
+    response['Cache-Control'] = 'no-store'
+    return response
 
 
 def office_only(user):
@@ -103,9 +132,10 @@ def period_task_totals(period):
     tasks = EvaluationTask.objects.filter(
         period=period,
         lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-    ).select_related("mark_entry")
+    ).select_related("mark_entry", "period").prefetch_related("completion_windows")
     total = tasks.count()
     submitted = tasks.filter(mark_entry__status=MarkEntry.Status.SUBMITTED).count()
+    now = timezone.now()
     return {
         "total": total,
         "supervisor": tasks.filter(
@@ -119,14 +149,17 @@ def period_task_totals(period):
         ).count(),
         "submitted": submitted,
         "incomplete": total - submitted,
-        "overdue": tasks.filter(
-            period__closes_at__lt=timezone.now(),
-        ).exclude(mark_entry__status=MarkEntry.Status.SUBMITTED).count(),
+        "overdue": sum(
+            bool(task_due_at(task, now) and task_due_at(task, now) < now)
+            for task in tasks
+            if not hasattr(task, "mark_entry") or task.mark_entry.status != MarkEntry.Status.SUBMITTED
+        ),
     }
 
 
 def period_payload(period):
     return {
+        "assessment": period.assessment,
         "programmeScope": period.programme_scope,
         "programmes": period.programmes,
         "evaluatorRoles": period.evaluator_roles,
@@ -190,6 +223,7 @@ def rubric_component_payload(component):
 def rubric_payload(rubric, *, include_audit=False):
     payload = {
         "id": rubric.pk,
+        "allowedEvaluatorRoles": rubric.allowed_evaluator_roles,
         "familyCode": rubric.family_code,
         "code": rubric.code,
         "name": rubric.name,
@@ -338,6 +372,7 @@ def evaluation_periods_view(request):
         try:
             period = create_evaluation_period(
                 actor=request.user,
+                assessment=serializer.validated_data.get("assessment", ""),
                 name=serializer.validated_data["name"],
                 academic_semester=academic_semester,
                 rubric=rubric,
@@ -371,7 +406,7 @@ def evaluation_periods_view(request):
     return Response([period_payload(period) for period in periods])
 
 
-@api_view(["GET", "PATCH"])
+@api_view(["GET", "PATCH", "DELETE"])
 @permission_classes([IsAuthenticated])
 def evaluation_period_detail_view(request, pk):
     if not office_only(request.user):
@@ -399,11 +434,21 @@ def evaluation_period_detail_view(request, pk):
         ]
         return Response(payload)
 
+    if request.method == "DELETE":
+        try:
+            delete_draft_evaluation_period(period=period, actor=request.user)
+        except MarksStateConflict as exc:
+            return state_conflict_response(exc)
+        except DjangoValidationError as exc:
+            return django_validation_response(exc)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
     serializer = EvaluationPeriodUpdateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     data = serializer.validated_data
     values = {}
     for source, target in (
+        ("assessment", "assessment"),
         ("name", "name"),
         ("opensAt", "opens_at"),
         ("closesAt", "closes_at"),
@@ -550,6 +595,7 @@ def rubrics_view(request):
             family_code=data["familyCode"],
             name=data["name"],
             description=data.get("description", ""),
+            allowed_evaluator_roles=data["allowedEvaluatorRoles"],
             target_mark=data["targetMark"],
         )
     except DjangoValidationError as exc:
@@ -580,6 +626,7 @@ def rubric_detail_view(request, pk):
     for source, target in (
         ("name", "name"),
         ("description", "description"),
+        ("allowedEvaluatorRoles", "allowed_evaluator_roles"),
         ("targetMark", "target_mark"),
         ("isActive", "is_active"),
     ):
@@ -709,6 +756,111 @@ def assignment_options_view(request):
             {"error": "Only Office Staff/Admin can view assignment options."},
             status=status.HTTP_403_FORBIDDEN,
         )
+    search_kind = request.query_params.get("kind")
+    if search_kind:
+        if search_kind not in {"students", "lecturers"}:
+            return Response(
+                {"error": "Search kind must be students or lecturers."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        query = request.query_params.get("q", "").strip()[:100]
+        try:
+            limit = max(1, min(50, int(request.query_params.get("limit", 50))))
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Result limit must be a whole number."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if search_kind == "students":
+            period_id = request.query_params.get("period_id")
+            try:
+                period_pk = int(period_id)
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "A valid period is required when searching students."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            period = EvaluationPeriod.objects.filter(pk=period_pk).first()
+            if period is None:
+                return Response(
+                    {"error": "Evaluation period was not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            students = StudentResearchProfile.objects.select_related(
+                "supervisor", "student__student",
+            ).filter(
+                Q(student__isnull=True)
+                | Q(student__student__status=Student.Status.ACTIVE)
+            )
+            if period.programme_scope == "SELECTED":
+                programme_names = [
+                    name.strip().casefold() for name in period.programmes if name.strip()
+                ]
+                students = students.annotate(
+                    _linked_programme=Lower(Trim("student__student__programme")),
+                    _legacy_programme=Lower(Trim("programme")),
+                ).filter(
+                    Q(
+                        student__isnull=False,
+                        _linked_programme__in=programme_names,
+                    )
+                    | Q(
+                        student__isnull=True,
+                        _legacy_programme__in=programme_names,
+                    )
+                )
+            if query:
+                students = students.filter(
+                    Q(student_name__icontains=query)
+                    | Q(matric_no__icontains=query)
+                    | Q(student__isnull=True, programme__icontains=query)
+                    | Q(
+                        student__isnull=False,
+                        student__student__programme__icontains=query,
+                    )
+                )
+            total = students.count()
+            results = [
+                {
+                    "studentId": student.matric_no,
+                    "studentName": student.student_name,
+                    "programme": profile_programme(student),
+                    "semester": student.semester,
+                    "researchTitle": student.proposed_topic,
+                    "supervisorName": student.supervisor.full_name,
+                }
+                for student in students.order_by("student_name", "matric_no")[:limit]
+            ]
+        else:
+            lecturers = User.objects.filter(
+                role=User.Role.LECTURER,
+                is_active=True,
+                lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE,
+            ).select_related("lecturer")
+            if query:
+                lecturers = lecturers.filter(
+                    Q(full_name__icontains=query)
+                    | Q(email__icontains=query)
+                    | Q(lecturer__staff_no__icontains=query)
+                    | Q(lecturer__department__icontains=query)
+                )
+            total = lecturers.count()
+            results = [
+                {
+                    "userId": lecturer.pk,
+                    "staffId": getattr(
+                        getattr(lecturer, "lecturer", None), "staff_no", ""
+                    ),
+                    "fullName": lecturer.full_name,
+                    "department": getattr(
+                        getattr(lecturer, "lecturer", None), "department", ""
+                    ),
+                    "email": lecturer.email,
+                }
+                for lecturer in lecturers.order_by("full_name", "pk")[:limit]
+            ]
+        return Response({"results": results, "total": total, "limit": limit})
+
     students = StudentResearchProfile.objects.select_related("supervisor", "student__student").order_by(
         "student_name",
     ).filter(

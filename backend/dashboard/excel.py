@@ -190,7 +190,7 @@ def build_template_workbook(semester=None):
         ("Action", "Required", "Who is responsible. Shown as Responsible parties in Create/Edit and as Action in calendar event details. Free text, up to 255 characters; this does not control visibility.", "Student / Supervisor / Panel or Office Staff"),
         ("Deadline Start", "Required", "Excel date or YYYY-MM-DD (recommended). DD/MM/YYYY is also accepted.", start.isoformat()),
         ("Deadline End", "Required", "Same date formats as Start; must be on or after Start. For a one-day event, use the same date.", end.isoformat()),
-        ("Target Roles", "Required", "Who sees the event: STUDENT, LECTURER, OFFICE_STAFF. Choose a dropdown combination or separate codes with commas. Panel and Supervisor both use LECTURER; do not type PANEL or SUPERVISOR here.", "STUDENT,LECTURER"),
+        ("Target Roles", "Required", "Who sees the published event: STUDENT, LECTURER, OFFICE_STAFF. Choose a dropdown combination or separate codes with commas. Panel and Supervisor both use LECTURER; do not type PANEL or SUPERVISOR here.", "STUDENT,LECTURER"),
     ]
     navy, muted, blue = "0F172A", "475569", "EFF6FF"
     for cell, (_, required, rule, _) in zip(sheet[1], rules):
@@ -241,12 +241,14 @@ def build_template_workbook(semester=None):
     notes = [
         "1. Edit the Timeline sheet. Keep its name and row 1 headers unchanged; use one event per row. Instructions are not imported.",
         "2. The three Timeline rows are examples, not approved events. Edit or delete them before importing; do not upload an untouched template.",
-        "3. Import REPLACES the selected semester's current calendar; it does not append. Include every event you want to keep, then preview and check the full list before confirming.",
-        "4. Save as .xlsx (maximum 10 MB). Completely blank rows are ignored. Event order follows row order within P1 and P2. Do not add Step or Status columns; the portal calculates them.",
-        "5. Keep event dates within the semester shown above. Past dates and out-of-semester calendar-only dates trigger preview warnings; review these before confirming.",
-        "6. Import adds calendar information only. Link events and manage submission dates in Periods & deadlines, not in this workbook.",
-        "7. Replacement cannot remove an existing linked event. Keep its event details and dates unchanged, or manage its link in Periods & deadlines before importing.",
-        "8. Saving/importing for the current active semester makes events available to the selected audiences on their next dashboard refresh; there is no separate Publish step. A draft semester's timeline is prepared for later use.",
+        "3. Choose Add events (default) to append workbook events to the selected semester's draft. It does not merge duplicates: importing the same events again adds them again.",
+        "4. Choose Replace calendar only to replace the entire calendar draft. Include every event you want to keep. Preview the existing, incoming and resulting event counts, review the full list and acknowledge replacement before confirming.",
+        "5. Save as .xlsx (maximum 10 MB). Completely blank rows are ignored. Event order follows row order within P1 and P2. Do not add Step or Status columns; the portal calculates them.",
+        "6. Keep event dates within the semester shown above. Past dates and out-of-semester calendar-only dates trigger preview warnings; review and acknowledge these before confirming.",
+        "7. Import adds calendar information only; it does not open or close submission windows. Link events and manage submission dates in Periods & deadlines, not in this workbook. Publishing the calendar is separate from publishing or opening a submission window.",
+        "8. Replace calendar cannot remove an existing linked event. Keep it in the same position within P1 or P2, with its details, audiences and dates unchanged, or resolve its link in Periods & deadlines before replacement. Add events keeps existing links.",
+        "9. Confirming an import saves a draft. Review the full draft in Calendar, then click Publish calendar. Later edits and imports stay in draft; the last published calendar stays visible until you publish again.",
+        "10. For the current active semester, published events appear only to their selected audiences on the next dashboard refresh. Publishing a Draft semester's calendar prepares it for later use; it does not make it the current dashboard semester.",
     ]
     for note in notes:
         guide.append([note])

@@ -76,10 +76,11 @@ export async function getActiveTimeline(semesterId?: number): Promise<ActiveSeme
   return request<ActiveSemesterTimeline>(`/dashboard/timeline/active/${query}`);
 }
 
-export async function previewTimelineFile(file: File, semesterId: number): Promise<TimelineUploadPreview> {
+export async function previewTimelineFile(file: File, semesterId: number, mode: 'ADD' | 'REPLACE' = 'ADD'): Promise<TimelineUploadPreview> {
   const body = new FormData();
   body.append('semesterId', String(semesterId));
   body.append('file', file);
+  body.append('mode', mode);
   return request<TimelineUploadPreview>('/dashboard/timeline/upload/preview/', { method: 'POST', body });
 }
 
@@ -88,13 +89,21 @@ export async function uploadTimelineFile(
   semesterId: number,
   previewToken: string,
   acknowledgeWarnings: boolean,
+  mode: 'ADD' | 'REPLACE' = 'ADD',
 ): Promise<TimelineUploadResult> {
   const body = new FormData();
   body.append('semesterId', String(semesterId));
   body.append('file', file);
   body.append('previewToken', previewToken);
   body.append('acknowledgeWarnings', String(acknowledgeWarnings));
+  body.append('mode', mode);
   return request<TimelineUploadResult>('/dashboard/timeline/upload/', { method: 'POST', body });
+}
+
+export async function publishTimeline(semesterId: number, reviewToken: string): Promise<ActiveSemesterTimeline> {
+  return request<ActiveSemesterTimeline>('/dashboard/timeline/publish/', {
+    method: 'POST', body: JSON.stringify({semesterId, reviewToken}),
+  });
 }
 
 export async function createTimelineEntry(

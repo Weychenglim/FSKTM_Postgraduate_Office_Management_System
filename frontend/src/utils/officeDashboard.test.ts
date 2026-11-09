@@ -49,7 +49,7 @@ test('merging different waiting owners retains the strongest real deadline and d
   assert.match(summary.waiting[0].detail,/2 records in preview/);
 });
 test('Marks deadline navigation preserves the selected semester and period, or opens the Marks activity',()=>{
-  assert.equal(officeMarksDeadlineRoute({id:42,semesterId:7}),'/dashboard/periods?semester=7#marks-period-42');
+  assert.equal(officeMarksDeadlineRoute({id:42,semesterId:7}),'/dashboard/periods?semester=7&manage=window#marks-period-42');
   assert.equal(officeMarksDeadlineRoute(),'/dashboard/periods#period-panel-MARKS');
   assert.equal(officeMarksDeadlineRoute({id:42,semesterId:null}),'/dashboard/periods#period-panel-MARKS');
 });

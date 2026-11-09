@@ -9,7 +9,7 @@ import { completeDecision } from '../utils/decisionSubmission';
  */
 
 import {
-  Plus, CalendarDays, ListChecks, History, Trash2
+  Plus, CalendarDays, ListChecks, History, Trash2, Send
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
@@ -23,6 +23,7 @@ import {
   getTimelineAuditLogs,
   timelineEntryToLegacy,
   updateTimelineEntry,
+  publishTimeline,
 } from '../services';
 import { AcademicSemester, ActiveSemesterTimeline, TimelineAuditLog, TimelineEntry } from '../types';
 import { EditTimelineEntryDrawer } from './EditTimelineEntryDrawer';
@@ -62,6 +63,8 @@ const actionLabel = (action: TimelineAuditLog['action']) => {
       return 'Uploaded timeline';
     case 'REPLACE':
       return 'Replaced timeline';
+    case 'PUBLISH':
+      return 'Published calendar';
     case 'ADD_ENTRY':
       return 'Added entry';
     case 'EDIT_ENTRY':
@@ -111,6 +114,9 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
   const [savingEntry, setSavingEntry] = useState(false);
   const [completion, setCompletion] = useState<{message: string; tone: 'success' | 'warning'} | null>(null);
   const savingEntryRef = useRef(false);
+  const [publishReview, setPublishReview] = useState<{semesterId: number; token: string; count: number; publishedCount: number; label: string} | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const publishingRef = useRef(false);
 
   const [entries, setEntries] = useState<TimelineEntry[]>([]);
   const [timeline, setTimeline] = useState<ActiveSemesterTimeline | null>(null);
@@ -139,7 +145,7 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
   }, [auditLogs.length, auditPageSize]);
 
   const selectedSemester = semesters.find((semester) => semester.id === selectedSemesterId) ?? null;
-  const calendarEditable = canEditTimelineSemester(selectedSemester?.lifecycleStatus);
+  const calendarEditable = canEditTimelineSemester(selectedSemester?.lifecycleStatus) && !loading && !error && !publishing && !publishReview;
   const selectedSemesterLifecycleRef = useRef(selectedSemester?.lifecycleStatus);
   selectedSemesterLifecycleRef.current = selectedSemester?.lifecycleStatus;
 
@@ -270,7 +276,7 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
     savingEntryRef.current = true; setSavingEntry(true);
     try {
       const saved = await createTimelineEntry(newEntryVal, selectedSemesterId ?? undefined);
-      const message = `Timeline entry created: "${timelineEntryToLegacy(saved).event}".`;
+      const message = `Timeline entry created: "${timelineEntryToLegacy(saved).event}". Saved to draft; publish after review.`;
       setCompletion({message, tone: 'success'});
       void refreshCommitted(message);
       return true;
@@ -282,9 +288,9 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
     setEntrySaveError(null);
     savingEntryRef.current = true; setSavingEntry(true);
     try {
-      const saved = await updateTimelineEntry(updated.id, updated, !!(editingEntry?.operationalPeriodId || editingEntry?.marksPeriodId));
+      await updateTimelineEntry(updated.id, updated, !!(editingEntry?.operationalPeriodId || editingEntry?.marksPeriodId));
       setEditDrawerOpen(false);
-      void refreshCommitted(`Timeline entry updated: "${timelineEntryToLegacy(saved).event}".`);
+      void refreshCommitted('Changes saved. Click Publish calendar to make them visible to your selected audiences.');
     } catch (e) {setEntrySaveError(e instanceof Error ? e.message : 'Failed to update timeline entry.');}
     finally {savingEntryRef.current = false; setSavingEntry(false);}
   };
@@ -303,7 +309,7 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
 
   const handleImportSuccess = (importedEvents: TimelineEntry[], importedCount?: number) => {
     setEntries(importedEvents);
-    const message = `Import completed! ${importedCount ?? importedEvents.length} entries committed.`;
+    const message = `Import completed! ${importedCount ?? importedEvents.length} entries saved to draft. Publish calendar after review.`;
     setCompletion({message, tone: 'success'});
     return refreshCommitted(message);
   };
@@ -332,14 +338,23 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
       <PageHeader
         className="office-tool-heading"
         title="Calendar"
+        titleAside={!loading && !error && <span role="status" className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] leading-4 font-semibold whitespace-nowrap ${timeline?.publication?.hasUnpublishedChanges ? 'bg-indigo-100/70 text-indigo-800' : timeline?.publication?.publishedAt ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+          <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${timeline?.publication?.hasUnpublishedChanges ? 'bg-indigo-500' : timeline?.publication?.publishedAt ? 'bg-emerald-500' : 'bg-slate-400'}`}/>
+          {timeline?.publication?.hasUnpublishedChanges ? 'Unpublished' : timeline?.publication?.publishedAt ? 'Published' : timeline?.available ? 'Publication unavailable' : 'No calendar yet'}
+        </span>}
         subtitle="Plan and communicate semester events. Submission windows and extra time are managed in Periods & deadlines."
         backLabel={backLabel}
         onBack={onBack}
-
+        actions={!loading && !error && timeline?.publication?.hasUnpublishedChanges && <section className="md:pt-7" aria-label="Calendar publication">
+        <PortalButton variant="primary" size="md" icon={Send} className="min-h-10" isLoading={publishing} disabled={!calendarEditable || !selectedSemester || addDrawerOpen || editDrawerOpen || !!entryToDelete} onClick={() => {
+          if (!selectedSemester || !timeline?.publication) return;
+          setPublishReview({semesterId: selectedSemester.id, token: timeline.publication.reviewToken, count: entries.length, publishedCount: timeline.publication.publishedCount, label: selectedSemester.label});
+        }}>{publishing ? 'Publishing…' : 'Publish calendar'}</PortalButton>
+        </section>}
       />
 
       <OfficeAcademicSemesterSelect id="timeline-academic-semester" dateId="timeline-semester-dates" semesters={semesters} selectedId={selectedSemesterId}
-        disabled={savingEntry || deletingEntry || addDrawerOpen || editDrawerOpen}
+        disabled={savingEntry || deletingEntry || addDrawerOpen || editDrawerOpen || !!publishReview || publishing}
         onChange={id=>{setSelectedSemesterId(id);setSearchParams({semester:String(id)},{replace:true});}}/>
       <OfficeToolViews<typeof view> appearance="workspace" label="Calendar views" value={view} onChange={setView} options={[{value:'calendar',label:'Calendar',icon:CalendarDays},{value:'entries',label:'Entries',icon:ListChecks},{value:'history',label:'History',icon:History}]}/>
       {view==='calendar' && <SemesterTimeline timeline={timeline} loading={loading} error={error} onRetry={handleRetry} actions={<PortalButton variant="primary" size="sm" icon={Plus} disabled={!calendarEditable} onClick={handleOpenAddModal}>Add events</PortalButton>} />}
@@ -402,7 +417,18 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
       />
 
       {/* Delete Confirmation Modal */}
-      <DecisionDialog kind="confirmation" tone="danger" decisionKey={entryToDelete?.id} successMessage="Timeline entry deleted." onReload={async () => { await loadEntries(true); }} isOpen={!!entryToDelete} title="Delete Timeline Entry?" message={<>Permanently remove <strong>{entryToDelete?.name}</strong> from the postgraduate timeline? This action cannot be undone.</>} confirmLabel="Delete Entry" busy={deletingEntry} onConfirm={confirmDeleteEntry} onClose={() => { if (!deletingEntryRef.current) setEntryToDelete(null); }} />
+      <DecisionDialog isOpen={!!publishReview} decisionKey={`publish-${publishReview?.semesterId}`} title="Publish calendar?" kind="review"
+        message={<>{publishReview?.label}: publish all {publishReview?.count} draft events, replacing {publishReview?.publishedCount} published events. Publish this calendar to its selected audiences? Submission windows stay unchanged.</>}
+        confirmLabel="Publish calendar" successMessage="Calendar published. Selected audiences will see it on their next refresh."
+        busy={publishing} onClose={() => {if (!publishingRef.current) setPublishReview(null);}}
+        onReload={async () => {await loadEntries(true);}}
+        onConfirm={async () => {
+          if (!publishReview || publishingRef.current) return false;
+          publishingRef.current = true; setPublishing(true);
+          try {return await completeDecision(() => publishTimeline(publishReview.semesterId, publishReview.token), async () => {await loadEntries(true);});}
+          finally {publishingRef.current = false; setPublishing(false);}
+        }}/>
+      <DecisionDialog kind="confirmation" tone="danger" decisionKey={entryToDelete?.id} successMessage="Timeline entry removed from draft. Publish calendar to update audiences." onReload={async () => { await loadEntries(true); }} isOpen={!!entryToDelete} title="Delete Timeline Entry?" message={<>Remove <strong>{entryToDelete?.name}</strong> from the calendar draft? The published event remains visible until you publish this change.</>} confirmLabel="Delete Entry" busy={deletingEntry} onConfirm={confirmDeleteEntry} onClose={() => { if (!deletingEntryRef.current) setEntryToDelete(null); }} />
 
     </div>
   );

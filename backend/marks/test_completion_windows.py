@@ -24,6 +24,49 @@ class CompletionWindowTests(APITestCase):
     def grant(self, **values):
         return self.client.post('/api/marks/completion-windows/', {'taskIds': [self.task.pk], 'deadline': (timezone.now()+timezone.timedelta(days=10)).isoformat(), 'reason': 'Approved additional time', **values}, format='json')
 
+    def test_monitoring_overdue_respects_personal_completion_deadline(self):
+        from .views import period_task_totals
+        self.period_obj.closes_at = timezone.now() - timezone.timedelta(days=1)
+        self.period_obj.save()
+        self.assertEqual(period_task_totals(self.period_obj)['overdue'], 1)
+        self.assertEqual(self.grant().status_code, 201)
+        self.assertEqual(period_task_totals(self.period_obj)['overdue'], 0)
+
+    def test_close_retires_unfinished_tasks_preserving_marks_and_other_periods(self):
+        from .models import MarkEntry, EvaluationTaskLifecycleAudit
+        from .services import close_evaluation_period, MarksStateConflict
+        from .closure_preview import period_closure_preview
+        draft = MarkEntry.objects.create(task=self.task, status='DRAFT', comments='Keep this draft')
+        submitted_task = EvaluationTask.objects.create(period=self.period_obj, evaluator=self.panel,
+            profile=self.student_profile, evaluator_role='PANEL')
+        submitted = MarkEntry.objects.create(task=submitted_task, status='SUBMITTED', total_mark='80.00')
+        paused = EvaluationTask.objects.create(period=self.period_obj, evaluator=self.office,
+            profile=self.student_profile, evaluator_role='BACKUP', lifecycle_status='PAUSED')
+        other_period = self.period()
+        other = EvaluationTask.objects.create(period=other_period, evaluator=self.supervisor,
+            profile=self.student_profile, evaluator_role='SUPERVISOR')
+        self.assertEqual(self.grant().status_code, 201)
+        preview = period_closure_preview(self.period_obj)
+        with self.assertRaises(MarksStateConflict):
+            close_evaluation_period(period=self.period_obj, actor=self.office, reason='Assessment replaced',
+                preview_token=preview['previewToken'], acknowledge_unfinished=False)
+        close_evaluation_period(period=self.period_obj, actor=self.office, reason='Assessment replaced',
+            preview_token=preview['previewToken'], acknowledge_unfinished=True)
+        for task in (self.task, paused):
+            task.refresh_from_db()
+            self.assertEqual(task.lifecycle_status, 'RETIRED')
+            self.assertEqual(task.retired_by, self.office)
+            self.assertTrue(EvaluationTaskLifecycleAudit.objects.filter(task=task, action='RETIRED').exists())
+        self.assertFalse(self.task.completion_windows.filter(ended_at__isnull=True).exists())
+        draft.refresh_from_db()
+        self.assertEqual(draft.comments, 'Keep this draft')
+        submitted.refresh_from_db()
+        self.assertEqual(submitted.status, 'SUBMITTED')
+        self.assertEqual(str(submitted.total_mark), '80.00')
+        for task in (submitted_task, other):
+            task.refresh_from_db()
+            self.assertEqual(task.lifecycle_status, 'ACTIVE')
+
     def test_grant_closed_task_allows_draft_and_snapshots_submission(self):
         self.period_obj.lifecycle_status = EvaluationPeriod.Lifecycle.CLOSED
         self.period_obj.save()

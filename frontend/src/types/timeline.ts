@@ -64,6 +64,7 @@ export interface SemesterTimelineLevelGroup {
 }
 
 export interface ActiveSemesterTimeline {
+  publication?: {publishedAt: string | null; publishedCount: number; hasUnpublishedChanges: boolean; reviewToken: string};
   available: boolean;
   id?: number;
   semesterId?: number | null;
@@ -88,6 +89,9 @@ export interface TimelinePreviewRow {
 }
 
 export interface TimelineUploadPreview {
+  mode: 'ADD' | 'REPLACE';
+  existingCount: number;
+  resultingCount: number;
   previewToken: string;
   warnings: string[];
   rows: TimelinePreviewRow[];
@@ -103,7 +107,7 @@ export interface TimelineUploadResult {
 export interface TimelineAuditLog {
   id: number;
   actorName: string;
-  action: 'UPLOAD' | 'REPLACE' | 'ADD_ENTRY' | 'EDIT_ENTRY' | 'DELETE_ENTRY' | 'EXTEND';
+  action: 'UPLOAD' | 'REPLACE' | 'ADD_ENTRY' | 'EDIT_ENTRY' | 'DELETE_ENTRY' | 'EXTEND' | 'PUBLISH';
   summary: string;
   reason?: string;
   before?: Record<string, unknown>;

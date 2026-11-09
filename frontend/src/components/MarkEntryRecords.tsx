@@ -14,11 +14,12 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Search,
   Files,
+  Download,
 } from 'lucide-react';
 import { PageHeader, PortalButton } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import { MarkRecord } from '../types';
-import { getMarkRecords } from '../services';
+import { getMarkRecords, getMarksExport } from '../services';
 import {
   filterMarkRecordsByStatusTab,
   MarkRecordStatusTab,
@@ -50,6 +51,9 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
   const records = useMemo(() => filterMonitoringMarks(allRecords, monitoring?.view ?? null).filter(record => (!periodScope || String(record.periodId) === periodScope) && (!semesterScope || record.semester === semesterScope) && (!(periodScope || semesterScope) || ((!record.taskLifecycleStatus || record.taskLifecycleStatus === 'ACTIVE') && !['DRAFT', 'ARCHIVED'].includes(record.periodLifecycleStatus ?? '')))), [allRecords, monitoring?.view, periodScope, semesterScope]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportPending = React.useRef(false);
 
   const loadRecords = useCallback(() => {
     setLoading(true);
@@ -172,6 +176,37 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
     return filteredRecords.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredRecords, currentPage]);
 
+  const downloadExcel = async () => {
+    if (exportPending.current || !filteredRecords.length) return;
+    exportPending.current = true;
+    setExporting(true);
+    setExportError(null);
+    try {
+      const scope = [
+        `Status: ${selectedStatus}`, `Programme: ${programmeFilter}`,
+        `Semester: ${semesterScope ?? semesterFilter}`, `Evaluator: ${panelFilter}`,
+        periodScope ? `Period: ${records.find(record => String(record.periodId) === periodScope)?.periodName ?? periodScope}` : '',
+        searchQuery ? `Search: ${searchQuery}` : '',
+        monitoring ? `Monitoring: ${monitoring.view}` : '',
+      ].filter(Boolean).join('; ');
+      const blob = await getMarksExport(filteredRecords.map(record => record.id), scope);
+      const url = URL.createObjectURL(blob);
+      try {
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = 'marks_records.xlsx';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+      } finally { URL.revokeObjectURL(url); }
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'Could not download marks. Please try again.');
+    } finally {
+      exportPending.current = false;
+      setExporting(false);
+    }
+  };
+
   return (
     <div id="mark-entry-records-dashboard" className="marks-workspace space-y-5 text-left relative">
 
@@ -182,7 +217,17 @@ export const MarkEntryRecords: React.FC<MarkEntryRecordsProps> = ({
         backLabel={backLabel}
         onBack={onBack}
         subtitleClassName="leading-relaxed"
+        actions={<PortalButton variant="primary" size="sm" icon={Download} isLoading={exporting}
+          title="Download all matching records across every page as Excel" onClick={downloadExcel}
+          disabled={loading || !!error || exporting || !filteredRecords.length}>
+          Export Excel
+        </PortalButton>}
       />
+
+      <p className="text-sm text-slate-500" aria-live="polite">
+        Excel includes all {filteredRecords.length} matching records across every page. Submitted marks only; incomplete evaluations are listed separately.
+      </p>
+      {exportError && <p role="alert" className="text-sm text-red-600">{exportError}</p>}
 
       <OfficeMonitoringNotice />
 

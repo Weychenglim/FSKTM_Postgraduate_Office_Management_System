@@ -4,7 +4,7 @@ import { resolveDashboardTaskRoute, formatWaitingText } from './workflowAgeing';
 
 export function officeMarksDeadlineRoute(period?:{id:number;semesterId:number|null}) {
   return period && Number.isInteger(period.id) && period.id>0 && Number.isInteger(period.semesterId) && period.semesterId!>0
-    ? `${APP_ROUTES.dashboardPeriods}?semester=${period.semesterId}#marks-period-${period.id}`
+    ? `${APP_ROUTES.dashboardPeriods}?semester=${period.semesterId}&manage=window#marks-period-${period.id}`
     : `${APP_ROUTES.dashboardPeriods}#period-panel-MARKS`;
 }
 

@@ -1,4 +1,8 @@
 import {parseAppointmentMarkingTarget,mergeMarkingTasks} from '../utils/appointmentMarking';
+import { useLocation, useNavigate } from 'react-router';
+import { APP_ROUTES } from '../constants/routes';
+import { lecturerMarksRoute, lecturerMarksTaskRoute, resolveLecturerMarkTask } from '../utils/lecturerMarksRoutes';
+import { recordBackSteps, recordReturn } from '../utils/recordNavigation';
 import {markingRole} from '../utils/lecturerMarking';
 import { MarksHeading, MarksSummaryCard } from './MarksPrimitives';
 import { PortalSelect } from './PortalSelect';
@@ -11,8 +15,8 @@ import { useListState } from './ListState';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { UserRound, CheckSquare, Clock, FilePenLine, CheckCircle, Search, type LucideIcon } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { CheckSquare, Clock, FilePenLine, CheckCircle, Search, type LucideIcon } from 'lucide-react';
 import { MarkEntryDetail } from './MarkEntryDetail';
 import { MarksEntryHistory } from './MarksEntryHistory';
 import { LecturerMarkingNavigation } from './LecturerMarkingNavigation';
@@ -67,35 +71,47 @@ const StatusChip: React.FC<{ type: EvaluationStatus }> = ({ type }) => {
 
 // ==================== MAIN COMPONENT ====================
 
-export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
-  onNavigateToDossier,contextSearch='',
-}) => {
-  const [target,setTarget]=useState(()=>parseAppointmentMarkingTarget(contextSearch));
+export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = () => {
+  const location = useLocation();
+  const contextSearch = location.search;
+  const navigate = useNavigate();
+  const route = lecturerMarksRoute(location.pathname);
+  const currentView = route.view === 'history' ? 'history' : 'dashboard';
+  const target = useMemo(() => parseAppointmentMarkingTarget(contextSearch || location.search), [contextSearch,location.search]);
   const [linkedSubmitted,setLinkedSubmitted]=useState<EvaluationTask[]>([]);
-  const targetOpened=useRef(false);
+  const requestGeneration = useRef(0);
   // Evaluation tasks are loaded from the persisted lecturer assignment API.
   const [tasks, setTasks] = useState<EvaluationTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rememberedRole, setRememberedRole] = useListState<EvaluationTaskRole | null>('LecturerMarksEntry', 'markingRole', null);
 
-  const [currentView, setCurrentView] = useListState<'dashboard' | 'history'>('LecturerMarksEntry', 'currentView', 'dashboard');
-
   const loadTasks = useCallback((propagateError = false) => {
+    const request = ++requestGeneration.current;
     setLoading(true);
     setError(null);
-    return Promise.all([getEvaluationTasks(),target?getSubmittedEvaluations():Promise.resolve([] as EvaluationTask[])])
+    return Promise.all([getEvaluationTasks(),target || route.view === 'task' ? getSubmittedEvaluations() : Promise.resolve([] as EvaluationTask[])])
       .then(([loaded,submitted]) => {
+        if (request !== requestGeneration.current) return;
         setTasks(loaded);setLinkedSubmitted(submitted);
         setRememberedRole(current => target?.role??initialMarkingRole(loaded, current));
       })
-      .catch((e) => { setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'); if (propagateError) throw e; })
-      .finally(() => setLoading(false));
-  }, [setRememberedRole,target]);
+      .catch((e) => { if (request === requestGeneration.current) setError(e instanceof Error ? e.message : 'Failed to load evaluation tasks.'); if (propagateError) throw e; })
+      .finally(() => { if (request === requestGeneration.current) setLoading(false); });
+  }, [setRememberedRole,target,route.view]);
 
   useEffect(() => {
-    if (target || currentView === 'dashboard') loadTasks();
+    if (target || currentView === 'dashboard') void loadTasks();
+    return () => {requestGeneration.current++;};
   }, [loadTasks, currentView]);
+
+  // Existing appointment links remain valid, but exact task details get a canonical URL.
+  useEffect(() => {
+    if (route.view !== 'dashboard' || !target?.taskId) return;
+    const query = new URLSearchParams(contextSearch || location.search);
+    query.delete('task');
+    navigate(`${lecturerMarksTaskRoute(target.taskId)}?${query}`, {replace:true});
+  }, [route.view, target, contextSearch, location.search, navigate]);
 
   // 2. Filters & Searches State
   const [searchTerm, setSearchTerm] = useListState('LecturerMarksEntry', 'searchTerm', '');
@@ -104,18 +120,17 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
   
   useEffect(()=>{
     if(!target)return;
-    setSearchTerm('');setSelectedSemester('All Semesters');setSelectedStatus('All Statuses');setCurrentView('dashboard');
-  },[target,setSearchTerm,setSelectedSemester,setSelectedStatus,setCurrentView]);
+    setSearchTerm('');setSelectedSemester('All Semesters');setSelectedStatus('All Statuses');
+  },[target,setSearchTerm,setSelectedSemester,setSelectedStatus]);
 
   // Active form view state
   const [activeFormTask, setActiveFormTask] = useState<EvaluationTask | null>(null);
 
   useEffect(()=>{
-    if(!target?.taskId||targetOpened.current||loading||error)return;
-    const exact=mergeMarkingTasks(tasks,linkedSubmitted).find(task=>task.id===target.taskId&&task.studentId===target.studentId&&markingRole(task)===target.role);
-    targetOpened.current=true;
-    if(exact)setActiveFormTask(exact);
-  },[target,loading,error,tasks,linkedSubmitted]);
+    if(route.view !== 'task' || !route.taskId || activeFormTask?.id === route.taskId || loading || error)return;
+    const exact=resolveLecturerMarkTask(mergeMarkingTasks(tasks,linkedSubmitted),route.taskId,target);
+    if(exact){setActiveFormTask(exact);setRememberedRole(markingRole(exact));}
+  },[route.view,route.taskId,target,loading,error,tasks,linkedSubmitted,activeFormTask,setRememberedRole]);
 
   // Submit Feedback notification
   const publishFeedback = useDecisionFeedback();
@@ -132,7 +147,8 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
     setSelectedStatus('All Statuses');
   };
 
-  const selectedRole = target?.role??initialMarkingRole(tasks, rememberedRole);
+  const requestedRole = new URLSearchParams(contextSearch || location.search).get('role');
+  const selectedRole = target?.role ?? (requestedRole === 'SUPERVISOR' || requestedRole === 'PANEL' || requestedRole === 'BACKUP' ? requestedRole : initialMarkingRole(tasks, rememberedRole));
   const workspace = markingWorkspaces[selectedRole];
   const roleTasks = tasksForMarkingRole(target?mergeMarkingTasks(tasks,linkedSubmitted):tasks, selectedRole).filter(task=>!target||task.studentId===target.studentId);
   const semesterOptions = getMarkTaskSemesters(tasks);
@@ -145,21 +161,49 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
 
   // 4. Form controller actions
   const handleOpenForm = (task: EvaluationTask) => {
-    setActiveFormTask(task);
+    if (!task.id) return;
+    setRememberedRole(markingRole(task));
+    navigate(lecturerMarksTaskRoute(task.id), {state:{recordReturn:{path:location.pathname + location.search,label:currentView === 'history' ? 'Marks Entry History' : 'Marks Entry',historyIndex:window.history.state?.idx}}});
   };
+  const fallbackPath = target ? `${APP_ROUTES.marks}?${new URLSearchParams({student:target.studentId,role:target.role})}` : APP_ROUTES.marks;
+  const source = recordReturn(location.state?.recordReturn, {path:fallbackPath,label:'Marks Entry'}, APP_ROUTES.marks);
+  const backToList = () => {
+    const steps = recordBackSteps(window.history.state?.idx, source);
+    if (steps) navigate(-steps); else navigate(source.path, {replace:true});
+  };
+
+  if (route.view === 'invalid' || (route.view === 'task' && activeFormTask?.id !== route.taskId)) {
+    const resolving = route.view === 'task' && (loading || (!error && route.taskId && resolveLecturerMarkTask(mergeMarkingTasks(tasks, linkedSubmitted), route.taskId, target)));
+    return (
+      <div className="marks-workspace space-y-6">
+        <PageHeader title="Mark Entry Detail" backLabel={`Back to ${source.label}`} onBack={backToList} />
+        <PortalCard padding="none">
+          {resolving ? <LoadingState message="Loading marking task…" className="px-6 !py-10" /> : error ? (
+            <div className="p-6"><ErrorState message={error} onRetry={loadTasks} /></div>
+          ) : (
+            <EmptyState
+              title={route.view === 'invalid' ? 'Marking page not found' : 'Marking task unavailable'}
+              description={route.view === 'invalid' ? 'Check the link or return to your marking tasks.' : 'This task is not available in your assigned tasks or submission history.'}
+              className="px-6 !py-10 sm:!py-12"
+            />
+          )}
+        </PortalCard>
+      </div>
+    );
+  }
 
   return (
     <div id="lecturer-marks-entry-container" className="marks-workspace space-y-6">
       
-      {target?<PortalCard padding="md"><div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-slate-700">{target.taskId&&!loading&&!error&&!roleTasks.some(task=>task.id===target.taskId)?'The selected marking task is no longer available.':`Marking tasks for ${roleTasks[0]?.studentName??target.studentId} · ${target.role==='SUPERVISOR'?'Supervisor':'Panel'}`}</p><PortalButton size="sm" onClick={()=>{setTarget(null);setActiveFormTask(null);clearFilters();setCurrentView('dashboard');}}>Show all tasks</PortalButton></div></PortalCard>:null}
+      {target && route.view !== 'task' ?<PortalCard padding="md"><div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-slate-700">{`Marking tasks for ${roleTasks[0]?.studentName??target.studentId} · ${target.role==='SUPERVISOR'?'Supervisor':'Panel'}`}</p><PortalButton size="sm" onClick={()=>navigate(APP_ROUTES.marks)}>Show all tasks</PortalButton></div></PortalCard>:null}
 
       <>
-        {!target&&currentView === 'history' ? (
+        {route.view === 'task' ? null : !target&&currentView === 'history' ? (
             <MarksEntryHistory
-              onBack={() => setCurrentView('dashboard')}
-              onSelectRecord={task => setActiveFormTask(task)}
-              initialRole={rememberedRole ?? selectedRole}
-              onRoleChange={setRememberedRole}
+              onBack={() => navigate(APP_ROUTES.marks)}
+              onSelectRecord={handleOpenForm}
+              initialRole={selectedRole}
+              onRoleChange={role => {setRememberedRole(role);navigate(`${APP_ROUTES.marksHistory}?role=${role}`, {replace:true});}}
             />
           ) : (
             /* Lecturer task workspace */
@@ -170,7 +214,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
               className="select-none"
             />
 
-            <LecturerMarkingNavigation tasks={tasks} role={selectedRole} onChange={role=>{setTarget(null);setRememberedRole(role);setCurrentView('dashboard');}}
+            <LecturerMarkingNavigation tasks={tasks} role={selectedRole} onChange={role=>{setRememberedRole(role);navigate(`${APP_ROUTES.marks}?role=${role}`);}}
               controls="lecturer-marking-workspace" countsKnown={!loading && !error} />
 
             <section id="lecturer-marking-workspace" aria-label={workspace.title} className="space-y-5">
@@ -201,7 +245,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             <PortalCard id="mark-entry-tasks-list-block" padding="md" className="space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <MarksHeading icon={CheckSquare}>{workspace.title}</MarksHeading>
-                <PortalButton onClick={() => {setTarget(null);setCurrentView('history');}}>View submission history</PortalButton>
+                <PortalButton onClick={() => navigate(`${APP_ROUTES.marksHistory}?role=${selectedRole}`)}>View submission history</PortalButton>
               </div>
 
             <WorkspaceFilterCard onReset={clearFilters} fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
@@ -262,10 +306,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
                             {task.status !== 'SUBMITTED' && task.canEdit !== true ? <span className="card-description mt-1 block">{task.periodEffectiveStatus === 'SCHEDULED' ? 'Period has not opened' : task.periodEffectiveStatus === 'CLOSED' || task.periodEffectiveStatus === 'ARCHIVED' ? 'Period closed' : 'Read only'}</span> : null}
                           </td>
                           <td role="cell" className="data-td col-span-2 block px-0 py-2 sm:table-cell sm:px-5 sm:py-4">
-                            <div className="flex flex-col items-start gap-2">
                               <PortalButton variant={task.canEdit === true && task.status !== 'SUBMITTED' ? 'primary' : 'secondary'} onClick={() => handleOpenForm(task)}>{action}</PortalButton>
-                              {onNavigateToDossier ? <PortalButton variant="primary" icon={UserRound} size="sm" onClick={() => onNavigateToDossier(task.studentId)}>View student record</PortalButton> : null}
-                            </div>
                           </td>
                         </tr>;
                       })}
@@ -280,17 +321,19 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = ({
             </section>
           </div>
           )}
-        {activeFormTask ? activeFormTask.status === 'SUBMITTED' ? (
+        {route.view === 'task' && activeFormTask && activeFormTask.id === route.taskId ? activeFormTask.status === 'SUBMITTED' ? (
           <SubmittedMarkDetail
+            routed
             task={activeFormTask}
-            backLabel={currentView === 'history' ? 'Back to Marks Entry History' : 'Back to Marks Entry'}
-            onBack={() => setActiveFormTask(null)}
+            backLabel={`Back to ${source.label}`}
+            onBack={backToList}
           />
         ) : (
           <MarkEntryDetail
+            routed
             task={activeFormTask}
-            backLabel={currentView === 'history' ? 'Back to Marks Entry History' : 'Back to Marks Entry'}
-            onBack={() => setActiveFormTask(null)}
+            backLabel={`Back to ${source.label}`}
+            onBack={backToList}
             onSave={async (updatedTask) => {
               const savedTask = await saveMarkDraft(updatedTask);
               setTasks((current) => replaceEvaluationTask(current, savedTask));

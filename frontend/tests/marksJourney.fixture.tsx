@@ -26,7 +26,7 @@ const enter = async (node: HTMLInputElement | HTMLTextAreaElement, value: string
 let root: Root | null = null;
 const mount = (content: React.ReactNode) => {
   root?.unmount(); root = createRoot(document.getElementById('root')!);
-  root.render(<MemoryRouter><ListState.Provider value={new Map()}><RecordPageProvider>{content}</RecordPageProvider></ListState.Provider></MemoryRouter>);
+  root.render(<MemoryRouter initialEntries={['/marks']}><ListState.Provider value={new Map()}><RecordPageProvider>{content}</RecordPageProvider></ListState.Provider></MemoryRouter>);
 };
 try {
   const config = await (await fetch('/journey-config')).json();

@@ -23,6 +23,8 @@ interface UploadTimelineDrawerProps {
 export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOpen, onClose, onImportSuccess, semesterId, semesterLabel, embedded = false, onCancel, onDirtyChange, onBusyChange }) => {
   const feedback = useDecisionFeedback();
   const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<'ADD' | 'REPLACE'>('ADD');
+  const [replacementReviewed, setReplacementReviewed] = useState(false);
   const [preview, setPreview] = useState<TimelineUploadPreview | null>(null);
   const [previewPage, setPreviewPage] = useState(1);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -37,6 +39,8 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
     generation.current += 1;
     templateGeneration.current += 1;
     setFile(null);
+    setMode('ADD');
+    setReplacementReviewed(false);
     setPreview(null);
     setPreviewPage(1);
     setAcknowledged(false);
@@ -49,6 +53,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
   const chooseFile = (candidate: File | null) => {
     if (busy) return;
     generation.current += 1;
+    setReplacementReviewed(false);
     setPreview(null);
     setPreviewPage(1);
     setAcknowledged(false);
@@ -61,12 +66,13 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
     if (!file || busy) return;
     const current = generation.current;
     setBusy(true);
+    setReplacementReviewed(false);
     setPreview(null);
     setPreviewPage(1);
     setAcknowledged(false);
     setMessage(null);
     try {
-      const result = await previewTimelineFile(file, semesterId);
+      const result = await previewTimelineFile(file, semesterId, mode);
       if (generation.current === current) setPreview(result);
     } catch (error) {
       if (generation.current === current) setMessage(error instanceof Error ? error.message : 'Preview failed.');
@@ -76,12 +82,12 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
   };
 
   const handleConfirm = async () => {
-    if (!file || !preview || busy || (preview.requiresAcknowledgement && !acknowledged)) return;
+    if (!file || !preview || busy || (mode === 'REPLACE' && !replacementReviewed) || (preview.requiresAcknowledgement && !acknowledged)) return;
     const current = generation.current;
     setBusy(true);
     setMessage(null);
     try {
-      const result = await uploadTimelineFile(file, semesterId, preview.previewToken, acknowledged);
+      const result = await uploadTimelineFile(file, semesterId, preview.previewToken, acknowledged, mode);
       if (generation.current !== current) return;
       setFile(null);
       setPreview(null);
@@ -125,7 +131,10 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
   const renderImport = (requestBack: () => void) =>
     <section className={embedded ? "space-y-5" : "space-y-5 rounded-2xl border border-slate-200 bg-white p-5"}>
 
-      <AlertMessage type="warning" title="Import replaces this semester’s timeline" message="Preview the file and review its events before confirming. Previewing makes no changes." />
+      <label className="form-label block">Import action<select aria-label="Import action" className="form-control mt-1" value={mode} disabled={busy} onChange={event => {
+        setMode(event.target.value as 'ADD' | 'REPLACE'); generation.current += 1; setPreview(null); setAcknowledged(false); setReplacementReviewed(false); setPreviewPage(1);
+      }}><option value="ADD">Add events</option><option value="REPLACE">Replace calendar</option></select></label>
+      <AlertMessage type={mode === 'REPLACE' ? 'warning' : 'info'} title={mode === 'REPLACE' ? 'Replace the calendar draft' : 'Add to the calendar draft'} message="Import saves a draft. Publish calendar after review to make changes visible to selected audiences. Previewing makes no changes." />
       <div className="rounded-xl border-2 border-dashed border-slate-300 p-6 text-center space-y-3"
         onDragOver={event => event.preventDefault()}
         onDrop={event => { event.preventDefault(); chooseFile(event.dataTransfer.files[0] || null); }}>
@@ -142,6 +151,8 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
       {templateFeedback && <AlertMessage type={templateFeedback.type} title={templateFeedback.type === 'error' ? 'Template download needs attention' : 'Template ready'} message={templateFeedback.message} />}
       {preview && <div className="space-y-4" aria-label="Import preview">
         <div><h3 className="section-heading">Review {preview.importedCount} {preview.importedCount === 1 ? 'event' : 'events'}</h3><p className="card-description mt-2">No changes have been saved. Review all events before importing.</p></div>
+        <p className="card-description" role="status">Existing: {preview.existingCount} events. Incoming: {preview.importedCount} events. Draft after import: {preview.resultingCount} events.</p>
+        {mode === 'REPLACE' && <label className="flex gap-2 text-sm"><input type="checkbox" checked={replacementReviewed} disabled={busy} onChange={event => setReplacementReviewed(event.target.checked)}/>Replace all {preview.existingCount} draft events with these {preview.importedCount} events. The published calendar stays visible until publication.</label>}
         {preview.warnings.length > 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
           <ul className="list-disc pl-5 text-sm">{preview.warnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>
           {preview.requiresAcknowledgement && <label className="flex gap-2 text-sm"><input type="checkbox" checked={acknowledged} disabled={busy} onChange={event => setAcknowledged(event.target.checked)} />I have reviewed and acknowledge these warnings.</label>}
@@ -170,7 +181,7 @@ export const UploadTimelineDrawer: React.FC<UploadTimelineDrawerProps> = ({ isOp
       <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4">
         <PortalButton variant="secondary" disabled={busy} onClick={requestBack}>Cancel</PortalButton>
         {!preview && <PortalButton variant="primary" disabled={!file || busy} isLoading={busy} onClick={handlePreview}>Preview import</PortalButton>}
-        {preview && <PortalButton variant="primary" icon={UploadCloud} disabled={busy || (preview.requiresAcknowledgement && !acknowledged)} isLoading={busy} onClick={handleConfirm}>{`Import ${preview.importedCount} ${preview.importedCount === 1 ? 'event' : 'events'}`}</PortalButton>}
+        {preview && <PortalButton variant="primary" icon={UploadCloud} disabled={busy || (mode === 'REPLACE' && !replacementReviewed) || (preview.requiresAcknowledgement && !acknowledged)} isLoading={busy} onClick={handleConfirm}>{`Import ${preview.importedCount} ${preview.importedCount === 1 ? 'event' : 'events'}`}</PortalButton>}
       </div>
     </section>
   ;

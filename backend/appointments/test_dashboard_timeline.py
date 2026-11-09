@@ -121,6 +121,7 @@ class DashboardTimelineApiTests(APITestCase):
 
     def upload(self, data, format="multipart"):
         """Exercise the required review/confirmation flow for legacy scenarios."""
+        data = {"mode": "REPLACE", **data}
         upload = data.get("file")
         preview = self.client.post("/api/dashboard/timeline/upload/preview/", data, format=format)
         if preview.status_code != 200:
@@ -237,7 +238,7 @@ class DashboardTimelineApiTests(APITestCase):
         self.assertEqual(len(response.data["timeline"]["levels"][0]["entries"]), 2)
         self.assertEqual(response.data["timeline"]["levels"][1]["level"], "P2")
 
-        active = self.client.get("/api/dashboard/timeline/active/")
+        active = self.client.get("/api/dashboard/timeline/active/", {"semesterId": self.academic_semester.pk})
         self.assertEqual(active.status_code, status.HTTP_200_OK)
         self.assertEqual(active.data["available"], True)
         self.assertEqual(active.data["levels"][0]["entries"][0]["step"], 1)
@@ -592,7 +593,7 @@ class DashboardTimelineApiTests(APITestCase):
         self.assertEqual(response.data["level"], "P2")
         self.assertEqual(response.data["step"], 2)
 
-        active = self.client.get("/api/dashboard/timeline/active/")
+        active = self.client.get("/api/dashboard/timeline/active/", {"semesterId": self.academic_semester.pk})
         p2_entries = [
             group for group in active.data["levels"] if group["level"] == "P2"
         ][0]["entries"]
@@ -648,7 +649,7 @@ class DashboardTimelineApiTests(APITestCase):
         self.assertEqual(response.data["step"], 3)
         self.assertEqual(response.data["status"], "Upcoming")
 
-        active = self.client.get("/api/dashboard/timeline/active/")
+        active = self.client.get("/api/dashboard/timeline/active/", {"semesterId": self.academic_semester.pk})
         p1_entries = active.data["levels"][0]["entries"]
         self.assertEqual(len(p1_entries), 3)
         self.assertEqual(p1_entries[-1]["title"], "Proposal presentation")
@@ -669,7 +670,7 @@ class DashboardTimelineApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
-        active = self.client.get("/api/dashboard/timeline/active/")
+        active = self.client.get("/api/dashboard/timeline/active/", {"semesterId": self.academic_semester.pk})
         remaining_ids = [
             entry["id"] for group in active.data["levels"] for entry in group["entries"]
         ]
@@ -751,6 +752,8 @@ class DashboardTimelineApiTests(APITestCase):
         active_entry.deadline_end = timezone.localdate()
         active_entry.save(update_fields=["deadline_start", "deadline_end"])
 
+        from dashboard.calendar_publication import publication_state, publish_calendar
+        publish_calendar(self.academic_semester, self.admin, publication_state(active_entry.timeline, self.admin)["reviewToken"])
         response = self.client.get("/api/dashboard/tasks/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

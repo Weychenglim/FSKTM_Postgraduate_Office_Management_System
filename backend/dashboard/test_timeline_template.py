@@ -50,8 +50,18 @@ class TimelineTemplateTests(SimpleTestCase):
         guide = " ".join(str(cell.value or "") for row in self.workbook["Instructions"] for cell in row)
         self.assertNotIn("not Examiner", guide)
         self.assertIn("Responsible parties in Create/Edit", guide)
-        for phrase in ["REPLACES", "examples", "P1 = Research Project 1", "P2 = Research Project 2", "does not control visibility", "OFFICE_STAFF", "Periods & deadlines", "no separate Publish step"]:
+        for phrase in ["Add events", "Replace calendar", "examples", "P1 = Research Project 1", "P2 = Research Project 2", "does not control visibility", "OFFICE_STAFF", "Periods & deadlines", "Publish calendar"]:
             self.assertIn(phrase, guide)
+
+    def test_instructions_explain_import_intent_drafts_and_publication(self):
+        guide = " ".join(str(cell.value or "") for row in self.workbook["Instructions"] for cell in row)
+        for phrase in ["Add events (default)", "does not merge duplicates", "existing, incoming and resulting event counts",
+                       "entire calendar draft", "Confirming an import saves a draft", "last published calendar stays visible",
+                       "selected audiences", "next dashboard refresh", "does not make it the current dashboard semester",
+                       "does not open or close submission windows", "same position within P1 or P2"]:
+            self.assertIn(phrase, guide)
+        for obsolete in ["no separate Publish step", "it does not append", "Saving/importing for the current active semester makes events available"]:
+            self.assertNotIn(obsolete, guide)
 
     def test_instructions_leave_viewport_available_for_scrolling(self):
         guide = self.workbook["Instructions"]

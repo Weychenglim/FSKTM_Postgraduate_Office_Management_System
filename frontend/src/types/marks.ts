@@ -81,6 +81,7 @@ export interface MarksConfigurationAuditEvent {
 }
 
 export interface RubricVersion {
+  allowedEvaluatorRoles?: Array<'SUPERVISOR' | 'PANEL'>;
   isArchived?: boolean;
   usage?: {id: number; name: string; semester: string; status: string}[];
   id: number;
@@ -114,6 +115,7 @@ export interface EvaluationTaskTotals {
 }
 
 export interface EvaluationPeriodOption {
+  assessment?: '' | 'P1' | 'P2';
   id: number;
   name: string;
   semester: string;
@@ -284,6 +286,12 @@ export interface MarksAssignmentOptions {
   tasks: EvaluationPreviewTask[];
 }
 
+export interface MarksAssignmentSearchResults<T> {
+  results: T[];
+  total: number;
+  limit: number;
+}
+
 // Lecturer marks-entry task (UC24). Owned by LecturerMarksEntry and re-used by
 // MarkEntryDetail, MarksEntryHistory, and SubmittedMarkDetail.
 export type EvaluationStatus = 'NOT STARTED' | 'DRAFT SAVED' | 'SUBMITTED';
@@ -300,6 +308,9 @@ export interface EvaluationTaskComponent {
 }
 
 export interface EvaluationTask extends DeadlineMetadata {
+  opensAt?: string | null;
+  closesAt?: string | null;
+  assignedAt?: string | null;
   writeVersion?: string;
   id?: number;
   studentId: string;

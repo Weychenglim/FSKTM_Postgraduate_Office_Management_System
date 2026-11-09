@@ -8,6 +8,57 @@ The office used to activate a semester and then remember to update the students 
 - **Students tab:** says how many moved for the first 14 days. It still asks if someone is not on the semester, such as a student added afterwards.
 - **Migration:** `accounts.0020`. The new columns have database defaults, so older code keeps working on a migrated database.
 - **Limit:** the portal cannot see Maya, so every Active student is assumed to have registered until the office marks them.
+## Assessment display names (8 November 2026)
+
+Assessment options, period lists/search and publication review display Research Project 1 and Research Project 2. Shared assessmentLabel maps existing P1/P2 identifiers without rewriting data or resetting test records; no reseed or migration is needed.
+
+## Historical assessment classification removed (8 November 2026)
+
+Classification UI and non-draft assessment update exception removed at user request, superseding previous classification documentation. Four unclassified UAT test periods were backed up privately and backfilled as P1 with audit reasons. Existing marks remain unchanged. Verification: 23 backend safeguards tests, 24 mounted browser checks and production build passed. UAT backend restarted. New periods still require assessment; duplicate publication guards remain enforced.
+
+## Compact calendar publishing completed (8 November 2026)
+
+Calendar status now uses a small vertically centred rectangular tag beside the title: borderless lavender Unpublished with indigo text and a small matching dot, or subtle green Published with a green dot. Removed the former orange text and check icon. Publishing now matches the shared Add events primary styling, using medium sizing, a paper-plane icon and 40px minimum height; it hides after publication and returns for new saved changes. Added coverage for published/unpublished visibility without writes. Fresh verification: 96 mounted calendar checks across 1440/390/320 widths and production build passed; existing ExcelJS chunk advisory remains. Browser fixtures exercise behavior without production styling; no fresh visual screenshot review was performed.
+
+## Calendar edit notification clarified (8 November 2026)
+
+Changed only the successful event-edit notification to: "Changes saved. Click Publish calendar to make them visible to your selected audiences." Requirements and architecture reviewed; publication behavior and design are unchanged. Verified the message in source and checked whitespace; no behavioral tests needed for this copy-only change.
+
+## UAT database and backend refreshed (8 November 2026)
+
+Backed up the isolated five-module UAT database to an ignored private PostgreSQL dump, applied dashboard.0009/0010 and marks.0013, and restarted only its backend on port 8003. No pending migrations remain; Django system check passed. Authenticated calendar GET requests directly and through the port 3003 frontend proxy both returned 200 with publication metadata and three events. The preservation migration copied the existing active calendar into a published snapshot; no unpublished differences remain until another edit. UI notification improvements remain pending. Requirements and architecture reviewed; no design change in this operational refresh.
+
+## Marks publication safeguards completed locally (8 November 2026)
+
+Implemented explicit rubric-version allowed roles, P1/P2 assessment, duplicate semester/assessment/programme/role coverage checks and audited one-time legacy classification. Configured roles are enforced server-side and incompatible UI selections are disabled. Both is deliberate; used rubric versions require cloning. Publication review identifies assessment, rubric/version, programmes and roles. Existing legacy publications and their tasks/marks continue operating. Legacy classification creates no work and permits honest historical duplicates; publication remains guarded. Closed and archived history can be classified. Excel exports now identify Assessment. Prior calendar/export edits are preserved.
+
+Verification: full marks suite passed, 216 tests in an isolated PostgreSQL database with a test-only fast password hasher, including a real simultaneous-publication race and a populated 0012-to-0013 migration preserving configuration, assignments, draft/submitted marks and feedback. Another 28 export/calendar/linked-period integration checks passed (overlap with marks suite), two frontend utility/API scripts passed, and 136 mounted browser checks passed (24 safeguards, 102 rubric, 10 export). Production build, Django system check, migration-state check, UTF-8 validation and whitespace check passed. Existing limitations remain: two baseline TypeScript errors (MarkEntryDetail missing AlertTriangle, phaseSixFeedback obsolete header prop); six pre-existing period-browser scenarios also fail on original HEAD sources. These failures were retained, not weakened. Existing ExcelJS chunk advisory remains. No fresh authenticated whole-shell journey was performed.
+
+Applied pending marks.0012 and new marks.0013 to the default local database after an ignored backup at backend/.env.marks-publication-safeguards-backup-20261108.json. All original columns/rows across 14 marks tables compare exactly unchanged; that local database contained no marks rows. Populated preservation is covered by the migration regression above. No manual period publication, historical classification, commit, push or deployment.
+
+## Marks Excel export completed locally (8 November 2026)
+
+Button follow-up: matched the Supervisor requests export control with the compact primary navy Export Excel button, shared icon prop and loading spinner. Removed the nested icon that stacked above its label. Ten mounted desktop/mobile checks pass, including button variant, size, icon placement and existing download behaviour.
+
+Implemented Office Download Excel for all matching records across every page: Summary, three programme result tabs and Outstanding. Includes submitted scores only, independent active-assignment completion, rubric/component breakdown, traceability metadata, numeric marks, text-safe IDs, frozen headings and filters. Unknown legacy programmes retain an additional tab. Draft scores/comments are excluded. Existing calendar work is preserved; no academic data write or migration.
+
+Verification: 37 backend tests passed (six export regressions plus 31 existing marks workflow tests), frontend API contract passed, and ten mounted browser scenarios passed at desktop/mobile widths (full selection, status filters, empty selection, duplicate suppression and failure/retry). Independent review caught a missing JSON header; corrected with a failing-then-passing regression. Production build passed with the existing ExcelJS chunk advisory. TypeScript reports the two pre-existing errors documented below (MarkEntryDetail AlertTriangle and phaseSixFeedback obsolete header prop). No commit, push or deployment.
+
+## Downloadable calendar template corrected (8 November 2026)
+
+Replaced obsolete instructions claiming that imports always replace the calendar and that saving/importing immediately exposes events without publishing. The downloadable guide now covers Add/Replace, duplicate imports, reviewed counts, draft saving, Publish calendar, retention of the last publication, targeted audiences, Draft-semester visibility and separate submission windows. Clarified replacement's linked-event preservation rules and Target Roles header help.
+
+Verification: five template tests passed after reproducing the obsolete wording with failing assertions. Exercised the actual template download view against local records: HTTP 200, ten updated instruction notes, seven unchanged input columns, wrapped instruction text and all three examples still parse successfully. Requirements/design/status updated. No academic data write, migration, commit or deployment.
+
+## Calendar import/publication completed locally (8 November 2026)
+
+Implemented Add events (default) and Replace calendar with signed mode/state review, existing/incoming/resulting counts and fresh replacement consent. Office saves drafts and publishes an explicitly reviewed semester calendar; later edits/deletions/imports retain the prior publication. Public audiences, dashboard actions, reminders, student tracking, dossiers and calendar reports read published copies. Period publication/enforcement remains independent; linked dates/status retain authoritative period projections.
+
+Focused review corrected historical-calendar preservation, payload/token concurrency, workbook consent reuse and superseded period-link ownership. Retirement freezes dates/status, audits former links and permits draft-period cleanup after unlinking and republishing. No actionable review findings remain.
+
+Verification: 109 backend tests passed (66 calendar/import/extension contracts plus 43 dashboard/report/linked-period/reminder consumers) using isolated PostgreSQL test databases and a test-only fast password hasher. After splitting schema/data migration, the 10 publication tests passed again. Five focused frontend test scripts, all 93 mounted browser scenarios (31 at each of 1440/390/320px), production build, migration-state check and whitespace check passed. Full TypeScript remains blocked by two confirmed HEAD/baseline errors: missing AlertTriangle import in MarkEntryDetail.tsx and obsolete onHelpdeskTrigger prop in phaseSixFeedback.fixture.tsx. Existing large ExcelJS chunk advisory remains. Fresh authenticated full-shell/native acceptance was not performed.
+
+Applied schema migration 0009 and preservation migration 0010 to the local development database after an ignored calendar-only backup at backend/.env.calendar-publication-backup-20261108-022110.json. Initial combined migration hit PostgreSQL deferred-index/pending-trigger ordering and rolled back; separating schema and data resolved it. Verified all original 2 calendars, 15 events and 7 audits unchanged, one preserved publication, and managed calendar API HTTP 200 with a clean publication state. All three mandatory project documents updated. No manual publication of a new draft, commit, push or deployment performed.
 
 ## Email on by default, safer announcements, graduation ticking, FAQ for enrolled students (6 November 2026)
 
@@ -77,6 +128,7 @@ Staff no longer change students one by one, and a student cannot graduate too ea
 - **Maximum:** extensions on the Semesters card, and a notice on the Students tab for anyone on their last allowed semester or past it.
 
 Verified on a private database copy with disposable students: 73 browser checks across office and coordinator, including phone width. To raise with the supervisor or office: Regulation 16(1) says a candidate may not change programme, which conflicts with programme transfers.
+
 
 ## Phase six feedback integration completed (1 November 2026)
 
@@ -4382,3 +4434,135 @@ Evaluation task workspace simplified: concise eligible-period picker, Generate e
 Evaluation task period details follow-up: removed redundant generation guidance for ready periods and standalone semester caption. Metadata uses small bold labels and small regular-weight values. Requirements and architecture unchanged.
 
 Removed the Evaluation Task Assignment header Manage deadlines button as requested.
+
+- 2026-11-03: User-authorized UAT data correction: retired UAT-S01 evaluation task #1 from closed Test Panel 1 using the existing lifecycle service, with reason and lifecycle audit. Replacement task #2 in Test Supervisor 1 remains ACTIVE. Verified old-task reconciliation issue no longer detected. Requirements and architecture unchanged.
+
+- 2026-11-03: Explicit period closure now retires unfinished tasks through the audited lifecycle service. Added prominent period-only warning, retirement acknowledgement and red confirmation. Regression proves acknowledgement enforcement, preservation of draft/submitted marks, retirement of paused tasks, completion-window invalidation and isolation from other periods. Validation in progress.
+- Validation: 15 completion-window tests and 19 production-management/concurrent-correction tests passed (34 total); frontend closure-summary SSR check and git diff --check passed. Full TypeScript check blocked by unrelated existing frontend/tests/phaseSixFeedback.fixture.tsx:78 onHelpdeskTrigger/TopHeaderProps mismatch. No visual browser QA performed.
+- 2026-11-03: Removed the nested closure-review top/bottom dividers and extra vertical margins in the period modal, retaining its outer header/footer borders. Semester/handover styling unchanged. Requirements and architecture reviewed; no changes needed.
+
+### UAT marks monitoring runtime refresh — 2026-11-03
+- Diagnosed empty period-scoped records: the no-reload UAT backend served stale responses without periodId/periodName, while current code and regression test include them.
+- Restarted backend on port 8003 and applied its sole pending maintenance.0001_initial migration required by current login code. Existing Office mark-record metadata regression passed. User will verify browser behavior.
+
+### Lecturer marking list actions — 2026-11-03
+- Removed View student record from both supervisee and Panel marking task rows; retained the marking action.
+- Requirements and architecture checked; no business-rule or architecture changes.
+
+### Lecturer marking editor layout — 2026-11-03
+- Removed the floating action sidebar and repeated role metadata; aligned component score fields and expanded feedback to full width. Save/submit actions and total now sit in the form footer across evaluator roles.
+- Existing permission rendering and global record navigation checks passed. Visual browser inspection was unavailable because the computer-use tool could not initialise.
+
+### Marking feedback refinements — 2026-11-03
+- Draft-save/reload failures use the shared dismissible danger toast. Shortened component feedback to two rows and enlarged the score label to 14px.
+- Slightly enlarged the calculated-total label, score and denominator. Permission rendering passed; TypeScript remains blocked by the existing unrelated TopHeaderProps fixture error.
+
+
+Office mark record layout updated: full-width feedback, consistent metadata typography, sidebar submission controls and modal forms. SubmittedMarksActions checks run; visual browser verification remains pending.
+
+Office mark details refinement: removed the repeated four-column summary and sidebar cards. One full-width overview contains period metadata and a right-aligned action footer; results use the available width and correction history collapses below. Labels are 14px semibold and answers 13px regular.
+
+Revised Office record review to the approved two-column design with a three-column scores table, long-feedback expansion, evaluation footer actions and collapsed nonempty history. Lecturer page remains unchanged.
+
+Office evaluation sidebar simplified: role sits under evaluator; dates and assignment metadata share one collapsed Dates and activity section. Correction and reopening buttons use pencil and reopen icons.
+
+Office dates disclosure now separates the entry schedule from a chronological activity timeline. Missing activity timestamps are omitted, and last-update duplicates of assignment/submission are suppressed.
+
+- Lecturer submitted mark detail refreshed to match the approved Office structure. Removed separate total/deadline cards, retained total in the results footer, and grouped role/period/rubric with collapsible submission activity. Long feedback and comments wrap across the available width. Navigation and marks production-management checks and production build passed. Browser visual verification remains pending.
+
+- Office mark record Overall comments now uses the shared MessageSquare heading icon, matching the Lecturer submitted view. Requirements and architecture remain unchanged.
+
+- Aligned Lecturer evaluation sidebar with Office dates/activity headings, schedule block and chronological events. Fixed missing period/rubric metadata on direct task-list entry. All 10 Lecturer history API tests and shared record navigation checks passed. TypeScript reports only the existing unrelated phaseSixFeedback.fixture.tsx onHelpdeskTrigger error. Visual browser review remains pending.
+
+- Standardized Office and Lecturer mark record schedule/activity timestamps and added a single Malaysia time label. Timezone regression checks passed under America/New_York and Asia/Tokyo; shared record navigation check passed.
+
+- Office marks correction/reopening dialogs: added matching rounded-square close controls with unsaved-change protection; score and comment fields use explicit padding and heights because portalled dialogs do not inherit workspace styles. Component feedback remains preserved and read-only in the correction workflow.
+
+- Fixed transient refresh-required warning on successful period creation, updates and lifecycle transitions; real refresh failures still block subsequent writes and expose recovery.
+
+- Added submission-monitoring task status badges and period-specific generation shortcut, removed empty 0/0 links, and corrected overdue totals for granted completion windows. Status-rule/render tests and all 16 completion-window tests passed. TypeScript still reports the existing phaseSixFeedback fixture onHelpdeskTrigger mismatch.
+
+- Polished monitoring task-status layout: badge and Generate tasks/Retry action are aligned side by side.
+
+- Aligned evaluation task Action heading/cells left and replaced the plain View link with the shared outlined button.
+
+- Renamed Generated missing tasks to Generated evaluation tasks in recent assignment activity.
+
+### Coordinator Marks Entry access - 3 November 2026
+Removed Coordinator Marks Entry module access through the shared permission map, covering menu visibility and direct-route redirects. Added permission regressions for Coordinator exclusion and preserved Office/Lecturer and other Coordinator modules.
+
+- Completed lecturer marks routing only: task/history URLs, canonical legacy links, role-aware list context and preserved unsaved-draft protection. Six new isolated Chrome browser scenarios passed, covering direct refresh, saved drafts, Back/Forward, discard cancellation, list filters, retired submitted history, invalid/missing IDs, legacy exact targets and retry. Route/shortcut unit checks and global-record checks passed. Broader older browser suites still report unrelated rubric-form/Office-feedback expectations and panel lifecycle-action sizing failures; no checks were disabled. TypeScript retains the existing phaseSixFeedback onHelpdeskTrigger fixture error.
+
+- Lecturer marking task fallback UI: standard detail heading and back navigation above a compact state card; loading, unavailable and error states share the layout. Task access and routing rules are unchanged.
+
+- Office submitted-mark correction/reopening validation errors now render inside the modal via the shared `AlertMessage` component, where the native dialog backdrop cannot obscure them. Post-save reload errors remain visible in the recovery state. Focused regression check added.
+
+- 2026-11-04: Lecturer marks submission validation now uses the shared warning toast instead of a large card in the calculated-total footer. Existing save-failure toast and validation rules remain intact; focused regression check added.
+
+- 2026-11-04: Grouped the Marks evaluation configuration and deadline extension actions at the lower right of the period card. Configuration is a primary button-style link with a settings icon; extension remains secondary with a calendar/clock icon.
+- 2026-11-04: Supervisor and Panel window actions now share the lower-right alignment. Extension uses a calendar/clock icon; early closure uses a distinct calendar/close icon and retains danger styling.
+- 2026-11-04: Restructured Office mark correction history to prevent long comments from widening the comparison table. Reason, actor/role and timestamp now have clearer hierarchy; overall comments remain available as wrapped before/after panels.
+- 2026-11-04: Removed the repeated Malaysia UTC+08:00 suffix from correction timestamps. Replaced nested event cards with larger vertical spacing and the existing subtle left accent.
+- 2026-11-04: Set correction-history action titles to compact 13px semibold navy typography for clear but restrained emphasis.
+- 2026-11-04: Marks deadline shortcuts now pass `manage=window` with the selected semester and period anchor so Periods & deadlines opens that window's editor directly.
+- 2026-11-04: Widened the Marks deadline-extension dialog and replaced the cramped task checkbox list with a searchable, 10-per-page table. Search and pagination preserve selections, selected counts and bulk selection controls are visible, the redundant introductory hint is removed, and the scope impact note now appears directly below its selector.
+- 2026-11-04: Expanded the Marks deadline dialog to the shared DecisionDialog extra-wide size and increased vertical spacing between form sections and task rows; other dialogs retain their current sizes.
+- 2026-11-04: Reworked Assign Backup Evaluator with searchable student, lecturer and optional official-task selectors using shared SelectMenu; capped visible results at 50, clarified the task link, and spaced assignment and audit details into separate sections. Existing backup assignment and duplicate guards are unchanged.
+- 2026-11-04: Fixed the Assign backup evaluator entry action being blocked by an unrelated unsaved completion-window draft. It remains unavailable only while a save is in progress or task generation is active/reviewing.
+- 2026-11-04: Kept Student and Backup Lecturer as separate searchable controls side by side on wider screens, stacking only on narrow screens. Both use the shared SelectMenu and the form actions use shared small buttons.
+- 2026-11-04: Updated the shared SelectMenu with an inline search mode and applied it to the separate Student and Backup Lecturer fields (and optional official-task field). Each field now accepts search directly and opens its result list below without a second search box in the popup.
+- 2026-11-04: Backup assignment excludes draft/closed periods by inheriting the current eligible period as read-only context instead of showing a redundant period selector. The entry action is disabled when no published, non-ended period is available.
+- 2026-11-04: Restored the interactive assignment-period selector even when only one eligible period is available; it remains preselected to the current eligible period and excludes draft/ended periods.
+- 2026-11-04: Scoped the backup assignment period selector to the current workspace period, removed its blank “Select period” option, and retained the single eligible period as an explicit selectable choice. Staff change workspace scope before assigning against another period.
+- 2026-11-04: Removed the redundant student research-title and backup lecturer department/email lines beneath their selectors. Errors and no-results feedback remain visible.
+- Verification: frontend production build and `git diff --check` passed. TypeScript still reports only the existing unrelated `AlertTriangle` and `TopHeaderProps.onHelpdeskTrigger` errors; tests were not run.
+- 2026-11-04: Replaced full student/lecturer option downloads with debounced server search in the backup form. The existing Office-only options endpoint returns up to 50 matching results plus a total; students are filtered by period programme scope. Assignment readiness now requests only a scoped count, while the legacy options response remains available.
+- Verification: frontend production build and Python view syntax compilation passed; `git diff --check` passed with existing CRLF notices. TypeScript check reports only existing unrelated errors in `MarkEntryDetail.tsx` (`AlertTriangle`) and `phaseSixFeedback.fixture.tsx` (`onHelpdeskTrigger`); tests were not run.
+- Validation: production build passed with the existing large-chunk advisory. `git diff --check` passed. `npm run lint` remains blocked by unrelated errors in `MarkEntryDetail.tsx` (missing `AlertTriangle`) and `phaseSixFeedback.fixture.tsx` (`onHelpdeskTrigger` is not a `TopHeaderProps` field); tests were not run.
+- 2026-11-04: Restructured supporting-supervisor request detail views across Lecturer, Coordinator and Office roles. Reviewer accept/reject actions now use the shared appointment decision buttons; request details keep the approval timeline and omit the separate audit-history disclosure. Existing role-specific decision dialogs and requester cancellation remain intact.
+- 2026-11-04: Replaced the initial two-column supporting-request detail layout with two vertically stacked cards matching the supervisor/panel detail hierarchy: Request summary and Review and outcome. Added the shared section icons and typography; moved role-specific actions to the lower right of the second card and removed the Available actions label.
+- 2026-11-04: Refined Request summary typography: labels use the shared 12px appointment-detail label scale, field values use readable 14px body text, names receive restrained medium emphasis, and the matric number remains smaller supporting text. Request justification now follows the same readable body scale.
+- 2026-11-04: Added explicit medium textarea padding, a three-row minimum height and readable text sizing to Lecturer and Office supporting-nomination cancellation reasons in DecisionDialog.
+- 2026-11-06: Moved the Coordinator's View student record action to the top-right of the Request summary card; review actions remain in Review and outcome.
+- 2026-11-06: Standardized Supervisor and Panel workload table columns to “Active / Reserved”, with active and reserved counts displayed in the same two-line hierarchy. Removed the Panel-only total line from this capacity breakdown.
+- 2026-11-06: Simplified Supervisor and Panel workload pages by removing repeated scope/filter explanations, summary-card prose and the duplicate workload-distribution strip. Clear filters now appears only when filters are active. Summary cards show concise counts; Supervisor primary/supporting counts remain as row-level context.
+- 2026-11-06: Simplified the workload detail capacity notes. Supervisor and Panel notes now state plainly that active appointments count across semesters and accepted requests/nominations reserve places until approval.
+- 2026-11-06: Refined Academic Semester audit history with clearer action titles, separated actor/reason information, compact expandable before/after changes, and Malaysia-local timestamps without the repeated timezone suffix.
+- 2026-11-07: Tightened the semester audit history after visual feedback. Change details now use the existing fixed-layout before/after table pattern, and empty reason placeholders are omitted to keep expanded history compact.
+- 2026-11-07: Removed the shaded reason panel from semester audit entries. Recorded reasons now appear as inline metadata to match the surrounding history layout.
+- 2026-11-07: Added a shared-style “Delete draft” action to Mark Entry period configuration. Confirmation calls the draft-only DELETE endpoint; the backend preserves the delete audit snapshot and refuses deletion when tasks, timeline links, or other protected records exist. Review caught and fixed PostgreSQL's nullable-join row-lock error, and covered concurrent already-deleted drafts. All 20 `marks.test_production_management` tests passed using the existing test database; focused frontend Marks/semester tests, production build, Python syntax compilation and Django system check passed. `npm run lint` still reports the two previously known unrelated TypeScript errors in `MarkEntryDetail.tsx` (`AlertTriangle`) and `phaseSixFeedback.fixture.tsx` (`onHelpdeskTrigger`).
+- 2026-11-07: Positioned the standard-size “Delete draft” danger button in the period card header beside its Draft status badge. The footer remains focused on Preview, Save and Publish actions. Frontend production build passed.
+- 2026-11-07: Moved “Delete draft” below “Manage period” in the Action column for draft rows. “Manage period” is kept to one line without increasing the table’s minimum width, and deletion confirmation/errors remain available from the list action. Verification: frontend production build and diff whitespace check.
+
+
+Moved Delete draft from the list to the period footer and aligned Archive with the same placement and shared button size. Existing deletion and archive safeguards remain in place.
+
+- Right-aligned the Mark Entry Periods action heading and buttons to reduce unused space at the table edge.
+
+- Corrected the Action heading alignment override in the period list.
+
+- Redistributed period list column widths, giving Rubric more room and left-aligning Action with its buttons.
+
+- Adjusted period list widths to give Period and Academic semester more room.
+
+- Renamed the closed evaluation period footer action to Archive period.
+
+- Clarified the closure action label for published evaluation periods whose scheduled deadline has passed.
+
+- Clarified the rubric role selector and removed its explanatory hint; existing unset roles remain unconfigured until explicitly selected.
+
+- Removed the unconfigured entry from rubric role dropdown choices while retaining required selection.
+
+- Matched the rubric version role summary label to the edit dialog.
+
+- Separated rubric role setup guidance from the version description using an informational notice.
+
+- Simplified period assessment and evaluator-role controls while preserving role restrictions.
+
+- Moved draft publication guidance into a separate notice near the period actions.
+
+- Removed the draft publication notice from the period configuration.
+
+- Adjusted period footer button icons for optical alignment with their labels.
+
+- Replaced rubric role setup notice with general guidance for locked versions.

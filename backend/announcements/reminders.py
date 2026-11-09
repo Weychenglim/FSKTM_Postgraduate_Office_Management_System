@@ -15,7 +15,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from academics.services import current_effective_semester
-from dashboard.models import SemesterTimelineEntry
+from dashboard.models import SemesterTimelineEntry, TimelineAuditLog
 
 from .emails import DEADLINE, SIGN_OFF, SUMMARY, email_users, portal_link
 from .models import Notification, WeeklySummaryLog, DeadlineReminderRun, visible_notifications
@@ -48,16 +48,17 @@ def timeline_notices(now, days, *, recipient_id=None, entry_id=None):
         return []
     today = timezone.localdate(now)
     entries = SemesterTimelineEntry.objects.filter(
-        timeline__is_active=True, timeline__academic_semester=semester,
+        timeline__is_published=True, timeline__academic_semester=semester,
         operational_period__isnull=True, marks_period__isnull=True,
         deadline_end__gte=today,
     ).order_by("deadline_end", "display_order")
     if entry_id is not None:
-        entries = entries.filter(pk=entry_id)
+        entries = entries.filter(source_entry_id=entry_id)
     last_run = DeadlineReminderRun.objects.filter(completed_at__isnull=False,error='').order_by('-completed_at').first()
     opening_since = min(today, timezone.localdate(last_run.completed_at)) if last_run else today
     result = []
     for entry in entries:
+        stable_id = entry.source_entry_id or entry.pk
         left = (entry.deadline_end - today).days
         roles = [TIMELINE_ROLES[role] for role in entry.target_roles if role in TIMELINE_ROLES]
         users = User.objects.filter(is_active=True, role__in=roles, deadline_reminders=True)
@@ -65,18 +66,18 @@ def timeline_notices(now, days, *, recipient_id=None, entry_id=None):
             users = users.filter(pk=recipient_id)
         for user in users:
             base = dict(recipient=user, targetModule='DASHBOARD', recordType='TIMELINE_ENTRY',
-                        recordId=entry.pk, link='/dashboard')
+                        recordId=stable_id, link='/dashboard')
             if left <= days:
                 phase = closing_phase(left, days)
-                result.append(dict(base, eventKey=f'reminder:timeline:{entry.pk}:{entry.deadline_end.isoformat()}:{phase}',
+                result.append(dict(base, eventKey=f'reminder:timeline:{stable_id}:{entry.deadline_end.isoformat()}:{phase}',
                     title=f'Deadline {_due_in(left)}: {entry.title or entry.detail[:80]}',
                     summary=f'Due {entry.deadline_end:%d %b %Y}',
                     message=f'{entry.detail}\n\nDue: {entry.deadline_end:%d %B %Y}. Action by: {entry.action_owner}.', urgent=left<=1))
             if opening_since <= entry.deadline_start <= today:
-                result.append(dict(base,eventKey=f'opened:timeline:{entry.pk}:{entry.deadline_start.isoformat()}',
+                result.append(dict(base,eventKey=f'opened:timeline:{stable_id}:{entry.deadline_start.isoformat()}',
                     title=f'Event period is open: {entry.title or entry.detail[:80]}',
                     summary='The event period is open.', message=entry.detail, urgent=False))
-            for audit in entry.audit_logs.filter(action='EXTEND'):
+            for audit in TimelineAuditLog.objects.filter(entry_id=stable_id, action='EXTEND', created_at__lte=entry.timeline.published_at):
                 if audit.after_values.get('deadlineEnd') != entry.deadline_end.isoformat():
                     continue
                 result.append(dict(base,eventKey=f'extended:timeline:{audit.pk}',

@@ -196,7 +196,7 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
     busy={busy} dirty={!!reason.trim()} canConfirm={!!selected && !!action && !(action === 'accept' && acceptanceBlocked) && (['accept', 'approve'].includes(action) || !!reason.trim())}
     successMessage={action === 'accept' ? 'Request accepted and forwarded to the Programme Coordinator.' : action === 'approve' ? 'Supporting appointment approved.' : action === 'cancel' ? 'Nomination cancelled.' : 'Request rejected.'}
     onClose={() => { setAction(null); setReason(''); }} onConfirm={decide} onReload={async () => { if (selected) await open(selected, true, true); }}>
-    {action && !['accept', 'approve'].includes(action) ? <label className="form-label block">Reason (required)<textarea required className="form-control mt-2" value={reason} disabled={busy} onChange={event => setReason(event.target.value)} /></label> : null}
+    {action && !['accept', 'approve'].includes(action) ? <label className="form-label block">Reason (required)<textarea required rows={3} className="form-control form-control-md mt-2 min-h-24 resize-y text-sm font-normal" value={reason} disabled={busy} onChange={event => setReason(event.target.value)} /></label> : null}
   </DecisionDialog>;
   const primaryActions = detail && (detail.participantEligible === false || (detail.status === 'SUBMITTED_TO_SUPERVISOR' && !detailError && !decisionSaved.current)) ? <LecturerPrimaryRequestActions record={detail} blocked={!!detailError || decisionSaved.current} busy={busy}
     onAction={value => { setAction(value); setReason(''); }} /> : null;
@@ -206,7 +206,7 @@ export function LecturerAppointmentRequests({ primaryRequests, primaryLoading, p
     dirty={!!action && !!reason.trim()} busy={busy}>
     {selected ? detailLoading ? <LoadingState message="Loading request details…" /> : <>
       {detailError ? <ErrorState message={detailError} onRetry={() => void open(selected)} /> : null}
-      {detail ? <SupervisorRequestDetail request={toSupervisorRequestPresentation(detail)} contextAction={<ViewStudentRecordAction studentId={detail.studentId} onOpen={onNavigateToDossier} disabled={busy}/>} actions={primaryActions} /> : panelRow ? <CoSupervisorNominationCard nomination={decisionSaved.current ? { ...panelRow, allowedActions: [] } : panelRow} hideMetadata busy={busy || !!detailError}
+      {detail ? <SupervisorRequestDetail request={toSupervisorRequestPresentation(detail)} contextAction={<ViewStudentRecordAction studentId={detail.studentId} onOpen={onNavigateToDossier} disabled={busy}/>} actions={primaryActions} /> : panelRow ? <CoSupervisorNominationCard detailView nomination={decisionSaved.current ? { ...panelRow, allowedActions: [] } : panelRow} hideMetadata busy={busy || !!detailError}
         onAction={(_, value) => { if (!detailError) { setAction(value); setReason(''); } }}  /> : null}
     </> : loadError ? <ErrorState message={loadError} onRetry={() => { void load(); void onChanged(); }} /> : <LoadingState message="Loading request details…" />}
   </RecordPage></>;

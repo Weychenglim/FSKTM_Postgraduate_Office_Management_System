@@ -25,6 +25,7 @@ class Rubric(models.Model):
         null=True,
         blank=True,
     )
+    allowed_evaluator_roles = models.JSONField(default=list, blank=True)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     is_archived = models.BooleanField(default=False)
@@ -126,6 +127,7 @@ class EvaluationPeriod(models.Model):
         ARCHIVED = "ARCHIVED", "Archived"
 
     name = models.CharField(max_length=255)
+    assessment = models.CharField(max_length=2, choices=[("P1", "P1"), ("P2", "P2")], blank=True, default="")
     semester = models.CharField(max_length=128)
     programme_scope = models.CharField(
         max_length=8, choices=[("ALL", "All programmes"), ("SELECTED", "Selected programmes")],

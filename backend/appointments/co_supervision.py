@@ -797,7 +797,7 @@ def serialize_team(student, actor, *, include_details=False):
     semester = current_effective_semester()
     if semester:
         for entry in SemesterTimelineEntry.objects.filter(
-            timeline__academic_semester=semester, timeline__is_active=True,
+            timeline__academic_semester=semester, timeline__is_published=True,
             marks_period__isnull=True,
         ).select_related('operational_period'):
             if "STUDENT" in entry.target_roles:

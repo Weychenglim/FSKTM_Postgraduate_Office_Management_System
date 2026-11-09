@@ -10,7 +10,7 @@ import {createDecisionSubmission, decisionFailure, type DecisionOutcome} from '.
 
 export interface DecisionDialogProps {
   isOpen: boolean;
-  size?: 'default' | 'wide';
+  size?: 'default' | 'wide' | 'extra-wide';
   decisionKey?: string | number;
   title: string;
   context?: React.ReactNode;
@@ -41,6 +41,7 @@ export function DecisionDialog({isOpen, size='default', decisionKey, title, cont
   successMessage, onClose, onComplete, onDiscard, onConfirm, onReload}: DecisionDialogProps) {
   const titleId = useModalTitle();
   const messageId = useModalTitle();
+  const hasMessage = message !== null && message !== undefined && message !== '' && message !== false;
   const feedback = useDecisionFeedback();
   const [savingScope, setSavingScope] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -114,8 +115,8 @@ export function DecisionDialog({isOpen, size='default', decisionKey, title, cont
   return <>
     {standaloneGuard && <DraftNavigationGuard dirty={isOpen && dirty} busy={isOpen && pending} onDiscard={onDiscard ?? onClose}/>}
     <PortalToast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)}/>
-    <PortalModal isOpen={isOpen} onClose={requestClose} busy={pending} labelledBy={titleId} describedBy={messageId} className={`${size==='wide'?'max-w-3xl':'max-w-lg'} overscroll-contain p-6 md:p-8`}>
-      <form onSubmit={event => {event.preventDefault(); void confirm();}} className="space-y-6">
+    <PortalModal isOpen={isOpen} onClose={requestClose} busy={pending} labelledBy={titleId} describedBy={hasMessage?messageId:undefined} className={`${size==='extra-wide'?'max-w-4xl':size==='wide'?'max-w-3xl':'max-w-lg'} overscroll-contain p-6 md:p-8`}>
+      <form onSubmit={event => {event.preventDefault(); void confirm();}} className={size==='extra-wide'?'space-y-8':'space-y-6'}>
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
             <p className="text-xs font-bold text-slate-700">{kind==='review' ? 'Review decision' : 'Confirm your action'}</p>
@@ -127,8 +128,8 @@ export function DecisionDialog({isOpen, size='default', decisionKey, title, cont
             <X className="h-4 w-4" aria-hidden="true"/>
           </button>
         </div>
-        <div id={messageId} className="text-xs font-normal leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{message}</div>
-        {children ? <fieldset disabled={pending || blocked} className="decision-dialog-fields min-w-0 space-y-4">{children}</fieldset> : null}
+        {hasMessage ? <div id={messageId} className="text-xs font-normal leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{message}</div> : null}
+        {children ? <fieldset disabled={pending || blocked} className={`decision-dialog-fields min-w-0 ${size==='extra-wide'?'space-y-6':'space-y-4'}`}>{children}</fieldset> : null}
         {error ? <AlertMessage type="error" title={blocked?'Record needs review':'Action wasn’t completed'} message={error}>
           {blocked ? <p>Review the latest record and your access before making another decision.</p> : null}
         </AlertMessage> : null}

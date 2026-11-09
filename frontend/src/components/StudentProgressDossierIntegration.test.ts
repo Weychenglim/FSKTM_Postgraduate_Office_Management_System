@@ -45,7 +45,7 @@ assert.match(marks, /View student record/);
 assert.match(coordinatorSupervisor, /View student record/);
 assert.match(lecturerSupervisor, /View student record/);
 assert.match(lecturerPanel, /onOpenStudent=\{onNavigateToDossier\}/);
-assert.match(lecturerMarks, /View student record/);
+assert.doesNotMatch(lecturerMarks, /View student record/, 'Lecturer marking lists keep only the marking action');
 
 assert.match(dossier, /Student Progress Dossier/);
 assert.match(dossier, /Overview/);

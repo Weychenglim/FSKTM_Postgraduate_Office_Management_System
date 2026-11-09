@@ -365,6 +365,8 @@ class DashboardSummaryTests(APITestCase):
                 target_roles=["OFFICE_STAFF"],
                 display_order=index,
             )
+        from .calendar_publication import publication_state, publish_calendar
+        publish_calendar(self.academic_semester, self.office, publication_state(timeline, self.office)['reviewToken'])
         self.authenticate(self.office)
 
         response = self.client.get("/api/dashboard/tasks/")

@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_slug
 from django.db import transaction
 from django.db.models import Q
+from django.db.models.deletion import ProtectedError
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare, salted_hmac
 
@@ -76,6 +77,7 @@ def _active_periods():
 def _rubric_snapshot(rubric):
     return {
         "id": rubric.pk,
+        "allowedEvaluatorRoles": rubric.allowed_evaluator_roles,
         "familyCode": rubric.family_code,
         "code": rubric.code,
         "name": rubric.name,
@@ -105,6 +107,7 @@ def _period_snapshot(period):
     return {
         "id": period.pk,
         "name": period.name,
+        "assessment": period.assessment,
         "semester": period.semester,
         "semesterId": period.academic_semester_id,
         "semesterCode": (
@@ -166,6 +169,7 @@ def clone_rubric_version(*, rubric, actor):
         name=rubric.name,
         description=rubric.description,
         version=new_version,
+        allowed_evaluator_roles=list(rubric.allowed_evaluator_roles),
         target_mark=rubric.target_mark,
         supersedes=rubric,
         is_active=True,
@@ -202,8 +206,9 @@ def clone_rubric_version(*, rubric, actor):
 
 
 @transaction.atomic
-def create_rubric(*, actor, family_code, name, description, target_mark):
+def create_rubric(*, actor, family_code, name, description, target_mark, allowed_evaluator_roles=None):
     _assert_office_admin(actor)
+    allowed_evaluator_roles = _normalize_rubric_roles(allowed_evaluator_roles)
     family_code = str(family_code).strip()[:64]
     if not family_code:
         raise ValidationError("Rubric family code is required.")
@@ -216,6 +221,7 @@ def create_rubric(*, actor, family_code, name, description, target_mark):
         name=str(name).strip(),
         description=str(description).strip(),
         version=1,
+        allowed_evaluator_roles=allowed_evaluator_roles,
         target_mark=target_mark,
         is_active=True,
     )
@@ -240,7 +246,9 @@ def update_rubric(*, rubric, actor, values):
             "Locked rubric versions must be cloned before editing."
         )
     before = _rubric_snapshot(rubric)
-    for field in ("name", "description", "target_mark", "is_active"):
+    if "allowed_evaluator_roles" in values:
+        values = {**values, "allowed_evaluator_roles": _normalize_rubric_roles(values["allowed_evaluator_roles"])}
+    for field in ("name", "description", "target_mark", "is_active", "allowed_evaluator_roles"):
         if field in values:
             setattr(rubric, field, values[field])
     rubric.full_clean()
@@ -382,6 +390,53 @@ def update_rubric_component(*, component, actor, values):
     return component
 
 
+def _normalize_rubric_roles(roles):
+    if not isinstance(roles, list) or not roles or any(role not in ("SUPERVISOR", "PANEL") for role in roles):
+        raise ValidationError("Select Supervisor, Panel, or both allowed evaluator roles for this rubric.")
+    return list(dict.fromkeys(roles))
+
+
+def _validate_assessment(period, *, required=False):
+    if period.assessment not in ("P1", "P2") and (required or period.assessment != ""):
+        raise ValidationError("Select P1 or P2 before publishing or classifying this evaluation period.")
+
+
+def _validate_period_rubric_roles(period, *, required=False):
+    allowed = period.rubric.allowed_evaluator_roles
+    if not allowed:
+        if required:
+            raise ValidationError("This rubric has no configured evaluator roles. Clone a used rubric and configure its allowed roles before publishing.")
+        return
+    allowed = _normalize_rubric_roles(allowed)
+    if not set(period.evaluator_roles).issubset(allowed):
+        raise ValidationError("Selected evaluator roles are incompatible with this rubric. Select compatible roles or a different rubric version.")
+
+
+def _validate_publication_coverage(period):
+    semester_scope = Q(academic_semester_id=period.academic_semester_id) if period.academic_semester_id else Q(pk__in=[])
+    # Older periods may predate the academic-semester foreign key. Their labels
+    # remain historical facts; matching labels conservatively reserve coverage.
+    legacy_ids = [pk for pk, label in EvaluationPeriod.objects.filter(academic_semester__isnull=True).values_list("pk", "semester")
+                  if label.strip().casefold() == period.semester.strip().casefold()]
+    semester_scope |= Q(pk__in=legacy_ids)
+    others = EvaluationPeriod.objects.filter(semester_scope).exclude(pk=period.pk).filter(
+        Q(lifecycle_status__in=[EvaluationPeriod.Lifecycle.PUBLISHED, EvaluationPeriod.Lifecycle.CLOSED])
+        | Q(lifecycle_status=EvaluationPeriod.Lifecycle.ARCHIVED, tasks__isnull=False)
+    ).distinct()
+    for other in others:
+        if other.assessment and other.assessment != period.assessment:
+            continue
+        if not set(period.evaluator_roles).intersection(other.evaluator_roles):
+            continue
+        if period.programme_scope != "ALL" and other.programme_scope != "ALL":
+            programmes = {name.strip().casefold() for name in period.programmes}
+            if not programmes.intersection(name.strip().casefold() for name in other.programmes):
+                continue
+        if not other.assessment:
+            raise ValidationError(f'Existing unclassified evaluation "{other.name}" overlaps this coverage. An administrator must resolve its missing assessment before publishing.')
+        raise ValidationError(f'Evaluation "{other.name}" already reserves this {period.assessment} evaluator coverage in the same semester. Use the existing period or select disjoint programmes or roles.')
+
+
 @transaction.atomic
 def create_evaluation_period(
     *,
@@ -394,6 +449,7 @@ def create_evaluation_period(
     programme_scope="ALL",
     programmes=None,
     evaluator_roles=None,
+    assessment="",
 ):
     _assert_office_admin(actor)
     if opens_at and closes_at and opens_at >= closes_at:
@@ -411,6 +467,7 @@ def create_evaluation_period(
     _validate_period_dates(academic_semester, opens_at, closes_at)
     period = EvaluationPeriod(
         name=str(name).strip(),
+        assessment=assessment,
         semester=academic_semester.label,
         academic_semester=academic_semester,
         rubric=rubric,
@@ -422,6 +479,8 @@ def create_evaluation_period(
         evaluator_roles=["SUPERVISOR", "PANEL"] if evaluator_roles is None else evaluator_roles,
     )
     normalize_period_targeting(period)
+    _validate_period_rubric_roles(period)
+    _validate_assessment(period)
     period.save()
     _configuration_audit(
         entity_type=MarksConfigurationAudit.EntityType.PERIOD,
@@ -478,6 +537,7 @@ def update_evaluation_period(*, period, actor, values, reason=""):
             values = {**values, "rubric": candidate}
         for field in (
             "name",
+            "assessment",
             "academic_semester",
             "rubric",
             "opens_at",
@@ -514,6 +574,8 @@ def update_evaluation_period(*, period, actor, values, reason=""):
                 "Opening timestamp must be before closing timestamp."
             )
         normalize_period_targeting(period)
+        _validate_period_rubric_roles(period)
+        _validate_assessment(period)
         action = "UPDATE"
     elif period.lifecycle_status == EvaluationPeriod.Lifecycle.PUBLISHED:
         if set(values) != {"closes_at"}:
@@ -555,16 +617,72 @@ def update_evaluation_period(*, period, actor, values, reason=""):
 
 
 @transaction.atomic
+def delete_draft_evaluation_period(*, period, actor):
+    """Permanently remove an unpublished period that has no dependent work."""
+    _assert_office_admin(actor)
+    if period.academic_semester_id:
+        AcademicSemester.objects.select_for_update().filter(
+            pk=period.academic_semester_id
+        ).first()
+    try:
+        period = (
+            EvaluationPeriod.objects.select_for_update()
+            .get(pk=period.pk)
+        )
+    except EvaluationPeriod.DoesNotExist as exc:
+        raise MarksStateConflict(
+            "This draft period was already deleted. Refresh the period list."
+        ) from exc
+    if period.lifecycle_status != EvaluationPeriod.Lifecycle.DRAFT:
+        raise MarksStateConflict("Only draft evaluation periods can be deleted.")
+    if EvaluationTask.objects.filter(period=period).exists():
+        raise MarksStateConflict(
+            "This draft has evaluation tasks and cannot be deleted. "
+            "Keep the period so its marks history remains available."
+        )
+    if period.timeline_entries.exists():
+        raise MarksStateConflict(
+            "This draft is linked to a semester timeline. Remove that link "
+            "before deleting the period."
+        )
+
+    before = _period_snapshot(period)
+    _configuration_audit(
+        entity_type=MarksConfigurationAudit.EntityType.PERIOD,
+        entity_id=period.pk,
+        action="DELETE",
+        actor=actor,
+        before_values=before,
+    )
+    try:
+        period.delete()
+    except ProtectedError as exc:
+        raise MarksStateConflict(
+            "This draft is linked to records that must be kept, so it cannot be deleted."
+        ) from exc
+
+
+@transaction.atomic
 def publish_evaluation_period(*, period, actor):
     _assert_office_admin(actor)
+    source_semester_id = period.academic_semester_id
+    semester = AcademicSemester.objects.select_for_update().filter(pk=source_semester_id).first()
     period = (
         EvaluationPeriod.objects.select_for_update()
-        .select_related("rubric")
         .get(pk=period.pk)
     )
+    if period.academic_semester_id != source_semester_id:
+        raise MarksStateConflict("The evaluation period changed semesters. Reload and retry.")
+    period.academic_semester = semester
+    period.rubric = Rubric.objects.select_for_update().get(pk=period.rubric_id)
     if period.lifecycle_status != EvaluationPeriod.Lifecycle.DRAFT:
         raise ValidationError("Only draft evaluation periods can be published.")
     normalize_period_targeting(period)
+    _validate_assessment(period, required=True)
+    _validate_period_rubric_roles(period, required=True)
+    if period.rubric.is_archived or not period.rubric.is_active:
+        raise MarksStateConflict("Select a current, unarchived rubric version.")
+    _validate_publication_coverage(period)
     if period.academic_semester_id is None or not period.academic_semester.is_active:
         raise MarksStateConflict(
             "Evaluation periods can only be published for the active academic semester."
@@ -635,6 +753,11 @@ def close_evaluation_period(*, period, actor, reason, preview_token=None, acknow
             "is_open",
             "updated_at",
         ]
+    )
+    retire_participant_evaluation_tasks(
+        tasks=EvaluationTask.objects.filter(period=period),
+        actor=actor,
+        reason=f"Evaluation period closed: {reason}",
     )
     _configuration_audit(
         entity_type=MarksConfigurationAudit.EntityType.PERIOD,
