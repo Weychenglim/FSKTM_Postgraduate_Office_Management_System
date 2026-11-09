@@ -74,6 +74,17 @@ Verification: 109 backend tests passed (66 calendar/import/extension contracts p
 
 Applied schema migration 0009 and preservation migration 0010 to the local development database after an ignored calendar-only backup at backend/.env.calendar-publication-backup-20261108-022110.json. Initial combined migration hit PostgreSQL deferred-index/pending-trigger ordering and rolled back; separating schema and data resolved it. Verified all original 2 calendars, 15 events and 7 audits unchanged, one preserved publication, and managed calendar API HTTP 200 with a clean publication state. All three mandatory project documents updated. No manual publication of a new draft, commit, push or deployment performed.
 
+## FAQ chatbot: AI replies on top of the search (8 November 2026)
+
+The search stays as it is and is the fallback. When it finds answers, a free OpenRouter model writes a short reply from the top 4 published answers. Students see the reply, a "Written by AI from the PG Office FAQ" line and links to the official answers. Any error, slow model, spent limit or failed check gives the usual answer. Off by default (`FaqSettings.ai_enabled`, migration `faq.0005`). The office switch is under Settings, and shows today's use.
+
+- **FAQ only:** the model is asked only when the search is sure the FAQ has the answer. Unsure questions keep the usual choices and no match goes to the counter. An unrelated question after a real one is searched alone.
+- **Checks on each reply:** it must name the answers it used. Every link, email, sum of money and number must be in those answers (a student's own number is allowed beside one from the FAQ). The reply and each longer part of it must come from those answers, so off-topic text is refused even if the model writes it. Personal details are removed before sending, and hosts that train on prompts are refused.
+- **Office view:** Test the chatbot names the model and answers used, or why it fell back. Student questions shows what the AI said when a student marks it unhelpful.
+- **Follow-ups:** a question can use up to 2 earlier turns of the same chat.
+- **Moving back to keywords:** turn the switch off. The new columns have database defaults, so older code keeps working on a migrated database.
+- **Real-model test (9 November 2026):** `evaluate_faq_ai` scored 57 of 124 questions: 53 right, 0 wrong, 4 left to the search. All 18 real replies were right, and 35 off-topic questions never reached a model. Flint is now the first model, because Dots-3-Note timed out on 16 of 20 questions. The other 67 questions wait on the free limit. The AI stays off until the office turns it on. UM's AI policy check with the supervisor is still open.
+
 ## Email on by default, safer announcements, graduation ticking, FAQ for enrolled students (6 November 2026)
 
 - **Email alerts are on by default.** `User.email_notifications` now defaults to true, and migration `accounts.0019` switches it on for existing accounts. People can still turn it off in Settings. Emails started by a page (announcements, letter decisions, appointment letters, file checks, required documents) send in a background thread when the real mail server is in use, so the page doesn't wait. Scheduled commands still wait for the count. `EMAIL_TIMEOUT` (default 20 seconds) stops a slow mail server from hanging a request.

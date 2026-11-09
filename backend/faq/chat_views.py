@@ -79,7 +79,14 @@ def ask_view(request):
     try:
         if data.get("entryId"):
             return Response(open_entry(data["entryId"], question_id=data.get("questionId"), token=data.get("token")))
-        return Response(ask(data.get("question", "")))
+        return Response(
+            ask(
+                data.get("question", ""),
+                question_id=data.get("questionId"),
+                token=data.get("token"),
+                student=request.user.pk,
+            )
+        )
     except ChatRefused as exc:
         return _refused(exc)
 

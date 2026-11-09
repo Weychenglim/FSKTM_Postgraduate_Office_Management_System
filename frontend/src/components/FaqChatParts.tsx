@@ -135,6 +135,24 @@ export const FaqReplyView: React.FC<FaqReplyViewProps> = ({ reply, asked, typed,
   }
   const answer = reply.answer;
   const button = answer.portalLink ? FAQ_PORTAL_LINKS[answer.portalLink] : null;
+  if (reply.ai) {
+    return (
+      <AssistantRow>
+        <FaqText text={reply.ai.text} className="text-[13px] font-medium text-slate-800" />
+        {button && (
+          <PortalButton size="sm" variant="primary" icon={ArrowRight} iconPosition="right" onClick={() => onPortalLink(button.route)}>
+            {button.label}
+          </PortalButton>
+        )}
+        <p className="card-caption">Written by AI from the PG Office FAQ</p>
+        <div className="space-y-2">
+          <p className="card-label">{reply.ai.sources.length === 1 ? 'Official answer' : 'Official answers'}</p>
+          <QuestionList questions={reply.ai.sources} disabled={busy} onPick={onPick} />
+        </div>
+        {footer}
+      </AssistantRow>
+    );
+  }
   return (
     <AssistantRow>
       {typed && askedDifferently(asked, answer.question) && <p className="card-label">Matched: {answer.question}</p>}

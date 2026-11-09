@@ -25,6 +25,12 @@ type NewItem = TestItem extends infer Item ? (Item extends TestItem ? Omit<Item,
 
 const MATCH_WORDS: Record<FaqTryReply['match'], string> = { Strong: 'close match', Possible: 'possible match', None: 'no close match' };
 
+const AI_FELL_BACK: Partial<Record<FaqTryReply['aiStatus'], string>> = {
+  NOT_COVERED: 'The AI said the FAQ does not cover this, so the usual reply was shown',
+  REJECTED: 'The AI reply failed a check, so the usual reply was shown',
+  UNAVAILABLE: 'The AI could not reply, so the usual reply was shown',
+};
+
 const errorText = (err: unknown) => (err instanceof Error && err.message ? err.message : 'Could not test this question.');
 
 const SourceNote: React.FC<{ item: Extract<TestItem, { kind: 'reply' }>; onOpen: (id: string) => void; onWrite: (question: string) => void }> = ({ item, onOpen, onWrite }) => {
@@ -38,7 +44,14 @@ const SourceNote: React.FC<{ item: Extract<TestItem, { kind: 'reply' }>; onOpen:
   return (
     <div className="space-y-1.5 rounded-xl border border-dashed border-blue-200 bg-blue-50/60 px-3 py-2.5 text-[12px] leading-relaxed text-slate-700">
       <p className="text-[10px] font-extrabold uppercase tracking-wider text-blue-800">Only the office sees this</p>
-      {reply.outcome === 'ANSWERED' && reply.answer ? (
+      {AI_FELL_BACK[reply.aiStatus] && (
+        <p>{AI_FELL_BACK[reply.aiStatus]}{reply.aiReason ? `: ${reply.aiReason}` : ''}.</p>
+      )}
+      {reply.ai ? (
+        <p>Written by {reply.aiModel} from {reply.ai.sources.map((source, index) => (
+          <React.Fragment key={source.id}>{index > 0 && ', '}{link(source.id, source.question)}</React.Fragment>
+        ))}.</p>
+      ) : reply.outcome === 'ANSWERED' && reply.answer ? (
         <p>Answered by {link(reply.answer.id, reply.answer.question)} ({MATCH_WORDS[reply.match]}).</p>
       ) : reply.outcome === 'CHOICES' ? (
         <p>No answer was close enough on its own, so the student is asked to choose.</p>

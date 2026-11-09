@@ -5,6 +5,7 @@ shape matches the frontend ``FaqEntry`` type.
 """
 from datetime import date
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
@@ -15,6 +16,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from . import ai
 from .entries import (
     TRANSITIONS,
     FaqRefused,
@@ -279,12 +281,17 @@ class SettingsSerializer(serializers.Serializer):
     commonQuestions = serializers.ListField(
         child=serializers.CharField(max_length=300, allow_blank=True), required=False, max_length=4
     )
+    aiEnabled = serializers.BooleanField(required=False)
 
 
 def settings_dict(chatbot):
     return {
         "contactText": chatbot.contact_text,
         "commonQuestions": chatbot.common_questions,
+        "aiEnabled": chatbot.ai_enabled,
+        "aiConfigured": ai.configured(),
+        "aiUsedToday": ai.used_today(),
+        "aiDailyLimit": settings.FAQ_AI_DAILY_LIMIT,
         "updatedBy": chatbot.updated_by.full_name if chatbot.updated_by else "",
         "updatedAt": chatbot.updated_at.isoformat(),
     }
@@ -304,6 +311,10 @@ def chatbot_settings_view(request):
             chatbot.contact_text = data["contactText"].strip()
         if "commonQuestions" in data:
             chatbot.common_questions = [" ".join(text.split()) for text in data["commonQuestions"] if text.strip()]
+        if "aiEnabled" in data:
+            if data["aiEnabled"] and not ai.configured():
+                raise serializers.ValidationError({"aiEnabled": "AI replies need an API key on the server first."})
+            chatbot.ai_enabled = data["aiEnabled"]
         chatbot.updated_by = request.user
         chatbot.save()
     return Response(settings_dict(chatbot))

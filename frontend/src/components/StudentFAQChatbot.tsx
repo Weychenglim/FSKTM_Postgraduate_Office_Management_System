@@ -140,7 +140,8 @@ export const StudentFAQChatbot: React.FC = () => {
     if (!question || busy) return;
     setInput('');
     add({ kind: 'you', text: question });
-    void run(question, true, () => askFaq(question));
+    const last = [...items].reverse().find((item): item is Extract<ChatItem, { kind: 'reply' }> => item.kind === 'reply')?.reply;
+    void run(question, true, () => askFaq(question, last && { questionId: last.questionId, token: last.token }));
   };
 
   const pick = (link: FaqLink, from?: FaqReply) => {

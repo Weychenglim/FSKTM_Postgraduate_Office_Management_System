@@ -71,6 +71,7 @@ def waiting_groups():
                 "notHelpful": 0,
                 "lastOutcome": question.outcome,
                 "lastEntry": {"id": str(question.entry_id), "question": question.entry.question} if question.entry else None,
+                "lastAiAnswer": question.ai_answer if question.helpful is False else "",
                 "ids": [],
                 "vector": vector_of.get(question.text),
             }

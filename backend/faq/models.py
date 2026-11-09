@@ -169,6 +169,9 @@ class FaqSettings(models.Model):
 
     contact_text = models.TextField(default=DEFAULT_CONTACT_TEXT)
     common_questions = models.JSONField(default=list, blank=True)
+    # AI replies on top of the search. Off until the office turns them on. The
+    # database defaults let the code from before AI replies keep working here.
+    ai_enabled = models.BooleanField(default=False, db_default=False)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -218,6 +221,12 @@ class FaqQuestion(models.Model):
         CREATED = "CREATED", "Entry created"
         DISMISSED = "DISMISSED", "Dismissed"
 
+    class AiStatus(models.TextChoices):
+        USED = "USED", "AI reply shown"
+        NOT_COVERED = "NOT_COVERED", "AI said the FAQ does not cover it"
+        REJECTED = "REJECTED", "AI reply failed a check"
+        UNAVAILABLE = "UNAVAILABLE", "AI not available"
+
     text = models.CharField(max_length=300)
     typed = models.BooleanField(default=True)
     outcome = models.CharField(max_length=16, choices=Outcome.choices)
@@ -235,6 +244,11 @@ class FaqQuestion(models.Model):
         related_name="reviewed_faq_questions",
     )
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    ai_status = models.CharField(max_length=16, choices=AiStatus.choices, blank=True, default="", db_default="")
+    ai_answer = models.TextField(blank=True, default="", db_default="")
+    ai_model = models.CharField(max_length=80, blank=True, default="", db_default="")
+    # The question before this one in the same chat, for follow-ups.
+    follows = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     asked_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
