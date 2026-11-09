@@ -49,7 +49,16 @@ from .registry_profiles import remember_layout
 from .registry_template import TEMPLATE_FILE_NAME, XLSX_CONTENT_TYPE, build_template
 from .registry_programmes import programme_values, remember_choices
 from .semesters import read as read_semester
-from .semester_rules import intake_label, maximum_flag, record_semester, rules_by_programme, seed_student
+from .semester_rules import (
+    active_semester,
+    completion_of,
+    intake_label,
+    maximum_flag,
+    record_semester,
+    rules_by_programme,
+    seed_student,
+    shown_status,
+)
 from .semesters import read as read_semester
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
@@ -144,10 +153,12 @@ def _supervisor_of(student):
     return supervision[0].supervisor if supervision else None
 
 
-def to_record(student, rules=None) -> dict:
+def to_record(student, rules=None, active=...) -> dict:
     """Shape a Student (+ optional registry row) as the frontend expects."""
     user = student.user
     registry = _registry_or_none(student)
+    completion = completion_of(student)
+    senate = completion.senate_decision if completion else None
     supervisor = _supervisor_of(student)
     supervisor_profile = supervisor._related_or_none("lecturer") if supervisor else None
     return {
@@ -158,6 +169,10 @@ def to_record(student, rules=None) -> dict:
         "avatarBg": _avatar_bg(student.matric_no),
         "programme": student.programme,
         "academicStatus": student.status,
+        "displayStatus": shown_status(student, active),
+        "exitReason": student.exit_reason,
+        "exitReasonLabel": student.get_exit_reason_display() if student.exit_reason else "",
+        "senateDate": senate.decided_on.isoformat() if senate else None,
         "accountStatus": "Verified" if user.is_active else "Suspended",
         "semester": (registry.current_semester if registry else "")
         or student.intake_semester,
@@ -257,7 +272,6 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     statusReason = serializers.CharField(
         max_length=1000, allow_blank=True, required=False
     )
-    earlyCompletionApproved = serializers.BooleanField(required=False, default=False)
     accountStatus = serializers.ChoiceField(
         choices=["Verified", "Suspended"], required=False
     )
@@ -303,7 +317,7 @@ def student_records_view(request):
         return _create_student(request)
 
     queryset = _require_registry_reader(request).select_related(
-        "user", "user__research_profile", "registry"
+        "user", "user__research_profile", "registry", "completion__senate_decision"
     ).prefetch_related(_active_supervision(), "semesters")
     search = (request.query_params.get("search") or "").strip()
     if search:
@@ -330,7 +344,8 @@ def student_records_view(request):
         ).distinct()
 
     rules = rules_by_programme()
-    return Response([to_record(student, rules) for student in queryset])
+    active = active_semester()
+    return Response([to_record(student, rules, active) for student in queryset])
 
 
 def send_activation_email(user, connection=None) -> bool:
@@ -817,6 +832,11 @@ def student_record_detail_view(request, matric_no):
     data = serializer.validated_data
 
     status_change = "academicStatus" in data and data["academicStatus"] != student.status
+    if status_change and data["academicStatus"] == Student.Status.GRADUATED:
+        return Response(
+            {"error": "Graduations are recorded from the Graduation page."},
+            status=status.HTTP_409_CONFLICT,
+        )
     reason = data.get("statusReason", "").strip()
     if status_change and not reason:
         return Response(
@@ -839,7 +859,6 @@ def student_record_detail_view(request, matric_no):
                     actor=request.user,
                     target_status=data["academicStatus"].upper(),
                     reason=reason,
-                    early_approved=data.get("earlyCompletionApproved", False),
                 )
             except PermissionError as exc:
                 return Response({"error": str(exc)}, status=status.HTTP_403_FORBIDDEN)

@@ -8,13 +8,17 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
-from .models import ProgrammeRule, Student, StudentRegistry, StudentSemester, StudentSemesterMove
+from .models import ProgrammeRule, Student, StudentCompletion, StudentRegistry, StudentSemester, StudentSemesterMove
 from .registry_programmes import programme_key
 from .semesters import Semester, from_parts, nth_normal, read, seeded_semesters
 
 STUDIED = StudentSemester.Outcome.STUDIED
 LEAVE = StudentSemester.Outcome.LEAVE
-LEAVE_EXEMPT = StudentSemester.Outcome.LEAVE_EXEMPT
+NOT_REGISTERED = StudentSemester.Outcome.NOT_REGISTERED
+EXEMPT_LEAVE = (StudentSemester.Outcome.LEAVE_MEDICAL, StudentSemester.Outcome.LEAVE_MOBILITY)
+LEAVE_OUTCOMES = (LEAVE, *EXEMPT_LEAVE)
+WAITING_FOR_SENATE = "Waiting for Senate"
+NOT_STARTED = "Not started"
 
 
 def _rule_start(rule):
@@ -76,6 +80,40 @@ def starts_later(student, semester):
 
 def _registry(student):
     return StudentRegistry.objects.filter(student_id=student.pk).first()
+
+
+def completion_of(student):
+    try:
+        return student.completion
+    except StudentCompletion.DoesNotExist:
+        return None
+
+
+def is_waiting(student):
+    completion = completion_of(student)
+    return bool(completion and completion.senate_decision_id is None and student.status == Student.Status.ACTIVE)
+
+
+def shown_status(student, active=...):
+    """The one status the office and the student see."""
+    if student.status != Student.Status.ACTIVE:
+        return student.get_status_display()
+    if is_waiting(student):
+        return WAITING_FOR_SENATE
+    return NOT_STARTED if starts_later(student, active_semester() if active is ... else active) else Student.Status.ACTIVE.label
+
+
+def enrolment_problem(student):
+    """Why an Active student is not enrolled right now, in words for the student, or None."""
+    active = active_semester()
+    if active is None:
+        return None
+    if starts_later(student, active):
+        return "Your studies have not started yet. Contact the PG Office if you need a letter."
+    row = student.semesters.filter(session=active.session, term=active.term).first()
+    if row is not None and row.outcome == NOT_REGISTERED:
+        return "You are not registered for this semester. Contact the PG Office if you need a letter."
+    return None
 
 
 def rows_of(student):
@@ -151,7 +189,7 @@ def progress_of(student, rules=None, rows=None, registry=...):
         current = semester
         if row.outcome == STUDIED and (not semester.is_special or rule is None or rule.special_counts):
             studied += 1
-        if row.outcome == LEAVE_EXEMPT and not semester.is_special:
+        if row.outcome in EXEMPT_LEAVE and not semester.is_special:
             exempt += 1
     extension = registry.extension_semesters if registry else 0
     maximum_semester = nth_normal(start, rule.max_semesters + exempt + extension) if rule and start else None
@@ -169,7 +207,7 @@ def progress_of(student, rules=None, rows=None, registry=...):
 
 def maximum_flag(student, rules=None, registry=...):
     """Whether an Active student is on their last allowed semester, or past it."""
-    if student.status != student.Status.ACTIVE:
+    if student.status != student.Status.ACTIVE or is_waiting(student):
         return ""
     progress = progress_of(student, rules, registry=registry)
     return "past" if progress.past_maximum else "last" if progress.last_semester else ""
@@ -226,15 +264,35 @@ def record_semester(student, semester, *, actor=None, outcome=STUDIED, note=""):
     return row, created
 
 
+def status_follows_row(student, actor, session, term):
+    """The active semester's row is the one record of leave, so the status follows it. Other rows leave the status alone."""
+    from .participant_lifecycle import transition_student
+
+    active = active_semester()
+    if active is None or (session, term) != (active.session, active.term):
+        return
+    row = student.semesters.filter(session=active.session, term=active.term).first()
+    on_leave = bool(row and row.outcome in LEAVE_OUTCOMES)
+    if student.status == Student.Status.ACTIVE and on_leave and not is_waiting(student):
+        transition_student(matric_no=student.matric_no, actor=actor, target_status="DEFERRED", reason="Recorded as leave on the student's semesters")
+    elif student.status == Student.Status.DEFERRED and not on_leave:
+        transition_student(matric_no=student.matric_no, actor=actor, target_status="ACTIVE", reason="No longer on leave this semester")
+
+
 def on_semester(semester):
     return StudentSemester.objects.filter(session=semester.session, term=semester.term).values("student_id")
 
 
-def not_on_semester(semester, *, wanted_status=Student.Status.ACTIVE):
+def waiting_ids():
+    return StudentCompletion.objects.filter(senate_decision__isnull=True).values("student_id")
+
+
+def not_on_semester(semester):
     """(students to update, how many start later). A student whose intake is after this semester has not begun."""
     students = (
-        Student.objects.filter(status=wanted_status)
+        Student.objects.filter(status=Student.Status.ACTIVE)
         .exclude(pk__in=on_semester(semester))
+        .exclude(pk__in=waiting_ids())
         .select_related("user", "registry")
         .order_by("user__full_name")
     )
@@ -273,17 +331,25 @@ def put_on_semester(students, semester, *, outcome, actor, note=""):
     StudentRegistry.objects.bulk_update(changed, ["current_semester"])
 
 
-def put_deferred_on_leave(semester, already_on, *, actor):
-    """A normal semester counts as leave for anyone on deferment. Returns how many."""
-    if semester.is_special:
-        return 0
-    deferred = [
-        student
-        for student in Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=already_on)
-        if not starts_later(student, semester)
-    ]
-    put_on_semester(deferred, semester, outcome=LEAVE, actor=actor, note="On deferment when this semester started")
-    return len(deferred)
+def end_leaves(semester, *, actor):
+    """Leave is one semester at a time, so a new semester ends it unless leave was already recorded for it."""
+    from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
+
+    ended = 0
+    for student in Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=on_semester(semester)):
+        if starts_later(student, semester):
+            continue
+        try:
+            transition_student(
+                matric_no=student.matric_no,
+                actor=actor,
+                target_status="ACTIVE",
+                reason=f"Semester leave ended when {semester.label} started",
+            )
+        except (ParticipantLifecycleConflict, PermissionError, ValueError):
+            continue
+        ended += 1
+    return ended
 
 
 @transaction.atomic
@@ -292,18 +358,18 @@ def move_everyone_on(portal, actor=None):
     semester = from_parts(portal.academic_session, portal.term)
     if semester is None or semester.is_special:
         return None
+    back = end_leaves(semester, actor=actor)
     already_on = set(on_semester(semester).values_list("student_id", flat=True))
-    active = Student.objects.filter(status=Student.Status.ACTIVE).select_for_update()
+    active = Student.objects.filter(status=Student.Status.ACTIVE).exclude(pk__in=waiting_ids()).select_for_update()
     moving = [student for student in active if student.pk not in already_on and not starts_later(student, semester)]
     put_on_semester(moving, semester, outcome=STUDIED, actor=actor)
-    on_leave = put_deferred_on_leave(semester, already_on, actor=actor)
-    if not moving and not on_leave:
+    if not moving and not back:
         return None
     return StudentSemesterMove.objects.create(
         session=semester.session,
         term=semester.term,
         moved_count=len(moving),
-        on_leave_count=on_leave,
+        back_from_leave_count=back,
         moved_by=actor,
         automatic=True,
     )
@@ -334,6 +400,37 @@ def seed_student(student, *, actor=None, note="From the intake and current semes
         ],
         ignore_conflicts=True,
     )
+
+
+def _trailing(rows, outcomes):
+    count = 0
+    for row in reversed(rows):
+        if row.outcome not in outcomes:
+            break
+        count += 1
+    return count
+
+
+def limit_warnings(progress):
+    """Where a student stands against UM's limits. The portal only warns: the Faculty or the Senate decides."""
+    normal = [row for row in progress.rows if (semester := from_parts(row.session, row.term)) and not semester.is_special]
+    warnings = []
+    missed = _trailing(normal, (NOT_REGISTERED,))
+    if missed >= 3:
+        warnings.append({"level": "stop", "code": "NOT_REGISTERED", "text": f"Not registered for {missed} normal semesters in a row. Regulation 5(5) ends candidature."})
+    elif missed == 2:
+        warnings.append({"level": "check", "code": "NOT_REGISTERED", "text": "Not registered for 2 normal semesters in a row. One more ends candidature."})
+    personal = sum(1 for row in normal if row.outcome == LEAVE)
+    if personal > 2:
+        warnings.append({"level": "stop", "code": "PERSONAL_LEAVE", "text": f"{personal} semesters of personal leave. Regulation 8 allows 2."})
+    elif personal == 2:
+        warnings.append({"level": "check", "code": "PERSONAL_LEAVE", "text": "Both semesters of personal leave are used."})
+    medical = _trailing(normal, (StudentSemester.Outcome.LEAVE_MEDICAL,))
+    if medical >= 4:
+        warnings.append({"level": "stop", "code": "MEDICAL_LEAVE", "text": f"Medical leave for {medical} normal semesters in a row. Regulation 9(1) may end candidature."})
+    if progress.past_maximum and progress.extension >= 3:
+        warnings.append({"level": "stop", "code": "FAILED_AND_EXIT", "text": "Past the maximum after all 3 extra semesters. Regulation 55 makes this Failed and Exit."})
+    return warnings
 
 
 def serialize_row(row):
@@ -369,5 +466,6 @@ def serialize_progress(student, rules=None):
         "startsAfterIntake": progress.starts_after_intake,
         "extensionSemesters": progress.extension,
         "extensionReason": progress.extension_reason,
+        "warnings": limit_warnings(progress),
         "rows": [serialize_row(row) for row in progress.rows],
     }

@@ -4,6 +4,9 @@ export type ParticipantLifecycleStatus =
   | 'DEFERRED'
   | 'GRADUATED'
   | 'WITHDRAWN'
+  | 'TERMINATED'
+  | 'DECEASED'
+  | 'WAITING_FOR_SENATE'
   | 'RETIRING'
   | 'RETIRED'
   | 'RESIGNED';

@@ -1,3 +1,17 @@
+## Student status, graduation and project stage restructured (9 November 2026)
+
+One status was answering several questions, and two of its values did not match UM's rules. Each question now has its own place, following UM Master's Regulations 2024 and how PeopleSoft, Workday and Banner keep these apart.
+
+- **Status** shows Not started, Active, On semester leave, Waiting for Senate, Graduated, Withdrawn, Terminated or Passed away. The stored value for leave stays `Deferred`, so other modules keep working. Not started and Waiting for Senate are shown, not stored. `Terminated` and `Deceased` are new stored values.
+- **Named actions replace the status dropdown** on the Student Record: Record semester leave, End leave, Finished studies, Record Senate decision, Back to Active, Correct a mistake, Record withdrawal, Record termination, Reinstate.
+- **Semester record:** rows say Registered, not Studied. Leave is Personal, Medical or Mobility. Leave lasts one semester, and the next activation returns the student to Active. Changing the active semester's row moves the status too, so the two cannot disagree.
+- **Warnings only:** two or three normal semesters not registered, personal leave used up, four medical semesters in a row, Failed and Exit after the maximum. They show on the Semesters card and on the Current semester page. The portal never ends candidature by itself.
+- **Letters:** a student who did not register, or has not started, cannot ask for one. A student waiting for the Senate still can, for the faculty's provisional letter.
+- **Graduation, two steps:** Finished studies checks unfinished work and keeps the student out of the next semester. The last semester can be the active one or, when the office marks late, the one before it, including the normal semester before a Special Semester. Record Senate decision saves the real Senate date against one record per meeting, and can tick students from an uploaded list. Graduating from the Student Record's status update is refused, so there is one route.
+- **Project stage (RP1/RP2):** new `ProjectRegistration` and append-only history, a Project stages page, and `accounts.project_stages.project_stages(academic_semester, student_ids)` for Marks. States are `CONFIRMED`, `NO_PROJECT`, `NOT_CONFIRMED` and `NOT_STUDYING`. **Marks does not call it yet,** so wrong tasks can still be created until Wey Cheng adds the check.
+- **Retention:** a Data retention page lists who is past `STUDENT_RETENTION_YEARS` (default 8). **Nothing is removed.** Removal needs UM's disposal schedule (National Archives Act 2003, s.25) and agreement on clearing appointment and Marks records.
+- **Migration:** `accounts.0021`. `LEAVE_EXEMPT` rows become Medical leave.
+
 ## Students move to a new semester when it is activated (9 November 2026)
 
 The office used to activate a semester and then remember to update the students on a second page. Now activating a normal semester does both.

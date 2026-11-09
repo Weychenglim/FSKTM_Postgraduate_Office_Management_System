@@ -76,7 +76,7 @@ def participant_list_view(request):
         "activeStudents": Student.objects.filter(status=Student.Status.ACTIVE).count(),
         "deferredStudents": Student.objects.filter(status=Student.Status.DEFERRED).count(),
         "graduatedStudents": Student.objects.filter(status=Student.Status.GRADUATED).count(),
-        "withdrawnStudents": Student.objects.filter(status=Student.Status.WITHDRAWN).count(),
+        "withdrawnStudents": Student.objects.filter(status__in=[Student.Status.WITHDRAWN, Student.Status.TERMINATED, Student.Status.DECEASED]).count(),
         "activeLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.ACTIVE).count(),
         "retiringLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.RETIRING).count(),
         "retiredLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.RETIRED).count(),

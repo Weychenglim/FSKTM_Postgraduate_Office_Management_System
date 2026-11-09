@@ -62,6 +62,9 @@ def _unfinished_tasks(queryset):
     ).exclude(mark_entry__status=MarkEntry.Status.SUBMITTED)
 
 
+STUDIES_ENDED = (Student.Status.WITHDRAWN, Student.Status.TERMINATED, Student.Status.DECEASED)
+
+
 def student_blockers(student):
     profile = _profile_for_student(student)
     supervisor_pending = student.supervisor_applications.filter(
@@ -423,20 +426,18 @@ def transition_student(*, matric_no, actor, target_status, reason, early_approve
         raise ValueError("A lifecycle reason is required.")
     target_map = {choice.value.upper(): choice.value for choice in Student.Status}
     if target_status not in target_map:
-        raise ValueError("Select Active, Deferred, Graduated, or Withdrawn.")
+        raise ValueError("Select Active, Deferred, Graduated, Withdrawn, Terminated or Deceased.")
     student = Student.objects.select_for_update().select_related("user").get(
         matric_no__iexact=matric_no
     )
     target = target_map[target_status]
     allowed = {
-        Student.Status.ACTIVE: {
-            Student.Status.DEFERRED,
-            Student.Status.GRADUATED,
-            Student.Status.WITHDRAWN,
-        },
-        Student.Status.DEFERRED: {Student.Status.ACTIVE, Student.Status.WITHDRAWN},
+        Student.Status.ACTIVE: {Student.Status.DEFERRED, Student.Status.GRADUATED, *STUDIES_ENDED},
+        Student.Status.DEFERRED: {Student.Status.ACTIVE, *STUDIES_ENDED},
         Student.Status.GRADUATED: set(),
         Student.Status.WITHDRAWN: set(),
+        Student.Status.TERMINATED: set(),
+        Student.Status.DECEASED: set(),
     }
     if target not in allowed[student.status]:
         raise ParticipantLifecycleConflict(
@@ -478,13 +479,17 @@ def transition_student(*, matric_no, actor, target_status, reason, early_approve
                 reason=reason,
             )
         )
-    elif target == Student.Status.WITHDRAWN:
+    elif target in STUDIES_ENDED:
         affected.update(_cancel_student_pending_work(student, actor=actor, reason=reason))
         affected.update(
             _end_student_appointments(
                 student,
                 actor=actor,
-                outcome=SupervisorAppointment.EndOutcome.WITHDRAWN,
+                outcome=(
+                    SupervisorAppointment.EndOutcome.WITHDRAWN
+                    if target == Student.Status.WITHDRAWN
+                    else SupervisorAppointment.EndOutcome.OTHER
+                ),
                 reason=reason,
             )
         )
@@ -495,7 +500,7 @@ def transition_student(*, matric_no, actor, target_status, reason, early_approve
             affected["retiredMarksTasks"] = [task.pk for task in retired]
     if target == Student.Status.DEFERRED:
         mark_current_semester_as_leave(student)
-    if target in {Student.Status.GRADUATED, Student.Status.WITHDRAWN}:
+    if target == Student.Status.GRADUATED or target in STUDIES_ENDED:
         from appointments.research_amendments import cancel_pending_amendments
         affected["cancelledAmendments"] = cancel_pending_amendments(
             student.pk, actor, f"Automatically cancelled on student {target.lower()}: {reason}"

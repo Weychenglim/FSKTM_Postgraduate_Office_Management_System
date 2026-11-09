@@ -26,11 +26,15 @@ from .registry_views import (
     _require_office_admin,
     _require_registry_reader,
 )
+from .participant_lifecycle import ParticipantLifecycleConflict
 from .semester_rules import (
+    LEAVE_OUTCOMES,
+    end_leaves,
     intake_label,
+    limit_warnings,
     not_on_semester,
     on_semester,
-    put_deferred_on_leave,
+    progress_of,
     put_on_semester,
     record_semester,
     rows_of,
@@ -39,13 +43,14 @@ from .semester_rules import (
     serialize_progress,
     start_of,
     starts_later,
+    status_follows_row,
     sync_current,
+    waiting_ids,
 )
 from .semesters import SEMESTER_I, SEMESTER_II, from_parts
 from .semesters import read as read_semester
 
 MAX_EXTENSION = 3
-ON_LEAVE = [StudentSemester.Outcome.LEAVE, StudentSemester.Outcome.LEAVE_EXEMPT]
 ON_THE_LIST = [StudentSemester.Outcome.STUDIED, StudentSemester.Outcome.NOT_REGISTERED]
 
 
@@ -231,14 +236,21 @@ def student_semesters_view(request, matric_no):
             {"error": f"{semester.label} is before this student's intake."},
             status=status.HTTP_409_CONFLICT,
         )
-    _, created = record_semester(
-        student, semester, actor=request.user, outcome=data["outcome"], note=data["note"].strip()
-    )
+    try:
+        with transaction.atomic():
+            _, created = record_semester(
+                student, semester, actor=request.user, outcome=data["outcome"], note=data["note"].strip()
+            )
+            if created:
+                status_follows_row(student, request.user, semester.session, semester.term)
+    except ParticipantLifecycleConflict as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
     if not created:
         return Response(
             {"error": f"{semester.label} is already on this student's record."},
             status=status.HTTP_409_CONFLICT,
         )
+    student.refresh_from_db()
     return Response(serialize_progress(student), status=status.HTTP_201_CREATED)
 
 
@@ -253,16 +265,21 @@ def student_semester_detail_view(request, matric_no, row_id):
     row = student.semesters.filter(pk=row_id).first()
     if row is None:
         return Response({"error": "That semester is no longer on this record."}, status=status.HTTP_404_NOT_FOUND)
-    with transaction.atomic():
-        if request.method == "DELETE":
-            row.delete()
-        else:
-            serializer = ChangeSemesterSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            for field, value in serializer.validated_data.items():
-                setattr(row, field, value.strip() if field == "note" else value)
-            row.save()
-        sync_current(student)
+    try:
+        with transaction.atomic():
+            if request.method == "DELETE":
+                row.delete()
+            else:
+                serializer = ChangeSemesterSerializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                for field, value in serializer.validated_data.items():
+                    setattr(row, field, value.strip() if field == "note" else value)
+                row.save()
+            sync_current(student)
+            status_follows_row(student, request.user, row.session, row.term)
+    except ParticipantLifecycleConflict as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
+    student.refresh_from_db()
     return Response(serialize_progress(student))
 
 
@@ -325,7 +342,7 @@ def _move_payload(portal, semester):
             "at": last.created_at.isoformat(),
             "moved": last.moved_count,
             "leftOut": last.left_out_count,
-            "onLeave": last.on_leave_count,
+            "backFromLeave": last.back_from_leave_count,
             "automatic": last.automatic,
         } if last else None,
     }
@@ -375,6 +392,32 @@ def _move_rows(semester):
     return rows
 
 
+def _attention():
+    """Students who have reached one of UM's limits. The Faculty or the Senate decides what happens."""
+    rules = rules_by_programme()
+    students = (
+        Student.objects.filter(status__in=[Student.Status.ACTIVE, Student.Status.DEFERRED])
+        .exclude(pk__in=waiting_ids())
+        .select_related("user", "registry")
+        .prefetch_related("semesters")
+        .order_by("user__full_name")
+    )
+    rows = []
+    for student in students:
+        warnings = limit_warnings(progress_of(student, rules, rows_of(student), _registry_or_none(student)))
+        if warnings:
+            rows.append({
+                "matric": student.matric_no,
+                "name": student.user.full_name,
+                "programme": student.programme,
+                "intake": intake_label(student.intake_semester),
+                "avatarText": _initials(student.user.full_name),
+                "avatarBg": _avatar_bg(student.matric_no),
+                "warnings": warnings,
+            })
+    return rows
+
+
 def _usual_semester(rows):
     """The semester most of these students are on, shown as where they are moving from."""
     counts = Counter(read_semester(row["current"]) for row in rows)
@@ -410,15 +453,14 @@ def semester_move_view(request):
         payload = _move_payload(portal, semester)
         if request.query_params.get("summary") != "1":
             rows = _move_rows(semester)
-            deferred = not_on_semester(semester, wanted_status=Student.Status.DEFERRED)[0]
             payload.update(
                 students=rows,
                 movingFrom=_usual_semester(rows),
-                deferred=0 if semester.is_special else len(deferred),
                 onSemester=[] if semester.is_special else _on_semester_rows(semester),
                 onLeave=StudentSemester.objects.filter(
-                    session=semester.session, term=semester.term, outcome__in=ON_LEAVE,
+                    session=semester.session, term=semester.term, outcome__in=LEAVE_OUTCOMES,
                 ).count(),
+                attention=_attention(),
             )
         return Response(payload)
 
@@ -432,20 +474,21 @@ def semester_move_view(request):
         )
     wanted = {matric.strip().casefold(): matric.strip() for matric in data["matrics"] if matric.strip()}
     with transaction.atomic():
+        first_update = not StudentSemesterMove.objects.filter(session=semester.session, term=semester.term).exists()
+        back = end_leaves(semester, actor=request.user) if first_update and not semester.is_special else 0
         on_it = set(on_semester(semester).values_list("student_id", flat=True))
-        active = list(Student.objects.filter(status=Student.Status.ACTIVE).select_for_update())
+        active = list(Student.objects.filter(status=Student.Status.ACTIVE).exclude(pk__in=waiting_ids()).select_for_update())
         waiting = [student for student in active if student.pk not in on_it and not starts_later(student, semester)]
         moving = [student for student in waiting if student.matric_no.casefold() in wanted]
         known = {student.matric_no.casefold() for student in active}
         put_on_semester(moving, semester, outcome=StudentSemester.Outcome.STUDIED, actor=request.user)
-        on_leave = put_deferred_on_leave(semester, on_it, actor=request.user)
         left_out = len(waiting) - len(moving)
         StudentSemesterMove.objects.create(
             session=semester.session,
             term=semester.term,
             moved_count=len(moving),
             left_out_count=left_out,
-            on_leave_count=on_leave,
+            back_from_leave_count=back,
             moved_by=request.user,
         )
     return Response(

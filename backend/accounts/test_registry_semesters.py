@@ -113,7 +113,7 @@ class ProgressTests(APITestCase):
         semesters_for(student, "Semester II, 2026/2027", outcome=StudentSemester.Outcome.LEAVE)
         progress = progress_of(student)
         self.assertEqual((progress.studied, progress.maximum_semester.label), (1, "Semester II, 2029/2030 Session"))
-        StudentSemester.objects.filter(student=student, term="SEMESTER_II").update(outcome=StudentSemester.Outcome.LEAVE_EXEMPT)
+        StudentSemester.objects.filter(student=student, term="SEMESTER_II").update(outcome=StudentSemester.Outcome.LEAVE_MEDICAL)
         self.assertEqual(progress_of(student).maximum_semester.label, "Semester I, 2030/2031 Session")
 
     def test_an_extension_moves_the_maximum_and_the_last_semester_shows(self):
@@ -322,7 +322,7 @@ class MoveStudentsApiTests(APITestCase):
         data = self.client.get(self.url).data
         self.assertEqual(data["semester"]["label"], "Semester II, 2026/2027 Session")
         self.assertEqual(sorted(row["matric"] for row in data["students"]), ["MV1", "MV2", "MV3"])
-        self.assertEqual((data["waiting"], data["deferred"], data["lastMove"]), (3, 1, None))
+        self.assertEqual((data["waiting"], data["lastMove"]), (3, None))
         self.assertEqual(data["movingFrom"], "Semester I, 2026/2027 Session")
         summary = self.client.get(self.url, {"summary": "1"}).data
         self.assertEqual(summary["waiting"], 3)
@@ -332,7 +332,7 @@ class MoveStudentsApiTests(APITestCase):
         self.client.force_authenticate(self.office)
         moved = self.client.post(self.url, self.body("mv1", "MV2"), format="json")
         self.assertEqual(moved.status_code, 200, moved.data)
-        self.assertEqual((moved.data["moved"], moved.data["leftOut"]), (2, 1))
+        self.assertEqual((moved.data["moved"], moved.data["leftOut"]), (2, 2))
         self.assertEqual(self.one.semesters.count(), 2)
         self.assertEqual(
             StudentRegistry.objects.get(student=self.one).current_semester, "Semester II, 2026/2027 Session"
@@ -342,7 +342,7 @@ class MoveStudentsApiTests(APITestCase):
         self.assertEqual(again.data["moved"], 0)
         self.assertEqual(self.one.semesters.count(), 2)
         state = self.client.get(self.url).data
-        self.assertEqual([row["matric"] for row in state["students"]], ["MV3"])
+        self.assertEqual([row["matric"] for row in state["students"]], ["MV3", "MV4"])
         self.assertEqual(state["lastMove"]["by"], "Office Person")
 
     def test_a_student_already_on_a_later_semester_keeps_it_as_current(self):
@@ -352,14 +352,22 @@ class MoveStudentsApiTests(APITestCase):
         self.assertEqual(self.one.semesters.count(), 2)
         self.assertEqual(StudentRegistry.objects.get(student=self.one).current_semester, "Semester I, 2027/2028 Session")
 
-    def test_a_deferred_student_gets_leave_and_nobody_else_moves(self):
+    def test_the_first_update_ends_leave_and_moves_only_who_was_asked(self):
         self.client.force_authenticate(self.office)
         response = self.client.post(self.url, self.body("MV1", "MV4", "MV5", "NOPE"), format="json")
-        self.assertEqual(response.data["moved"], 1)
-        self.assertEqual(sorted(response.data["notActive"]), ["MV4", "MV5", "NOPE"])
-        row = self.deferred.semesters.get(term="SEMESTER_II")
-        self.assertEqual(row.outcome, StudentSemester.Outcome.LEAVE)
+        self.assertEqual(response.data["moved"], 2)
+        self.assertEqual(sorted(response.data["notActive"]), ["MV5", "NOPE"])
+        self.deferred.refresh_from_db()
+        self.assertEqual(self.deferred.status, Student.Status.ACTIVE)
         self.assertFalse(self.gone.semesters.exists())
+
+    def test_a_later_update_leaves_someone_on_leave_alone(self):
+        self.client.force_authenticate(self.office)
+        self.client.post(self.url, self.body("MV1"), format="json")
+        on_leave = make_student("MV9", intake="2026/2027 Semester I", status=Student.Status.DEFERRED)
+        self.client.post(self.url, self.body("MV2"), format="json")
+        on_leave.refresh_from_db()
+        self.assertEqual(on_leave.status, Student.Status.DEFERRED)
 
     def test_a_special_semester_moves_only_those_added_and_nobody_on_leave(self):
         self.portal.term = "SPECIAL"
@@ -368,7 +376,6 @@ class MoveStudentsApiTests(APITestCase):
         self.client.force_authenticate(self.office)
         data = self.client.get(self.url).data
         self.assertTrue(data["semester"]["isSpecial"])
-        self.assertEqual(data["deferred"], 0)
         response = self.client.post(self.url, self.body("MV2"), format="json")
         self.assertEqual((response.data["moved"], response.data["semester"]), (1, "Special Semester, 2026/2027 Session"))
         self.assertFalse(self.deferred.semesters.filter(term="SPECIAL").exists())
@@ -431,33 +438,33 @@ class SemesterMovesOnActivationTests(APITestCase):
         self.target.code = "2026-2027-SP"
         self.target.save()
 
-    def test_activating_a_normal_semester_moves_active_students_and_records_leave(self):
+    def test_activating_a_normal_semester_moves_active_students_and_ends_leave(self):
         self.activate()
         row = self.one.semesters.get(session="2026/2027", term="SEMESTER_I")
         self.assertEqual((row.outcome, row.created_by), (StudentSemester.Outcome.STUDIED, self.office))
         self.assertEqual(StudentRegistry.objects.get(student=self.one).current_semester, "Semester I, 2026/2027 Session")
         self.assertEqual(progress_of(self.one).studied, 2)
-        leave = self.deferred.semesters.get()
-        self.assertEqual(leave.outcome, StudentSemester.Outcome.LEAVE)
-        self.assertEqual(leave.note, "On deferment when this semester started")
+        self.deferred.refresh_from_db()
+        self.assertEqual(self.deferred.status, Student.Status.ACTIVE)
+        self.assertEqual(self.deferred.semesters.get().outcome, StudentSemester.Outcome.STUDIED)
         self.assertFalse(self.later.semesters.exists())
         self.assertFalse(self.gone.semesters.exists())
         move = StudentSemesterMove.objects.get()
-        self.assertEqual((move.moved_count, move.on_leave_count, move.automatic, move.moved_by), (1, 1, True, self.office))
+        self.assertEqual((move.moved_count, move.back_from_leave_count, move.automatic, move.moved_by), (2, 1, True, self.office))
 
     def test_the_students_tab_is_told_and_has_nothing_to_ask(self):
         self.activate()
         summary = self.client.get(self.url, {"summary": "1"}).data
         self.assertEqual(summary["waiting"], 0)
         last = summary["lastMove"]
-        self.assertEqual((last["moved"], last["onLeave"], last["automatic"]), (1, 1, True))
+        self.assertEqual((last["moved"], last["backFromLeave"], last["automatic"]), (2, 1, True))
 
     def test_the_page_lists_who_is_on_the_semester(self):
         self.activate()
         data = self.client.get(self.url).data
-        self.assertEqual([row["matric"] for row in data["onSemester"]], ["AM1"])
+        self.assertEqual([row["matric"] for row in data["onSemester"]], ["AM1", "AM3"])
         self.assertEqual(data["onSemester"][0]["outcome"], "STUDIED")
-        self.assertEqual(data["onLeave"], 1)
+        self.assertEqual(data["onLeave"], 0)
         self.assertEqual(data["students"], [])
 
     def test_someone_who_arrives_afterwards_still_waits(self):
@@ -515,20 +522,33 @@ class SemesterMovesOnActivationTests(APITestCase):
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class GraduationApiTests(APITestCase):
     url = "/api/registry/graduation/"
+    finish_url = "/api/registry/graduation/finish/"
     REASON = "Senate meeting, 12 March 2027"
     THREE = ("Semester I, 2026/2027", "Semester II, 2026/2027", "Special Semester, 2026/2027")
+    LAST = {"lastSession": "2026/2027", "lastTerm": "SPECIAL"}
 
     @classmethod
     def setUpTestData(cls):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from academics.models import AcademicSemester
+
         cls.office = User.objects.create_user(
             email="office@example.test", password="pw", full_name="Office Person", role=User.Role.OFFICE_ADMIN,
+        )
+        today = timezone.localdate()
+        cls.portal = AcademicSemester.objects.create(
+            code="2026-2027-SP", academic_session="2026/2027", term="SPECIAL", created_by=cls.office,
+            starts_on=today - timedelta(days=5), ends_on=today + timedelta(days=60), lifecycle_status="ACTIVE",
         )
         cls.ready = make_student("GR1")
         semesters_for(cls.ready, *cls.THREE)
         cls.early = make_student("GR2")
-        semesters_for(cls.early, *cls.THREE[:2])
+        semesters_for(cls.early, cls.THREE[0], cls.THREE[2])
         cls.first_year = make_student("GR3")
-        semesters_for(cls.first_year, cls.THREE[0])
+        semesters_for(cls.first_year, cls.THREE[2])
         cls.no_record = make_student("GR4", intake="")
         cls.gone = make_student("GR5", status=Student.Status.GRADUATED)
         semesters_for(cls.gone, *cls.THREE)
@@ -545,7 +565,7 @@ class GraduationApiTests(APITestCase):
     def test_only_the_office_uses_it(self):
         self.client.force_authenticate(self.ready.user)
         self.assertEqual(self.client.get(self.url).status_code, 403)
-        self.assertEqual(self.client.post(self.url, {"matrics": ["GR1"], "reason": "x"}, format="json").status_code, 403)
+        self.assertEqual(self.client.post(self.finish_url, {"matrics": ["GR1"], **self.LAST}, format="json").status_code, 403)
         self.assertEqual(self.client.get("/api/registry/students/GR1/graduation-check/").status_code, 403)
         self.ready.refresh_from_db()
         self.assertEqual(self.ready.status, Student.Status.ACTIVE)
@@ -564,35 +584,34 @@ class GraduationApiTests(APITestCase):
         group, row = self.group_of(data, "GR6")
         self.assertEqual((group, row["items"][-1]["code"]), ("check", "NO_RULE"))
 
-    def test_graduating_a_group_skips_anyone_who_cannot_and_says_why(self):
+    def test_finishing_a_group_skips_anyone_who_cannot_and_says_why(self):
         self.client.force_authenticate(self.office)
         response = self.client.post(
-            self.url, {"matrics": ["GR1", "GR2", "GR3", "GR4", "GR5", "NOPE"], "reason": self.REASON}, format="json",
+            self.finish_url, {"matrics": ["GR1", "GR2", "GR3", "GR4", "GR5", "NOPE"], **self.LAST}, format="json",
         )
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual([row["matric"] for row in response.data["graduated"]], ["GR1"])
+        self.assertEqual([row["matric"] for row in response.data["finished"]], ["GR1"])
         why = {row["matric"]: row["why"] for row in response.data["skipped"]}
         self.assertEqual(set(why), {"GR2", "GR3", "GR4", "GR5", "NOPE"})
         self.assertIn("needs approval", why["GR2"])
         self.assertIn("Only 1 semester studied", why["GR3"])
-        self.assertIn("No semester record", why["GR4"])
+        self.assertIn("Not on Special Semester", why["GR4"])
         self.ready.refresh_from_db()
-        self.assertEqual((self.ready.status, self.ready.status_reason), (Student.Status.GRADUATED, self.REASON))
-        self.first_year.refresh_from_db()
-        self.assertEqual(self.first_year.status, Student.Status.ACTIVE)
-        self.assertTrue(ParticipantLifecycleAudit.objects.filter(student=self.ready, new_status="GRADUATED", reason=self.REASON).exists())
+        self.assertEqual(self.ready.status, Student.Status.ACTIVE)
+        self.assertTrue(ParticipantLifecycleAudit.objects.filter(student=self.ready, new_status="WAITING_FOR_SENATE").exists())
 
     def test_one_semester_early_needs_the_approval_and_two_is_never_allowed(self):
         self.client.force_authenticate(self.office)
-        body = {"matrics": ["GR2", "GR3"], "earlyApproved": ["gr2", "GR3"], "reason": self.REASON}
-        response = self.client.post(self.url, body, format="json")
-        self.assertEqual([row["matric"] for row in response.data["graduated"]], ["GR2"])
+        body = {"matrics": ["GR2", "GR3"], "earlyApproved": ["gr2", "GR3"], **self.LAST}
+        response = self.client.post(self.finish_url, body, format="json")
+        self.assertEqual([row["matric"] for row in response.data["finished"]], ["GR2"])
         self.assertEqual([row["matric"] for row in response.data["skipped"]], ["GR3"])
 
-    def test_a_reason_is_required(self):
+    def test_the_semester_must_be_one_the_portal_offers(self):
         self.client.force_authenticate(self.office)
-        self.assertEqual(self.client.post(self.url, {"matrics": ["GR1"], "reason": "  "}, format="json").status_code, 400)
-        self.assertEqual(self.client.post(self.url, {"matrics": [], "reason": "x"}, format="json").status_code, 400)
+        body = {"matrics": ["GR1"], "lastSession": "2020/2021", "lastTerm": "SEMESTER_I"}
+        self.assertEqual(self.client.post(self.finish_url, body, format="json").status_code, 400)
+        self.assertEqual(self.client.post(self.finish_url, {"matrics": [], **self.LAST}, format="json").status_code, 400)
 
     def test_waiting_work_warns_or_stops(self):
         from documents.models import Document, DocumentStudent, DocumentType
@@ -611,8 +630,8 @@ class GraduationApiTests(APITestCase):
         DocumentStudent.objects.create(document=document, student=self.ready)
         data = self.client.get(self.url).data
         self.assertEqual(sorted(item["code"] for item in self.group_of(data, "GR1")[1]["items"]), ["FILES", "LETTERS"])
-        response = self.client.post(self.url, {"matrics": ["GR1"], "reason": self.REASON}, format="json")
-        self.assertEqual([row["matric"] for row in response.data["graduated"]], ["GR1"])
+        response = self.client.post(self.finish_url, {"matrics": ["GR1"], **self.LAST}, format="json")
+        self.assertEqual([row["matric"] for row in response.data["finished"]], ["GR1"])
 
     def test_the_rule_also_holds_for_one_student_at_a_time(self):
         self.client.force_authenticate(self.office)
@@ -620,18 +639,13 @@ class GraduationApiTests(APITestCase):
         body = {"academicStatus": "Graduated", "statusReason": self.REASON}
         refused = self.client.patch(record, body, format="json")
         self.assertEqual(refused.status_code, 409)
-        self.assertIn("cannot graduate yet", refused.data["error"])
+        self.assertIn("Graduation page", refused.data["error"])
         also = self.client.post("/api/accounts/participants/students/GR3/transition/", {"targetStatus": "GRADUATED", "reason": self.REASON}, format="json")
         self.assertEqual(also.status_code, 409)
         self.assertIn("cannot graduate yet", also.data["error"])
         early = self.client.post("/api/accounts/participants/students/GR2/transition/", {"targetStatus": "GRADUATED", "reason": self.REASON}, format="json")
         self.assertEqual(early.status_code, 409)
         self.assertIn("needs approval", early.data["error"])
-        early_record = "/api/registry/students/GR2/"
-        self.assertEqual(self.client.patch(early_record, body, format="json").status_code, 409)
-        approved = self.client.patch(early_record, {**body, "earlyCompletionApproved": True}, format="json")
-        self.assertEqual(approved.status_code, 200, approved.data)
-        self.assertEqual(approved.data["academicStatus"], "Graduated")
 
     def test_the_student_record_check(self):
         self.client.force_authenticate(self.office)
@@ -640,23 +654,12 @@ class GraduationApiTests(APITestCase):
         self.assertEqual(self.client.get("/api/registry/students/GR5/graduation-check/").status_code, 409)
 
     def test_deferring_makes_this_semester_leave(self):
-        from datetime import timedelta
-
-        from django.utils import timezone
-
-        from academics.models import AcademicSemester
-
-        today = timezone.localdate()
-        AcademicSemester.objects.create(
-            code="2026-2027-S2", academic_session="2026/2027", term="SEMESTER_II", created_by=self.office,
-            starts_on=today - timedelta(days=5), ends_on=today + timedelta(days=60), lifecycle_status="ACTIVE",
-        )
         self.client.force_authenticate(self.office)
         response = self.client.patch(
             "/api/registry/students/GR2/", {"academicStatus": "Deferred", "statusReason": "Family reasons"}, format="json",
         )
         self.assertEqual(response.status_code, 200, response.data)
-        row = self.early.semesters.get(term="SEMESTER_II")
+        row = self.early.semesters.get(term="SPECIAL")
         self.assertEqual(row.outcome, StudentSemester.Outcome.LEAVE)
         self.assertEqual(self.early.semesters.get(term="SEMESTER_I").outcome, StudentSemester.Outcome.STUDIED)
 
@@ -668,8 +671,28 @@ class StatusNoticeTests(APITestCase):
         cls.office = User.objects.create_user(
             email="office@example.test", password="pw", full_name="Office Person", role=User.Role.OFFICE_ADMIN,
         )
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from academics.models import AcademicSemester
+
+        today = timezone.localdate()
+        AcademicSemester.objects.create(
+            code="2026-2027-SP", academic_session="2026/2027", term="SPECIAL", created_by=cls.office,
+            starts_on=today - timedelta(days=5), ends_on=today + timedelta(days=60), lifecycle_status="ACTIVE",
+        )
         cls.student = make_student("SN1")
-        semesters_for(cls.student, "Semester I, 2026/2027", "Semester II, 2026/2027", "Special Semester, 2026/2027")
+        semesters_for(cls.student, "Semester I, 2025/2026", "Semester I, 2026/2027", "Semester II, 2026/2027", "Special Semester, 2026/2027")
+
+    def graduate(self):
+        from django.utils import timezone
+
+        self.client.force_authenticate(self.office)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post("/api/registry/graduation/finish/", {"matrics": ["SN1"], "lastSession": "2026/2027", "lastTerm": "SPECIAL"}, format="json")
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post("/api/registry/graduation/senate/", {"matrics": ["SN1"], "decidedOn": timezone.localdate().isoformat()}, format="json")
 
     def change(self, status, reason="Senate meeting"):
         self.client.force_authenticate(self.office)
@@ -684,28 +707,25 @@ class StatusNoticeTests(APITestCase):
     def test_the_student_is_told_when_their_status_changes(self):
         self.assertEqual(self.change("Deferred", "Family reasons").status_code, 200)
         self.assertEqual(self.change("Active", "Back from leave").status_code, 200)
-        self.assertEqual(self.change("Graduated").status_code, 200)
+        self.assertEqual(self.graduate().status_code, 200)
         notices = self.notices()
         self.assertEqual(
             [notice.title for notice in notices],
-            ["Your studies are now deferred", "You are Active again", "You have graduated"],
+            ["You are on semester leave", "You are Active again", "Your studies are marked as finished", "You have graduated"],
         )
         self.assertIn("Family reasons", notices[0].message)
-        self.assertEqual((notices[2].target_module, notices[2].is_read), ("DASHBOARD", False))
-        self.assertEqual(notices[2].summary, "Your status is now Graduated.")
+        self.assertEqual(notices[2].summary, "Your status is now Waiting for Senate.")
+        self.assertEqual((notices[3].target_module, notices[3].is_read), ("DASHBOARD", False))
+        self.assertEqual(notices[3].summary, "Your status is now Graduated.")
 
-    def test_graduating_many_tells_each_of_them(self):
-        self.client.force_authenticate(self.office)
-        with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(
-                "/api/registry/graduation/", {"matrics": ["SN1"], "reason": "Senate meeting"}, format="json",
-            )
+    def test_graduating_tells_them_at_both_steps(self):
+        response = self.graduate()
         self.assertEqual(len(response.data["graduated"]), 1)
-        self.assertEqual([notice.title for notice in self.notices()], ["You have graduated"])
+        self.assertEqual([notice.title for notice in self.notices()], ["Your studies are marked as finished", "You have graduated"])
 
     def test_a_suspended_account_is_not_told(self):
         User.objects.filter(pk=self.student.user.pk).update(is_active=False)
-        self.change("Graduated")
+        self.change("Deferred", "Family reasons")
         self.assertEqual(self.notices(), [])
 
 
@@ -770,13 +790,13 @@ class IntakeTests(APITestCase):
         self.assertFalse(self.march.semesters.filter(session="2026/2027", term="SEMESTER_I").exists())
         self.assertEqual(progress_of(self.march).studied, 1)
 
-    def test_a_deferred_student_on_a_later_intake_gets_no_leave(self):
+    def test_leave_ends_for_a_started_student_and_not_for_a_later_intake(self):
         waiting = make_student("IN3", intake=self.LATER, status=Student.Status.DEFERRED)
         back = make_student("IN4", intake="2025/2026 Semester II", status=Student.Status.DEFERRED)
-        self.assertEqual(self.client.get(self.url).data["deferred"], 1)
         self.client.post(self.url, {"semesterId": self.portal.pk, "matrics": ["IN1"]}, format="json")
-        self.assertFalse(waiting.semesters.exists())
-        self.assertEqual(back.semesters.get().note, "On deferment when this semester started")
+        waiting.refresh_from_db()
+        back.refresh_from_db()
+        self.assertEqual((waiting.status, back.status), (Student.Status.DEFERRED, Student.Status.ACTIVE))
 
     def test_a_student_on_a_later_intake_is_counted_as_too_early_and_cannot_graduate(self):
         ProgrammeRule.objects.filter(programme=DS).delete()
@@ -785,8 +805,8 @@ class IntakeTests(APITestCase):
         self.assertNotIn("IN2", listed)
         self.assertEqual(data["tooEarly"], 1)
         self.assertEqual(self.client.get("/api/registry/students/IN2/graduation-check/").data["items"][0]["code"], "NOT_STARTED")
-        result = self.client.post(self.graduation, {"matrics": ["IN2"], "reason": "Senate"}, format="json").data
-        self.assertEqual((result["graduated"], result["skipped"][0]["why"]), ([], "Starts in Semester II, 2026/2027 Session."))
+        result = self.client.post(f"{self.graduation}finish/", {"matrics": ["IN2"], "lastSession": "2026/2027", "lastTerm": "SEMESTER_I"}, format="json").data
+        self.assertEqual((result["finished"], result["skipped"][0]["why"]), ([], "Not on Semester I, 2026/2027 Session."))
 
     def test_a_semester_before_the_intake_cannot_be_added_and_an_old_one_is_flagged(self):
         url = f"/api/registry/students/{self.march.matric_no}/semesters/"

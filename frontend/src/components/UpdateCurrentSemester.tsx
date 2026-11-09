@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { ArrowRight, Check, ChevronDown, GraduationCap, Info, Search } from 'lucide-react';
 import type { MoveState, SemesterOutcome, SemesterStudent } from '../services/registrySemestersApi';
 import { changeStudentSemester, getSemesterMove, moveStudents } from '../services/registrySemestersApi';
@@ -52,6 +52,7 @@ export const UpdateCurrentSemester: React.FC = () => {
   const notRegistered = useMemo(() => onSemester.filter(isNotRegistered), [onSemester]);
   const studying = onSemester.length - notRegistered.length;
   const onLeave = state?.onLeave ?? 0;
+  const attention = state?.attention ?? [];
   const intakes = useMemo(() => intakeFilterOptions(onSemester.map(row => row.intake)), [onSemester]);
   const inIntake = useMemo(() => onSemester.filter(row => matchesIntake(row.intake, intake)), [onSemester, intake]);
   const programmes = useMemo(() => {
@@ -154,12 +155,6 @@ export const UpdateCurrentSemester: React.FC = () => {
         <p className="flex items-start gap-2 text-[13px] text-slate-500">
           <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           {studentCount(state.notStarted)} on a later intake.
-        </p>
-      )}
-      {state.deferred > 0 && (
-        <p className="flex items-start gap-2 text-[13px] text-slate-500">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          {studentCount(state.deferred)} on deferment. This semester counts as leave for them.
         </p>
       )}
     </>
@@ -353,6 +348,22 @@ export const UpdateCurrentSemester: React.FC = () => {
             )}
           </section>
         </>
+      )}
+
+      {attention.length > 0 && (
+        <section aria-label="Needs a decision" className="app-card space-y-3 p-5 sm:p-6">
+          <h3 className="text-[15.5px] font-extrabold text-brand-navy">Needs a decision</h3>
+          <ul className="divide-y divide-slate-100">
+            {attention.map(row => (
+              <PersonRow
+                key={row.matric}
+                person={row}
+                detail={row.warnings.map(warning => <p key={warning.code} className={`mt-0.5 text-[12.5px] font-semibold ${warning.level === 'stop' ? 'text-rose-700' : 'text-amber-800'}`}>{warning.text}</p>)}
+                action={<Link to={`${APP_ROUTES.registry}?student=${encodeURIComponent(row.matric)}`} className="text-[13px] font-bold text-blue-700 hover:text-blue-900">Open record</Link>}
+              />
+            ))}
+          </ul>
+        </section>
       )}
 
       {notes}

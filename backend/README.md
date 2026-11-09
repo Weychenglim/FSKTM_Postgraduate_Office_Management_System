@@ -314,9 +314,18 @@ How long a programme takes, how far along each student is, and acting on many st
 | PATCH, DELETE | `students/<matric>/semesters/<id>/` | Correct or remove one. The record's current semester follows the latest row. |
 | PUT | `students/<matric>/semester-extension/` | Up to 3 semesters past the maximum, with a reason. |
 | GET | `semester-move/` | Who is on the active semester and who still needs it (the Current semester page). `?summary=1` gives only the counts, for the Students tab. Anyone whose intake is later is left out and counted as `notStarted`. |
-| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Activating a normal semester already does this for everyone, so this is for a Special Semester and for anyone who arrives afterwards. Only the active semester, and running it twice changes nothing. Later intakes are skipped. Deferred students get the semester as leave, except a Special Semester. |
-| GET | `graduation/` | The Record graduations page: Active students near or past the minimum, as `ready`, `check` and `stop`, each with their intake and what is unfinished. Students 2 or more below the minimum, or who have not started, are only counted (`tooEarly`). |
-| POST | `graduation/` | Graduate (`matrics`, `earlyApproved`, `reason`). Each student is checked again and graduated separately; the result lists `graduated` and `skipped` with why. |
+| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Activating a normal semester already does this for everyone, so this is for a Special Semester and for anyone who arrives afterwards. Only the active semester, and running it twice changes nothing. Later intakes and students waiting for the Senate are skipped. |
+| GET | `graduation/` | The Graduation page: Active students near or past the minimum as `ready`, `check` and `stop`, plus `waiting` (finished, waiting for the Senate) and `lastSemesters`. Students 2 or more below the minimum, or who have not started, are only counted (`tooEarly`). |
+| POST | `graduation/finish/` | Step 1: mark as finished (`matrics`, `earlyApproved`, `lastSession`, `lastTerm`). Each student is checked separately. Unfinished Marks and waiting requests stop a student here. A later Registered semester is removed. |
+| POST | `graduation/senate/` | Step 2: record the Senate's decision (`matrics`, `decidedOn`, `reference`). Only students waiting for the Senate. The Senate date is kept. |
+| POST | `graduation/return/` | Back to Active (`matrics`, `reason`). |
+| POST | `graduation/correct/` | Undo a wrong entry (`matric`, `reason`). The student goes back to waiting for the Senate. Closed appointments stay closed. |
+| POST | `graduation/match-list/` | Read an Excel, CSV or PDF copy of the Senate's list (`file`) and say who is `matched`, `notWaiting` or `notFound`. The file is not kept. |
+| POST | `students/<matric>/status-action/` | Record what happened (`action`: `LEAVE`, `END_LEAVE`, `WITHDRAW`, `TERMINATE`, `DECEASED`, `REINSTATE`; `reason`; `outcome` for leave; `exitReason` for termination). |
+| GET, POST | `project-stages/` | The students to confirm and those confirmed for a semester (`?semester=`), or confirm stages (`semesterId`, `items`). Suggestions are worked out here and never stored. |
+| GET | `project-stages/impact/` | What changing a confirmed stage would touch in Marks (`semester`, `matric`, `stage`). |
+| POST | `project-stages/correct/` | Change or void a confirmed stage (`semesterId`, `matric`, `stage`, `reason`, `revision`, `acknowledged`). |
+| GET | `retention/` | Who has passed the retention period (`STUDENT_RETENTION_YEARS`, default 8). Nothing is removed. |
 | GET | `students/<matric>/graduation-check/` | The same check for one student. |
 
 - **Counting:** `accounts.semester_rules` counts semesters studied from `StudentSemester` rows. The maximum semester is the intake plus the programme's maximum, in normal semesters, moved later only by medical or mobility leave and extensions.

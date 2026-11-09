@@ -183,8 +183,18 @@ class Student(models.Model):
     class Status(models.TextChoices):
         ACTIVE = "Active", "Active"
         GRADUATED = "Graduated", "Graduated"
-        DEFERRED = "Deferred", "Deferred"
+        DEFERRED = "Deferred", "On semester leave"
         WITHDRAWN = "Withdrawn", "Withdrawn"
+        TERMINATED = "Terminated", "Terminated"
+        DECEASED = "Deceased", "Passed away"
+
+    class ExitReason(models.TextChoices):
+        NOT_REGISTERED = "NOT_REGISTERED", "Did not register"
+        LEAVE_USED_UP = "LEAVE_USED_UP", "Semester leave used up"
+        FAILED = "FAILED", "Failed"
+        FAILED_AND_EXIT = "FAILED_AND_EXIT", "Failed and Exit"
+        LAPSED = "LAPSED", "Lapsed"
+        SENATE = "SENATE", "Senate decision"
 
     user = models.OneToOneField(
         User, on_delete=models.CASCADE, primary_key=True, related_name="student"
@@ -204,6 +214,9 @@ class Student(models.Model):
         blank=True,
     )
     status_reason = models.TextField(blank=True)
+    exit_reason = models.CharField(
+        max_length=24, choices=ExitReason.choices, blank=True, default="", db_default=""
+    )
 
     class Meta:
         constraints = [
@@ -751,10 +764,11 @@ class StudentSemester(models.Model):
         SPECIAL = "SPECIAL", "Special Semester"
 
     class Outcome(models.TextChoices):
-        STUDIED = "STUDIED", "Studied"
-        LEAVE = "LEAVE", "On leave"
+        STUDIED = "STUDIED", "Registered"
+        LEAVE = "LEAVE", "Personal leave"
         # Medical and mobility leave do not use up the maximum (Regulation 8(11)).
-        LEAVE_EXEMPT = "LEAVE_EXEMPT", "On medical or mobility leave"
+        LEAVE_MEDICAL = "LEAVE_MEDICAL", "Medical leave"
+        LEAVE_MOBILITY = "LEAVE_MOBILITY", "Mobility leave"
         NOT_REGISTERED = "NOT_REGISTERED", "Not registered"
 
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name="semesters")
@@ -793,7 +807,7 @@ class StudentSemesterMove(models.Model):
     term = models.CharField(max_length=16, choices=StudentSemester.Term.choices)
     moved_count = models.PositiveIntegerField(default=0)
     left_out_count = models.PositiveIntegerField(default=0)
-    on_leave_count = models.PositiveIntegerField(default=0, db_default=0)
+    back_from_leave_count = models.PositiveIntegerField(default=0, db_default=0)
     automatic = models.BooleanField(default=False, db_default=False)
     moved_by = models.ForeignKey(
         User,
@@ -806,3 +820,108 @@ class StudentSemesterMove(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class SenateDecision(models.Model):
+    """One Senate meeting's approval of graduates, as the office records it."""
+
+    decided_on = models.DateField()
+    reference = models.CharField(max_length=120, blank=True)
+    recorded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="senate_decisions_recorded"
+    )
+    recorded_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-decided_on", "-id"]
+
+
+class StudentCompletion(models.Model):
+    """A student finished studying. With no Senate decision yet they are waiting for one."""
+
+    student = models.OneToOneField(Student, on_delete=models.CASCADE, primary_key=True, related_name="completion")
+    last_session = models.CharField(max_length=9)
+    last_term = models.CharField(max_length=16, choices=StudentSemester.Term.choices)
+    early_approved = models.BooleanField(default=False)
+    marked_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="student_completions_marked"
+    )
+    marked_at = models.DateTimeField(default=timezone.now)
+    senate_decision = models.ForeignKey(
+        SenateDecision, on_delete=models.PROTECT, null=True, blank=True, related_name="completions"
+    )
+
+
+class ProjectRegistration(models.Model):
+    """Which part of the research project a student is on in one academic semester, once the office has confirmed it."""
+
+    class Stage(models.TextChoices):
+        P1 = "P1", "P1"
+        P2 = "P2", "P2"
+        NONE = "NONE", "No project"
+
+    class Status(models.TextChoices):
+        CONFIRMED = "CONFIRMED", "Confirmed"
+        VOIDED = "VOIDED", "Voided"
+
+    class Source(models.TextChoices):
+        OFFICE = "OFFICE", "Office"
+        LIST = "LIST", "Office list"
+
+    student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name="project_registrations")
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester", on_delete=models.PROTECT, related_name="project_registrations"
+    )
+    stage = models.CharField(max_length=4, choices=Stage.choices)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.CONFIRMED)
+    source = models.CharField(max_length=10, choices=Source.choices, default=Source.OFFICE)
+    confirmed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="project_registrations_confirmed"
+    )
+    confirmed_at = models.DateTimeField(default=timezone.now)
+    revision = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "academic_semester"], name="unique_project_registration_per_semester"
+            )
+        ]
+
+
+class ProjectRegistrationChangeQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise PermissionError("Project stage history cannot be changed.")
+
+    def delete(self):
+        raise PermissionError("Project stage history cannot be deleted.")
+
+
+class ProjectRegistrationChange(models.Model):
+    """Every confirmation and correction of a project stage. Rows are never changed."""
+
+    registration = models.ForeignKey(ProjectRegistration, on_delete=models.PROTECT, related_name="changes")
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="project_registration_changes"
+    )
+    actor_name = models.CharField(max_length=255)
+    previous_stage = models.CharField(max_length=4, blank=True)
+    new_stage = models.CharField(max_length=4)
+    previous_status = models.CharField(max_length=10, blank=True)
+    new_status = models.CharField(max_length=10)
+    reason = models.TextField(blank=True)
+    impact = models.JSONField(default=dict)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    objects = ProjectRegistrationChangeQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise PermissionError("Project stage history cannot be changed.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise PermissionError("Project stage history cannot be deleted.")

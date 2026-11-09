@@ -324,7 +324,7 @@ class OfficeReviewTests(LetterRequestTestCase):
         Student.objects.filter(user=student).update(status=Student.Status.DEFERRED)
         response = self.approve(request_id, {"ATTENDANCE": "90%"})
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("Deferred", response.data["detail"])
+        self.assertIn("On semester leave", response.data["detail"])
         self.assertEqual(self.reject(request_id, "Deferred this semester.").status_code, status.HTTP_200_OK)
 
     def test_a_template_with_pending_requests_cannot_be_deleted(self):

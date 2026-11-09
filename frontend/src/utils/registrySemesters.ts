@@ -1,4 +1,4 @@
-import type { GraduationItem, SemesterOutcome, SemesterTerm, StudentSemesters } from '../services/registrySemestersApi';
+import type { GraduationItem, LeaveOutcome, SemesterOutcome, SemesterTerm, StudentSemesters } from '../services/registrySemestersApi';
 import type { BadgeTone } from '../components/PortalPrimitives';
 import { APP_ROUTES, routeForSupervisorResearchRequest } from '../constants/routes';
 
@@ -21,13 +21,25 @@ export const TERM_OPTIONS: Array<{ value: SemesterTerm; label: string }> = [
 ];
 
 export const OUTCOME_OPTIONS: Array<{ value: SemesterOutcome; label: string; description: string }> = [
-  { value: 'STUDIED', label: 'Studied', description: 'Counts toward the minimum.' },
-  { value: 'LEAVE', label: 'On leave', description: 'Does not count toward the minimum. The maximum stays the same.' },
-  { value: 'LEAVE_EXEMPT', label: 'On medical or mobility leave', description: 'Does not count, and pushes the maximum back one semester.' },
+  { value: 'STUDIED', label: 'Registered', description: 'Counts toward the minimum.' },
+  { value: 'LEAVE', label: 'Personal leave', description: 'Does not count toward the minimum. The maximum stays the same.' },
+  { value: 'LEAVE_MEDICAL', label: 'Medical leave', description: 'Does not count, and pushes the maximum back one semester.' },
+  { value: 'LEAVE_MOBILITY', label: 'Mobility leave', description: 'Does not count, and pushes the maximum back one semester.' },
   { value: 'NOT_REGISTERED', label: 'Not registered', description: 'Does not count toward the minimum. The maximum stays the same.' },
 ];
 
-export const OUTCOME_TONE: Record<SemesterOutcome, BadgeTone> = { STUDIED: 'success', LEAVE: 'warning', LEAVE_EXEMPT: 'info', NOT_REGISTERED: 'danger' };
+export const OUTCOME_TONE: Record<SemesterOutcome, BadgeTone> = { STUDIED: 'success', LEAVE: 'warning', LEAVE_MEDICAL: 'info', LEAVE_MOBILITY: 'info', NOT_REGISTERED: 'danger' };
+
+export const LEAVE_OPTIONS: Array<{ value: LeaveOutcome; label: string; description: string }> = OUTCOME_OPTIONS.filter((option): option is { value: LeaveOutcome; label: string; description: string } => option.value.startsWith('LEAVE'));
+
+export const EXIT_REASON_OPTIONS = [
+  { value: 'NOT_REGISTERED', label: 'Did not register' },
+  { value: 'LEAVE_USED_UP', label: 'Semester leave used up' },
+  { value: 'FAILED', label: 'Failed' },
+  { value: 'FAILED_AND_EXIT', label: 'Failed and Exit' },
+  { value: 'LAPSED', label: 'Lapsed' },
+  { value: 'SENATE', label: 'Senate decision' },
+];
 
 /** Sessions run on consecutive years, like 2026/2027. */
 export function validSession(session: string): boolean {
@@ -139,13 +151,13 @@ const MOVED_NOTICE_DAYS = 14;
 
 /** What the portal did by itself when the semester started. Shown for its first two weeks. */
 export function semesterMovedNotice(
-  summary: { semester: { label: string } | null; lastMove: { at: string; moved: number; onLeave: number; automatic: boolean } | null } | null,
+  summary: { semester: { label: string } | null; lastMove: { at: string; moved: number; backFromLeave: number; automatic: boolean } | null } | null,
   now: Date = new Date(),
 ): string | null {
   const move = summary?.lastMove;
   if (!summary?.semester || !move?.automatic) return null;
   if (now.getTime() - new Date(move.at).getTime() > MOVED_NOTICE_DAYS * 86_400_000) return null;
-  const leave = move.onLeave ? ` ${move.onLeave} on leave.` : '';
+  const leave = move.backFromLeave ? ` ${move.backFromLeave} back from leave.` : '';
   return `${studentCount(move.moved)} moved to ${shortSemester(summary.semester.label)}.${leave}`;
 }
 

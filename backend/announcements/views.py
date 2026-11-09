@@ -64,7 +64,7 @@ AUDIENCE_TO_ROLE = {
 }
 
 # Students who have left no longer get announcements.
-GONE = (Student.Status.GRADUATED, Student.Status.WITHDRAWN)
+GONE = (Student.Status.GRADUATED, Student.Status.WITHDRAWN, Student.Status.TERMINATED, Student.Status.DECEASED)
 
 
 # Helpers

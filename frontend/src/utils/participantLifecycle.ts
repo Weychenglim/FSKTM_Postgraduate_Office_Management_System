@@ -21,8 +21,14 @@ export const allowedParticipantTransitions = (
   status: ParticipantLifecycleStatus,
 ): ParticipantLifecycleStatus[] => TRANSITIONS[type][status] ?? [];
 
+const STUDENT_WORDS: Record<string, string> = {
+  DEFERRED: 'On semester leave',
+  DECEASED: 'Passed away',
+  WAITING_FOR_SENATE: 'Waiting for Senate',
+};
+
 export const lifecycleLabel = (status: string): string =>
-  status.charAt(0) + status.slice(1).toLowerCase();
+  STUDENT_WORDS[status] ?? status.charAt(0) + status.slice(1).toLowerCase();
 
 export const participantConflictMessage = (error: unknown): string =>
   error instanceof Error ? error.message : 'The lifecycle request could not be completed.';

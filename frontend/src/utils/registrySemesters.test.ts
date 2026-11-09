@@ -16,6 +16,7 @@ assert.ok(!validSession(''));
 
 
 const progress = (change: Partial<StudentSemesters>): StudentSemesters => ({
+  warnings: [],
   matric: 'M1', studied: 3, minimum: 3, maximum: 8, specialCounts: true, hasRule: true, hasRecord: true, shortOfMinimum: 0,
   maximumSemester: 'Semester II, 2029/2030 Session', currentSemester: '', lastSemester: false, pastMaximum: false, intake: '', beforeIntake: [], startsAfterIntake: false,
   extensionSemesters: 0, extensionReason: '', rows: [], ...change,
@@ -42,11 +43,11 @@ assert.equal(semesterMoveWaiting({ semester: {}, waiting: 3, lastMove: null }), 
 assert.equal(semesterMoveWaiting({ semester: { isSpecial: true }, waiting: 3, lastMove: null }), true);
 assert.equal(semesterMoveWaiting({ semester: { isSpecial: true }, waiting: 3, lastMove: {} }), false);
 
-const automatic = { at: '2026-11-01T00:00:00Z', moved: 83, onLeave: 3, automatic: true };
+const automatic = { at: '2026-11-01T00:00:00Z', moved: 83, backFromLeave: 3, automatic: true };
 const movedOn = { label: 'Semester II, 2026/2027 Session' };
 const soon = new Date('2026-11-05T00:00:00Z');
-assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: automatic }, soon), '83 students moved to Semester II, 2026/2027. 3 on leave.');
-assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: { ...automatic, onLeave: 0 } }, soon), '83 students moved to Semester II, 2026/2027.');
+assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: automatic }, soon), '83 students moved to Semester II, 2026/2027. 3 back from leave.');
+assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: { ...automatic, backFromLeave: 0 } }, soon), '83 students moved to Semester II, 2026/2027.');
 assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: { ...automatic, automatic: false } }, soon), null);
 assert.equal(semesterMovedNotice({ semester: movedOn, lastMove: automatic }, new Date('2026-11-16T00:00:00Z')), null);
 assert.equal(semesterMovedNotice({ semester: null, lastMove: automatic }, soon), null);

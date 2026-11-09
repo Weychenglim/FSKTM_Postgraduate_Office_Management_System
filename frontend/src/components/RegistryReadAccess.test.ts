@@ -14,7 +14,7 @@ assert.match(app, /readOnly=\{currentUser\.role !== 'Office Staff\/Admin'\}/);
 
 for (const guarded of [
   /\{!readOnly && \(\s*<PortalButton[\s\S]{0,600}Register New Students/,
-  /\{!readOnly && \(\s*<div className="p-4 bg-white rounded-xl border border-slate-200 space-y-3">\s*<h4[^>]*>\s*Change Academic Status/,
+  /\{!readOnly && \(\s*<StudentStatusActions/,
   /\{!readOnly && viewingStudent\.accountStatus === 'Verified' && \(/,
   /\{!readOnly && viewingStudent\.accountStatus === 'Suspended' && \(/,
   /currentView === 'register' && !readOnly/,
