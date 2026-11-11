@@ -1,8 +1,9 @@
 """Which part of the research project each student is on in a semester.
 
-The office confirms it. Suggestions are worked out when the page opens and are
-never stored, so they can never reach Marks. ``project_stages`` is the one read
-other modules use.
+Worked out every time it is read, from the student's own answer, their first
+supervisor approval, the semester before, and any coordinator change. Only the
+answers and the changes are stored. ``project_stages`` is the one read other
+modules use.
 """
 from dataclasses import dataclass
 
@@ -14,14 +15,33 @@ from django.utils import timezone
 from academics.models import AcademicSemester
 from appointments.models import CoSupervisorAppointment, PanelAppointment, SupervisorApplication, SupervisorAppointment
 
-from .models import ProjectRegistration, ProjectRegistrationChange, Student, StudentCompletion, StudentSemester
-from .semester_rules import LEAVE_OUTCOMES, NOT_REGISTERED, active_semester, starts_later
-from .semesters import from_parts
+from .authorization import coordinator_manages_programme, coordinator_programmes
+from .models import ProjectRegistration, ProjectRegistrationChange, Student, StudentCompletion, StudentSemester, User
+from .project_stage_marks import COUNTS, MarksChanged, apply_marks, preview_marks, touches_marks
+from .semester_rules import LEAVE_OUTCOMES, NOT_REGISTERED, STUDIED, active_semester, rule_for, starts_later
+from .semesters import SEMESTER_II, SPECIAL, Semester, from_parts, read
 
-CONFIRMED, NO_PROJECT, NOT_CONFIRMED, NOT_STUDYING = "CONFIRMED", "NO_PROJECT", "NOT_CONFIRMED", "NOT_STUDYING"
+ON_PROJECT, NOT_STARTED, COMPLETED, NOT_STUDYING, NOT_CONFIRMED = (
+    "ON_PROJECT", "NOT_STARTED", "COMPLETED", "NOT_STUDYING", "NOT_CONFIRMED",
+)
 ON_LEAVE, UNREGISTERED, FINISHED = "ON_LEAVE", "NOT_REGISTERED", "FINISHED"
+NOT_ANSWERED, BREAK_AFTER_P1, NO_SEMESTER_ROW = "NOT_ANSWERED", "BREAK_AFTER_P1", "NO_SEMESTER_ROW"
+STUDENT, SUPERVISOR_APPROVAL, COORDINATOR, AUTO = "STUDENT", "SUPERVISOR_APPROVAL", "COORDINATOR", "AUTO"
+
 P1, P2, NONE = ProjectRegistration.Stage.P1, ProjectRegistration.Stage.P2, ProjectRegistration.Stage.NONE
-VOID = "VOID"
+AUTOMATIC = "AUTO"
+CONFIRMED, VOIDED = ProjectRegistration.Status.CONFIRMED, ProjectRegistration.Status.VOIDED
+Source = ProjectRegistration.Source
+STAFF_SOURCES = (Source.OFFICE, Source.LIST, Source.COORDINATOR)
+_DONE, _BREAK = "DONE", "BREAK"
+
+REASONS = {
+    "REPEAT": "Repeat after a fail",
+    "STARTED_LATER": "Started later",
+    "WRONG_ANSWER": "Wrong answer",
+    "OTHER": "Other",
+}
+CHOICES = (P1, P2, NONE, AUTOMATIC)
 
 
 @dataclass(frozen=True)
@@ -29,54 +49,17 @@ class ProjectStage:
     state: str
     stage: str | None
     reason: str
+    source: str
     record_id: int | None
     revision: int
 
 
-def _not_studying(reason):
-    return ProjectStage(NOT_STUDYING, None, reason, None, 0)
+class StageConflict(Exception):
+    pass
 
 
-def project_stages(academic_semester, student_ids):
-    """Every student id passed in gets an answer. Student ids are the same as user ids."""
-    ids = list(set(student_ids))
-    semester = from_parts(academic_semester.academic_session, academic_semester.term)
-    outcomes = dict(
-        StudentSemester.objects.filter(
-            student_id__in=ids, session=academic_semester.academic_session, term=academic_semester.term,
-        ).values_list("student_id", "outcome")
-    )
-    deferred = set()
-    if semester and semester == active_semester():
-        deferred = set(Student.objects.filter(pk__in=ids, status=Student.Status.DEFERRED).values_list("pk", flat=True))
-    finished = {
-        row.student_id
-        for row in StudentCompletion.objects.filter(student_id__in=ids, senate_decision__isnull=True)
-        if (last := from_parts(row.last_session, row.last_term)) and semester and last.key < semester.key
-    }
-    records = {
-        row.student_id: row
-        for row in ProjectRegistration.objects.filter(student_id__in=ids, academic_semester=academic_semester)
-    }
-    answers = {}
-    for student_id in ids:
-        outcome = outcomes.get(student_id)
-        record = records.get(student_id)
-        if outcome in LEAVE_OUTCOMES or student_id in deferred:
-            answers[student_id] = _not_studying(ON_LEAVE)
-        elif outcome == NOT_REGISTERED:
-            answers[student_id] = _not_studying(UNREGISTERED)
-        elif student_id in finished:
-            answers[student_id] = _not_studying(FINISHED)
-        elif record is None:
-            answers[student_id] = ProjectStage(NOT_CONFIRMED, None, "", None, 0)
-        elif record.status != ProjectRegistration.Status.CONFIRMED:
-            answers[student_id] = ProjectStage(NOT_CONFIRMED, None, "", record.pk, record.revision)
-        elif record.stage == NONE:
-            answers[student_id] = ProjectStage(NO_PROJECT, None, "", record.pk, record.revision)
-        else:
-            answers[student_id] = ProjectStage(CONFIRMED, record.stage, "", record.pk, record.revision)
-    return answers
+def semester_of(academic_semester):
+    return from_parts(academic_semester.academic_session, academic_semester.term) if academic_semester else None
 
 
 def semesters_before(academic_semester):
@@ -89,56 +72,149 @@ def semesters_before(academic_semester):
     return chosen
 
 
-def suggestions(academic_semester, student_ids):
-    """The first approved supervisor request suggests P1. P1 in the semester before suggests P2."""
-    ids = list(student_ids)
-    first_requests = set(
-        SupervisorApplication.objects.filter(
-            student_id__in=ids,
-            academic_semester=academic_semester,
-            status=SupervisorApplication.Status.APPROVED,
-            replaces_appointment__isnull=True,
-        ).values_list("student_id", flat=True)
-    )
-    on_p1 = set(
-        ProjectRegistration.objects.filter(
-            student_id__in=ids,
-            academic_semester__in=semesters_before(academic_semester),
-            status=ProjectRegistration.Status.CONFIRMED,
-            stage=P1,
-        ).values_list("student_id", flat=True)
-    )
-    return {student_id: P2 if student_id in on_p1 else P1 for student_id in ids if student_id in on_p1 or student_id in first_requests}
+def approval_semesters(student_ids):
+    """The semester of each student's first supervisor approval that is not a replacement."""
+    first, calendar = {}, None
+    appointments = SupervisorAppointment.objects.filter(
+        student_id__in=student_ids, supersedes__isnull=True, application__replaces_appointment__isnull=True,
+    ).select_related("application__academic_semester")
+    for appointment in appointments:
+        semester = semester_of(appointment.application.academic_semester)
+        if semester is None:
+            calendar = list(AcademicSemester.objects.all()) if calendar is None else calendar
+            day = appointment.appointment_date
+            semester = next((semester_of(row) for row in calendar if row.starts_on <= day <= row.ends_on), None)
+        if semester and (appointment.student_id not in first or semester.key < first[appointment.student_id].key):
+            first[appointment.student_id] = semester
+    return first
 
 
-def appointed_ids(student_ids):
-    """Students Marks would otherwise give a task to."""
-    ids = list(student_ids)
-    appointed = set(SupervisorAppointment.objects.filter(student_id__in=ids, status="ACTIVE").values_list("student_id", flat=True))
-    appointed |= set(CoSupervisorAppointment.objects.filter(student_id__in=ids, status="ACTIVE").values_list("student_id", flat=True))
-    appointed |= set(PanelAppointment.objects.filter(profile__student_id__in=ids, status="ACTIVE").values_list("profile__student_id", flat=True))
-    return appointed
+@dataclass
+class _Facts:
+    students: dict
+    rows: dict
+    records: dict
+    approvals: dict
 
 
-def marks_impact(student, academic_semester, previous_stage, new_stage):
-    """How many existing Marks tasks a change would touch."""
-    from marks.models import EvaluationTask, MarkEntry
+def _facts(ids):
+    rows, records = {}, {}
+    for row in StudentSemester.objects.filter(student_id__in=ids):
+        semester = from_parts(row.session, row.term)
+        if semester:
+            rows.setdefault(row.student_id, {})[semester.key] = (semester, row.outcome)
+    for record in ProjectRegistration.objects.filter(student_id__in=ids).select_related("academic_semester"):
+        semester = semester_of(record.academic_semester)
+        if semester:
+            records.setdefault(record.student_id, {})[semester.key] = record
+    students = {student.pk: student for student in Student.objects.filter(pk__in=ids)}
+    return _Facts(students, rows, records, approval_semesters(ids))
 
-    counts = {"notStarted": 0, "draft": 0, "submitted": 0}
-    if previous_stage not in (P1, P2) or previous_stage == new_stage:
-        return counts
-    tasks = (
-        EvaluationTask.objects.filter(
-            profile__student_id=student.pk, period__academic_semester=academic_semester, period__assessment=previous_stage,
-        )
-        .exclude(lifecycle_status=EvaluationTask.Lifecycle.RETIRED)
-        .select_related("mark_entry")
-    )
-    for task in tasks:
-        entry = getattr(task, "mark_entry", None)
-        state = entry.status if entry else MarkEntry.Status.NOT_STARTED
-        counts["submitted" if state == MarkEntry.Status.SUBMITTED else "draft" if state == MarkEntry.Status.DRAFT else "notStarted"] += 1
-    return counts
+
+def _semesters_up_to(start, target, own):
+    """Normal semesters from the start, and the Special Semesters the student studied in. A Special Semester is
+    optional, so one they did not register for is skipped, not a break."""
+    chosen, current = [], start
+    while current.key <= target.key:
+        chosen.append(current)
+        special = Semester(current.year, SPECIAL)
+        if current.term == SEMESTER_II and special.key <= target.key and own.get(special.key, (None, None))[1] == STUDIED:
+            chosen.append(special)
+        current = current.next_normal()
+    if not chosen or chosen[-1].key != target.key:
+        chosen.append(target)
+    return chosen
+
+
+def _walk(semesters, own, records, approval):
+    stage, source, used, earlier = NONE, AUTO, approval is None, False
+    for index, semester in enumerate(semesters):
+        if own.get(semester.key, (None, None))[1] != STUDIED:
+            if stage == P1:
+                stage, source = _BREAK, AUTO
+            continue
+        record = records.get(semester.key)
+        record = record if record is not None and record.status == CONFIRMED else None
+        approved_now = not used and semester.key >= approval.key
+        used = used or approved_now
+        if record is not None and record.source in STAFF_SOURCES:
+            stage, source = record.stage, COORDINATOR
+        elif stage == P1:
+            stage, source = P2, AUTO
+        elif stage in (P2, _DONE):
+            stage, source = _DONE, AUTO
+        elif stage == _BREAK:
+            pass
+        elif approved_now:
+            stage, source = P1, SUPERVISOR_APPROVAL
+        elif record is not None:
+            stage, source = (P1 if record.stage == P1 else NONE), STUDENT
+        else:
+            stage, source = NONE, AUTO
+        earlier = earlier or index < len(semesters) - 1
+    return stage, source, earlier
+
+
+def _answer(student_id, target, facts, deferred, finished, waiting):
+    own = facts.rows.get(student_id, {})
+    records = facts.records.get(student_id, {})
+    record = records.get(target.key) if target else None
+    record_id, revision = (record.pk, record.revision) if record else (None, 0)
+
+    def made(state, stage=None, reason="", source=AUTO):
+        return ProjectStage(state, str(stage) if stage else None, reason, source, record_id, revision)
+
+    outcome = own.get(target.key, (None, None))[1] if target else None
+    if outcome in LEAVE_OUTCOMES or student_id in deferred:
+        return made(NOT_STUDYING, reason=ON_LEAVE)
+    if outcome == NOT_REGISTERED:
+        return made(NOT_STUDYING, reason=UNREGISTERED)
+    if student_id in finished:
+        return made(NOT_STUDYING, reason=FINISHED)
+    if outcome is None:
+        if target and target.is_special:
+            return made(NOT_STUDYING, reason=UNREGISTERED)
+        return made(NOT_CONFIRMED, reason=NO_SEMESTER_ROW)
+    student = facts.students.get(student_id)
+    start = read(student.intake_semester) if student else None
+    if start is None:
+        start = min((semester for semester, _ in own.values()), key=lambda semester: semester.key)
+    stage, source, earlier = _walk(_semesters_up_to(start, target, own), own, records, facts.approvals.get(student_id))
+    if stage in (P1, P2):
+        return made(ON_PROJECT, stage, source=source)
+    if stage == _DONE:
+        return made(COMPLETED)
+    if stage == _BREAK:
+        return made(NOT_CONFIRMED, reason=BREAK_AFTER_P1)
+    asked = source == AUTO and earlier and student is not None and student.status == Student.Status.ACTIVE and student_id not in waiting
+    return made(NOT_STARTED, reason=NOT_ANSWERED if asked else "", source=source)
+
+
+def project_stages(academic_semester, student_ids):
+    """Every student id passed in gets an answer. Student ids are the same as user ids."""
+    ids = list(set(student_ids))
+    target = semester_of(academic_semester)
+    facts = _facts(ids)
+    deferred = set()
+    if target and target == active_semester():
+        deferred = {pk for pk, student in facts.students.items() if student.status == Student.Status.DEFERRED}
+    waiting, finished = set(), set()
+    for row in StudentCompletion.objects.filter(student_id__in=ids, senate_decision__isnull=True):
+        waiting.add(row.student_id)
+        last = from_parts(row.last_session, row.last_term)
+        if last and target and last.key < target.key:
+            finished.add(row.student_id)
+    return {student_id: _answer(student_id, target, facts, deferred, finished, waiting) for student_id in ids}
+
+
+def shown(answer):
+    """One word for what a list shows: P1, P2, or the state."""
+    return answer.stage if answer.state == ON_PROJECT else answer.state
+
+
+def research_course(student):
+    rule = rule_for(student.programme, intake=read(student.intake_semester))
+    return (rule.research_course_code, rule.research_course_name) if rule else ("", "")
 
 
 def _write_change(record, actor, previous_stage, previous_status, reason, impact):
@@ -155,74 +231,209 @@ def _write_change(record, actor, previous_stage, previous_status, reason, impact
     )
 
 
-@transaction.atomic
-def confirm_stages(academic_semester, items, actor):
-    """First confirmations. A stage that is already confirmed goes through a correction instead."""
-    wanted = {matric.strip().lower(): (matric, stage) for matric, stage in items}
-    students = Student.objects.select_for_update().annotate(matric_key=Lower("matric_no")).filter(matric_key__in=list(wanted)).order_by("pk")
-    confirmed, skipped, found = [], [], set()
-    for student in students:
-        found.add(student.matric_key)
-        stage = wanted[student.matric_key][1]
-        record = ProjectRegistration.objects.select_for_update().filter(student=student, academic_semester=academic_semester).first()
-        if record is not None and record.status == ProjectRegistration.Status.CONFIRMED:
-            skipped.append({"matric": student.matric_no, "why": "Already confirmed."})
-            continue
-        previous_stage, previous_status = (record.stage, record.status) if record else ("", "")
-        if record is None:
-            record = ProjectRegistration(student=student, academic_semester=academic_semester)
-        else:
-            record.revision += 1
-        record.stage = stage
-        record.status = ProjectRegistration.Status.CONFIRMED
-        record.confirmed_by = actor
-        record.confirmed_at = timezone.now()
-        record.save()
-        _write_change(record, actor, previous_stage, previous_status, "", {})
-        confirmed.append(student.matric_no)
-    skipped += [{"matric": matric, "why": "Not found."} for key, (matric, _) in wanted.items() if key not in found]
-    return {"confirmed": confirmed, "skipped": skipped}
-
-
-class StageConflict(Exception):
-    pass
-
-
-@transaction.atomic
-def correct_stage(student, academic_semester, *, new_stage, reason, actor, revision, acknowledged):
-    """Change or void a confirmed stage. Whoever does it has to see what it touches in Marks first."""
-    Student.objects.select_for_update().get(pk=student.pk)
-    record = ProjectRegistration.objects.select_for_update().filter(student=student, academic_semester=academic_semester).first()
+def _save(record, student, academic_semester, *, stage, status, source, actor):
+    previous = (record.stage, record.status) if record else ("", "")
     if record is None:
-        raise StageConflict("This stage has not been confirmed yet.")
-    if record.revision != revision:
-        raise StageConflict("Someone has just changed this stage. Reload the page.")
-    impact = marks_impact(student, academic_semester, record.stage if record.status == ProjectRegistration.Status.CONFIRMED else "", None if new_stage == VOID else new_stage)
-    if any(impact.values()) and not acknowledged:
-        raise StageConflict("Check what this changes in Marks first.")
-    previous_stage, previous_status = record.stage, record.status
-    if new_stage == VOID:
-        record.status = ProjectRegistration.Status.VOIDED
+        record = ProjectRegistration(student=student, academic_semester=academic_semester)
     else:
-        record.stage = new_stage
-        record.status = ProjectRegistration.Status.CONFIRMED
-        record.confirmed_by = actor
-        record.confirmed_at = timezone.now()
-    record.revision += 1
+        record.revision += 1
+    if stage is not None:
+        record.stage = stage
+    record.status, record.source = status, source
+    record.confirmed_by, record.confirmed_at = actor, timezone.now()
     record.save()
-    _write_change(record, actor, previous_stage, previous_status, reason, impact)
+    return record, previous
+
+
+def appointed_ids(student_ids):
+    """Students Marks can give tasks to: anyone with an active supervisor, supporting supervisor or panel member."""
+    ids = list(student_ids)
+    active = "ACTIVE"
+    appointed = set(SupervisorAppointment.objects.filter(student_id__in=ids, status=active).values_list("student_id", flat=True))
+    appointed |= set(CoSupervisorAppointment.objects.filter(student_id__in=ids, status=active).values_list("student_id", flat=True))
+    appointed |= set(PanelAppointment.objects.filter(profile__student_id__in=ids, status=active).values_list("profile__student_id", flat=True))
+    return appointed
+
+
+def current_semester():
+    from academics.services import current_effective_semester
+
+    return current_effective_semester()
+
+
+def question_for(student, portal=...):
+    """The dashboard question for a student, or None when they are not asked this semester."""
+    portal = current_semester() if portal is ... else portal
+    if portal is None or student.status != Student.Status.ACTIVE:
+        return None
+    answer = project_stages(portal, [student.pk])[student.pk]
+    answered = answer.source == STUDENT
+    open_question = answer.state == NOT_STARTED and (answered or answer.reason == NOT_ANSWERED)
+    said_yes = answer.state == ON_PROJECT and answered
+    if not (open_question or said_yes):
+        return None
+    code, name = research_course(student)
+    return {
+        "semester": portal,
+        "answer": ("YES" if said_yes else "NO") if answered else None,
+        "canChange": not answered or student.pk not in appointed_ids([student.pk]),
+        "code": code,
+        "name": name,
+    }
+
+
+@transaction.atomic
+def answer_question(student, choice, actor):
+    """The student's own answer. Once they have a supervisor it can no longer change, so it never touches Marks."""
+    Student.objects.select_for_update().get(pk=student.pk)
+    question = question_for(student)
+    if question is None:
+        raise StageConflict("There is nothing to answer this semester.")
+    if not question["canChange"]:
+        raise StageConflict("Ask your programme coordinator to change this.")
+    stage = P1 if choice == "YES" else NONE
+    portal = question["semester"]
+    record = ProjectRegistration.objects.select_for_update().filter(student=student, academic_semester=portal).first()
+    if record and record.status == CONFIRMED and record.source == Source.STUDENT and record.stage == stage:
+        return record
+    record, previous = _save(record, student, portal, stage=stage, status=CONFIRMED, source=Source.STUDENT, actor=actor)
+    _write_change(record, actor, *previous, "Student's answer", {})
     return record
 
 
-def page_rows(academic_semester):
-    """The Project stage page: everyone still studying, and anyone already on record for this semester."""
-    semester = from_parts(academic_semester.academic_session, academic_semester.term)
-    on_record = ProjectRegistration.objects.filter(academic_semester=academic_semester).values("student_id")
+def can_change(user, student, *, lock=False):
+    return getattr(user, "role", None) == User.Role.COORDINATOR and coordinator_manages_programme(user, student.programme, lock=lock)
+
+
+class _LeftOut(Exception):
+    def __init__(self, why):
+        super().__init__(why)
+        self.why = why
+
+
+class _DryRun(Exception):
+    pass
+
+
+def _change_one(student, academic_semester, before, expected, choice, actor):
+    """Save one change and return (record, previous, after). Checks that apply whether or not it is kept."""
+    if not can_change(actor, student, lock=True):
+        raise _LeftOut("Not in a programme you manage.")
+    if before.state == NOT_STUDYING:
+        raise _LeftOut("Not studying this semester.")
+    if expected is not None and shown(before) != expected:
+        raise _LeftOut("This has changed since the page opened. Reload it.")
+    record = ProjectRegistration.objects.select_for_update().filter(student=student, academic_semester=academic_semester).first()
+    set_by_staff = record is not None and record.status == CONFIRMED and record.source in STAFF_SOURCES
+    if choice == AUTOMATIC:
+        if not set_by_staff:
+            raise _LeftOut("There is no coordinator change to undo.")
+        record, previous = _save(record, student, academic_semester, stage=None, status=VOIDED, source=record.source, actor=actor)
+    else:
+        if set_by_staff and record.stage == choice:
+            raise _LeftOut("Already set to this.")
+        record, previous = _save(record, student, academic_semester, stage=choice, status=CONFIRMED, source=Source.COORDINATOR, actor=actor)
+    after = project_stages(academic_semester, [student.pk])[student.pk]
+    return record, previous, after
+
+
+def _semester_check(academic_semester):
+    portal = current_semester()
+    if portal is None or portal.pk != academic_semester.pk:
+        raise StageConflict("Only the current semester can be changed.")
+
+
+def preview_change(academic_semester, student, choice, actor):
+    """What a change would do to Marks, without keeping it."""
+    _semester_check(academic_semester)
+    found = {}
+    try:
+        with transaction.atomic():
+            Student.objects.select_for_update().get(pk=student.pk)
+            before = project_stages(academic_semester, [student.pk])[student.pk]
+            _record, _previous, after = _change_one(student, academic_semester, before, None, choice, actor)
+            found.update(preview_marks(student, academic_semester, before.stage, after.stage))
+            raise _DryRun
+    except _DryRun:
+        pass
+    except _LeftOut as left:
+        raise StageConflict(left.why) from left
+    return found
+
+
+@transaction.atomic
+def change_stages(academic_semester, items, *, choice, reason, actor, checked=False, token=""):
+    """Coordinator changes for the current semester. ``items`` is (matric, what the page showed).
+    One student: a change that touches Marks needs ``checked``. Several: anyone it would touch is left out."""
+    _semester_check(academic_semester)
+    single = len(items) == 1
+    wanted = {matric.strip().lower(): (matric.strip(), shown_as) for matric, shown_as in items}
     students = list(
-        Student.objects.filter(Q(status=Student.Status.ACTIVE) | Q(pk__in=on_record))
-        .select_related("user")
-        .order_by("user__full_name")
+        Student.objects.select_for_update().select_related("user").annotate(matric_key=Lower("matric_no"))
+        .filter(matric_key__in=list(wanted)).order_by("pk")
     )
-    students = [student for student in students if not starts_later(student, semester)]
-    ids = [student.pk for student in students]
-    return students, project_stages(academic_semester, ids), suggestions(academic_semester, ids), appointed_ids(ids)
+    before = project_stages(academic_semester, [student.pk for student in students])
+    label = REASONS[reason]
+    changed, left_out, found = [], [], set()
+    for student in students:
+        found.add(student.matric_key)
+        try:
+            with transaction.atomic():
+                record, previous, after = _change_one(student, academic_semester, before[student.pk], wanted[student.matric_key][1], choice, actor)
+                impact = preview_marks(student, academic_semester, before[student.pk].stage, after.stage)
+                if touches_marks(impact):
+                    if not single:
+                        raise _LeftOut("Has Marks tasks. Change this student on their own.")
+                    if not checked:
+                        raise StageConflict("Check what this changes in Marks first.")
+                    if token and token != impact.get("token"):
+                        raise StageConflict("Marks has changed since you checked. Look again.")
+                _write_change(record, actor, *previous, label, {key: impact.get(key, 0) for key in COUNTS})
+                try:
+                    apply_marks(student, academic_semester, before[student.pk].stage, after.stage, token=impact.get("token", ""), actor=actor, reason=label)
+                except MarksChanged as exc:
+                    raise StageConflict("Marks has changed since you checked. Look again.") from exc
+            changed.append(student.matric_no)
+        except _LeftOut as left:
+            if single:
+                raise StageConflict(left.why) from left
+            left_out.append({"matric": student.matric_no, "name": student.user.full_name, "why": left.why})
+    missing = [{"matric": matric, "name": "", "why": "Not found."} for key, (matric, _) in wanted.items() if key not in found]
+    if single and missing:
+        raise StageConflict("That student was not found.")
+    return {"changed": changed, "leftOut": left_out + missing}
+
+
+def page_students(academic_semester, *, current):
+    """Everyone on this semester. For the current one, only students still studying, plus Active students
+    without a row yet."""
+    target = semester_of(academic_semester)
+    on_it = StudentSemester.objects.filter(session=academic_semester.academic_session, term=academic_semester.term).values("student_id")
+    recorded = ProjectRegistration.objects.filter(academic_semester=academic_semester).values("student_id")
+    query = Q(pk__in=on_it) | Q(pk__in=recorded)
+    if current:
+        query = (query | Q(status=Student.Status.ACTIVE)) & Q(status__in=[Student.Status.ACTIVE, Student.Status.DEFERRED])
+    students = Student.objects.filter(query).select_related("user").order_by("user__full_name")
+    return [student for student in students if not starts_later(student, target)]
+
+
+def visible_to(user, students):
+    if getattr(user, "role", None) != User.Role.COORDINATOR:
+        return students
+    managed = {programme.casefold() for programme in coordinator_programmes(user)}
+    return [student for student in students if (student.programme or "").strip().casefold() in managed]
+
+
+def supervision_of(student_ids):
+    """(students with a supervisor now, students with a supervisor request waiting)."""
+    supervised = set(
+        SupervisorAppointment.objects.filter(student_id__in=student_ids, status=SupervisorAppointment.Status.ACTIVE)
+        .values_list("student_id", flat=True)
+    )
+    waiting = set(
+        SupervisorApplication.objects.filter(
+            student_id__in=student_ids,
+            status__in=[SupervisorApplication.Status.SUBMITTED_TO_SUPERVISOR, SupervisorApplication.Status.PENDING_COORDINATOR],
+        ).values_list("student_id", flat=True)
+    )
+    return supervised, waiting

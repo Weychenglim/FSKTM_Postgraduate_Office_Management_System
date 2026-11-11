@@ -66,6 +66,8 @@ def _rule_values(rule):
         "minSemesters": rule.min_semesters,
         "maxSemesters": rule.max_semesters,
         "specialCounts": rule.special_counts,
+        "researchCourseCode": rule.research_course_code,
+        "researchCourseName": rule.research_course_name,
     }
 
 
@@ -84,6 +86,8 @@ def _serialize_later_rule(rule, counts):
         "minSemesters": rule.min_semesters,
         "maxSemesters": rule.max_semesters,
         "specialCounts": rule.special_counts,
+        "researchCourseCode": rule.research_course_code,
+        "researchCourseName": rule.research_course_name,
         "activeStudents": counts.get(rule.pk, 0),
         **_changed(rule),
     }
@@ -97,6 +101,8 @@ def _serialize_rule(programme, group, counts, students):
         "minSemesters": rule.min_semesters if rule else None,
         "maxSemesters": rule.max_semesters if rule else None,
         "specialCounts": rule.special_counts if rule else True,
+        "researchCourseCode": rule.research_course_code if rule else "",
+        "researchCourseName": rule.research_course_name if rule else "",
         "source": rule.source if rule else "",
         "activeStudents": counts.get(rule.pk, 0) if rule else students.get(programme_key(programme), 0),
         "laterRules": [_serialize_later_rule(later, counts) for later in group[1:]],
@@ -111,8 +117,15 @@ class ProgrammeRuleSerializer(serializers.Serializer):
     specialCounts = serializers.BooleanField()
     fromSession = serializers.CharField(max_length=9, allow_blank=True, required=False, default="")
     fromTerm = serializers.ChoiceField(choices=[SEMESTER_I, SEMESTER_II], allow_blank=True, required=False, default="")
+    researchCourseCode = serializers.RegexField(
+        r"^\s*[A-Za-z]{3}\d{4}\s*$", max_length=16, allow_blank=True, required=False,
+        error_messages={"invalid": "Enter a course code like WQD7025."},
+    )
+    researchCourseName = serializers.CharField(max_length=120, allow_blank=True, required=False)
 
     def validate(self, attrs):
+        if "researchCourseCode" in attrs:
+            attrs["researchCourseCode"] = attrs["researchCourseCode"].strip().upper()
         if attrs["minSemesters"] > attrs["maxSemesters"]:
             raise serializers.ValidationError(
                 {"minSemesters": ["The minimum cannot be more than the maximum."]}
@@ -171,6 +184,12 @@ def programme_rules_view(request):
         rule.min_semesters = data["minSemesters"]
         rule.max_semesters = data["maxSemesters"]
         rule.special_counts = data["specialCounts"]
+        base = same_programme.filter(from_session="").first()
+        for field, key in (("research_course_code", "researchCourseCode"), ("research_course_name", "researchCourseName")):
+            if key in data:
+                setattr(rule, field, data[key])
+            elif rule.pk is None and base is not None:
+                setattr(rule, field, getattr(base, field))
         rule.updated_by = request.user
         rule.save()
         after = _rule_values(rule)

@@ -184,7 +184,7 @@ class RegistrySemesterApiTests(APITestCase):
         self.assertEqual((row["minSemesters"], row["maxSemesters"], row["specialCounts"]), (4, 9, False))
         self.assertEqual(row["changedBy"], "Office Person")
         change = ProgrammeRuleChange.objects.get(rule__programme=DS)
-        same = {"programme": DS, "appliesFrom": ""}
+        same = {"programme": DS, "appliesFrom": "", "researchCourseCode": "WQD7025", "researchCourseName": "Data Science Research Project"}
         self.assertEqual(change.before_values, {**same, "minSemesters": 3, "maxSemesters": 8, "specialCounts": True})
         self.assertEqual(change.after_values, {**same, "minSemesters": 4, "maxSemesters": 9, "specialCounts": False})
         self.client.put(RULES, body, format="json")
@@ -614,22 +614,14 @@ class GraduationApiTests(APITestCase):
         self.assertEqual(self.client.post(self.finish_url, {"matrics": [], **self.LAST}, format="json").status_code, 400)
 
     def test_waiting_work_warns_or_stops(self):
-        from documents.models import Document, DocumentStudent, DocumentType
         from letters.models import GeneratedLetter
 
         self.client.force_authenticate(self.office)
         GeneratedLetter.objects.create(student=self.ready, template_name="Confirmation", status=GeneratedLetter.Status.PENDING, purpose="BANKING")
-        doc_type = DocumentType.objects.create(label="Progress report", code="progress", required=True, is_active=True)
         data = self.client.get(self.url).data
         group, row = self.group_of(data, "GR1")
         self.assertEqual(group, "check")
-        self.assertEqual(sorted(item["code"] for item in row["items"]), ["DOCUMENTS", "LETTERS"])
-        document = Document.objects.create(
-            title="Report", doc_type=doc_type, uploaded_by=self.ready.user, check_status=Document.CheckStatus.WAITING,
-        )
-        DocumentStudent.objects.create(document=document, student=self.ready)
-        data = self.client.get(self.url).data
-        self.assertEqual(sorted(item["code"] for item in self.group_of(data, "GR1")[1]["items"]), ["FILES", "LETTERS"])
+        self.assertEqual([item["code"] for item in row["items"]], ["LETTERS"])
         response = self.client.post(self.finish_url, {"matrics": ["GR1"], **self.LAST}, format="json")
         self.assertEqual([row["matric"] for row in response.data["finished"]], ["GR1"])
 

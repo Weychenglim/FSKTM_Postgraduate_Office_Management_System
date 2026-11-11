@@ -42,6 +42,8 @@ export const EXIT_REASON_OPTIONS = [
 ];
 
 /** Sessions run on consecutive years, like 2026/2027. */
+export const validCourseCode = (code: string) => /^[A-Za-z]{3}\d{4}$/.test(code.trim());
+
 export function validSession(session: string): boolean {
   const match = /^(\d{4})\/(\d{4})$/.exec(session.trim());
   return Boolean(match && Number(match[2]) === Number(match[1]) + 1);

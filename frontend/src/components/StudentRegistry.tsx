@@ -218,10 +218,12 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
 
 interface StudentRegistryProps {
   readOnly?: boolean;
+  showProjectStages?: boolean;
 }
 
 export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   readOnly = false,
+  showProjectStages = false,
 }) => {
   // Master Student Registry State: loaded from studentsApi (mock-backed today).
   const [students, setStudents] = useState<StudentRecord[]>([]);
@@ -998,9 +1000,16 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         actions={
               <div className="flex flex-wrap items-center gap-2 select-none">
                 {readOnly ? (
-                  <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
-                    Export CSV
-                  </PortalButton>
+                  <>
+                    {showProjectStages && (
+                      <PortalButton onClick={() => navigate(APP_ROUTES.registryProjectStages)} variant="primary" size="md">
+                        Project stages
+                      </PortalButton>
+                    )}
+                    <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
+                      Export CSV
+                    </PortalButton>
+                  </>
                 ) : (
                   <OverflowMenu
                     label="More student actions"

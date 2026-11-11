@@ -13,20 +13,17 @@ from django.utils import timezone
 
 from academics.services import current_effective_semester
 from appointments.models import ResearchAmendment
-from documents.models import Document, DocumentStudent
-from documents.required import STILL_TO_HAND_IN, mine
 from letters.models import AUTOMATIC_PURPOSES, GeneratedLetter
 
 from .models import (
     ParticipantLifecycleAudit,
-    ProjectRegistration,
     SenateDecision,
     Student,
     StudentCompletion,
     StudentRegistry,
 )
 from .participant_lifecycle import ParticipantLifecycleConflict, _set_student_status, student_blockers, transition_student
-from .project_stages import semesters_before
+from .project_stages import P2, project_stages, semesters_before
 from .registry_views import _avatar_bg, _initials
 from .semester_rules import (
     STUDIED,
@@ -103,14 +100,6 @@ def _warning_items(student):
     ).count()
     if letters:
         items.append(_item(CHECK, "LETTERS", f"{_plural(letters, 'letter request')} waiting. They can only be rejected after graduating.", "letters"))
-    owed = sum(1 for _, state, _ in mine(student) if state in STILL_TO_HAND_IN)
-    if owed:
-        items.append(_item(CHECK, "DOCUMENTS", f"{_plural(owed, 'required document')} still owed.", "documents"))
-    waiting = DocumentStudent.objects.filter(
-        student=student, document__check_status=Document.CheckStatus.WAITING, document__archived_at__isnull=True,
-    ).count()
-    if waiting:
-        items.append(_item(CHECK, "FILES", f"{_plural(waiting, 'file')} waiting for a check.", "documents"))
     for row in ResearchAmendment.objects.filter(student_id=student.pk, status__in=ResearchAmendment.PENDING_STATUSES):
         if row.kind == "TRANSFER":
             items.append(_item(CHECK, "TRANSFER", "A programme transfer is waiting. It would be cancelled.", "transfer", row.pk))
@@ -173,14 +162,12 @@ def last_semesters():
     return [portal, *semesters_before(portal)] if portal else []
 
 
-def _on_p2():
-    return set(
-        ProjectRegistration.objects.filter(
-            academic_semester__in=last_semesters(),
-            status=ProjectRegistration.Status.CONFIRMED,
-            stage=ProjectRegistration.Stage.P2,
-        ).values_list("student_id", flat=True)
-    )
+def _on_p2(students):
+    ids = [student.pk for student in students]
+    on_p2 = set()
+    for semester in last_semesters():
+        on_p2 |= {pk for pk, answer in project_stages(semester, ids).items() if answer.stage == P2}
+    return on_p2
 
 
 def overview():
@@ -189,8 +176,8 @@ def overview():
     groups = {READY: [], CHECK: [], STOP: []}
     too_early = 0
     active = active_semester()
-    on_p2 = _on_p2()
     students = list(_students().filter(status=Student.Status.ACTIVE).exclude(pk__in=waiting_ids()))
+    on_p2 = _on_p2(students)
     for student, progress in _with_progress(students):
         if starts_later(student, active) or (progress.rule is not None and progress.has_record and progress.short_of_minimum >= 2):
             too_early += 1

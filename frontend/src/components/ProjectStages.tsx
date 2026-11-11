@@ -3,36 +3,31 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import type { ConfirmedStage, MarksImpact, ProjectStageChoice, ProjectStagesPage, StageToConfirm } from '../services/registrySemestersApi';
-import { confirmProjectStages, correctProjectStage, getProjectStageImpact, getProjectStages } from '../services/registrySemestersApi';
+import type { MarksImpact, ProjectStagesPage, StageChoice, StageRow } from '../services/registrySemestersApi';
+import { changeProjectStages, getProjectStageImpact, getProjectStages } from '../services/registrySemestersApi';
 import { APP_ROUTES } from '../constants/routes';
+import { changeSummary, firstChip, marksLine, rowNote, rowsFor, STAGE_LABEL, STAGE_TONE, stageChips, stageChoices, touchesMarks } from '../utils/projectStages';
+import type { StageChip } from '../utils/projectStages';
 import { filterPeople, shortSemester, studentCount } from '../utils/registrySemesters';
 import { DialogShell } from './DocumentDialogs';
-import { PortalButton, StatusBadge } from './PortalPrimitives';
+import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
-import { PeopleFilters, PersonRow, SelectionBar } from './RegistryPersonRow';
+import { PeopleFilters, PersonRow, PersonTickRow, SelectionBar } from './RegistryPersonRow';
 import { SelectMenu } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
 
-type Tab = 'confirm' | 'confirmed';
-
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
-const STAGES: Array<{ value: ProjectStageChoice; label: string }> = [{ value: 'P1', label: 'P1' }, { value: 'P2', label: 'P2' }, { value: 'NONE', label: 'No project' }];
-const CHANGE_OPTIONS = [...STAGES, { value: 'VOID' as const, label: 'Not confirmed' }];
-const stageLabel = (stage: string) => STAGES.find(option => option.value === stage)?.label ?? stage;
 
-const StagePicker: React.FC<{ name: string; value: string; disabled: boolean; onPick: (stage: ProjectStageChoice | '') => void }> = ({ name, value, disabled, onPick }) => (
-  <div role="group" aria-label={`Project stage for ${name}`} className="flex gap-1.5">
-    {STAGES.map(option => (
-      <button key={option.value} type="button" aria-pressed={value === option.value} disabled={disabled} onClick={() => onPick(value === option.value ? '' : option.value)} className={`rounded-lg border px-3 py-1.5 text-[12.5px] font-bold transition cursor-pointer ${value === option.value ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
-        {option.label}
-      </button>
-    ))}
-  </div>
-);
+const Note: React.FC<{ row: StageRow }> = ({ row }) => {
+  const note = rowNote(row);
+  if (!note) return null;
+  const warn = row.shown === 'NOT_CONFIRMED' || row.noSupervisor;
+  return <p className={`mt-0.5 text-[12.5px] font-semibold ${warn ? 'text-amber-800' : 'text-slate-500'}`}>{note}</p>;
+};
 
+/** Each student's RP1/RP2 stage this semester. Coordinators fix the odd ones, the office looks. */
 export const ProjectStages: React.FC = () => {
   const navigate = useNavigate();
   const titleId = useId();
@@ -40,18 +35,20 @@ export const ProjectStages: React.FC = () => {
   const [semesterId, setSemesterId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
-  const [tab, setTab] = useState<Tab>('confirm');
-  const [picks, setPicks] = useState<Map<string, ProjectStageChoice>>(new Map());
+  const [chip, setChip] = useState<StageChip | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [programme, setProgramme] = useState('All');
   const [intake, setIntake] = useState('All');
   const [query, setQuery] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [changing, setChanging] = useState<ConfirmedStage | null>(null);
-  const [newStage, setNewStage] = useState<ProjectStageChoice | 'VOID'>('P1');
+  const [changing, setChanging] = useState(false);
+  const [choice, setChoice] = useState<StageChoice | null>(null);
   const [reason, setReason] = useState('');
   const [impact, setImpact] = useState<MarksImpact | null>(null);
   const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const [leftOut, setLeftOut] = useState<Array<{ matric: string; name: string; why: string }>>([]);
+  const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,58 +57,69 @@ export const ProjectStages: React.FC = () => {
       .then(found => {
         if (cancelled) return;
         setData(found);
-        setPicks(new Map(found.toConfirm.filter(row => row.suggested).map(row => [row.matric, row.suggested as ProjectStageChoice])));
+        setChip(current => current ?? firstChip(found.rows));
       })
       .catch(err => { if (!cancelled) setError(errorText(err, 'Could not load the students.')); });
     return () => { cancelled = true; };
   }, [semesterId, reload]);
 
+  const selected = useMemo(() => (data?.rows ?? []).filter(row => picked.has(row.matric)), [data, picked]);
+  const single = selected.length === 1 ? selected[0] : null;
+
   useEffect(() => {
     setImpact(null);
     setChecked(false);
-    if (!changing || !data?.semester || newStage === changing.stage) return undefined;
+    if (!changing || !single || !choice || !data?.semester) return undefined;
     let cancelled = false;
-    getProjectStageImpact(data.semester.id, changing.matric, newStage)
+    getProjectStageImpact(data.semester.id, single.matric, choice)
       .then(found => { if (!cancelled) setImpact(found); })
-      .catch(() => undefined);
+      .catch(err => { if (!cancelled) setProblem(errorText(err, 'Could not check Marks.')); });
     return () => { cancelled = true; };
-  }, [changing, newStage, data?.semester]);
+  }, [changing, single, choice, data?.semester]);
 
-  const pick = (row: StageToConfirm, stage: ProjectStageChoice | '') => setPicks(current => {
-    const next = new Map(current);
-    if (stage) next.set(row.matric, stage);
-    else next.delete(row.matric);
+  const switchSemester = (value: string) => {
+    setPicked(new Set());
+    setChip(null);
+    setLeftOut([]);
+    setSemesterId(Number(value));
+  };
+
+  const switchChip = (value: StageChip) => {
+    setPicked(new Set());
+    setChip(value);
+  };
+
+  const toggle = (matric: string, on: boolean) => setPicked(current => {
+    const next = new Set(current);
+    if (on) next.add(matric);
+    else next.delete(matric);
     return next;
   });
 
-  const confirm = async () => {
-    if (!data?.semester) return;
-    setBusy(true);
+  const openChange = () => {
     setProblem(null);
-    try {
-      await confirmProjectStages(data.semester.id, [...picks].map(([matric, stage]) => ({ matric, stage })));
-      setReload(value => value + 1);
-    } catch (err) {
-      setProblem(errorText(err, 'Could not save this.'));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const open = (row: ConfirmedStage) => {
-    setProblem(null);
+    setChoice(null);
     setReason('');
-    setNewStage(row.stage);
-    setChanging(row);
+    setChanging(true);
   };
 
-  const saveChange = async () => {
-    if (!changing || !data?.semester) return;
+  const save = async () => {
+    if (!data?.semester || !choice) return;
     setBusy(true);
     setProblem(null);
     try {
-      await correctProjectStage({ semesterId: data.semester.id, matric: changing.matric, stage: newStage, reason: reason.trim(), revision: changing.revision, acknowledged: checked });
-      setChanging(null);
+      const result = await changeProjectStages({
+        semesterId: data.semester.id,
+        stage: choice,
+        reason,
+        students: selected.map(row => ({ matric: row.matric, shown: row.shown })),
+        checked,
+        token: impact?.token ?? '',
+      });
+      setChanging(false);
+      setPicked(new Set());
+      setLeftOut(result.leftOut);
+      setToast(changeSummary(result));
       setReload(value => value + 1);
     } catch (err) {
       setProblem(errorText(err, 'Could not save this.'));
@@ -132,102 +140,94 @@ export const ProjectStages: React.FC = () => {
   if (!data.semester) {
     return page(
       <div className="space-y-3">
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-[14px] font-semibold text-amber-900">There is no active semester. Set one in Academic Semesters first.</p>
-        {semesterOptions.length > 0 && <SelectMenu variant="filter" prefix="Semester" aria-label="Semester" value="" placeholder="Choose" options={semesterOptions} onChange={value => setSemesterId(Number(value))} />}
+        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-[14px] font-semibold text-amber-900">There is no active semester.</p>
+        {semesterOptions.length > 0 && <SelectMenu variant="filter" prefix="Semester" aria-label="Semester" value="" placeholder="Choose" options={semesterOptions} onChange={switchSemester} />}
       </div>,
     );
   }
 
-  const filters = { programme, intake, query };
-  const toConfirm = filterPeople(data.toConfirm, filters);
-  const confirmed = filterPeople(data.confirmed, filters);
-  const everyone = [...data.toConfirm, ...data.confirmed];
-  const tabs: Array<[Tab, string, number]> = [['confirm', 'To confirm', data.toConfirm.length], ['confirmed', 'Confirmed', data.confirmed.length]];
-  const hasImpact = Boolean(impact && (impact.notStarted || impact.draft || impact.submitted));
-  const canSave = Boolean(changing && newStage !== changing.stage && reason.trim() && (!hasImpact || checked));
+  const chips = stageChips(data.rows);
+  const active = chip && chips.some(item => item.value === chip) ? chip : firstChip(data.rows);
+  const listed = filterPeople(rowsFor(data.rows, active), { programme, intake, query });
+  const choices = stageChoices(selected);
+  const needsCheck = Boolean(single) && touchesMarks(impact);
+  const waitingForImpact = Boolean(single && choice && !impact && !problem);
+  const canSave = Boolean(choice && reason && !waitingForImpact && (!needsCheck || checked));
 
   return page(
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
-          {tabs.map(([value, label, count]) => (
-            <button key={value} type="button" aria-pressed={tab === value} onClick={() => setTab(value)} className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-[13.5px] font-extrabold transition cursor-pointer ${tab === value ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
-              {label}
-              <span className={tab === value ? 'text-white/70' : 'text-slate-400'}>{count}</span>
-            </button>
-          ))}
-        </div>
-        <SelectMenu variant="filter" prefix="Semester" aria-label="Semester" value={String(data.semester.id)} options={semesterOptions} disabled={busy} onChange={value => setSemesterId(Number(value))} />
+      <div className="flex justify-end">
+        <SelectMenu variant="filter" prefix="Semester" aria-label="Semester" value={String(data.semester.id)} options={semesterOptions} disabled={busy} onChange={switchSemester} />
       </div>
 
-      <section aria-label="Students" className="app-card">
-        <div className="p-5 sm:p-6">
-          <PeopleFilters people={everyone} programme={programme} intake={intake} query={query} onProgramme={setProgramme} onIntake={setIntake} onQuery={setQuery} />
+      {leftOut.length > 0 && (
+        <div role="status" className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-900">
+          <div className="flex items-start justify-between gap-3">
+            <p>Not changed:</p>
+            <button type="button" className="text-[12.5px] font-bold text-amber-900 underline cursor-pointer" onClick={() => setLeftOut([])}>Close</button>
+          </div>
+          <ul className="space-y-0.5">
+            {leftOut.map(row => <li key={row.matric}>{row.name || row.matric}: {row.why}</li>)}
+          </ul>
         </div>
-        <div className="border-t border-slate-200 px-5 py-4 sm:px-6">
-          {tab === 'confirm' ? (
-            toConfirm.length ? (
-              <ul className="divide-y divide-slate-100">
-                {toConfirm.map(row => (
-                  <PersonRow
-                    key={row.matric}
-                    person={row}
-                    detail={row.suggested ? <p className="mt-0.5 text-[12.5px] font-semibold text-blue-700">Suggested {row.suggested}</p> : <p className="mt-0.5 text-[12.5px] font-semibold text-amber-800">Has a supervisor or panel. Needs a stage.</p>}
-                    action={<StagePicker name={row.name} value={picks.get(row.matric) ?? ''} disabled={busy} onPick={stage => pick(row, stage)} />}
-                  />
-                ))}
-              </ul>
-            ) : <p className="py-6 text-center text-[13px] font-semibold text-slate-400">Nobody to confirm.</p>
-          ) : (
-            confirmed.length ? (
-              <ul className="divide-y divide-slate-100">
-                {confirmed.map(row => (
-                  <PersonRow
-                    key={row.matric}
-                    person={row}
-                    action={<span className="flex items-center gap-3"><StatusBadge tone={row.stage === 'NONE' ? 'neutral' : 'info'}>{stageLabel(row.stage)}</StatusBadge><button type="button" className="text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => open(row)}>Change</button></span>}
-                  />
-                ))}
-              </ul>
-            ) : <p className="py-6 text-center text-[13px] font-semibold text-slate-400">Nobody confirmed yet.</p>
-          )}
-        </div>
-      </section>
-
-      {(data.notStudying > 0 || data.noActivity > 0) && (
-        <p className="text-[13px] text-slate-500">
-          {data.notStudying > 0 && `${studentCount(data.notStudying)} not studying this semester. `}
-          {data.noActivity > 0 && `${studentCount(data.noActivity)} not on the project yet.`}
-        </p>
       )}
 
-      {tab === 'confirm' && picks.size > 0 && (
-        <SelectionBar count={picks.size} label={`Confirm ${picks.size}`} busy={busy} problem={problem} onClear={() => setPicks(new Map())} onAction={() => void confirm()} />
+      <section aria-label="Students" className="app-card">
+        <div className="space-y-3 p-5 sm:p-6">
+          <div role="group" aria-label="Show" className="flex flex-wrap gap-2">
+            {chips.map(item => (
+              <button key={item.value} type="button" aria-pressed={active === item.value} onClick={() => switchChip(item.value)} className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[13px] font-bold transition cursor-pointer ${active === item.value ? 'border-brand-navy bg-brand-navy text-white' : item.attention ? 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
+                {item.label}
+                <span className={active === item.value ? 'text-white/70' : item.attention ? 'text-amber-700' : 'text-slate-400'}>{item.count}</span>
+              </button>
+            ))}
+          </div>
+          <PeopleFilters people={data.rows} programme={programme} intake={intake} query={query} onProgramme={setProgramme} onIntake={setIntake} onQuery={setQuery} />
+        </div>
+        {listed.length ? (
+          <ul aria-label="Students" className={`divide-y divide-slate-100 border-t border-slate-200 ${data.canChange ? '' : 'px-5 py-4 sm:px-6'}`}>
+            {listed.map(row => {
+              const badge = <StatusBadge tone={STAGE_TONE[row.shown]}>{STAGE_LABEL[row.shown]}</StatusBadge>;
+              return data.canChange ? (
+                <PersonTickRow key={row.matric} person={row} checked={picked.has(row.matric)} onChange={on => toggle(row.matric, on)} detail={<Note row={row} />} badge={badge} />
+              ) : (
+                <PersonRow key={row.matric} person={row} detail={<Note row={row} />} action={badge} />
+              );
+            })}
+          </ul>
+        ) : <p className="border-t border-slate-200 px-6 py-10 text-center text-[13px] font-semibold text-slate-400">Nobody here.</p>}
+        {data.notStudying > 0 && <p className="border-t border-slate-200 px-5 py-3 text-[13px] text-slate-500 sm:px-6">{studentCount(data.notStudying)} not studying this semester.</p>}
+      </section>
+
+      {picked.size > 0 && (
+        <SelectionBar count={picked.size} label={`Change ${picked.size}`} busy={busy} onClear={() => setPicked(new Set())} onAction={openChange} />
       )}
 
       <DialogShell
-        title={changing ? `Change ${changing.name}'s stage` : ''}
+        title={single ? `Change ${single.name}'s stage` : `Change ${studentCount(selected.length)}`}
         titleId={titleId}
-        isOpen={changing !== null}
+        isOpen={changing}
         busy={busy}
-        onClose={() => setChanging(null)}
+        onClose={() => setChanging(false)}
         footer={<>
-          <PortalButton disabled={busy} onClick={() => setChanging(null)}>Cancel</PortalButton>
-          <PortalButton variant="primary" isLoading={busy} disabled={!canSave} onClick={() => void saveChange()}>Save</PortalButton>
+          <PortalButton disabled={busy} onClick={() => setChanging(false)}>Cancel</PortalButton>
+          <PortalButton variant="primary" isLoading={busy} disabled={!canSave} onClick={() => void save()}>Save</PortalButton>
         </>}
       >
-        <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-          New stage
-          <SelectMenu value={newStage} options={CHANGE_OPTIONS} onChange={value => setNewStage(value as ProjectStageChoice | 'VOID')} disabled={busy} aria-label="New stage" />
-        </label>
-        <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-          Reason
-          <input className="form-control form-control-md" maxLength={1000} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} />
-        </label>
-        {impact && hasImpact && (
+        <div role="group" aria-label="New stage" className="flex flex-wrap gap-2">
+          {choices.map(option => (
+            <button key={option.value} type="button" aria-pressed={choice === option.value} disabled={busy} onClick={() => { setProblem(null); setChoice(option.value); }} className={`rounded-lg border px-3.5 py-2 text-[13px] font-bold transition cursor-pointer ${choice === option.value ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+          <span id={`${titleId}-reason`}>Reason</span>
+          <SelectMenu aria-labelledby={`${titleId}-reason`} value={reason} placeholder="Choose a reason" options={data.reasons} disabled={busy} onChange={setReason} />
+        </div>
+        {impact && needsCheck && (
           <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-900">
-            <p>In Marks: {impact.notStarted} not started, {impact.draft} draft, {impact.submitted} submitted.</p>
-            <p>Marks keeps these until the office reviews them.</p>
+            <p>{marksLine(impact)}</p>
             <label className="flex items-center gap-2 font-bold">
               <input type="checkbox" className="h-4 w-4" checked={checked} onChange={event => setChecked(event.target.checked)} />
               I've checked this
@@ -236,6 +236,7 @@ export const ProjectStages: React.FC = () => {
         )}
         {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
       </DialogShell>
+      <PortalToast message={toast} tone="success" onClose={() => setToast(null)} />
     </div>,
   );
 };

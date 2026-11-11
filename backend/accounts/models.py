@@ -711,6 +711,8 @@ class ProgrammeRule(models.Model):
     # UM counts a Special Semester when the programme's offer states it (Regulation 20(2)).
     special_counts = models.BooleanField(default=True)
     max_semesters = models.PositiveSmallIntegerField()
+    research_course_code = models.CharField(max_length=16, blank=True, default="")
+    research_course_name = models.CharField(max_length=120, blank=True, default="")
     source = models.CharField(max_length=255, blank=True)
     updated_by = models.ForeignKey(
         User,
@@ -853,12 +855,13 @@ class StudentCompletion(models.Model):
 
 
 class ProjectRegistration(models.Model):
-    """Which part of the research project a student is on in one academic semester, once the office has confirmed it."""
+    """A student's own answer, or a coordinator's change, for one semester's research project stage.
+    Everything else about the stage is worked out in ``project_stages``."""
 
     class Stage(models.TextChoices):
         P1 = "P1", "P1"
         P2 = "P2", "P2"
-        NONE = "NONE", "No project"
+        NONE = "NONE", "Not started"
 
     class Status(models.TextChoices):
         CONFIRMED = "CONFIRMED", "Confirmed"
@@ -867,6 +870,8 @@ class ProjectRegistration(models.Model):
     class Source(models.TextChoices):
         OFFICE = "OFFICE", "Office"
         LIST = "LIST", "Office list"
+        STUDENT = "STUDENT", "Student"
+        COORDINATOR = "COORDINATOR", "Coordinator"
 
     student = models.ForeignKey(Student, on_delete=models.PROTECT, related_name="project_registrations")
     academic_semester = models.ForeignKey(
@@ -874,7 +879,7 @@ class ProjectRegistration(models.Model):
     )
     stage = models.CharField(max_length=4, choices=Stage.choices)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.CONFIRMED)
-    source = models.CharField(max_length=10, choices=Source.choices, default=Source.OFFICE)
+    source = models.CharField(max_length=12, choices=Source.choices, default=Source.OFFICE)
     confirmed_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, blank=True, related_name="project_registrations_confirmed"
     )

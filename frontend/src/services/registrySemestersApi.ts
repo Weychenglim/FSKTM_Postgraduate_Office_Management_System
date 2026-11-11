@@ -11,6 +11,8 @@ export interface ProgrammeRule {
   minSemesters: number | null;
   maxSemesters: number | null;
   specialCounts: boolean;
+  researchCourseCode: string;
+  researchCourseName: string;
   source: string;
   changedBy: string;
   changedAt: string | null;
@@ -24,6 +26,8 @@ export interface LaterProgrammeRule {
   minSemesters: number;
   maxSemesters: number;
   specialCounts: boolean;
+  researchCourseCode: string;
+  researchCourseName: string;
   changedBy: string;
   changedAt: string | null;
   activeStudents: number;
@@ -36,6 +40,8 @@ export interface ProgrammeRuleInput {
   specialCounts: boolean;
   fromSession: string;
   fromTerm: string;
+  researchCourseCode: string;
+  researchCourseName: string;
 }
 
 export const getProgrammeRules = () =>
@@ -255,53 +261,73 @@ export type StatusAction = 'LEAVE' | 'END_LEAVE' | 'WITHDRAW' | 'TERMINATE' | 'D
 export const studentStatusAction = (matric: string, input: { action: StatusAction; reason: string; outcome?: LeaveOutcome; exitReason?: string }) =>
   request<StudentRecord>(`${student(matric)}/status-action/`, json('POST', input));
 
-export type ProjectStageChoice = 'P1' | 'P2' | 'NONE';
+export type StageShown = 'P1' | 'P2' | 'NOT_STARTED' | 'COMPLETED' | 'NOT_CONFIRMED';
+export type StageChoice = 'P1' | 'P2' | 'NONE' | 'AUTO';
 
-interface StagePerson {
+export interface StageRow {
   matric: string;
   name: string;
   programme: string;
   intake: string;
   avatarText: string;
   avatarBg: string;
-  revision: number;
-}
-
-export interface StageToConfirm extends StagePerson {
-  suggested: '' | 'P1' | 'P2';
-  attention: boolean;
-}
-
-export interface ConfirmedStage extends StagePerson {
-  stage: ProjectStageChoice;
+  shown: StageShown;
+  reason: string;
+  noSupervisor: boolean;
+  requestWaiting: boolean;
+  notAnswered: boolean;
+  setByCoordinator: boolean;
 }
 
 export interface ProjectStagesPage {
-  semester: { id: number; label: string } | null;
+  semester: { id: number; label: string; current: boolean } | null;
   semesters: Array<{ id: number; label: string }>;
-  toConfirm: StageToConfirm[];
-  confirmed: ConfirmedStage[];
+  rows: StageRow[];
   notStudying: number;
-  noActivity: number;
+  canChange: boolean;
+  reasons: Array<{ value: string; label: string }>;
 }
 
 export interface MarksImpact {
   notStarted: number;
   draft: number;
   submitted: number;
+  token: string;
+}
+
+export interface StageChangeResult {
+  changed: string[];
+  leftOut: Array<{ matric: string; name: string; why: string }>;
 }
 
 export const getProjectStages = (semesterId: number | null) =>
   request<ProjectStagesPage>(`${BASE}/project-stages/${semesterId ? `?semester=${semesterId}` : ''}`);
 
-export const confirmProjectStages = (semesterId: number, items: Array<{ matric: string; stage: ProjectStageChoice }>) =>
-  request<{ confirmed: string[] }>(`${BASE}/project-stages/`, json('POST', { semesterId, items }));
-
-export const getProjectStageImpact = (semesterId: number, matric: string, stage: string) =>
+export const getProjectStageImpact = (semesterId: number, matric: string, stage: StageChoice) =>
   request<MarksImpact>(`${BASE}/project-stages/impact/?semester=${semesterId}&matric=${encodeURIComponent(matric)}&stage=${stage}`);
 
-export const correctProjectStage = (input: { semesterId: number; matric: string; stage: string; reason: string; revision: number; acknowledged: boolean }) =>
-  request<{ revision: number }>(`${BASE}/project-stages/correct/`, json('POST', input));
+export const changeProjectStages = (input: {
+  semesterId: number;
+  stage: StageChoice;
+  reason: string;
+  students: Array<{ matric: string; shown: StageShown }>;
+  checked: boolean;
+  token: string;
+}) => request<StageChangeResult>(`${BASE}/project-stages/change/`, json('POST', input));
+
+export interface ProjectStageQuestion {
+  semester: string;
+  code: string;
+  name: string;
+  answer: 'YES' | 'NO' | null;
+  canChange: boolean;
+}
+
+export const getMyProjectStage = () =>
+  request<{ question: ProjectStageQuestion | null }>(`${BASE}/project-stages/mine/`).then(data => data.question);
+
+export const answerMyProjectStage = (answer: 'YES' | 'NO') =>
+  request<{ question: ProjectStageQuestion | null }>(`${BASE}/project-stages/mine/`, json('POST', { answer })).then(data => data.question);
 
 export interface RetentionPage {
   years: number;
