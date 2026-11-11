@@ -12,7 +12,7 @@ from .validation import UploadRejected, check_upload, clean_name, title_from_nam
 EVERYTHING = DocumentType(
     code="everything", label="Everything", allowed_kinds=["PDF", "DOCX", "IMAGE", "XLSX", "PPTX"]
 )
-THESIS = DocumentType(code="thesis", label="Thesis", allowed_kinds=["PDF", "DOCX"])
+THESIS = DocumentType(code="final-research-report", label="Thesis", allowed_kinds=["PDF", "DOCX"])
 
 
 def check(name, content, doc_type=EVERYTHING, staff=True):
@@ -42,6 +42,8 @@ class AcceptedFileTests(SimpleTestCase):
         self.assertEqual(len(clean_name("a" * 300 + ".pdf")), 150)
         self.assertTrue(clean_name("a" * 300 + ".pdf").endswith(".pdf"))
         self.assertEqual(title_from_name("Thesis_draft__3.pdf"), "Thesis draft 3")
+        self.assertEqual(title_from_name("ethics-approval.pdf"), "Ethics approval")
+        self.assertEqual(title_from_name("minutes 2026-11-11.docx"), "Minutes 2026-11-11")
 
     def test_images_lose_hidden_data_and_turn_upright(self):
         exif = Image.Exif()

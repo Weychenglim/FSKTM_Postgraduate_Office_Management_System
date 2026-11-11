@@ -8,7 +8,7 @@ import { Plus } from 'lucide-react';
 import type { LaterProgrammeRule, ProgrammeRule } from '../services/registrySemestersApi';
 import { getProgrammeRules, removeProgrammeRule, saveProgrammeRule } from '../services/registrySemestersApi';
 import { historyTime } from '../utils/documentDisplay';
-import { semesterChoices, semesterCount, semesterParts, shortSemester, studentCount } from '../utils/registrySemesters';
+import { semesterChoices, semesterCount, semesterParts, shortSemester, studentCount, validCourseCode } from '../utils/registrySemesters';
 import { DialogShell } from './DocumentDialogs';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
@@ -53,6 +53,8 @@ export const ProgrammeRules: React.FC = () => {
   const [minimum, setMinimum] = useState('');
   const [maximum, setMaximum] = useState('');
   const [specialCounts, setSpecialCounts] = useState(true);
+  const [courseCode, setCourseCode] = useState('');
+  const [courseName, setCourseName] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -74,6 +76,8 @@ export const ProgrammeRules: React.FC = () => {
     setMinimum(String(source.minSemesters ?? 3));
     setMaximum(String(source.maxSemesters ?? 8));
     setSpecialCounts(source.specialCounts);
+    setCourseCode(source.researchCourseCode);
+    setCourseName(source.researchCourseName);
     setProblem(null);
   };
 
@@ -94,6 +98,10 @@ export const ProgrammeRules: React.FC = () => {
       setProblem('Choose the first intake.');
       return;
     }
+    if (courseCode.trim() && !validCourseCode(courseCode)) {
+      setProblem('Enter a course code like WQD7025.');
+      return;
+    }
     setBusy(true);
     setProblem(null);
     try {
@@ -104,6 +112,8 @@ export const ProgrammeRules: React.FC = () => {
         specialCounts,
         fromSession: start?.session ?? '',
         fromTerm: start?.term ?? '',
+        researchCourseCode: courseCode.trim().toUpperCase(),
+        researchCourseName: courseName.trim(),
       }));
       setEditing(null);
       setToast('Saved.');
@@ -149,6 +159,7 @@ export const ProgrammeRules: React.FC = () => {
                   <p className="mt-0.5 text-[12.5px] font-medium text-slate-500">
                     {!rule.hasRule ? 'No rule yet' : rule.laterRules.length ? `Intakes before ${shortSemester(rule.laterRules[0].fromLabel)}` : ruleFrom(rule)}
                   </p>
+                  {rule.researchCourseCode && <p className="mt-0.5 text-[12.5px] font-semibold text-slate-600">Research Project {rule.researchCourseCode}</p>}
                 </div>
                 {rule.hasRule ? (
                   <Durations minimum={rule.minSemesters} maximum={rule.maxSemesters} specialCounts={rule.specialCounts} />
@@ -162,6 +173,7 @@ export const ProgrammeRules: React.FC = () => {
                   <div className="min-w-0">
                     <p className="text-[13.5px] font-bold text-slate-900">From {shortSemester(later.fromLabel)}</p>
                     <p className="mt-0.5 text-[12.5px] font-medium text-slate-500">{studentCount(later.activeStudents)}</p>
+                    {later.researchCourseCode && <p className="mt-0.5 text-[12.5px] font-semibold text-slate-600">Research Project {later.researchCourseCode}</p>}
                   </div>
                   <Durations minimum={later.minSemesters} maximum={later.maxSemesters} specialCounts={later.specialCounts} />
                   <div className="flex flex-wrap items-center gap-2">
@@ -210,6 +222,16 @@ export const ProgrammeRules: React.FC = () => {
           <input className="mt-0.5 h-4 w-4 shrink-0" type="checkbox" checked={specialCounts} disabled={busy} onChange={event => setSpecialCounts(event.target.checked)} />
           Include Special Semesters in the minimum
         </label>
+        <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+            Research Project code
+            <input className="form-control form-control-md uppercase" maxLength={16} value={courseCode} placeholder="WQD7025" disabled={busy} onChange={event => setCourseCode(event.target.value)} />
+          </label>
+          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+            Course name
+            <input className="form-control form-control-md" maxLength={120} value={courseName} disabled={busy} onChange={event => setCourseName(event.target.value)} />
+          </label>
+        </div>
         <p className="text-[13px] text-slate-500">
           {editing?.isNew ? 'Students from earlier intakes are not affected.' : `Applies to ${studentCount(applies ?? 0)} straight away.`}
         </p>

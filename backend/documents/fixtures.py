@@ -122,7 +122,7 @@ class DocumentPeople:
 
     @classmethod
     def make_checker(cls):
-        """The coordinator of Ali's programme, who checks and archives his files."""
+        """The coordinator of Ali's programme, who archives his files."""
         cls.checker = cls.lecturer("doc-coord-ds@example.test", "DOC-C2", "Prof Checker", User.Role.COORDINATOR)
         Coordinator.objects.create(lecturer=cls.checker.lecturer, programme_managed=DS)
 

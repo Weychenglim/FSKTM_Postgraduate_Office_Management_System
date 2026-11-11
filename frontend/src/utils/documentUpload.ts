@@ -71,5 +71,44 @@ export function fileProblem(
 
 export function titleFromFileName(name: string): string {
   const stem = name.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
-  return stem.replace(/[_\s]+/g, ' ').trim().slice(0, 200);
+  const title = stem.replace(/(?<!\d)-|-(?!\d)/g, ' ').replace(/[_\s]+/g, ' ').trim().slice(0, 200);
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}
+
+export interface TypeGroup {
+  group: string;
+  label: string;
+  types: DocumentTypeOption[];
+}
+
+const STAGE_GROUP: Record<string, string> = { P1: 'RP1', P2: 'RP2' };
+
+/** The types in their groups, in the faculty's order, with the student's own stage first. */
+export function typeGroups(types: DocumentTypeOption[], stage = ''): TypeGroup[] {
+  const groups: TypeGroup[] = [];
+  for (const type of types) {
+    const found = groups.find(item => item.group === type.group);
+    if (found) found.types.push(type);
+    else groups.push({ group: type.group, label: type.groupLabel, types: [type] });
+  }
+  const first = STAGE_GROUP[stage];
+  return first ? [...groups.filter(item => item.group === first), ...groups.filter(item => item.group !== first)] : groups;
+}
+
+const tidyName = (name: string) => name.trim().replace(/\s+/g, ' ');
+
+/** The type a name typed by staff is filed under: a known type by its name, otherwise the general one. */
+export function typeForName(name: string, types: DocumentTypeOption[]): DocumentTypeOption | null {
+  const wanted = tidyName(name).toLowerCase();
+  if (!wanted) return null;
+  const known = types.find(type => type.label.toLowerCase() === wanted);
+  if (known) return known;
+  return types.find(type => type.group === 'SUPPORTING' || type.group === 'STAFF') ?? (types.length === 1 ? types[0] : null);
+}
+
+/** A typed name as the file's title: a known type keeps its own spelling. */
+export function nameAsTitle(name: string, type: DocumentTypeOption | null): string {
+  const title = tidyName(name);
+  if (type && type.label.toLowerCase() === title.toLowerCase()) return type.label;
+  return title.charAt(0).toUpperCase() + title.slice(1);
 }

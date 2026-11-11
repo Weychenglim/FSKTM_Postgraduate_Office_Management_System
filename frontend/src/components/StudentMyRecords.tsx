@@ -14,7 +14,6 @@ import { PageHeader, PortalToast, SegmentedControl, StatusBadge } from './Portal
 import { StatCard } from './StatCard';
 import { LoadingState, ErrorState } from './StateViews';
 import { StudentLetterRequests } from './IssuedLetters';
-import { CheckChip } from './DocumentParts';
 import { DemoUser, GeneratedLetter, PortalDocument, StudentProgressDossier } from '../types';
 import { getMyLetterRequests, getStudentProgressDossier, inactiveStudentReason } from '../services';
 import { getDocuments } from '../services/filesApi';
@@ -201,13 +200,12 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
                     <tr className="data-thead bg-[#f8fafc]">
                       <th className="data-th">File</th>
                       <th className="data-th">Type</th>
-                      <th className="data-th">Status</th>
                       <th className="data-th">Uploaded</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {files.length === 0 ? (
-                      <NoRecords colSpan={4} text="You have not uploaded any files yet." />
+                      <NoRecords colSpan={3} text="You have not uploaded any files yet." />
                     ) : (
                       files.map((file) => (
                         <tr key={file.id} className="hover:bg-slate-50/50 transition">
@@ -221,7 +219,6 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
                             </button>
                           </td>
                           <td className="data-td">{file.type.label}</td>
-                          <td className="data-td">{file.checkStatus === 'NONE' ? 'Uploaded' : <CheckChip status={file.checkStatus} />}</td>
                           <td className="data-td whitespace-nowrap">{shownDate(file.uploadedAt)}</td>
                         </tr>
                       ))

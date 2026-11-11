@@ -5,7 +5,6 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import User
-from announcements.emails import DOCUMENT, SIGN_OFF, email_users, portal_link
 from announcements.models import Notification
 
 from .access import people_reached, supervisors_of
@@ -68,7 +67,7 @@ def send_upload_notices(document, students, version_number=1):
     uploader = document.uploaded_by
     suffix = "" if version_number == 1 else f":v{version_number}"
     if document.uploader_role == User.Role.STUDENT:
-        if not document.share_supervisors:
+        if not document.doc_type.share_supervisors:
             return
         ids = {lecturer for _, lecturer in supervisors_of({s.user_id for s in students})}
         recipients = User.objects.filter(pk__in=ids, is_active=True)
@@ -94,7 +93,7 @@ def send_upload_notices(document, students, version_number=1):
 
 
 def create_document(*, actor, uploader_role, doc_type, checked, title, description, semester,
-                    students, is_staff_file, share, follows_type, audience, programmes, check_status):
+                    students, is_staff_file, audience, programmes):
     """Store the file first, then write every row in one transaction. If the
     database step fails, the stored file is removed again."""
     stored_name = default_storage.save(version_path(None, checked.original_name), ContentFile(checked.content))
@@ -108,13 +107,8 @@ def create_document(*, actor, uploader_role, doc_type, checked, title, descripti
                 uploaded_by=actor,
                 uploader_role=uploader_role,
                 is_staff_file=is_staff_file,
-                share_supervisors=share["supervisors"],
-                share_panel=share["panel"],
-                share_coordinator=share["coordinator"],
-                follows_type=follows_type,
                 staff_audience=audience,
                 staff_programmes=programmes,
-                check_status=check_status,
             )
             document.reference = f"DOC-{timezone.localdate().year}-{document.pk:06d}"
             version = DocumentVersion(
@@ -177,9 +171,8 @@ def _remove_files(names):
             pass
 
 
-def add_version(document, *, actor, checked, note, by_checker):
-    """A corrected or newer file. Older versions stay; the check starts again
-    for types the coordinator checks, unless the coordinator added the version."""
+def add_version(document, *, actor, checked, note):
+    """A corrected or newer file. Older versions stay."""
     stored_name = default_storage.save(version_path(None, checked.original_name), ContentFile(checked.content))
     try:
         with transaction.atomic():
@@ -200,11 +193,7 @@ def add_version(document, *, actor, checked, note, by_checker):
             version.file.name = stored_name
             version.save()
             document.current_version = version
-            if document.doc_type.needs_check and not document.is_staff_file:
-                document.check_status = Document.CheckStatus.ACCEPTED if by_checker else Document.CheckStatus.WAITING
-                if by_checker:
-                    document.checked_by, document.checked_at, document.check_reason = actor, timezone.now(), ""
-            document.save(update_fields=["current_version", "check_status", "checked_by", "checked_at", "check_reason", "updated_at"])
+            document.save(update_fields=["current_version", "updated_at"])
             record_event(document, DocumentEvent.Action.VERSION_ADDED, actor, version_number=number, reason=note)
             students = list(document.students.select_related("user"))
             if actor.pk == document.uploaded_by_id:
@@ -213,57 +202,6 @@ def add_version(document, *, actor, checked, note, by_checker):
         default_storage.delete(stored_name)
         raise
     return document
-
-
-def check_document(document, *, actor, accept, reason):
-    with transaction.atomic():
-        document = Document.objects.select_for_update(of=("self",)).select_related("uploaded_by", "doc_type", "current_version").get(pk=document.pk)
-        document.check_status = Document.CheckStatus.ACCEPTED if accept else Document.CheckStatus.RETURNED
-        document.checked_by = actor
-        document.checked_at = timezone.now()
-        document.check_reason = "" if accept else reason
-        document.save(update_fields=["check_status", "checked_by", "checked_at", "check_reason", "updated_at"])
-        number = document.current_version.number if document.current_version else None
-        record_event(
-            document,
-            DocumentEvent.Action.ACCEPTED if accept else DocumentEvent.Action.RETURNED,
-            actor,
-            version_number=number,
-            reason=document.check_reason,
-        )
-        transaction.on_commit(lambda: send_check_notice(document, number))
-    return document
-
-
-def send_check_notice(document, number):
-    uploader = document.uploaded_by
-    if not uploader.is_active:
-        return
-    accepted = document.check_status == Document.CheckStatus.ACCEPTED
-    title = f"Accepted: {document.title}" if accepted else f"Returned: {document.title}"
-    checker = f"{document.checked_by.full_name}, programme coordinator," if document.checked_by else "The programme coordinator"
-    message = (
-        f"{checker} accepted your {document.doc_type.label}, {document.title}."
-        if accepted
-        else f"{checker} returned your {document.doc_type.label}, {document.title}: {document.check_reason} Please upload a corrected file."
-    )
-    _notify(
-        [uploader],
-        document,
-        event_key=f"documents:{'accepted' if accepted else 'returned'}:{document.pk}:{number}",
-        title=title,
-        summary=document.check_reason[:255] if not accepted else document.doc_type.label,
-        message=message,
-    )
-    email_users(
-        [uploader],
-        DOCUMENT,
-        title,
-        f"{message}\n\nOpen it in the portal: {portal_link(f'/files/documents/{document.pk}')}\n\n"
-        "You get this email because email alerts are on in your Settings.\n\n"
-        f"{SIGN_OFF}",
-        wait=False,
-    )
 
 
 def update_details(document, *, actor, changes, students=None):
@@ -294,18 +232,12 @@ def update_details(document, *, actor, changes, students=None):
 
 
 def sharing_of(document):
-    if document.is_staff_file:
-        return {"audience": document.staff_audience, "programmes": list(document.staff_programmes or [])}
-    return {
-        "supervisors": document.share_supervisors,
-        "panel": document.share_panel,
-        "coordinator": document.share_coordinator,
-    }
+    return {"audience": document.staff_audience, "programmes": list(document.staff_programmes or [])}
 
 
 def change_sharing(document, *, actor, sharing):
-    """Change who a file is shared with. A student upload changed here stops
-    following its type. People who can newly see it get a notice."""
+    """Change who a staff file is shared with. People who can newly see it get a
+    notice. A student file is seen by whoever its type names, so it never changes."""
     with transaction.atomic():
         document = Document.objects.select_for_update(of=("self",)).select_related("uploaded_by", "doc_type").get(pk=document.pk)
         before = sharing_of(document)
@@ -313,18 +245,9 @@ def change_sharing(document, *, actor, sharing):
             return document
         students = list(document.students.select_related("user"))
         reached = {user.pk for user, _ in people_reached(document, students)}
-        if document.is_staff_file:
-            document.staff_audience = sharing["audience"]
-            document.staff_programmes = sharing["programmes"]
-        else:
-            document.share_supervisors = sharing["supervisors"]
-            document.share_panel = sharing["panel"]
-            document.share_coordinator = sharing["coordinator"]
-            document.follows_type = False
-        document.save(update_fields=[
-            "staff_audience", "staff_programmes", "share_supervisors", "share_panel",
-            "share_coordinator", "follows_type", "updated_at",
-        ])
+        document.staff_audience = sharing["audience"]
+        document.staff_programmes = sharing["programmes"]
+        document.save(update_fields=["staff_audience", "staff_programmes", "updated_at"])
         event = record_event(
             document,
             DocumentEvent.Action.SHARING_CHANGED,

@@ -203,5 +203,5 @@ def check_upload(upload, *, doc_type, staff):
 
 def title_from_name(name):
     stem = PurePosixPath(name).stem
-    title = re.sub(r"[_\s]+", " ", stem).strip()
-    return title[:200] or "Untitled"
+    title = re.sub(r"[_\s]+", " ", re.sub(r"(?<!\d)-|-(?!\d)", " ", stem)).strip()[:200]
+    return title[:1].upper() + title[1:] if title else "Untitled"

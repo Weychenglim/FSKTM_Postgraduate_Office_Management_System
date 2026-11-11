@@ -16,7 +16,8 @@ urlpatterns = [
     path("graduation/match-list/", registry_graduation.graduation_match_list_view, name="registry-graduation-match-list"),
     path("project-stages/", registry_project_stages.project_stages_view, name="registry-project-stages"),
     path("project-stages/impact/", registry_project_stages.project_stage_impact_view, name="registry-project-stage-impact"),
-    path("project-stages/correct/", registry_project_stages.project_stage_correct_view, name="registry-project-stage-correct"),
+    path("project-stages/change/", registry_project_stages.project_stage_change_view, name="registry-project-stage-change"),
+    path("project-stages/mine/", registry_project_stages.my_project_stage_view, name="registry-my-project-stage"),
     path("retention/", retention.retention_view, name="registry-retention"),
     path(
         "students/import/",

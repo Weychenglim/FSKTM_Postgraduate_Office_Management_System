@@ -10,17 +10,14 @@ from django.utils import timezone
 
 
 class DocumentType(models.Model):
-    """A coordinator-managed kind of document: who may upload it, who sees it by
-    default, and whether the programme coordinator checks it."""
+    """A kind of document from the faculty's research project timeline: who may
+    upload it and who sees it. The Technical Admin keeps the list in Django admin."""
 
     class Group(models.TextChoices):
-        SUPERVISION = "SUPERVISION", "Supervision"
-        RESEARCH_PROJECT = "RESEARCH_PROJECT", "Research Project"
-        FORMS = "FORMS", "Faculty Forms"
-        LETTERS = "LETTERS", "Letters"
-        EVALUATION = "EVALUATION", "Evaluation"
+        RP1 = "RP1", "Research Project 1"
+        RP2 = "RP2", "Research Project 2"
+        SUPPORTING = "SUPPORTING", "Supporting Documents"
         STAFF = "STAFF", "Staff Documents"
-        OTHER = "OTHER", "Other"
 
     class Kind(models.TextChoices):
         STUDENT = "STUDENT", "Student files"
@@ -33,19 +30,14 @@ class DocumentType(models.Model):
     code = models.SlugField(max_length=64, unique=True)
     label = models.CharField(max_length=120)
     description = models.CharField(max_length=300, blank=True)
-    group = models.CharField(max_length=32, choices=Group.choices, default=Group.OTHER)
+    group = models.CharField(max_length=32, choices=Group.choices, default=Group.SUPPORTING)
     kind = models.CharField(max_length=16, choices=Kind.choices, default=Kind.STUDENT)
     uploaders = models.JSONField(default=list, blank=True)
     allowed_kinds = models.JSONField(default=list, blank=True)
     share_supervisors = models.BooleanField(default=False)
     share_panel = models.BooleanField(default=False)
     share_coordinator = models.BooleanField(default=False)
-    needs_check = models.BooleanField(default=False)
     one_per_student = models.BooleanField(default=False)
-    # Every Active student must hand it in; an empty list means every programme.
-    required = models.BooleanField(default=False)
-    required_due_note = models.CharField(max_length=120, blank=True)
-    required_programmes = models.JSONField(default=list, blank=True)
     is_active = models.BooleanField(default=True)
     display_order = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -88,22 +80,12 @@ class DocumentType(models.Model):
             "shareSupervisors": self.share_supervisors,
             "sharePanel": self.share_panel,
             "shareCoordinator": self.share_coordinator,
-            "needsCheck": self.needs_check,
             "onePerStudent": self.one_per_student,
-            "required": self.required,
-            "requiredDueNote": self.required_due_note,
-            "requiredProgrammes": list(self.required_programmes or []),
             "isActive": self.is_active,
         }
 
 
 class Document(models.Model):
-    class CheckStatus(models.TextChoices):
-        NONE = "NONE", "No check needed"
-        WAITING = "WAITING", "Waiting for office"
-        ACCEPTED = "ACCEPTED", "Accepted"
-        RETURNED = "RETURNED", "Returned"
-
     class Audience(models.TextChoices):
         ACADEMIC = "ACADEMIC", "All lecturers and coordinators"
         COORDINATORS = "COORDINATORS", "Programme coordinators only"
@@ -125,25 +107,8 @@ class Document(models.Model):
     )
     uploader_role = models.CharField(max_length=64)
     is_staff_file = models.BooleanField(default=False)
-    share_supervisors = models.BooleanField(default=False)
-    share_panel = models.BooleanField(default=False)
-    share_coordinator = models.BooleanField(default=False)
-    # Student uploads keep following their type's sharing; staff choices stay put.
-    follows_type = models.BooleanField(default=False)
     staff_audience = models.CharField(max_length=16, choices=Audience.choices, blank=True)
     staff_programmes = models.JSONField(default=list, blank=True)
-    check_status = models.CharField(
-        max_length=16, choices=CheckStatus.choices, default=CheckStatus.NONE
-    )
-    checked_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name="checked_documents",
-        null=True,
-        blank=True,
-    )
-    checked_at = models.DateTimeField(null=True, blank=True)
-    check_reason = models.TextField(blank=True)
     current_version = models.ForeignKey(
         "DocumentVersion",
         on_delete=models.SET_NULL,
@@ -170,7 +135,6 @@ class Document(models.Model):
         ordering = ["-created_at", "-pk"]
         indexes = [
             models.Index(fields=["archived_at", "created_at"]),
-            models.Index(fields=["check_status", "archived_at"]),
             models.Index(fields=["doc_type", "archived_at"]),
         ]
 
@@ -240,8 +204,6 @@ class DocumentEvent(models.Model):
         VERSION_ADDED = "VERSION_ADDED", "Added a new version"
         DETAILS_CHANGED = "DETAILS_CHANGED", "Changed the details"
         SHARING_CHANGED = "SHARING_CHANGED", "Changed who it is shared with"
-        ACCEPTED = "ACCEPTED", "Accepted"
-        RETURNED = "RETURNED", "Returned"
         ARCHIVED = "ARCHIVED", "Archived"
         RESTORED = "RESTORED", "Restored"
         LINKED = "LINKED", "Linked a record"
@@ -282,33 +244,88 @@ class DocumentEvent(models.Model):
         raise ValidationError("Document history cannot be deleted.")
 
 
-class SettingsChange(models.Model):
-    """The office's changes to document types (and, before tags became automatic,
-    to typed tags). Never changed or deleted."""
+class Submission(models.Model):
+    """A dated hand-in a programme coordinator sets up for one semester."""
 
-    class Area(models.TextChoices):
-        TYPE = "TYPE", "Document type"
-        TAG = "TAG", "Tag"
+    class AfterDue(models.TextChoices):
+        CLOSE = "CLOSE", "Close"
+        ACCEPT_LATE = "ACCEPT_LATE", "Accept late"
+
+    class Stage(models.TextChoices):
+        ALL = "ALL", "Everyone"
+        P1 = "P1", "RP1"
+        P2 = "P2", "RP2"
+
+    title = models.CharField(max_length=120)
+    doc_type = models.ForeignKey(DocumentType, on_delete=models.PROTECT, related_name="submissions")
+    academic_semester = models.ForeignKey(
+        "academics.AcademicSemester", on_delete=models.PROTECT, related_name="submissions"
+    )
+    programmes = models.JSONField(default=list)
+    stage = models.CharField(max_length=8, choices=Stage.choices, default=Stage.ALL)
+    due_at = models.DateTimeField()
+    after_due = models.CharField(max_length=16, choices=AfterDue.choices, default=AfterDue.CLOSE)
+    late_until = models.DateTimeField(null=True, blank=True)
+    is_open = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-due_at", "-pk"]
+
+
+class SubmissionExtension(models.Model):
+    """One student's own later due date."""
+
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name="extensions")
+    student = models.ForeignKey("accounts.Student", on_delete=models.CASCADE, related_name="submission_extensions")
+    due_at = models.DateTimeField()
+    reason = models.CharField(max_length=120)
+    granted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    granted_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["submission", "student"], name="one_extension_per_submission_student")
+        ]
+
+
+class SubmissionEntry(models.Model):
+    """The file a student sent for a submission. Each upload keeps its own time on the document's versions."""
+
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name="entries")
+    student = models.ForeignKey("accounts.Student", on_delete=models.CASCADE, related_name="submission_entries")
+    document = models.ForeignKey(Document, on_delete=models.CASCADE, related_name="submission_entries")
+    first_sent_at = models.DateTimeField()
+    last_sent_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["submission", "student"], name="one_entry_per_submission_student")
+        ]
+
+
+class SubmissionChange(models.Model):
+    """Every change to a submission, its switches and its extensions. Rows are never changed."""
 
     class Action(models.TextChoices):
-        ADDED = "ADDED", "Added"
+        CREATED = "CREATED", "Set up"
         CHANGED = "CHANGED", "Changed"
-        RENAMED = "RENAMED", "Renamed"
-        MERGED = "MERGED", "Merged"
-        REMOVED = "REMOVED", "Removed"
+        OPENED = "OPENED", "Opened"
+        CLOSED = "CLOSED", "Closed"
+        EXTENDED = "EXTENDED", "Gave an extension"
+        EXTENSION_REMOVED = "EXTENSION_REMOVED", "Removed an extension"
+        REMINDED = "REMINDED", "Reminded"
 
-    area = models.CharField(max_length=8, choices=Area.choices)
-    action = models.CharField(max_length=16, choices=Action.choices)
-    label = models.CharField(max_length=120)
-    doc_type = models.ForeignKey(
-        DocumentType, on_delete=models.SET_NULL, related_name="changes", null=True, blank=True
-    )
+    submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name="changes")
+    action = models.CharField(max_length=24, choices=Action.choices)
     actor = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name="document_settings_changes",
-        null=True,
-        blank=True,
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
     actor_name = models.CharField(max_length=255, blank=True)
     details = models.JSONField(default=dict, blank=True)
@@ -319,30 +336,11 @@ class SettingsChange(models.Model):
 
     def save(self, *args, **kwargs):
         if self.pk:
-            raise ValidationError("Settings history cannot be changed.")
+            raise ValidationError("Submission history cannot be changed.")
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        raise ValidationError("Settings history cannot be deleted.")
-
-
-class RequiredReminder(models.Model):
-    """One press of Remind for a required type. At most one a day per type."""
-
-    doc_type = models.ForeignKey(DocumentType, on_delete=models.CASCADE, related_name="reminders")
-    sent_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        related_name="document_reminders",
-        null=True,
-        blank=True,
-    )
-    sent_by_name = models.CharField(max_length=255, blank=True)
-    students = models.PositiveIntegerField(default=0)
-    sent_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-sent_at", "-pk"]
+        raise ValidationError("Submission history cannot be deleted.")
 
 
 ACTIVE_DOCUMENT = Q(archived_at__isnull=True)

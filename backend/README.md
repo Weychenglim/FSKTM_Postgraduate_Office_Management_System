@@ -322,15 +322,16 @@ How long a programme takes, how far along each student is, and acting on many st
 | POST | `graduation/correct/` | Undo a wrong entry (`matric`, `reason`). The student goes back to waiting for the Senate. Closed appointments stay closed. |
 | POST | `graduation/match-list/` | Read an Excel, CSV or PDF copy of the Senate's list (`file`) and say who is `matched`, `notWaiting` or `notFound`. The file is not kept. |
 | POST | `students/<matric>/status-action/` | Record what happened (`action`: `LEAVE`, `END_LEAVE`, `WITHDRAW`, `TERMINATE`, `DECEASED`, `REINSTATE`; `reason`; `outcome` for leave; `exitReason` for termination). |
-| GET, POST | `project-stages/` | The students to confirm and those confirmed for a semester (`?semester=`), or confirm stages (`semesterId`, `items`). Suggestions are worked out here and never stored. |
-| GET | `project-stages/impact/` | What changing a confirmed stage would touch in Marks (`semester`, `matric`, `stage`). |
-| POST | `project-stages/correct/` | Change or void a confirmed stage (`semesterId`, `matric`, `stage`, `reason`, `revision`, `acknowledged`). |
+| GET | `project-stages/` | Office and coordinators: each student's RP1/RP2 stage for a semester (`?semester=`), with who has no supervisor yet and who has not answered. Coordinators only see the programmes they manage. |
+| GET | `project-stages/impact/` | Coordinators: what one change would touch in Marks, without saving it (`semester`, `matric`, `stage`). |
+| POST | `project-stages/change/` | Coordinators: set RP1, RP2, Not started or back to automatic for the current semester (`semesterId`, `stage`, `reason`, `students` with what the page showed, `checked`, `token`). Students whose change touches Marks are left out when several change at once. |
+| GET, POST | `project-stages/mine/` | Students: this semester's Research Project question, and their answer (`YES` or `NO`). |
 | GET | `retention/` | Who has passed the retention period (`STUDENT_RETENTION_YEARS`, default 8). Nothing is removed. |
 | GET | `students/<matric>/graduation-check/` | The same check for one student. |
 
 - **Counting:** `accounts.semester_rules` counts semesters studied from `StudentSemester` rows. The maximum semester is the intake plus the programme's maximum, in normal semesters, moved later only by medical or mobility leave and extensions.
 - **The minimum is enforced in `transition_student`,** so Student Record and Manage Participants cannot get around it. One semester below needs `early_approved` (Regulation 20(3)), which only Student Registry sends. Further below, or with no semester rows, is refused.
-- **Stops graduating:** unfinished marks; waiting supervisor, supporting supervisor or panel requests; too few semesters; no semester record. **Only warns:** letter requests, documents owed, files waiting for a check, a waiting transfer or research change, past the maximum, no rule for the programme.
+- **Stops graduating:** unfinished marks; waiting supervisor, supporting supervisor or panel requests; too few semesters; no semester record. **Only warns:** letter requests, a waiting transfer or research change, past the maximum, no rule for the programme.
 - CGPA and credits are in Maya, so the office works from the Senate's list.
 - A student's semesters come from their intake and current semester when they are registered or imported, and from migration `accounts.0016` for existing students. Past Special Semesters cannot be inferred, so the office adds them.
 - Notices (`accounts.lifecycle_notices`, target `DASHBOARD` / `STUDENT_STATUS`): the student, whenever their academic status changes.
@@ -450,28 +451,30 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 
 | Method | Path | Actor |
 | ------ | ---- | ----- |
-| GET | `options/` | Everyone: the types they may choose, semesters, programmes and intakes; a student also gets `me` (their programme, intake, supervisors, panel and coordinators) for the upload summary |
+| GET | `options/` | Everyone: the types they may choose, semesters, programmes and intakes; a student also gets `me` (their programme, intake and RP stage) |
 | GET | `students/?search=`, `students/<matric>/` | Staff: students they may tag, and one student's header |
-| GET, POST | `/` (list with `view`, `q`, `type`, `group`, `semester`, `programme`, `intake`, `student`, `uploader`, `sender`, `required`, `status`, `kind`, `from`, `to`, `archived`; multipart upload) | Everyone, by the access rules below |
-| GET | `summary/` | Everyone (tab counts; programme coordinators also get `toCheck`, `returned` and `studentsStillToHandIn` for their programmes) |
+| GET, POST | `/` (list with `view`, `q`, `type`, `group`, `semester`, `programme`, `intake`, `student`, `uploader`, `sender`, `required`, `kind`, `from`, `to`, `archived`; multipart upload) | Everyone, by the access rules below |
+| GET | `summary/` | Everyone (tab counts; a student also gets `toDo`, their open submissions) |
 | GET, PATCH, DELETE | `<id>/` | View right; edit and delete by the uploader |
 | GET | `<id>/download/?version=`, `<id>/preview/`, `<id>/preview/pages/<n>/` | View right |
 | POST | `download-zip/` (`{ids}`) | View right on every file |
 | POST | `<id>/versions/` (multipart) | The uploader |
-| POST | `<id>/check/` (`{decision: ACCEPT or RETURN, reason, expectedVersion}`) | The programme coordinator of a student the file is about |
-| GET, PUT | `<id>/sharing/` | The staff member who uploaded it |
+| GET, PUT | `<id>/sharing/` | The staff member who uploaded a staff file (`audience`, `programmes`) |
 | POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | The programme coordinator of a student the file is about |
-| GET, POST | `types/`, PATCH `types/<id>/` | Programme coordinators |
 | GET | `history/?show=&q=` | Office Staff/Admin |
-| GET | `required/`, `required/<typeId>/students/?show=todo,waiting,done` | Programme coordinators, for their programmes |
-| POST | `required/<typeId>/remind/` | Programme coordinators, their programmes' students, once a day per type each |
-| GET | `required/mine/` | Student |
+| GET, POST | `submissions/` | List: programme coordinators (their programmes) and the office. Set one up: coordinators, for the current semester (`title`, `type`, `programmes`, `stage` ALL/P1/P2, `dueAt`, `afterDue` CLOSE/ACCEPT_LATE, `lateUntil`) |
+| GET, PATCH | `submissions/<id>/` | Detail with each student's status, time sent and how late. Change: coordinators of all its programmes; moving the due date earlier needs `confirm` when files sent on time would become late |
+| POST | `submissions/<id>/open/` | Coordinators: switch it on or off (`open`) |
+| POST, DELETE | `submissions/<id>/extensions/`, `submissions/<id>/extensions/<matric>/` | Coordinators: one student's later due date (`matric`, `dueAt`, `reason`), or remove it |
+| POST | `submissions/<id>/remind/` | Coordinators: tell students who can still send it, once a day |
+| GET | `submissions/mine/` | Student: their submissions, due dates and status |
+| POST | `submissions/<id>/send/` | Student: multipart `{file}`. The time is taken on the server. Refused when it is switched off or past its close; late files are recorded with how late |
 
 **Who sees what.**
-- The office sees every file, but only uploads, and changes only what it uploaded. Uploaders see their own. Students see only what they uploaded.
-- Staff see a student's files through real relationships, ticked per file: supervisors and co-supervisors (active appointments), the panel member (active panel appointment), and the programme coordinator (acting delegations included).
+- The office sees every file, but only uploads, and changes only what it uploaded. Uploaders see their own. Students see only what they uploaded, and never who else can see it (`sharedWith` is empty for them).
+- Staff see a student's files through real relationships, as the file's type names them: supervisors and co-supervisors (active appointments), the panel member (active panel appointment), and the programme coordinator (acting delegations included). Nobody picks this per file.
 - Staff files (about no student) go to all lecturers and coordinators, coordinators only, or the office only, optionally narrowed to programmes. Students never see them.
-- A programme coordinator always sees files about students in their programme that need a check, and checks, archives and restores them. A programme that no coordinator runs (regular or acting) is covered by every coordinator, for checks, archiving and required documents, so nothing waits for a check nobody can make.
+- A programme coordinator archives and restores files about students in their programme. A programme that no coordinator runs (regular or acting) is covered by every coordinator for archiving.
 - Archived files are seen by the office and by the coordinator of the student's programme. A file someone may not see answers 404, the same as a missing one.
 
 **Uploads.**
@@ -481,13 +484,13 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 - Files are stored under `MEDIA_ROOT/documents/<year>/<month>/` with random names and are only served through the permission-checked download, as attachments.
 - Previews are drawn on the server as PNG pages, because the production security policy blocks the browser's own PDF viewer.
 
-**Checking and versions.** For types the programme coordinator checks, uploads wait in the coordinator's "To check" (a coordinator's own upload for their students needs no check). Returning needs a reason; the uploader is told in the app, and by email when "Email alerts" is on. A new version waits again.
+**Versions.** An upload counts as handed in straight away. A new version keeps the older ones. Nobody accepts or returns files: the coordinator check was removed in `documents.0007` (11 November 2026).
 
-**Automatic tags (2026-10-26).** Nobody types tags. Each file's `autoTags` are worked out when it is shown: Category (the type's group), Required, Semester, From (`sender`: student, lecturer, coordinator or office), and each student's Programme and Intake (a staff file's chosen programmes). Each tag carries the list filter it opens. They follow a student who changes programme. Search also matches programme, intake and category words. Typed tags and their endpoints were removed in `documents.0005`.
+**Automatic tags (2026-10-26).** Nobody types tags. Each file's `autoTags` are worked out when it is shown: Category (the type's group), Semester, From (`sender`: student, lecturer, coordinator or office), and each student's Programme and Intake (a staff file's chosen programmes). Each tag carries the list filter it opens. They follow a student who changes programme. Search also matches programme, intake and category words. Typed tags and their endpoints were removed in `documents.0005`.
 
-**Settings and history.** The office edits types (who uploads, who sees, checks, required, switched on) and reads the history, which keeps deleted files as text. New sharing on a type reaches files students uploaded; what staff chose when uploading stays.
+**Document types (11 November 2026).** The list follows the faculty's research project timeline: P1 Research Report (RP1); Final Research Report, Turnitin Report and AI Use Declaration (RP2); Supporting Document (any time, kept from the panel); Staff Document. Supervisor appointment forms, evaluations and letters live in their own modules. There is no settings page: the Technical Admin adds, changes or switches off a type in Django admin (Documents > Document types), and who sees a type's files changes for the files already there too. A student's upload page shows their own RP stage first (`options.me.stage`). Migrations `documents.0008` and `0009` built the list, removed the types other modules handle with their files, and dropped required documents and the settings history. Students hand in dated work through Submissions.
 
-**Required documents.** A type can be required of every Active student, or of chosen programmes only. A returned file still counts as owed. Remind sends a notice, and an email to students with "Deadline reminders" on.
+**History.** The office reads the history, which keeps deleted files as text.
 
 ## Portal maintenance
 

@@ -14,6 +14,7 @@ import { routeForStudentProgress, sidebarItemForPath } from '../constants/routes
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { ActiveSemesterContext } from './ActiveSemesterContext';
 import { StudentAppointmentStatusCards } from './StudentAppointmentStatusCards';
+import { ProjectStageQuestion } from './ProjectStageQuestion';
 
 interface StudentDashboardProps {
   studentName: string;
@@ -72,6 +73,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       )}
 
+      <ProjectStageQuestion />
 
       <DashboardTimeline
         showManageTimeline={false}

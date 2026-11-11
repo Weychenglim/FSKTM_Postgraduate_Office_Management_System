@@ -5,19 +5,18 @@
 
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Archive, Check, CheckCircle2, Download, Upload } from 'lucide-react';
+import { Archive, CheckCircle2, Download } from 'lucide-react';
 import type { DocumentAutoTag, DocumentDetail } from '../types';
-import { checkDocument, deleteDocument, downloadDocument, getDocument, restoreDocument } from '../services/filesApi';
+import { deleteDocument, downloadDocument, getDocument, restoreDocument } from '../services/filesApi';
 import { APP_ROUTES } from '../constants/routes';
-import { checkSteps, historyTime, shortDocumentDate, studentsLine } from '../utils/documentDisplay';
+import { historyTime, shortDocumentDate, studentsLine } from '../utils/documentDisplay';
 import { filtersToParams } from '../utils/documentFilters';
 import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
 import { AutoTagChips, OverflowMenu, type MenuAction } from './DocumentParts';
 import { DocumentPreview } from './DocumentPreview';
-import { ApprovalProcess } from './ApprovalProcess';
-import { ArchiveDialog, EditDetailsDialog, NewVersionDialog, ReturnDialog, SharingDialog } from './DocumentDialogs';
+import { ArchiveDialog, EditDetailsDialog, NewVersionDialog, SharingDialog } from './DocumentDialogs';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -44,7 +43,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
-  const [dialog, setDialog] = useState<'version' | 'edit' | 'return' | 'sharing' | 'archive' | null>(null);
+  const [dialog, setDialog] = useState<'version' | 'edit' | 'sharing' | 'archive' | null>(null);
   const [askedForVersion, setAskedForVersion] = useState(false);
   const uploadedReference = typeof location.state?.uploadedReference === 'string' ? location.state.uploadedReference : '';
   const from = typeof location.state?.from === 'string' ? location.state.from : '';
@@ -76,20 +75,6 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
     setDocument(updated);
     setDialog(null);
     setToast({ message, tone: 'success' });
-  };
-
-  const accept = async () => {
-    if (!document) return;
-    setBusy('accept');
-    try {
-      const updated = await checkDocument(document.id, 'ACCEPT', '', document.file?.number);
-      finished(updated, `Accepted. ${document.uploadedBy.name} has been told.`);
-    } catch (err) {
-      setToast({ message: errorText(err, 'Could not accept this file.'), tone: 'danger' });
-      setReload(value => value + 1);
-    } finally {
-      setBusy(null);
-    }
   };
 
   const restore = async () => {
@@ -140,7 +125,6 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
   ];
   // Staff open the file list filtered by a tag; students see their tags only.
   const openTag = isStudent ? undefined : (tag: DocumentAutoTag) => navigate(`${APP_ROUTES.files}?${filtersToParams(tag.filter).toString()}`);
-  const steps = document ? checkSteps(document) : [];
   const who = document ? studentsLine(document.students) : null;
   const subtitle = document
     ? [document.type.label, document.isStaffFile ? 'Staff file' : who?.main, `uploaded ${shortDocumentDate(document.uploadedAt)}`].filter(Boolean).join(' · ')
@@ -187,43 +171,11 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
               )}
             </div>
           )}
-          {!document.archived && document.checkStatus === 'RETURNED' && (
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4">
-              <div>
-                <p className="text-[15px] font-extrabold text-rose-800">Returned by the programme coordinator</p>
-                <p className="mt-1 text-[14px] text-rose-800">"{document.checkReason}"{document.checkedBy ? ` ${document.checkedBy}, ${shortDocumentDate(document.checkedAt)}` : ''}</p>
-              </div>
-              {document.permissions.canUploadVersion && document.uploadedBy.isMe && (
-                <PortalButton icon={Upload} onClick={() => setDialog('version')}>Upload corrected file</PortalButton>
-              )}
-            </div>
-          )}
-          {!document.archived && document.checkStatus === 'WAITING' && (
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-              <div>
-                <p className="text-[15px] font-extrabold text-amber-900">{document.permissions.canCheck ? 'Waiting for you to check' : 'Waiting for the programme coordinator to check it'}</p>
-                {document.permissions.canCheck && (document.file?.number ?? 1) > 1 && (
-                  <p className="mt-1 text-[14px] text-amber-900">This is version {document.file?.number}. Earlier versions are listed under Versions.</p>
-                )}
-              </div>
-              {document.permissions.canCheck && (
-                <div className="flex flex-wrap gap-2">
-                  <PortalButton variant="danger" disabled={busy === 'accept'} onClick={() => setDialog('return')}>Return to student</PortalButton>
-                  <PortalButton variant="success" icon={Check} isLoading={busy === 'accept'} onClick={() => void accept()}>Accept</PortalButton>
-                </div>
-              )}
-            </div>
-          )}
 
           <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <DocumentPreview document={document} />
 
             <div className="space-y-5">
-              {steps.length > 0 && !document.archived && (
-                <div className="app-card p-5">
-                  <ApprovalProcess steps={steps} title="Coordinator check" />
-                </div>
-              )}
               <section aria-label="Details" className="app-card space-y-4 p-5">
                 <h2 className="section-label">Details</h2>
                 <dl className="grid gap-4 sm:grid-cols-2">
@@ -250,17 +202,18 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
                 </dl>
               </section>
 
-              <section aria-label="Shared with" className="app-card space-y-3 p-5">
-                <h2 className="section-label">Shared with</h2>
-                <ul className="space-y-2 text-[14px] text-slate-800">
-                  {document.sharedWith.map(person => (
-                    <li key={`${person.name}-${person.role}`}>
-                      {person.name}{person.role && person.role !== 'always' ? <span className="text-slate-500"> ({person.role})</span> : null}
-                    </li>
-                  ))}
-                </ul>
-                {!document.isStaffFile && <p className="text-[12px] text-slate-500">{isStudent ? 'You always see your own uploads.' : 'Students see only the files they upload themselves.'}</p>}
-              </section>
+              {!isStudent && (
+                <section aria-label="Shared with" className="app-card space-y-3 p-5">
+                  <h2 className="section-label">Shared with</h2>
+                  <ul className="space-y-2 text-[14px] text-slate-800">
+                    {document.sharedWith.map(person => (
+                      <li key={`${person.name}-${person.role}`}>
+                        {person.name}{person.role && person.role !== 'always' ? <span className="text-slate-500"> ({person.role})</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
 
               {document.versions.length > 1 && (
                 <section aria-label="Versions" className="app-card space-y-3 p-5">
@@ -312,7 +265,6 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
         <>
           <NewVersionDialog document={document} isOpen={dialog === 'version'} onClose={() => setDialog(null)} onDone={finished} />
           <EditDetailsDialog document={document} isOpen={dialog === 'edit'} onClose={() => setDialog(null)} onDone={finished} />
-          <ReturnDialog document={document} isOpen={dialog === 'return'} onClose={() => setDialog(null)} onDone={finished} />
           <SharingDialog document={document} isOpen={dialog === 'sharing'} onClose={() => setDialog(null)} onDone={finished} />
           <ArchiveDialog document={document} isOpen={dialog === 'archive'} onClose={() => setDialog(null)} onDone={finished} />
         </>

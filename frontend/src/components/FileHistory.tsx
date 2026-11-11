@@ -21,14 +21,12 @@ const SHOW_OPTIONS: Array<{ value: HistoryShow; label: string }> = [
   { value: 'all', label: 'All changes' },
   { value: 'uploads', label: 'Uploads' },
   { value: 'changes', label: 'New versions, edits and sharing' },
-  { value: 'checks', label: 'Accepted and returned' },
   { value: 'archive', label: 'Archived and restored' },
   { value: 'deleted', label: 'Deleted files' },
   { value: 'opened', label: 'Opened and downloaded' },
-  { value: 'settings', label: 'Settings changes' },
 ];
 
-/** The office's record of everything that happened to files and to the File Settings. */
+/** The office's record of everything that happened to files. */
 export const FileHistory: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [show, setShow] = useState<HistoryShow>('all');
   const [search, setSearch] = useState('');

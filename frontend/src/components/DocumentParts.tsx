@@ -7,9 +7,9 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { ChevronDown, Download, MoreHorizontal, Search, X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { FloatingMenu } from './FloatingMenu';
-import type { DocumentAutoTag, DocumentCheckStatus, DocumentKind, TaggableStudent } from '../types';
+import type { DocumentAutoTag, DocumentKind, TaggableStudent } from '../types';
 import { searchTaggableStudents } from '../services/filesApi';
-import { checkChip, KIND_CLASSES, KIND_SHORT } from '../utils/documentDisplay';
+import { KIND_CLASSES, KIND_SHORT } from '../utils/documentDisplay';
 import { tagText } from '../utils/documentTags';
 
 export const KindBadge: React.FC<{ kind: DocumentKind | null | undefined; size?: 'md' | 'lg' }> = ({ kind, size = 'md' }) => (
@@ -20,12 +20,6 @@ export const KindBadge: React.FC<{ kind: DocumentKind | null | undefined; size?:
     {kind ? KIND_SHORT[kind] : 'FILE'}
   </span>
 );
-
-export const CheckChip: React.FC<{ status: DocumentCheckStatus; hideAccepted?: boolean }> = ({ status, hideAccepted = false }) => {
-  const chip = checkChip(status);
-  if (!chip || (hideAccepted && status === 'ACCEPTED')) return null;
-  return <span className={`inline-flex shrink-0 items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${chip.className}`}>{chip.label}</span>;
-};
 
 export const DownloadIconButton: React.FC<{ label: string; busy?: boolean; onClick: () => void }> = ({ label, busy = false, onClick }) => (
   <button type="button" className="icon-button h-10 w-10 shrink-0 disabled:opacity-50" aria-label={label} title={label} disabled={busy} onClick={onClick}>
@@ -131,6 +125,7 @@ export const StudentPicker: React.FC<{
     onChange([...picked, student]);
     setText('');
     setActive(0);
+    setOpen(false);
   };
 
   return (

@@ -4,27 +4,25 @@
  */
 
 // File Management for staff: every file they may see, with the system's tags as
-// one-click filters. Programme coordinators get counts to act on first (files to
-// check, files returned, students still owing a required document).
+// one-click filters, and the dated submissions for coordinators.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, ClipboardCheck, FileSignature, FileStack, History, ListChecks, Plus, RotateCcw, Settings2, SlidersHorizontal, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, CalendarClock, FileSignature, FileStack, History, Plus, SlidersHorizontal, UsersRound, X } from 'lucide-react';
 import type { DocumentAutoTag, DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { getReceivedLetters } from '../services/lettersApi';
 import { APP_ROUTES, routeForDocument, routeForFileLetter } from '../constants/routes';
 import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
-import { checkBadge, shortDocumentDate, studentsLine, uploadedLine } from '../utils/documentDisplay';
+import { shortDocumentDate, studentsLine, uploadedLine } from '../utils/documentDisplay';
 import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
 import { titleCase } from '../utils/programmeLabel';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { PortalSelect } from './PortalSelect';
 import { OfficeToolViews } from './OfficeToolPrimitives';
-import { SummaryCardButton } from './SummaryCardButton';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { AutoTagChips, DownloadIconButton, KindBadge } from './DocumentParts';
-import { RequiredDocuments } from './RequiredDocuments';
+import { SubmissionsBoard } from './SubmissionsBoard';
 import { ReceivedAppointmentLetters } from './ReceivedAppointmentLetters';
 import { WORKSPACE_PAGE_SIZE, WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
 
@@ -36,15 +34,9 @@ const SENDER_LABELS: Record<Exclude<DocumentFilters['sender'], ''>, string> = {
   coordinator: 'Programme coordinators',
   office: 'PG office',
 };
-const STATUS_LABELS: Record<Exclude<DocumentFilters['status'], ''>, string> = {
-  WAITING: 'Waiting for a check',
-  RETURNED: 'Returned',
-  ACCEPTED: 'Accepted',
-  NONE: 'No check needed',
-};
 const KIND_LABELS: Record<Exclude<DocumentFilters['kind'], ''>, string> = { PDF: 'PDF', DOCX: 'Word', IMAGE: 'Photo or scan', XLSX: 'Excel', PPTX: 'PowerPoint' };
 const UPLOADER_LABELS: Record<Exclude<DocumentFilters['uploader'], ''>, string> = { me: 'Me', students: 'Students', staff: 'Staff' };
-const ROW_TAGS: ReadonlyArray<DocumentAutoTag['kind']> = ['category', 'required', 'semester', 'from'];
+const ROW_TAGS: ReadonlyArray<DocumentAutoTag['kind']> = ['category', 'semester', 'from'];
 
 const ArchivedBadge: React.FC = () => <StatusBadge tone="neutral" dot>Archived</StatusBadge>;
 
@@ -100,7 +92,7 @@ export const FileRepository: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    if (filters.view === 'required' || filters.view === 'letters') {
+    if (filters.view === 'submissions' || filters.view === 'letters') {
       setRows([]);
       setLoadedKey(listKey);
       return;
@@ -189,7 +181,7 @@ export const FileRepository: React.FC = () => {
   };
 
   const isOffice = Boolean(options?.isOffice);
-  const canCheck = Boolean(options?.canCheck);
+  const canSeeArchived = Boolean(options?.canSeeArchived);
   const from = `${location.pathname}${location.search}`;
   const groupLabel = (value: string) => options?.groups.find(group => group.value === value)?.label ?? value;
   const semesterLabel = (value: string) => (value === 'none' ? 'Not linked to a semester' : options?.semesters?.find(item => String(item.id) === value)?.label ?? value);
@@ -197,13 +189,11 @@ export const FileRepository: React.FC = () => {
   const chip = (key: keyof DocumentFilters, label: string) => (filters[key] ? [{ key, label }] : []);
   const applied: Array<{ key: keyof DocumentFilters; label: string }> = [
     ...chip('group', groupLabel(filters.group)),
-    ...chip('required', 'Required documents'),
     ...chip('programme', titleCase(filters.programme)),
     ...chip('intake', `Intake ${filters.intake}`),
     ...chip('semester', semesterLabel(filters.semester)),
     ...chip('sender', filters.sender ? `From ${SENDER_LABELS[filters.sender]}` : ''),
     ...chip('type', typeLabel(filters.type)),
-    ...chip('status', filters.status ? STATUS_LABELS[filters.status] : ''),
     ...chip('kind', filters.kind ? KIND_LABELS[filters.kind] : ''),
     ...chip('uploader', filters.uploader ? `Uploaded by ${UPLOADER_LABELS[filters.uploader].toLowerCase()}` : ''),
     ...chip('from', `From ${shortDocumentDate(filters.from)}`),
@@ -220,30 +210,9 @@ export const FileRepository: React.FC = () => {
     : APP_ROUTES.filesUpload;
   const pageCount = Math.max(1, Math.ceil(count / pageSize));
 
-  const summaryCards = [
-    ...(canCheck
-      ? [
-          { key: 'check', title: 'To check', value: summary?.toCheck, caption: 'files', description: 'Waiting for you.', icon: ClipboardCheck, tone: 'warning' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'check' }) },
-          { key: 'returned', title: 'Returned', value: summary?.returned, caption: 'files', description: 'Waiting for the student.', icon: RotateCcw, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all', status: 'RETURNED', programme: '' }) },
-        ]
-      : []),
-    ...(options?.canSeeRequired
-      ? [{ key: 'required', title: 'Still to hand in', value: summary?.studentsStillToHandIn, caption: 'students', description: 'Owe a required document.', icon: UsersRound, tone: 'danger' as const, open: () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'required' }) }]
-      : []),
-  ];
-  const cardSelected = (key: string) =>
-    (key === 'check' && filters.view === 'check') || (key === 'required' && filters.view === 'required') || (key === 'returned' && filters.view === 'all' && filters.status === 'RETURNED');
-
-  const columns = filters.student ? ['File', 'Uploaded', 'Status', 'Action'] : ['File', 'Student', 'Uploaded', 'Status', 'Action'];
-  const widths = filters.student ? [50, 18, 18, 14] : [35, 20, 14, 17, 14];
-  const heading =
-    filters.view === 'check' ? 'Waiting for a check' : filters.view === 'staff' ? 'Staff files' : filters.student ? 'Their files' : 'All files';
-  const headingNote =
-    filters.view === 'check'
-      ? 'Open one to accept it, or return it with a reason.'
-      : filters.view === 'staff'
-        ? 'Files not about any student, such as rubrics and meeting notes.'
-        : 'Click a tag on any file to see every file with that tag.';
+  const columns = filters.student ? ['File', 'Uploaded', 'Action'] : ['File', 'Student', 'Uploaded', 'Action'];
+  const widths = filters.student ? [60, 24, 16] : [42, 24, 18, 16];
+  const heading = filters.view === 'staff' ? 'Staff files' : filters.student ? 'Their files' : 'All files';
 
   return (
     <div className="space-y-6">
@@ -252,7 +221,6 @@ export const FileRepository: React.FC = () => {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {isOffice && <PortalButton icon={History} onClick={() => navigate(APP_ROUTES.filesHistory)}>History</PortalButton>}
-            {options?.canManageTypes && <PortalButton icon={Settings2} onClick={() => navigate(APP_ROUTES.filesSettings)}>Settings</PortalButton>}
             <PortalButton variant="primary" icon={Plus} onClick={() => navigate(uploadPath)}>Upload file</PortalButton>
           </div>
         }
@@ -290,45 +258,12 @@ export const FileRepository: React.FC = () => {
                     </dd>
                   </div>
                 )}
-                {student.required && student.required.length > 0 && (
-                  <div>
-                    <dt className="text-slate-500">Required documents</dt>
-                    <dd className="font-bold text-slate-800">
-                      {student.required.filter(item => item.state === 'DONE').length} of {student.required.length} handed in
-                      {student.required.some(item => item.state === 'MISSING' || item.state === 'RETURNED') && (
-                        <span className="block text-[12px] font-semibold text-rose-700">
-                          Still to hand in: {student.required.filter(item => item.state === 'MISSING' || item.state === 'RETURNED').map(item => item.label).join(', ')}
-                        </span>
-                      )}
-                    </dd>
-                  </div>
-                )}
               </dl>
             )}
           </section>
         </div>
       ) : (
         <>
-          {summaryCards.length > 0 && (
-            <div className={`grid gap-4 ${summaryCards.length >= 3 ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-              {summaryCards.map(card => {
-                const on = cardSelected(card.key);
-                return (
-                  <SummaryCardButton
-                    key={card.key}
-                    title={card.title}
-                    value={card.value ?? '-'}
-                    caption={card.caption}
-                    description={card.description}
-                    icon={card.icon}
-                    tone={card.tone}
-                    selected={on}
-                    onClick={on ? () => update({ ...EMPTY_DOCUMENT_FILTERS, view: 'all' }) : card.open}
-                  />
-                );
-              })}
-            </div>
-          )}
           <OfficeToolViews<DocumentFilters['view']>
             label="File views"
             appearance="workspace"
@@ -336,8 +271,7 @@ export const FileRepository: React.FC = () => {
             onChange={view => update({ view })}
             options={[
               { value: 'all', label: 'All files', icon: FileStack },
-              ...(canCheck ? [{ value: 'check' as const, label: `To check (${summary?.toCheck ?? 0})`, icon: ClipboardCheck }] : []),
-              ...(options?.canSeeRequired ? [{ value: 'required' as const, label: 'Required documents', icon: ListChecks }] : []),
+              ...(options?.canSeeSubmissions ? [{ value: 'submissions' as const, label: 'Submissions', icon: CalendarClock }] : []),
               { value: 'staff', label: 'Staff files', icon: UsersRound },
               ...(lecturerView ? [{ value: 'letters' as const, label: 'Appointment letters', icon: FileSignature }] : []),
             ]}
@@ -345,15 +279,14 @@ export const FileRepository: React.FC = () => {
         </>
       )}
 
-      {filters.view === 'required' && !filters.student ? (
-        <RequiredDocuments canManageTypes={Boolean(options?.canManageTypes)} />
+      {filters.view === 'submissions' && !filters.student ? (
+        <SubmissionsBoard />
       ) : filters.view === 'letters' && !filters.student ? (
         lecturerView ? <ReceivedAppointmentLetters /> : null
       ) : (
         <section aria-label="Files" className="app-card appointment-workspace-card">
           <WorkspaceSectionHeader
             title={heading}
-            description={headingNote}
             actions={selecting ? (
               <>
                 <span className="text-[13px] font-bold text-slate-700">{selected.length} selected</span>
@@ -433,13 +366,6 @@ export const FileRepository: React.FC = () => {
                   </PortalSelect>
                 </label>
                 <label className="form-label">
-                  Status
-                  <PortalSelect className="form-control form-control-sm mt-1" value={filters.status} onChange={event => update({ status: event.target.value as DocumentFilters['status'] })}>
-                    <option value="">Any status</option>
-                    {(Object.keys(STATUS_LABELS) as Array<keyof typeof STATUS_LABELS>).map(value => <option key={value} value={value}>{STATUS_LABELS[value]}</option>)}
-                  </PortalSelect>
-                </label>
-                <label className="form-label">
                   File
                   <PortalSelect className="form-control form-control-sm mt-1" value={filters.kind} onChange={event => update({ kind: event.target.value as DocumentFilters['kind'] })}>
                     <option value="">Any kind</option>
@@ -461,7 +387,7 @@ export const FileRepository: React.FC = () => {
                   Uploaded to
                   <input type="date" value={filters.to} onChange={event => update({ to: event.target.value })} className="form-control form-control-sm mt-1" />
                 </label>
-                {(isOffice || canCheck) && (
+                {canSeeArchived && (
                   <label className="form-label">
                     Show
                     <PortalSelect className="form-control form-control-sm mt-1" value={filters.archived} onChange={event => update({ archived: event.target.value as DocumentFilters['archived'] })}>
@@ -498,7 +424,7 @@ export const FileRepository: React.FC = () => {
             <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />
           ) : !rows.length ? (
             <EmptyState
-              title={applied.length || filters.q ? 'No files match these filters.' : filters.view === 'check' ? 'Nothing is waiting for a check.' : 'No files yet.'}
+              title={applied.length || filters.q ? 'No files match these filters.' : 'No files yet.'}
               description={applied.length || filters.q ? 'Remove a filter above, or clear them all.' : 'Files you upload, or that are shared with you, appear here.'}
             />
           ) : (
@@ -514,7 +440,6 @@ export const FileRepository: React.FC = () => {
                   {rows.map(document => {
                     const who = studentsLine(document.students);
                     const first = document.students[0];
-                    const badge = checkBadge(document.checkStatus);
                     return (
                       <tr key={document.id} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 py-2 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-0">
                         <td className="data-td-strong col-span-2 block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
@@ -534,6 +459,7 @@ export const FileRepository: React.FC = () => {
                                 <Link to={routeForDocument(document.id)} state={{ from }} className="block truncate text-[14px] font-bold text-brand-navy hover:underline">{document.title}</Link>
                                 <p className="truncate text-[12px] font-normal text-slate-500">{document.type.label}</p>
                               </div>
+                              {document.archived && <ArchivedBadge />}
                               <AutoTagChips tags={document.autoTags.filter(tag => ROW_TAGS.includes(tag.kind))} onPick={tag => update(tag.filter)} />
                             </div>
                           </div>
@@ -559,16 +485,8 @@ export const FileRepository: React.FC = () => {
                           <p className="card-caption mt-0.5 truncate">{uploadedLine(document.uploadedBy.name, document.uploadedBy.isMe)}</p>
                         </td>
                         <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
-                          <span className="card-label mb-1 block lg:hidden">Status</span>
-                          {document.archived ? <ArchivedBadge /> : badge ? <StatusBadge tone={badge.tone} dot className="whitespace-nowrap">{badge.label}</StatusBadge> : <span className="text-[12.5px] text-slate-400">No check needed</span>}
-                        </td>
-                        <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
                           <div className="flex items-center gap-2">
-                            {document.checkStatus === 'WAITING' && document.permissions.canCheck ? (
-                              <PortalButton size="sm" variant="primary" className="whitespace-nowrap" aria-label={`Review ${document.title}`} onClick={() => navigate(routeForDocument(document.id), { state: { from } })}>Review</PortalButton>
-                            ) : (
-                              <PortalButton size="sm" className="whitespace-nowrap" aria-label={`Open ${document.title}`} onClick={() => navigate(routeForDocument(document.id), { state: { from } })}>Open</PortalButton>
-                            )}
+                            <PortalButton size="sm" className="whitespace-nowrap" aria-label={`Open ${document.title}`} onClick={() => navigate(routeForDocument(document.id), { state: { from } })}>Open</PortalButton>
                             <DownloadIconButton label={`Download ${document.title}`} busy={downloading === document.id} onClick={() => void download(document)} />
                           </div>
                         </td>

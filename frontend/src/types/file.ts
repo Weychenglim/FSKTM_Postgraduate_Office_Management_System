@@ -6,7 +6,6 @@
 // File Management (UC24 to UC27): official documents linked to student records.
 
 export type DocumentKind = 'PDF' | 'DOCX' | 'IMAGE' | 'XLSX' | 'PPTX';
-export type DocumentCheckStatus = 'NONE' | 'WAITING' | 'ACCEPTED' | 'RETURNED';
 export type StaffAudience = 'ACADEMIC' | 'COORDINATORS' | 'OFFICE';
 export type DocumentTypeKind = 'STUDENT' | 'STAFF' | 'BOTH';
 export type DocumentUploaderRole = 'STUDENT' | 'SUPERVISOR' | 'PANEL' | 'COORDINATOR' | 'LECTURER';
@@ -23,11 +22,7 @@ export interface DocumentTypeOption {
   shareSupervisors: boolean;
   sharePanel: boolean;
   shareCoordinator: boolean;
-  needsCheck: boolean;
   onePerStudent: boolean;
-  required: boolean;
-  requiredDueNote: string;
-  requiredProgrammes: string[];
   isActive: boolean;
 }
 
@@ -38,15 +33,14 @@ export interface DocumentOptions {
   maxBytes: number;
   isOffice: boolean;
   canUploadStaffFiles: boolean;
-  canSeeRequired: boolean;
-  canManageTypes: boolean;
-  canCheck: boolean;
+  canSeeSubmissions?: boolean;
+  canSeeArchived?: boolean;
   semesters?: Array<{ id: number; label: string }>;
   programmes?: string[];
   intakes?: string[];
   audiences?: Array<{ value: StaffAudience; label: string }>;
   /** A student's own record, for the summary beside their upload. */
-  me?: { programme: string; intake: string; supervisors: string[]; panel: string[]; coordinators: string[] };
+  me?: { programme: string; intake: string; stage: '' | 'P1' | 'P2' };
 }
 
 export interface DocumentStudentRef {
@@ -76,19 +70,18 @@ export interface DocumentPermissions {
   canUploadVersion: boolean;
   canEdit: boolean;
   canChangeSharing: boolean;
-  canCheck: boolean;
   canArchive: boolean;
   canRestore: boolean;
 }
 
-export type DocumentAutoTagKind = 'category' | 'required' | 'semester' | 'from' | 'programme' | 'intake';
+export type DocumentAutoTagKind = 'category' | 'semester' | 'from' | 'programme' | 'intake';
 export type DocumentSender = 'student' | 'lecturer' | 'coordinator' | 'office';
 
 /** A tag the system gives a file; `filter` is what clicking it filters the list by. */
 export interface DocumentAutoTag {
   kind: DocumentAutoTagKind;
   label: string;
-  filter: Partial<Pick<DocumentFilters, 'group' | 'required' | 'semester' | 'sender' | 'programme' | 'intake'>>;
+  filter: Partial<Pick<DocumentFilters, 'group' | 'semester' | 'sender' | 'programme' | 'intake'>>;
 }
 
 export interface PortalDocument {
@@ -109,11 +102,6 @@ export interface PortalDocument {
   semester: { id: number; label: string } | null;
   uploadedBy: { name: string; role: string; roleLabel: string; isMe: boolean };
   uploadedAt: string;
-  checkStatus: DocumentCheckStatus;
-  checkStatusLabel: string;
-  checkReason: string;
-  checkedBy: string;
-  checkedAt: string | null;
   file: DocumentFileInfo | null;
   archived: boolean;
   archivedAt: string | null;
@@ -139,10 +127,7 @@ export interface DocumentSummary {
   all: number;
   staffFiles: number;
   mine: number;
-  toCheck?: number;
-  returned?: number;
   archived?: number;
-  studentsStillToHandIn?: number;
   toDo?: number;
 }
 
@@ -167,10 +152,9 @@ export interface StudentFileHeader {
   supervisors: string[];
   panel: string[];
   letters: number | null;
-  required?: Array<{ label: string; state: RequiredState }> | null;
 }
 
-export type DocumentView = 'all' | 'check' | 'staff' | 'mine' | 'required' | 'letters';
+export type DocumentView = 'all' | 'staff' | 'mine' | 'submissions' | 'letters';
 
 export interface DocumentFilters {
   view: DocumentView;
@@ -183,8 +167,6 @@ export interface DocumentFilters {
   student: string;
   uploader: '' | 'me' | 'students' | 'staff';
   sender: '' | DocumentSender;
-  required: '' | '1';
-  status: '' | DocumentCheckStatus;
   kind: '' | DocumentKind;
   from: string;
   to: string;
@@ -198,72 +180,22 @@ export interface DocumentUploadInput {
   description: string;
   semester: string;
   students: string[];
-  share?: DocumentSharing;
   audience?: StaffAudience;
   programmes?: string[];
   acknowledgeWarnings?: boolean;
 }
 
-export interface DocumentTypeSetting extends DocumentTypeOption {
-  id: number;
-  files: number;
-  studentUploads: number;
-  waiting: number;
-  updatedFiles?: number;
-}
-
-export interface DocumentTypeSettings {
-  types: DocumentTypeSetting[];
-  groups: Array<{ value: string; label: string }>;
-  kindUploaders: Record<DocumentTypeKind, DocumentUploaderRole[]>;
-  programmes: string[];
-}
-
-export interface DocumentTypeInput {
-  label: string;
-  description: string;
-  group: string;
-  kind: DocumentTypeKind;
-  uploaders: DocumentUploaderRole[];
-  shareSupervisors: boolean;
-  sharePanel: boolean;
-  shareCoordinator: boolean;
-  needsCheck: boolean;
-  onePerStudent: boolean;
-  required: boolean;
-  requiredDueNote: string;
-  requiredProgrammes: string[];
-  isActive: boolean;
-}
-
-export interface SharingPerson {
-  name: string;
-  role: string;
-}
-
-export interface StudentFileSharingOptions {
-  isStaffFile: false;
-  coordinatorChecks: boolean;
-  share: DocumentSharing;
-  followsType: boolean;
-  people: Record<keyof DocumentSharing, SharingPerson[]>;
-}
-
-export interface StaffFileSharingOptions {
-  isStaffFile: true;
+/** Who sees a staff file. A student file is seen by whoever its type names. */
+export interface DocumentSharingOptions {
   audience: StaffAudience;
   programmes: string[];
   audiences: Array<{ value: StaffAudience; label: string }>;
   allProgrammes: string[];
 }
 
-export type DocumentSharingOptions = StudentFileSharingOptions | StaffFileSharingOptions;
+export type DocumentSharingChange = { audience: StaffAudience; programmes: string[] };
 
-export const isStaffFileSharing = (options: DocumentSharingOptions): options is StaffFileSharingOptions => options.isStaffFile === true;
-
-export type DocumentSharingChange = DocumentSharing | { audience: StaffAudience; programmes: string[] };
-
-export type HistoryShow = 'all' | 'uploads' | 'changes' | 'checks' | 'archive' | 'deleted' | 'opened' | 'settings';
+export type HistoryShow = 'all' | 'uploads' | 'changes' | 'archive' | 'deleted' | 'opened';
 
 export interface HistoryEntry {
   id: string;
@@ -285,41 +217,3 @@ export interface HistoryPage {
   results: HistoryEntry[];
 }
 
-export type RequiredState = 'DONE' | 'WAITING' | 'RETURNED' | 'MISSING';
-export type RequiredShow = 'todo' | 'waiting' | 'done';
-
-export interface RequiredTypeProgress {
-  id: number;
-  code: string;
-  label: string;
-  dueNote: string;
-  programmes: string[];
-  students: number;
-  done: number;
-  waiting: number;
-  returned: number;
-  missing: number;
-  lastReminder: { at: string; by: string; students: number } | null;
-  remindedToday: boolean;
-}
-
-export interface RequiredOverview {
-  types: RequiredTypeProgress[];
-  canRemind: boolean;
-}
-
-export interface RequiredStudent {
-  matric: string;
-  name: string;
-  programme: string;
-  state: RequiredState;
-  documentId: number | null;
-}
-
-export interface MyRequiredDocument {
-  code: string;
-  label: string;
-  dueNote: string;
-  state: RequiredState;
-  documentId: number | null;
-}

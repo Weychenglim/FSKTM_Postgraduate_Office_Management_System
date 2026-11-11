@@ -10,8 +10,6 @@ from academics.services import activate_semester
 from accounts.eligibility import student_is_workflow_eligible
 from accounts.models import (
     ParticipantLifecycleAudit,
-    ProjectRegistration,
-    ProjectRegistrationChange,
     SenateDecision,
     Student,
     StudentCompletion,
@@ -19,24 +17,10 @@ from accounts.models import (
     StudentSemesterMove,
     User,
 )
-from accounts.project_stages import (
-    CONFIRMED,
-    FINISHED,
-    NO_PROJECT,
-    NOT_CONFIRMED,
-    NOT_STUDYING,
-    ON_LEAVE,
-    UNREGISTERED,
-    confirm_stages,
-    correct_stage,
-    project_stages,
-    suggestions,
-)
 from accounts.retention import due_for_removal
 from accounts.semester_rules import limit_warnings, progress_of, shown_status
 from accounts.test_registry_semesters import make_student, semesters_for
 from academics.test_capacity_helpers import publish_test_capacity_plan
-from appointments.models import SupervisorAppointment, SupervisorApplication
 
 Outcome = StudentSemester.Outcome
 THREE = ("Semester I, 2026/2027", "Semester II, 2026/2027", "Special Semester, 2026/2027")
@@ -273,11 +257,6 @@ class SpecialSemesterInBetweenTests(APITestCase):
         self.assertEqual(len(result.data["finished"]), 1, result.data)
         self.assertFalse(student.semesters.filter(session="2026/2027").exists())
 
-    def test_p1_before_it_still_suggests_p2(self):
-        student = make_student("SB2", intake="2025/2026 Semester I")
-        ProjectRegistration.objects.create(student=student, academic_semester=self.normal, stage="P1", confirmed_by=self.office)
-        self.assertEqual(suggestions(self.portal, [student.pk]), {student.pk: "P2"})
-
 
 class ActivationTests(APITestCase):
     @classmethod
@@ -355,136 +334,6 @@ class LimitWarningTests(Base):
         semesters_for(student, "Semester I, 2026/2027", "Semester II, 2026/2027", outcome=Outcome.NOT_REGISTERED)
         data = self.client.get("/api/registry/semester-move/").data
         self.assertEqual([row["matric"] for row in data["attention"]], ["LW3"])
-
-
-class ProjectStageTests(Base):
-    def setUp(self):
-        super().setUp()
-        self.student = make_student("PS1")
-        semesters_for(self.student, THREE[2])
-
-    def stage(self):
-        return project_stages(self.portal, [self.student.pk])[self.student.pk]
-
-    def confirm(self, stage="P1"):
-        return confirm_stages(self.portal, [(self.student.matric_no, stage)], self.office)
-
-    def test_nothing_confirmed_means_not_confirmed_and_every_id_gets_an_answer(self):
-        other = make_student("PS2")
-        answers = project_stages(self.portal, [self.student.pk, other.pk])
-        self.assertEqual({row.state for row in answers.values()}, {NOT_CONFIRMED})
-        self.assertEqual(len(answers), 2)
-
-    def test_confirming_gives_the_stage(self):
-        self.confirm("P2")
-        stage = self.stage()
-        self.assertEqual((stage.state, stage.stage, stage.revision), (CONFIRMED, "P2", 1))
-
-    def test_no_project_is_its_own_answer(self):
-        self.confirm("NONE")
-        self.assertEqual((self.stage().state, self.stage().stage), (NO_PROJECT, None))
-
-    def test_leave_wins_over_a_confirmed_stage(self):
-        self.confirm("P1")
-        StudentSemester.objects.filter(student=self.student).update(outcome=Outcome.LEAVE)
-        self.assertEqual((self.stage().state, self.stage().reason), (NOT_STUDYING, ON_LEAVE))
-
-    def test_leave_now_only_counts_for_the_active_semester(self):
-        before = make_semester(self.office, "2026/2027", "SEMESTER_II", active=False, days=-120)
-        ProjectRegistration.objects.create(student=self.student, academic_semester=before, stage="P2", confirmed_by=self.office)
-        Student.objects.filter(pk=self.student.pk).update(status=Student.Status.DEFERRED)
-        answer = project_stages(before, [self.student.pk])[self.student.pk]
-        self.assertEqual((answer.state, answer.stage), (CONFIRMED, "P2"))
-        self.assertEqual((self.stage().state, self.stage().reason), (NOT_STUDYING, ON_LEAVE))
-
-    def test_not_registered_is_not_studying(self):
-        StudentSemester.objects.filter(student=self.student).update(outcome=Outcome.NOT_REGISTERED)
-        self.assertEqual((self.stage().state, self.stage().reason), (NOT_STUDYING, UNREGISTERED))
-
-    def test_waiting_for_the_senate_is_not_studying_in_a_later_semester(self):
-        StudentCompletion.objects.create(student=self.student, last_session="2026/2027", last_term="SEMESTER_II")
-        self.assertEqual((self.stage().state, self.stage().reason), (NOT_STUDYING, FINISHED))
-
-    def test_the_finished_semester_itself_still_answers(self):
-        self.confirm("P2")
-        StudentCompletion.objects.create(student=self.student, last_session=ACTIVE_SESSION, last_term=ACTIVE_TERM)
-        self.assertEqual(self.stage().state, CONFIRMED)
-
-    def test_a_suggestion_is_never_returned_by_the_lookup(self):
-        before = make_semester(self.office, "2026/2027", "SEMESTER_II", active=False, days=-120)
-        ProjectRegistration.objects.create(student=self.student, academic_semester=before, stage="P1", confirmed_by=self.office)
-        self.assertEqual(suggestions(self.portal, [self.student.pk]), {self.student.pk: "P2"})
-        self.assertEqual(self.stage().state, NOT_CONFIRMED)
-
-    def test_the_first_approved_request_suggests_p1(self):
-        supervisor = User.objects.create_user(email="sv@example.test", password="pw", full_name="Sup", role=User.Role.LECTURER)
-        SupervisorApplication.objects.create(student=self.student, academic_semester=self.portal, proposed_supervisor=supervisor, research_title="T", research_abstract="A", status="APPROVED")
-        self.assertEqual(suggestions(self.portal, [self.student.pk]), {self.student.pk: "P1"})
-
-    def test_a_confirmed_stage_goes_through_a_correction_with_history(self):
-        self.confirm("P1")
-        self.assertEqual(self.confirm("P2")["skipped"][0]["why"], "Already confirmed.")
-        record = correct_stage(self.student, self.portal, new_stage="P2", reason="Wrong list", actor=self.office, revision=1, acknowledged=False)
-        self.assertEqual((record.stage, record.revision), ("P2", 2))
-        changes = list(ProjectRegistrationChange.objects.order_by("id"))
-        self.assertEqual([(row.previous_stage, row.new_stage) for row in changes], [("", "P1"), ("P1", "P2")])
-
-    def test_a_stale_correction_is_refused(self):
-        from accounts.project_stages import StageConflict
-
-        self.confirm("P1")
-        with self.assertRaises(StageConflict):
-            correct_stage(self.student, self.portal, new_stage="P2", reason="x", actor=self.office, revision=5, acknowledged=False)
-
-    def test_voiding_makes_it_not_confirmed_again(self):
-        self.confirm("P1")
-        correct_stage(self.student, self.portal, new_stage="VOID", reason="By mistake", actor=self.office, revision=1, acknowledged=False)
-        self.assertEqual(self.stage().state, NOT_CONFIRMED)
-        self.assertEqual(self.confirm("P2")["confirmed"], [self.student.matric_no])
-
-    def test_history_cannot_be_changed(self):
-        self.confirm("P1")
-        row = ProjectRegistrationChange.objects.get()
-        with self.assertRaises(PermissionError):
-            row.delete()
-        with self.assertRaises(PermissionError):
-            ProjectRegistrationChange.objects.all().update(reason="x")
-
-    def test_the_page_lists_appointed_students_and_counts_the_rest(self):
-        supervisor = User.objects.create_user(email="sv@example.test", password="pw", full_name="Sup", role=User.Role.LECTURER)
-        application = SupervisorApplication.objects.create(student=self.student, proposed_supervisor=supervisor, research_title="T", research_abstract="A", status="APPROVED")
-        SupervisorAppointment.objects.create(application=application, student=self.student, supervisor=supervisor, approved_by=self.office)
-        make_student("PS3")
-        data = self.client.get("/api/registry/project-stages/").data
-        self.assertEqual([(row["matric"], row["attention"], row["suggested"]) for row in data["toConfirm"]], [("PS1", True, "")])
-        self.assertEqual(data["noActivity"], 1)
-        saved = self.client.post("/api/registry/project-stages/", {"semesterId": self.portal.pk, "items": [{"matric": "PS1", "stage": "P1"}]}, format="json")
-        self.assertEqual(saved.data["confirmed"], ["PS1"])
-        again = self.client.get("/api/registry/project-stages/").data
-        self.assertEqual([row["stage"] for row in again["confirmed"]], ["P1"])
-
-    def test_a_student_marked_as_finished_stays_on_the_page_for_their_last_semester(self):
-        supervisor = User.objects.create_user(email="sv@example.test", password="pw", full_name="Sup", role=User.Role.LECTURER)
-        application = SupervisorApplication.objects.create(student=self.student, proposed_supervisor=supervisor, research_title="T", research_abstract="A", status="APPROVED")
-        SupervisorAppointment.objects.create(application=application, student=self.student, supervisor=supervisor, approved_by=self.office)
-        StudentCompletion.objects.create(student=self.student, last_session=ACTIVE_SESSION, last_term=ACTIVE_TERM)
-        data = self.client.get("/api/registry/project-stages/").data
-        self.assertEqual([row["matric"] for row in data["toConfirm"]], ["PS1"])
-
-    def test_a_graduate_stays_on_the_page_for_a_semester_they_were_confirmed_in(self):
-        self.confirm("P2")
-        Student.objects.filter(pk=self.student.pk).update(status=Student.Status.GRADUATED)
-        data = self.client.get("/api/registry/project-stages/").data
-        self.assertEqual([row["matric"] for row in data["confirmed"]], ["PS1"])
-
-    def test_a_matric_in_other_letters_is_found_and_an_unknown_one_is_reported(self):
-        result = confirm_stages(self.portal, [("ps1", "P1"), ("NOBODY", "P1")], self.office)
-        self.assertEqual(result["confirmed"], ["PS1"])
-        self.assertEqual(result["skipped"], [{"matric": "NOBODY", "why": "Not found."}])
-
-    def test_only_the_office_uses_the_page(self):
-        self.client.force_authenticate(self.student.user)
-        self.assertEqual(self.client.get("/api/registry/project-stages/").status_code, 403)
 
 
 class RetentionTests(Base):

@@ -4,10 +4,9 @@ People reach a student's files through real relationships: an active
 supervisor or co-supervisor appointment, an active panel appointment, or
 coordinating the student's programme (acting delegations included). The office
 sees everything but only changes what it uploaded; students see only what they
-uploaded. A programme coordinator checks, archives and restores files about
-students in their programme, and always sees the ones that need a check. A
-programme that no coordinator runs is covered by every coordinator, so no file
-waits for a check that nobody can make.
+uploaded. A programme coordinator archives and restores files about students
+in their programme. A programme that no coordinator runs is covered by every
+coordinator.
 """
 from dataclasses import dataclass, field
 
@@ -45,10 +44,6 @@ def covered_programmes():
     for user in User.objects.filter(is_active=True, role=User.Role.COORDINATOR):
         found.update(programme_key(value) for value in coordinator_programmes(user))
     return found
-
-
-def covering_coordinators():
-    return [user for user in User.objects.filter(is_active=True, role=User.Role.COORDINATOR) if coordinator_programmes(user)]
 
 
 def panel_student_ids(panel_member=None, student_ids=None):
@@ -142,13 +137,10 @@ class Scope:
         return programme in self.coordinated or programme not in self.covered
 
     def coordinates(self, document):
-        """Whether this person checks, archives and restores this file."""
+        """Whether this person archives and restores this file."""
         if document.is_staff_file:
             return False
         return any(self.covers(link.student) for link in document.student_links.all())
-
-    def coordinates_all(self, students):
-        return bool(students) and all(self.covers(student) for student in students)
 
     def covered_q(self, prefix=""):
         """A filter for the students this coordinator looks after."""
@@ -160,7 +152,7 @@ class Scope:
 
         return any_of(self.coordinated) | ~any_of(self.covered)
 
-    def checked_files(self):
+    def covered_files(self):
         """Files about a student this coordinator looks after."""
         return Q(is_staff_file=False, pk__in=DocumentStudent.objects.filter(self.covered_q("student__")).values("document_id"))
 
@@ -226,14 +218,13 @@ def visible_documents(user, scope=None):
 
     condition = Q(uploaded_by=user) | _staff_file_condition(scope)
     if scope.supervisees:
-        condition |= Q(is_staff_file=False, share_supervisors=True) & about(Q(student_id__in=scope.supervisees))
+        condition |= Q(is_staff_file=False, doc_type__share_supervisors=True) & about(Q(student_id__in=scope.supervisees))
     if scope.panel:
-        condition |= Q(is_staff_file=False, share_panel=True) & about(Q(student_id__in=scope.panel))
+        condition |= Q(is_staff_file=False, doc_type__share_panel=True) & about(Q(student_id__in=scope.panel))
     if not scope.coordinated:
         return current.filter(condition)
-    checked_files = scope.checked_files()
-    condition |= scope.programme_files() & Q(share_coordinator=True) | checked_files & ~Q(check_status=Document.CheckStatus.NONE)
-    return documents.filter(Q(archived_at__isnull=True) & condition | Q(archived_at__isnull=False) & condition & checked_files)
+    condition |= scope.programme_files() & Q(doc_type__share_coordinator=True)
+    return documents.filter(Q(archived_at__isnull=True) & condition | Q(archived_at__isnull=False) & condition & scope.covered_files())
 
 
 def can_see(user, document, scope=None):
@@ -244,13 +235,13 @@ def permissions(user, document, scope):
     uploader = document.uploaded_by_id == user.pk
     archived = document.archived_at is not None
     coordinator = scope.coordinates(document)
+    sent_for_submission = user.role == User.Role.STUDENT and getattr(document, "in_submission", False)
     return {
         "canDownload": True,
-        "canDelete": uploader,
+        "canDelete": uploader and not sent_for_submission,
         "canUploadVersion": uploader and not archived,
         "canEdit": uploader and not archived,
-        "canChangeSharing": uploader and user.role != User.Role.STUDENT and not archived,
-        "canCheck": coordinator and not archived and document.check_status == Document.CheckStatus.WAITING,
+        "canChangeSharing": uploader and document.is_staff_file and not archived,
         "canArchive": coordinator and not archived,
         "canRestore": coordinator and archived,
     }
@@ -312,7 +303,7 @@ def people_reached(document, students=None):
 
     students = students if students is not None else list(document.students.select_related("user"))
     ids = {student.user_id for student in students}
-    if document.share_supervisors:
+    if document.doc_type.share_supervisors:
         primary = set(
             SupervisorAppointment.objects.filter(
                 student_id__in=ids, status=SupervisorAppointment.Status.ACTIVE
@@ -321,16 +312,12 @@ def people_reached(document, students=None):
         users = User.objects.in_bulk({lecturer for _, lecturer in supervisors_of(ids)})
         for user_id, user in users.items():
             add(user, "supervisor" if user_id in primary else "co-supervisor")
-    if document.share_panel:
+    if document.doc_type.share_panel:
         users = User.objects.in_bulk({member for _, member in panel_student_ids(student_ids=ids)})
         for user in users.values():
             add(user, "panel member")
-    checked = document.check_status != Document.CheckStatus.NONE
-    if document.share_coordinator or checked:
+    if document.doc_type.share_coordinator:
         for programme in {programme_key(student.programme) for student in students}:
-            coordinators = list(programme_coordinators(programme)) if programme else []
-            if not coordinators and checked:
-                coordinators = covering_coordinators()
-            for user in coordinators:
+            for user in programme_coordinators(programme) if programme else []:
                 add(user, "programme coordinator")
     return list(reached.values())

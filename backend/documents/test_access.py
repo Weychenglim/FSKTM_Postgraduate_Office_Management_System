@@ -36,11 +36,11 @@ class WhoSeesWhatTests(DocumentPeople, DocumentClient, APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.thesis = self.made(self.ali.user, "thesis", "Ali thesis")
-        self.letter = self.made(self.ali.user, "letter", "Ali sponsor letter", name="letter.png", content=image_bytes("PNG"))
+        self.thesis = self.made(self.ali.user, "final-research-report", "Ali thesis")
+        self.letter = self.made(self.ali.user, "supporting-document", "Ali medical letter", name="letter.png", content=image_bytes("PNG"))
         self.evaluation = self.made(
-            self.supervisor, "evaluation-form", "Joint evaluation",
-            students=[self.ali.matric_no, self.bella.matric_no], sharePanel="false",
+            self.supervisor, "supporting-document", "Joint evaluation",
+            students=[self.ali.matric_no, self.bella.matric_no],
         )
         self.everyone = self.made(self.coordinator, "staff-document", "Rubric for all")
         self.cs_coordinators = self.made(self.office, "staff-document", "CS coordinators memo", audience="COORDINATORS", programmes=[CS])
@@ -49,17 +49,17 @@ class WhoSeesWhatTests(DocumentPeople, DocumentClient, APITestCase):
 
     def test_each_person_sees_only_what_their_relationships_allow(self):
         all_titles = {
-            "Ali thesis", "Ali sponsor letter", "Joint evaluation", "Rubric for all",
+            "Ali thesis", "Ali medical letter", "Joint evaluation", "Rubric for all",
             "CS coordinators memo", "AI lecturers memo", "Supervisor note to office",
         }
         self.assertEqual(self.titles(self.office), all_titles)
-        self.assertEqual(self.titles(self.ali.user), {"Ali thesis", "Ali sponsor letter"})
+        self.assertEqual(self.titles(self.ali.user), {"Ali thesis", "Ali medical letter"})
         self.assertEqual(self.titles(self.bella.user), set())
         self.assertEqual(
             self.titles(self.supervisor),
-            {"Ali thesis", "Joint evaluation", "Rubric for all", "Supervisor note to office"},
+            {"Ali thesis", "Ali medical letter", "Joint evaluation", "Rubric for all", "Supervisor note to office"},
         )
-        self.assertEqual(self.titles(self.co_supervisor), {"Ali thesis", "Joint evaluation", "Rubric for all"})
+        self.assertEqual(self.titles(self.co_supervisor), {"Ali thesis", "Ali medical letter", "Joint evaluation", "Rubric for all"})
         self.assertEqual(self.titles(self.panel), {"Ali thesis", "Rubric for all"})
         self.assertEqual(self.titles(self.coordinator), {"Joint evaluation", "Rubric for all", "CS coordinators memo"})
         self.assertEqual(self.titles(self.outsider), {"Rubric for all"})
@@ -76,18 +76,18 @@ class WhoSeesWhatTests(DocumentPeople, DocumentClient, APITestCase):
             status=CoSupervisorAppointment.Status.ENDED, ended_at=timezone.now()
         )
         self.assertEqual(self.titles(self.co_supervisor), {"Rubric for all"})
-        mine = self.made(self.panel, "evaluation-form", "Panel own upload", students=[self.ali.matric_no])
+        mine = self.made(self.panel, "supporting-document", "Panel own upload", students=[self.ali.matric_no])
         PanelAppointment.objects.filter(panel_member=self.panel).update(status=PanelAppointment.Status.ENDED)
         self.assertEqual(self.titles(self.panel), {"Rubric for all", mine["title"]})
 
     def test_panel_access_through_a_matric_only_profile(self):
         self.give_panel(self.chen, self.outsider, linked=False)
-        self.made(self.chen.user, "thesis", "Chen thesis")
+        self.made(self.chen.user, "final-research-report", "Chen thesis")
         self.assertIn("Chen thesis", self.titles(self.outsider))
 
     def test_acting_coordinators_see_while_the_delegation_lasts(self):
         today = timezone.localdate()
-        self.made(self.chen.user, "thesis", "Chen thesis")
+        self.made(self.chen.user, "final-research-report", "Chen thesis")
         CoordinatorDelegation.objects.create(
             coordinator=self.coordinator, programme=self.chen.programme, starts_on=today - timedelta(days=5),
             ends_on=today - timedelta(days=1), justification="Old cover", granted_by=self.office,
@@ -107,6 +107,9 @@ class WhoSeesWhatTests(DocumentPeople, DocumentClient, APITestCase):
             {("PG office", "always"), ("Dr Supervisor", "supervisor"), ("Dr Co", "co-supervisor"), ("Dr Panel", "panel member")},
         )
         letter = self.client.get(f"/api/documents/{self.letter['id']}/").data
-        self.assertEqual(letter["sharedWith"], [{"name": "PG office", "role": "always"}])
+        self.assertEqual(
+            {(person["name"], person["role"]) for person in letter["sharedWith"]},
+            {("PG office", "always"), ("Dr Supervisor", "supervisor"), ("Dr Co", "co-supervisor")},
+        )
         rubric = self.client.get(f"/api/documents/{self.everyone['id']}/").data
         self.assertEqual(rubric["sharedWith"][1]["name"], "All lecturers and coordinators")
