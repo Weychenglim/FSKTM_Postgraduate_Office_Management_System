@@ -1,17 +1,10 @@
-import type { DocumentSharing, DocumentTypeOption, SharingPerson, StaffAudience, TaggableStudent } from '../types';
+import type { DocumentSharing, DocumentTypeOption, StaffAudience, TaggableStudent } from '../types';
 
-export const STAFF_AUDIENCES: Array<{ value: StaffAudience; label: string; hint: string }> = [
-  { value: 'ACADEMIC', label: 'All lecturers and coordinators', hint: 'Everyone on the academic staff' },
-  { value: 'COORDINATORS', label: 'Programme coordinators only', hint: 'Acting coordinators included' },
-  { value: 'OFFICE', label: 'PG office only', hint: 'Only the office and the uploader' },
+export const STAFF_AUDIENCES: Array<{ value: StaffAudience; label: string }> = [
+  { value: 'ACADEMIC', label: 'All lecturers and coordinators' },
+  { value: 'COORDINATORS', label: 'Programme coordinators only' },
+  { value: 'OFFICE', label: 'PG office only' },
 ];
-
-/** "Dr A, Dr B (co-supervisor)" for the people one sharing tick reaches. */
-export function peopleLine(people: SharingPerson[], none: string): string {
-  return people.length
-    ? people.map(person => (person.role === 'co-supervisor' ? `${person.name} (co-supervisor)` : person.name)).join(', ')
-    : none;
-}
 
 export function defaultSharing(type: DocumentTypeOption | null | undefined): DocumentSharing {
   return {
@@ -36,19 +29,6 @@ export function namesOrNone(names: string[], none: string): string {
   return names.length ? names.join(', ') : none;
 }
 
-/** What a student is told before uploading a type. */
-export function studentAudienceSentence(type: DocumentTypeOption | null | undefined): string {
-  if (!type) return '';
-  const people = [
-    type.shareSupervisors ? 'your supervisor' : '',
-    type.sharePanel ? 'your panel member' : '',
-    type.shareCoordinator ? 'your programme coordinator' : '',
-  ].filter(Boolean);
-  if (!people.length) return 'Seen by the PG office only.';
-  const all = ['the PG office', ...people];
-  return `Seen by ${all.slice(0, -1).join(', ')} and ${all[all.length - 1]}.`;
-}
-
 /** Types this staff member may pick: for staff files, or for every picked student through one of their roles. */
 export function staffTypeChoices(
   types: DocumentTypeOption[],
@@ -68,21 +48,6 @@ export function staffTypeChoices(
 }
 
 const named = (names: string[], role: string, missing: string) => (names.length ? `${names.join(', ')} (${role})` : missing);
-
-/** Who will see a student's upload of `type`, by name where the student has them. */
-export function studentReach(
-  type: DocumentTypeOption | null | undefined,
-  me: { supervisors: string[]; panel: string[]; coordinators: string[] } | undefined,
-): string[] {
-  if (!type) return [];
-  return [
-    'You',
-    'The PG office',
-    ...(type.shareSupervisors ? [named(me?.supervisors ?? [], me?.supervisors.length === 1 ? 'supervisor' : 'supervisors', 'Your supervisor, once appointed')] : []),
-    ...(type.sharePanel ? [named(me?.panel ?? [], 'panel member', 'Your panel member, once appointed')] : []),
-    ...(type.shareCoordinator ? [named(me?.coordinators ?? [], 'programme coordinator', 'Your programme coordinator')] : []),
-  ];
-}
 
 /** Who will see a staff upload about `students` with the `share` ticks. */
 export function staffReach(share: DocumentSharing, students: TaggableStudent[]): string[] {

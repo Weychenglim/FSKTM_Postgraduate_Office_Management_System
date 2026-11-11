@@ -1,11 +1,11 @@
 """JSON shapes for documents (camelCase, like the other apps)."""
-from django.db.models import Prefetch
+from django.db.models import Exists, OuterRef, Prefetch
 
 from accounts.models import User
 
 from .access import people_reached, permissions
 from .history import file_history
-from .models import Document, DocumentStudent
+from .models import Document, DocumentStudent, SubmissionEntry
 
 ROLE_LABELS = {
     User.Role.OFFICE_ADMIN: "PG office",
@@ -24,10 +24,10 @@ SENDERS = {
 
 def with_details(queryset):
     return queryset.select_related(
-        "doc_type", "semester", "uploaded_by", "current_version", "checked_by", "archived_by"
+        "doc_type", "semester", "uploaded_by", "current_version", "archived_by"
     ).prefetch_related(
         Prefetch("student_links", queryset=DocumentStudent.objects.select_related("student__user")),
-    )
+    ).annotate(in_submission=Exists(SubmissionEntry.objects.filter(document=OuterRef("pk"))))
 
 
 def student_dict(student):
@@ -53,8 +53,6 @@ def auto_tags(document, students):
     out every time, so they follow a student who changes programme."""
     doc_type = document.doc_type
     tags = [{"kind": "category", "label": doc_type.get_group_display(), "filter": {"group": doc_type.group}}]
-    if doc_type.required:
-        tags.append({"kind": "required", "label": "Required", "filter": {"required": "1"}})
     if document.semester:
         tags.append({"kind": "semester", "label": document.semester.label, "filter": {"semester": str(document.semester_id)}})
     if document.uploader_role in SENDERS:
@@ -88,9 +86,9 @@ def document_dict(document, user, scope):
         "staffAudienceLabel": document.get_staff_audience_display() if document.staff_audience else "",
         "staffProgrammes": list(document.staff_programmes or []),
         "share": {
-            "supervisors": document.share_supervisors,
-            "panel": document.share_panel,
-            "coordinator": document.share_coordinator,
+            "supervisors": doc_type.share_supervisors,
+            "panel": doc_type.share_panel,
+            "coordinator": doc_type.share_coordinator,
         },
         "autoTags": auto_tags(document, students),
         "semester": {"id": document.semester_id, "label": document.semester.label} if document.semester else None,
@@ -101,11 +99,6 @@ def document_dict(document, user, scope):
             "isMe": document.uploaded_by_id == user.pk,
         },
         "uploadedAt": document.created_at.isoformat(),
-        "checkStatus": document.check_status,
-        "checkStatusLabel": document.get_check_status_display(),
-        "checkReason": document.check_reason,
-        "checkedBy": document.checked_by.full_name if document.checked_by else "",
-        "checkedAt": document.checked_at.isoformat() if document.checked_at else None,
         "file": version_dict(document.current_version),
         "archived": document.archived_at is not None,
         "archivedAt": document.archived_at.isoformat() if document.archived_at else None,
@@ -131,7 +124,7 @@ def shared_with(document, students):
 def detail_dict(document, user, scope):
     payload = document_dict(document, user, scope)
     students = [link.student for link in document.student_links.all()]
-    payload["sharedWith"] = shared_with(document, students)
+    payload["sharedWith"] = [] if user.role == User.Role.STUDENT else shared_with(document, students)
     payload["versions"] = [version_dict(version) for version in document.versions.order_by("-number")]
     if scope.office:
         payload["history"] = file_history(document)

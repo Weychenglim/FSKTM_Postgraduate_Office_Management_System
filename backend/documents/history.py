@@ -1,7 +1,7 @@
-"""The office's history of files and settings, in plain words."""
+"""The office's history of files, in plain words."""
 from django.db.models import Q
 
-from .models import Document, DocumentEvent, SettingsChange
+from .models import Document, DocumentEvent
 
 Action = DocumentEvent.Action
 OPENED = (Action.PREVIEWED, Action.DOWNLOADED)
@@ -10,11 +10,9 @@ SHOWS = {
     "all": None,
     "uploads": (Action.UPLOADED,),
     "changes": (Action.VERSION_ADDED, Action.DETAILS_CHANGED, Action.SHARING_CHANGED),
-    "checks": (Action.ACCEPTED, Action.RETURNED),
     "archive": (Action.ARCHIVED, Action.RESTORED),
     "deleted": (Action.DELETED,),
     "opened": OPENED,
-    "settings": None,
 }
 
 FIELD_WORDS = {
@@ -23,19 +21,6 @@ FIELD_WORDS = {
     "semester": "semester",
     "tags": "tags",
     "students": "students",
-    "label": "name",
-    "group": "group",
-    "kind": "kind of file",
-    "uploaders": "who can upload it",
-    "share_supervisors": "who can see it",
-    "share_panel": "who can see it",
-    "share_coordinator": "who can see it",
-    "needs_check": "coordinator checks",
-    "one_per_student": "one file per student",
-    "required": "whether every student must hand it in",
-    "required_due_note": "the due note",
-    "required_programmes": "the programmes that must hand it in",
-    "is_active": "whether it can be chosen",
 }
 SHARE_WORDS = {"supervisors": "supervisors", "panel": "panel member", "coordinator": "programme coordinator"}
 
@@ -88,45 +73,8 @@ def event_dict(event):
     }
 
 
-def settings_detail(change):
-    details = change.details or {}
-    if change.action == SettingsChange.Action.CHANGED:
-        text = _changed_fields((details.get("changes") or {}).keys())
-        updated = details.get("updatedFiles") or 0
-        if updated:
-            text += f"; {updated} student {'file now follows' if updated == 1 else 'files now follow'} the new sharing"
-        return text
-    if change.action == SettingsChange.Action.RENAMED:
-        return f"From {details.get('before')}"
-    if change.action == SettingsChange.Action.MERGED:
-        return f"{details.get('from')} merged in, on {details.get('files', 0)} more {'file' if details.get('files') == 1 else 'files'}"
-    if change.action == SettingsChange.Action.REMOVED:
-        return f"Taken off {details.get('files', 0)} {'file' if details.get('files') == 1 else 'files'}"
-    return ""
-
-
-def settings_dict(change):
-    return {
-        "id": f"s{change.pk}",
-        "action": f"{change.area}_{change.action}",
-        "actionLabel": f"{change.get_area_display()} {change.get_action_display().lower()}",
-        "reference": "",
-        "title": change.label,
-        "documentId": None,
-        "actor": change.actor_name or "Someone",
-        "reason": "",
-        "detail": settings_detail(change),
-        "at": change.created_at.isoformat(),
-    }
-
-
 def history_rows(show, text):
     """(queryset, row formatter) for one choice of what to show."""
-    if show == "settings":
-        rows = SettingsChange.objects.all()
-        if text:
-            rows = rows.filter(Q(label__icontains=text) | Q(actor_name__icontains=text))
-        return rows, settings_dict
     rows = DocumentEvent.objects.all()
     actions = SHOWS[show]
     rows = rows.exclude(action__in=OPENED) if actions is None else rows.filter(action__in=actions)

@@ -43,29 +43,3 @@ export function suggestTypeForFile(fileName: string, types: readonly DocumentTyp
   }
   return best;
 }
-
-const FROM_LABELS: Record<string, string> = {
-  Student: 'Student',
-  Lecturer: 'Lecturer',
-  'Programme Coordinator': 'Programme coordinator',
-  'Office Staff/Admin': 'PG office',
-};
-
-/** The tags a file will get, worked out the same way as the server does, for the upload summary. */
-export function uploadTags(options: {
-  type: DocumentTypeOption | null;
-  semester: string | null;
-  role: string;
-  programmes: string[];
-  intakes: string[];
-}): DocumentAutoTag[] {
-  const { type, semester, role, programmes, intakes } = options;
-  if (!type) return [];
-  const tags: DocumentAutoTag[] = [{ kind: 'category', label: type.groupLabel, filter: {} }];
-  if (type.required) tags.push({ kind: 'required', label: 'Required', filter: {} });
-  if (semester) tags.push({ kind: 'semester', label: semester, filter: {} });
-  if (FROM_LABELS[role]) tags.push({ kind: 'from', label: FROM_LABELS[role], filter: {} });
-  for (const programme of new Set(programmes.map(name => name.trim()).filter(Boolean))) tags.push({ kind: 'programme', label: programme, filter: {} });
-  for (const intake of new Set(intakes.map(name => name.trim()).filter(Boolean))) tags.push({ kind: 'intake', label: `Intake ${intake}`, filter: {} });
-  return tags;
-}

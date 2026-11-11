@@ -104,7 +104,6 @@ const StudentFileSubmission = lazyNamed('StudentFileSubmission', () => import('.
 const UploadNewDocument = lazyNamed('UploadNewDocument', () => import('./components/UploadNewDocument'));
 const DocumentPage = lazyNamed('DocumentPage', () => import('./components/DocumentPage'));
 const AppointmentLetterPage = lazyNamed('AppointmentLetterPage', () => import('./components/AppointmentLetterPage'));
-const FileSettings = lazyNamed('FileSettings', () => import('./components/FileSettings'));
 const FileHistory = lazyNamed('FileHistory', () => import('./components/FileHistory'));
 const NotificationsAnnouncements = lazyNamed('NotificationsAnnouncements', () => import('./components/NotificationsAnnouncements'));
 const AnnouncementManagement = lazyNamed('AnnouncementManagement', () => import('./components/AnnouncementManagement'));
@@ -759,7 +758,7 @@ export default function App() {
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryGraduations ? (
               currentUser.role === 'Office Staff/Admin' ? <RecordGraduations /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryProjectStages ? (
-              currentUser.role === 'Office Staff/Admin' ? <ProjectStages /> : <Navigate to={APP_ROUTES.registry} replace />
+              currentUser.role === 'Office Staff/Admin' || currentUser.role === 'Programme Coordinator' ? <ProjectStages /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryRetention ? (
               currentUser.role === 'Office Staff/Admin' ? <DataRetention /> : <Navigate to={APP_ROUTES.registry} replace />
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY && pathname === APP_ROUTES.registryActingCoordinators ? (
@@ -774,6 +773,7 @@ export default function App() {
             ) : activeSidebarItem === SIDEBAR_ITEMS.REGISTRY ? (
               <StudentRegistry
                 readOnly={currentUser.role !== 'Office Staff/Admin'}
+                showProjectStages={currentUser.role === 'Programme Coordinator'}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
               pathname === APP_ROUTES.myProfile && !isStudentWorkspace ? (
@@ -879,9 +879,8 @@ export default function App() {
                 />
               )
             ) : activeSidebarItem === SIDEBAR_ITEMS.FILE_MANAGEMENT ? (
-              pathname === APP_ROUTES.filesUpload ? (
+              pathname === APP_ROUTES.filesUpload && !isStudentWorkspace ? (
                 <UploadNewDocument
-                  isStudent={isStudentWorkspace}
                   role={currentUser.role}
                   initialStudent={new URLSearchParams(location.search).get('student') ?? ''}
                   initialType={new URLSearchParams(location.search).get('type') ?? ''}
@@ -890,8 +889,6 @@ export default function App() {
                   onUploadSuccess={(document) => navigate(routeForDocument(document.id), { replace: true, state: { uploadedReference: document.reference } })}
                   onOpenExisting={(documentId) => navigate(routeForDocument(documentId))}
                 />
-              ) : pathname === APP_ROUTES.filesSettings && currentUser.role === 'Programme Coordinator' ? (
-                <FileSettings onBack={() => navigate(APP_ROUTES.files)} />
               ) : pathname === APP_ROUTES.filesHistory && currentUser.role === 'Office Staff/Admin' ? (
                 <FileHistory onBack={() => navigate(APP_ROUTES.files)} />
               ) : documentMatch ? (

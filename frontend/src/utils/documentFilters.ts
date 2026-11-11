@@ -1,4 +1,4 @@
-import type { DocumentCheckStatus, DocumentFilters, DocumentKind, DocumentSender, DocumentView } from '../types';
+import type { DocumentFilters, DocumentKind, DocumentSender, DocumentView } from '../types';
 
 export const EMPTY_DOCUMENT_FILTERS: DocumentFilters = {
   view: 'all',
@@ -11,18 +11,15 @@ export const EMPTY_DOCUMENT_FILTERS: DocumentFilters = {
   student: '',
   uploader: '',
   sender: '',
-  required: '',
-  status: '',
   kind: '',
   from: '',
   to: '',
   archived: '',
 };
 
-const VIEWS: DocumentView[] = ['all', 'check', 'staff', 'mine', 'required', 'letters'];
+const VIEWS: DocumentView[] = ['all', 'staff', 'mine', 'submissions', 'letters'];
 const UPLOADERS = ['me', 'students', 'staff'] as const;
 const SENDERS: DocumentSender[] = ['student', 'lecturer', 'coordinator', 'office'];
-const STATUSES: DocumentCheckStatus[] = ['NONE', 'WAITING', 'ACCEPTED', 'RETURNED'];
 const KINDS: DocumentKind[] = ['PDF', 'DOCX', 'IMAGE', 'XLSX', 'PPTX'];
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -46,8 +43,6 @@ export function filtersFromParams(params: URLSearchParams): DocumentFilters {
     student: params.get('student') ?? '',
     uploader: pick(params.get('uploader'), UPLOADERS),
     sender: pick(params.get('sender'), SENDERS),
-    required: pick(params.get('required'), ['1'] as const),
-    status: pick(params.get('status'), STATUSES),
     kind: pick(params.get('kind'), KINDS),
     from: date('from'),
     to: date('to'),
@@ -69,5 +64,5 @@ export const documentQuery = filtersToParams;
 
 /** How many of the filters under "More filters" are in use. */
 export function moreFilterCount(filters: DocumentFilters): number {
-  return [filters.intake, filters.sender, filters.uploader, filters.status, filters.kind, filters.from, filters.to, filters.archived].filter(Boolean).length;
+  return [filters.intake, filters.sender, filters.uploader, filters.kind, filters.from, filters.to, filters.archived].filter(Boolean).length;
 }

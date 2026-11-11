@@ -32,41 +32,40 @@ class UploadRuleTests(DocumentPeople, DocumentClient, APITestCase):
         cache.clear()
 
     def test_a_student_uploads_only_for_themselves(self):
-        made = self.made(self.ali.user, "thesis", "", students=[self.bella.matric_no], name="Thesis_draft_1.pdf")
+        made = self.made(self.ali.user, "final-research-report", "", students=[self.bella.matric_no], name="Thesis_draft_1.pdf")
         self.assertEqual([s["matric"] for s in made["students"]], [self.ali.matric_no])
         self.assertEqual(made["title"], "Thesis draft 1")
         self.assertRegex(made["reference"], r"^DOC-\d{4}-\d{6}$")
         self.assertEqual(made["semester"]["id"], self.semester.pk)
         self.assertEqual(made["share"], {"supervisors": True, "panel": True, "coordinator": True})
-        self.assertTrue(Document.objects.get(pk=made["id"]).follows_type)
 
     def test_student_refusals(self):
-        response = self.send(self.deferred.user, "thesis")
+        response = self.send(self.deferred.user, "final-research-report")
         self.assertEqual((response.status_code, response.data["code"]), (403, "documents_need_active_status"))
-        self.assertIn("type", self.send(self.ali.user, "evaluation-form").data)
-        self.assertIn("file", self.send(self.ali.user, "other", name="marks.xlsx", content=office_bytes("xlsx")).data)
+        self.assertIn("type", self.send(self.ali.user, "staff-document").data)
+        self.assertIn("file", self.send(self.ali.user, "supporting-document", name="marks.xlsx", content=office_bytes("xlsx")).data)
         self.assertIn("type", self.send(self.ali.user, "no-such-type").data)
-        DocumentType.objects.filter(code="letter").update(is_active=False)
-        self.assertEqual(self.send(self.ali.user, "letter").status_code, 400)
+        DocumentType.objects.filter(code="supporting-document").update(is_active=False)
+        self.assertEqual(self.send(self.ali.user, "supporting-document").status_code, 400)
 
     def test_one_per_student_types_ask_for_a_new_version(self):
-        first = self.made(self.ali.user, "thesis", "Draft 1")
-        response = self.send(self.ali.user, "thesis", content=pdf_bytes(2))
+        first = self.made(self.ali.user, "final-research-report", "Draft 1")
+        response = self.send(self.ali.user, "final-research-report", content=pdf_bytes(2))
         self.assertEqual(response.status_code, 409)
         self.assertEqual((response.data["code"], response.data["existingDocumentId"]), ("already_have_one", first["id"]))
 
     def test_staff_tag_only_their_own_students_through_allowed_relationships(self):
-        response = self.send(self.supervisor, "evaluation-form", students=[self.chen.matric_no])
+        response = self.send(self.supervisor, "supporting-document", students=[self.chen.matric_no])
         self.assertIn("You cannot add these students: DOC-S3", response.data["students"][0])
-        response = self.send(self.panel, "research-proposal", students=[self.ali.matric_no])
-        self.assertIn("You cannot upload a Research Proposal for: DOC-S1", response.data["students"][0])
-        self.made(self.panel, "evaluation-form", "Panel evaluation", students=[self.ali.matric_no])
-        self.made(self.office, "evaluation-form", "Office copy", students=[self.chen.matric_no])
+        response = self.send(self.panel, "p1-research-report", students=[self.ali.matric_no])
+        self.assertIn("You cannot upload a P1 Research Report for: DOC-S1", response.data["students"][0])
+        self.made(self.panel, "supporting-document", "Panel evaluation", students=[self.ali.matric_no])
+        self.made(self.office, "supporting-document", "Office copy", students=[self.chen.matric_no])
         too_many = [f"X{n}" for n in range(51)]
-        self.assertIn("at most 50", self.send(self.office, "evaluation-form", students=too_many).data["students"][0])
+        self.assertIn("at most 50", self.send(self.office, "supporting-document", students=too_many).data["students"][0])
 
     def test_staff_files_and_student_files_keep_to_their_types(self):
-        self.assertIn("students", self.send(self.supervisor, "evaluation-form").data)
+        self.assertIn("students", self.send(self.supervisor, "supporting-document").data)
         self.assertIn("staff files", self.send(self.supervisor, "staff-document", students=[self.ali.matric_no]).data["students"][0])
         made = self.made(self.supervisor, "staff-document", "Rubric", name="rubric.xlsx", content=office_bytes("xlsx"))
         self.assertEqual((made["isStaffFile"], made["staffAudience"]), (True, "ACADEMIC"))
@@ -74,39 +73,28 @@ class UploadRuleTests(DocumentPeople, DocumentClient, APITestCase):
         self.assertIn("audience", self.send(self.office, "staff-document", audience="EVERYONE").data)
         self.assertEqual(self.send(self.ali.user, "staff-document").status_code, 400)
 
-    def test_staff_choose_the_ticks_and_the_semester(self):
+    def test_staff_choose_the_semester_but_not_who_sees_it(self):
         made = self.made(
-            self.supervisor, "evaluation-form", "Ticks", students=[self.ali.matric_no],
+            self.supervisor, "supporting-document", "Ticks", students=[self.ali.matric_no],
             sharePanel="false", semester="none",
         )
         self.assertEqual(made["share"], {"supervisors": True, "panel": False, "coordinator": True})
         self.assertIsNone(made["semester"])
-        self.assertFalse(Document.objects.get(pk=made["id"]).follows_type)
-        self.assertIn("semester", self.send(self.supervisor, "evaluation-form", students=[self.ali.matric_no], semester="99999").data)
-
-    def test_the_coordinator_checks_every_upload_except_their_own(self):
-        waiting = self.made(self.ali.user, "supervisor-appointment-form", "Signed form")
-        self.assertEqual(waiting["checkStatus"], "WAITING")
-        office = self.made(self.office, "supervisor-appointment-form", "Office copy", students=[self.ali.matric_no])
-        self.assertEqual(office["checkStatus"], "WAITING")
-        DocumentType.objects.filter(code="supervisor-appointment-form").update(uploaders=["STUDENT", "COORDINATOR"])
-        own = self.made(self.checker, "supervisor-appointment-form", "Coordinator copy", students=[self.ali.matric_no])
-        self.assertEqual(own["checkStatus"], "NONE")
-        self.assertEqual(self.made(self.ali.user, "thesis", "No check")["checkStatus"], "NONE")
+        self.assertIn("semester", self.send(self.supervisor, "supporting-document", students=[self.ali.matric_no], semester="99999").data)
 
     def test_duplicates_need_a_confirmation(self):
         content = pdf_bytes(3)
-        self.made(self.ali.user, "letter", "Letter one", content=content)
-        response = self.send(self.ali.user, "letter", content=content)
+        self.made(self.ali.user, "supporting-document", "Letter one", content=content)
+        response = self.send(self.ali.user, "supporting-document", content=content)
         self.assertEqual(response.status_code, 409)
         self.assertTrue(response.data["requiresAcknowledgement"])
-        self.made(self.ali.user, "letter", "Letter again", content=content, acknowledgeWarnings="true")
+        self.made(self.ali.user, "supporting-document", "Letter again", content=content, acknowledgeWarnings="true")
 
     @override_settings(DOCUMENT_UPLOAD_THROTTLE_RATE="2/hour")
     def test_uploads_are_throttled(self):
-        self.made(self.ali.user, "letter", "One")
-        self.made(self.ali.user, "letter", "Two", content=pdf_bytes(2))
-        self.assertEqual(self.send(self.ali.user, "letter", content=pdf_bytes(3)).status_code, 429)
+        self.made(self.ali.user, "supporting-document", "One")
+        self.made(self.ali.user, "supporting-document", "Two", content=pdf_bytes(2))
+        self.assertEqual(self.send(self.ali.user, "supporting-document", content=pdf_bytes(3)).status_code, 429)
         self.client.force_authenticate(self.ali.user)
         self.assertEqual(self.client.get("/api/documents/").status_code, 200)
 
@@ -114,7 +102,7 @@ class UploadRuleTests(DocumentPeople, DocumentClient, APITestCase):
         before = stored_files()
         with mock.patch.object(DocumentVersion, "save", side_effect=RuntimeError("database down")):
             with self.assertRaises(RuntimeError):
-                self.send(self.ali.user, "letter")
+                self.send(self.ali.user, "supporting-document")
         self.assertEqual(stored_files(), before)
         self.assertFalse(Document.objects.exists())
 
@@ -133,18 +121,21 @@ class NoticeTests(DocumentPeople, DocumentClient, APITestCase):
 
     def test_supervisors_hear_when_their_student_uploads(self):
         with self.captureOnCommitCallbacks(execute=True):
-            thesis = self.made(self.ali.user, "thesis", "Thesis")
+            thesis = self.made(self.ali.user, "final-research-report", "Thesis")
         self.assertEqual(self.notified(thesis), {"Dr Supervisor", "Dr Co"})
         row = Notification.objects.filter(record_id=str(thesis["id"])).first()
         self.assertEqual((row.target_module, row.record_type, row.event_key), ("FILES", "STUDENT_DOCUMENT", f"documents:uploaded:{thesis['id']}"))
         with self.captureOnCommitCallbacks(execute=True):
-            letter = self.made(self.ali.user, "letter", "Private letter", content=pdf_bytes(2))
-        self.assertEqual(self.notified(letter), set())
+            letter = self.made(self.ali.user, "supporting-document", "Medical letter", content=pdf_bytes(2))
+        self.assertEqual(self.notified(letter), {"Dr Supervisor", "Dr Co"})
 
-    def test_staff_uploads_reach_the_people_ticked(self):
+    def test_staff_uploads_reach_the_people_the_type_names(self):
         with self.captureOnCommitCallbacks(execute=True):
-            evaluation = self.made(self.supervisor, "evaluation-form", "Evaluation", students=[self.ali.matric_no, self.bella.matric_no])
-        self.assertEqual(self.notified(evaluation), {"Dr Co", "Dr Panel", "Prof Coordinator"})
+            report = self.made(self.supervisor, "turnitin-report", "Turnitin", students=[self.ali.matric_no, self.bella.matric_no])
+        self.assertEqual(self.notified(report), {"Dr Co", "Dr Panel", "Prof Coordinator"})
+        with self.captureOnCommitCallbacks(execute=True):
+            approval = self.made(self.supervisor, "supporting-document", "Ethics approval", students=[self.ali.matric_no, self.bella.matric_no], content=pdf_bytes(3))
+        self.assertEqual(self.notified(approval), {"Dr Co", "Prof Coordinator"})
         with self.captureOnCommitCallbacks(execute=True):
             rubric = self.made(self.coordinator, "staff-document", "Rubric")
         self.assertEqual(self.notified(rubric), {"Dr Supervisor", "Dr Co", "Dr Panel", "Dr Outsider"})
@@ -162,28 +153,26 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.made(self.ali.user, "thesis", "Ali thesis")
-        self.made(self.ali.user, "supervisor-appointment-form", "Ali form", name="form.png",
+        self.made(self.ali.user, "final-research-report", "Ali thesis")
+        self.made(self.ali.user, "ai-use-declaration", "Ali form", name="form.png",
                   content=image_bytes())
-        self.made(self.supervisor, "evaluation-form", "Evaluation", students=[self.bella.matric_no], semester="none")
+        self.made(self.supervisor, "supporting-document", "Evaluation", students=[self.bella.matric_no], semester="none")
         self.made(self.office, "staff-document", "Rubric", name="rubric.docx", content=office_bytes("docx"))
 
     def test_filters_and_search(self):
         office = self.office
-        self.assertEqual(self.titles(office, "?view=check"), set())
-        self.assertEqual(self.titles(self.checker, "?view=check"), {"Ali form"})
+        self.assertIn("Ali form", self.titles(self.checker))
         self.assertEqual(self.titles(office, "?view=staff"), {"Rubric"})
         self.assertEqual(self.titles(office, "?view=mine"), {"Rubric"})
-        self.assertEqual(self.titles(office, "?type=thesis"), {"Ali thesis"})
+        self.assertEqual(self.titles(office, "?type=final-research-report"), {"Ali thesis"})
         self.assertEqual(self.titles(office, "?group=STAFF"), {"Rubric"})
         self.assertEqual(self.titles(office, f"?student={self.ali.matric_no.lower()}"), {"Ali thesis", "Ali form"})
         self.assertEqual(self.titles(office, "?uploader=students"), {"Ali thesis", "Ali form"})
         self.assertEqual(self.titles(office, "?uploader=staff"), {"Evaluation", "Rubric"})
-        self.assertEqual(self.titles(office, "?status=WAITING"), {"Ali form"})
         self.assertEqual(self.titles(office, "?kind=IMAGE"), {"Ali form"})
         self.assertEqual(self.titles(office, "?kind=DOCX"), {"Rubric"})
         self.assertEqual(self.titles(office, "?semester=none"), {"Evaluation"})
-        self.assertEqual(self.titles(office, f"?semester={self.semester.pk}&type=thesis"), {"Ali thesis"})
+        self.assertEqual(self.titles(office, f"?semester={self.semester.pk}&type=final-research-report"), {"Ali thesis"})
         self.assertEqual(self.titles(office, "?q=ali hassan"), {"Ali thesis", "Ali form"})
         self.assertEqual(self.titles(office, f"?q={self.bella.matric_no}"), {"Evaluation"})
         self.assertEqual(self.titles(office, "?q=nothing matches"), set())
@@ -197,7 +186,7 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
         page = self.client.get("/api/documents/?limit=2&offset=1&ordering=title").data
         self.assertEqual((page["count"], page["limit"], page["offset"]), (4, 2, 1))
         self.assertEqual([row["title"] for row in page["results"]], ["Ali thesis", "Evaluation"])
-        for query in ("limit=0", "limit=101", "offset=-1", "ordering=size", "view=everything", "from=yesterday", "status=MAYBE"):
+        for query in ("limit=0", "limit=101", "offset=-1", "ordering=size", "view=everything", "from=yesterday", "view=check"):
             self.assertEqual(self.client.get(f"/api/documents/?{query}").status_code, 400, query)
 
     def test_the_list_uses_a_fixed_number_of_queries(self):
@@ -205,7 +194,7 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
         with CaptureQueriesContext(connection) as few:
             self.client.get("/api/documents/")
         for number in range(6):
-            self.made(self.office, "evaluation-form", f"More {number}", students=[self.ali.matric_no, self.bella.matric_no],
+            self.made(self.office, "supporting-document", f"More {number}", students=[self.ali.matric_no, self.bella.matric_no],
                       content=pdf_bytes(number + 2))
         self.client.force_authenticate(self.office)
         with CaptureQueriesContext(connection) as many:
@@ -218,16 +207,14 @@ class ListingTests(DocumentPeople, DocumentClient, APITestCase):
             self.client.get("/api/documents/summary/").data,
             {"all": 4, "staffFiles": 1, "mine": 1, "archived": 0},
         )
-        self.assertFalse(self.client.get("/api/documents/options/").data["canCheck"])
+        self.assertTrue(self.client.get("/api/documents/options/").data["canSeeSubmissions"])
         self.client.force_authenticate(self.checker)
-        summary = self.client.get("/api/documents/summary/").data
-        self.assertEqual((summary["toCheck"], summary["returned"], summary["studentsStillToHandIn"]), (1, 0, 0))
-        self.assertTrue(self.client.get("/api/documents/options/").data["canCheck"])
+        self.assertTrue(self.client.get("/api/documents/options/").data["canSeeSubmissions"])
         self.client.force_authenticate(self.ali.user)
         options = self.client.get("/api/documents/options/").data
         codes = {t["code"] for t in options["types"]}
-        self.assertIn("thesis", codes)
-        self.assertNotIn("evaluation-form", codes)
+        self.assertIn("final-research-report", codes)
+        self.assertNotIn("staff-document", codes)
         self.assertNotIn("semesters", options)
         self.assertEqual(self.client.get("/api/documents/students/").status_code, 403)
         self.client.force_authenticate(self.supervisor)
@@ -263,7 +250,7 @@ class DownloadAndDeleteTests(DocumentPeople, DocumentClient, APITestCase):
     def setUp(self):
         cache.clear()
         self.content = pdf_bytes(2)
-        self.thesis = self.made(self.ali.user, "thesis", "Thesis", name="My Thesis.pdf", content=self.content)
+        self.thesis = self.made(self.ali.user, "final-research-report", "Thesis", name="My Thesis.pdf", content=self.content)
 
     def test_download_sends_the_file_privately(self):
         self.client.force_authenticate(self.supervisor)

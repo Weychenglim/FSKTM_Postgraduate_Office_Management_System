@@ -23,9 +23,9 @@ class PreviewTests(DocumentPeople, DocumentClient, APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.thesis = self.made(self.ali.user, "thesis", "Thesis", content=pdf_bytes(3))
-        self.photo = self.made(self.ali.user, "letter", "Photo", name="photo.png", content=image_bytes("PNG", size=(3000, 1500)))
-        self.notes = self.made(self.ali.user, "other", "Notes", name="notes.docx", content=office_bytes("docx"))
+        self.thesis = self.made(self.ali.user, "final-research-report", "Thesis", content=pdf_bytes(3))
+        self.photo = self.made(self.ali.user, "supporting-document", "Photo", name="photo.png", content=image_bytes("PNG", size=(3000, 1500)))
+        self.notes = self.made(self.ali.user, "supporting-document", "Notes", name="notes.docx", content=office_bytes("docx"))
         self.sheet = self.made(self.office, "staff-document", "Sheet", name="sheet.xlsx", content=office_bytes("xlsx"))
 
     def get(self, user, path):
@@ -81,8 +81,8 @@ class ZipDownloadTests(DocumentPeople, DocumentClient, APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.thesis = self.made(self.ali.user, "thesis", "Thesis", name="report.pdf", content=pdf_bytes(2))
-        self.letter = self.made(self.ali.user, "letter", "Letter", name="report.pdf", content=pdf_bytes(3))
+        self.thesis = self.made(self.ali.user, "final-research-report", "Thesis", name="report.pdf", content=pdf_bytes(2))
+        self.letter = self.made(self.chen.user, "supporting-document", "Letter", name="report.pdf", content=pdf_bytes(3))
         self.rubric = self.made(self.office, "staff-document", "Rubric", name="rubric.docx", content=office_bytes("docx"))
 
     def post(self, user, ids):
@@ -96,8 +96,8 @@ class ZipDownloadTests(DocumentPeople, DocumentClient, APITestCase):
         archive = zipfile.ZipFile(io.BytesIO(b"".join(response.streaming_content)))
         names = archive.namelist()
         self.assertEqual(names, [
-            f"{self.ali.matric_no}/thesis/{self.thesis['reference']} report.pdf",
-            f"{self.ali.matric_no}/letter/{self.letter['reference']} report.pdf",
+            f"{self.ali.matric_no}/final-research-report/{self.thesis['reference']} report.pdf",
+            f"{self.chen.matric_no}/supporting-document/{self.letter['reference']} report.pdf",
             f"STAFF/staff-document/{self.rubric['reference']} rubric.docx",
         ])
         self.assertEqual(DocumentEvent.objects.filter(action="DOWNLOADED", details__bulk=True).count(), 3)

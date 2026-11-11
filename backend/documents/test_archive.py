@@ -42,7 +42,7 @@ class ArchiveTests(DocumentPeople, ArchiveClient, APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.thesis = self.made(self.ali.user, "thesis", "Ali thesis")
+        self.thesis = self.made(self.ali.user, "final-research-report", "Ali thesis")
 
     def test_an_archived_file_is_seen_by_the_office_and_the_coordinator_only(self):
         response = self.archive(self.checker, self.thesis, "Replaced by a newer file.")
@@ -100,8 +100,8 @@ class HistoryTests(DocumentPeople, ArchiveClient, APITestCase):
 
     def setUp(self):
         cache.clear()
-        self.thesis = self.made(self.ali.user, "thesis", "Ali thesis")
-        self.evaluation = self.made(self.supervisor, "evaluation-form", "Evaluation", students=[self.ali.matric_no])
+        self.thesis = self.made(self.ali.user, "final-research-report", "Ali thesis")
+        self.evaluation = self.made(self.supervisor, "supporting-document", "Evaluation", students=[self.ali.matric_no])
 
     def test_deleted_files_stay_in_the_history(self):
         self.client.force_authenticate(self.ali.user)
@@ -112,7 +112,7 @@ class HistoryTests(DocumentPeople, ArchiveClient, APITestCase):
         self.assertEqual(deleted["count"], 1)
         row = deleted["results"][0]
         self.assertEqual((row["title"], row["documentId"], row["actor"]), ("Ali thesis v2", None, "Ali Hassan"))
-        self.assertEqual(row["detail"], "Thesis · Ali Hassan (DOC-S1) · uploaded by Ali Hassan")
+        self.assertEqual(row["detail"], "Final Research Report · Ali Hassan (DOC-S1) · uploaded by Ali Hassan")
         every = self.history().data["results"]
         self.assertNotIn("DOWNLOADED", [item["action"] for item in every])
         changed = next(item for item in every if item["action"] == "DETAILS_CHANGED")
@@ -120,19 +120,13 @@ class HistoryTests(DocumentPeople, ArchiveClient, APITestCase):
         self.assertEqual(self.history("?show=opened").data["count"], 1)
         self.assertEqual([item["title"] for item in self.history("?q=Evaluation").data["results"]], ["Evaluation"])
 
-    def test_sharing_and_settings_changes_read_plainly(self):
+    def test_sharing_changes_read_plainly(self):
+        notes = self.made(self.supervisor, "staff-document", "Meeting notes", audience="OFFICE")
         self.client.force_authenticate(self.supervisor)
-        self.client.put(f"/api/documents/{self.evaluation['id']}/sharing/", {"supervisors": True, "panel": False, "coordinator": False}, format="json")
+        self.client.put(f"/api/documents/{notes['id']}/sharing/", {"audience": "COORDINATORS", "programmes": []}, format="json")
         sharing = self.history("?show=changes").data["results"][0]
-        self.assertEqual(sharing["detail"], "Now shared with supervisors")
-        self.client.force_authenticate(self.coordinator)
-        thesis_type = Document.objects.get(pk=self.thesis["id"]).doc_type
-        self.client.patch(f"/api/documents/types/{thesis_type.pk}/", {"sharePanel": False}, format="json")
-        settings = self.history("?show=settings").data["results"][0]
-        self.assertEqual(
-            (settings["actionLabel"], settings["title"], settings["detail"]),
-            ("Document type changed", "Thesis", "Changed who can see it; 1 student file now follows the new sharing"),
-        )
+        self.assertEqual(sharing["detail"], "Now shared with Programme coordinators only")
+        self.assertIn("show", self.history("?show=settings").data)
 
     def test_only_the_office_reads_the_history(self):
         for user in (self.supervisor, self.coordinator, self.ali.user):
@@ -157,8 +151,8 @@ class StorageCheckTests(DocumentPeople, ArchiveClient, APITestCase):
 
     def test_missing_and_left_over_files(self):
         cache.clear()
-        self.made(self.ali.user, "thesis", "Kept")
-        gone = self.made(self.ali.user, "research-proposal", "Gone")
+        self.made(self.ali.user, "final-research-report", "Kept")
+        gone = self.made(self.ali.user, "p1-research-report", "Gone")
         version = DocumentVersion.objects.get(document_id=gone["id"])
         Path(version.file.path).unlink()
         folder = Path(settings.MEDIA_ROOT) / "documents" / "2020" / "01"
