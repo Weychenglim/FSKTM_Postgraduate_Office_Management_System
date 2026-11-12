@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check, ChevronDown, type LucideIcon } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import {
@@ -51,6 +51,8 @@ interface SelectMenuProps<T extends string> {
   size?: 'sm' | 'md';
   disabled?: boolean;
   className?: string;
+  /** Shown in place of the arrow, e.g. a clock for a time. */
+  icon?: LucideIcon;
   controlRef?: React.Ref<HTMLButtonElement>;
   title?: string;
   'aria-label'?: string;
@@ -91,6 +93,7 @@ export const SelectMenu = <T extends string>({
   size = 'md',
   disabled = false,
   className = '',
+  icon: Icon,
   controlRef,
   title,
   'aria-label': ariaLabel,
@@ -180,7 +183,7 @@ export const SelectMenu = <T extends string>({
     else if (item.offsetTop + item.offsetHeight > list.scrollTop + list.clientHeight) {
       list.scrollTop = item.offsetTop + item.offsetHeight - list.clientHeight;
     }
-  }, [open, active]);
+  }, [open, active, menuStyle]);
 
   useEffect(() => {
     if (open && (!options[active] || options[active].disabled)) setActive(firstEnabledIndex(options));
@@ -407,10 +410,14 @@ export const SelectMenu = <T extends string>({
         ) : (
           <span className="truncate text-slate-400 font-semibold">{placeholder}</span>
         )}
-        <ChevronDown
-          aria-hidden="true"
-          className={`w-4 h-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-        />
+        {Icon ? (
+          <Icon aria-hidden="true" className={`w-4 h-4 shrink-0 ${open ? 'text-brand-navy' : 'text-slate-400'}`} />
+        ) : (
+          <ChevronDown
+            aria-hidden="true"
+            className={`w-4 h-4 shrink-0 text-slate-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          />
+        )}
       </button>}
 
       {/* Closes at once, like a native list, so two lists never overlap. */}

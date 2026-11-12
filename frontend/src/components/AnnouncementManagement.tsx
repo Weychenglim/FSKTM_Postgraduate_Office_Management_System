@@ -35,6 +35,8 @@ import {
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, StatusBadge, StatusDot, getStatusBadgeTone, type BadgeTone } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { DateTimeField } from './DateFields';
+import { todayInMalaysia } from '../utils/dateFields';
 import { RecordPage } from './RecordPage';
 import { LoadingState, ErrorState } from './StateViews';
 import { AnnouncementAudienceOptions, AnnouncementItem } from '../types';
@@ -932,12 +934,14 @@ export const AnnouncementManagement: React.FC = () => {
                 <label htmlFor="announcement-publish-at" className="form-label block">
                   Publish At (optional)
                 </label>
-                <input
+                <DateTimeField
                   id="announcement-publish-at"
-                  type="datetime-local"
+                  label="Publish at"
                   value={publishAtInput}
-                  onChange={(e) => { setPublishAtInput(e.target.value); setScheduleError(null); }}
-                  className={`form-control form-control-md ${scheduleError ? 'form-control-error' : ''}`}
+                  min={todayInMalaysia()}
+                  clearable
+                  invalid={Boolean(scheduleError)}
+                  onChange={(value) => { setPublishAtInput(value); setScheduleError(null); }}
                 />
                 <p className="text-[10px] text-slate-400 font-semibold">Leave empty to publish now.</p>
               </div>

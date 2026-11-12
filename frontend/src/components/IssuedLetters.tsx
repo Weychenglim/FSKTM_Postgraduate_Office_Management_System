@@ -17,6 +17,7 @@ import { ApprovalProcess } from './ApprovalProcess';
 import type { ApprovalStep } from '../utils/approvalProcess';
 import { LetterPages } from './LetterPages';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { DateField } from './DateFields';
 import { MissingAppointmentLetters } from './MissingAppointmentLetters';
 import { GeneratedLetter, GeneratedLetterStatus, LetterRequestFilters } from '../types';
 import {
@@ -559,11 +560,11 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
         </label>
         <label className="md:col-span-2 block">
           <span className="form-label block">Issued from</span>
-          <input type="date" value={from} max={to || undefined} onChange={(e) => setFrom(e.target.value)} className="form-control form-control-sm" />
+          <DateField size="sm" clearable placeholder="Any date" value={from} max={to || undefined} onChange={setFrom} />
         </label>
         <label className="md:col-span-2 block">
           <span className="form-label block">Issued to</span>
-          <input type="date" value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} className="form-control form-control-sm" />
+          <DateField size="sm" clearable placeholder="Any date" value={to} min={from || undefined} onChange={setTo} />
         </label>
         <div className="md:col-span-2 block">
           <span className="form-label block">Status</span>

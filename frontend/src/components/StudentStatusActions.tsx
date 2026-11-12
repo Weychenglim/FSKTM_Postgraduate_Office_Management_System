@@ -14,6 +14,7 @@ import { DialogShell } from './DocumentDialogs';
 import { OverflowMenu } from './DocumentParts';
 import { PortalButton } from './PortalPrimitives';
 import { SelectMenu } from './SelectMenu';
+import { DateField } from './DateFields';
 
 type Kind = 'LEAVE' | 'END_LEAVE' | 'WITHDRAW' | 'TERMINATE' | 'DECEASED' | 'REINSTATE' | 'FINISH' | 'SENATE' | 'RETURN' | 'CORRECT';
 
@@ -202,7 +203,7 @@ export const StudentStatusActions: React.FC<{ student: StudentRecord; onChanged:
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={field}>
               Senate date
-              <input type="date" className="form-control form-control-md" max={today()} value={senateDate} disabled={busy} onChange={event => setSenateDate(event.target.value)} />
+              <DateField max={today()} value={senateDate} disabled={busy} onChange={setSenateDate} />
             </label>
             <label className={field}>
               Meeting reference

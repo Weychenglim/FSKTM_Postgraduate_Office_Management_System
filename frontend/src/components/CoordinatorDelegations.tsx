@@ -9,6 +9,7 @@ import { createCoordinatorDelegation, getCoordinatorDelegationOptions, getCoordi
 import { ApiError } from '../services/apiClient';
 import { malaysiaToday, validateDelegation } from '../utils/coordinatorDelegations';
 import { PortalButton, StatusBadge } from './PortalPrimitives';
+import { DateField } from './DateFields';
 import { ErrorState, LoadingState } from './StateViews';
 
 export function CoordinatorDelegationCard({ grant, office, onRevoke }: { grant: CoordinatorDelegation; office: boolean; onRevoke: (grant: CoordinatorDelegation) => void }) {
@@ -118,8 +119,8 @@ function DelegationsContent({ office = false, regularProgramme = '', effectivePr
       {revoking ? <><h4 className="section-label">Revoke access to {revoking.programme} for {revoking.coordinator.name}</h4><label className="form-label block">Revocation reason<textarea required className={fieldClass} value={reason} onChange={e => setReason(e.target.value)} disabled={saving} /></label></> : <>
         <div className="grid gap-3 sm:grid-cols-2"><label className="form-label">Additional programme<PortalSelect required className={fieldClass} value={values.programme} disabled={saving} onChange={e => setValues({ ...values, programme: e.target.value, coordinatorId: 0 })}><option value="">Select programme</option>{options.programmes.map(p => <option key={p}>{p}</option>)}</PortalSelect></label>
         <label className="form-label">Active coordinator<PortalSelect required className={fieldClass} value={values.coordinatorId || ''} disabled={saving || !values.programme} onChange={e => setValues({ ...values, coordinatorId: Number(e.target.value) })}><option value="">Select coordinator</option>{options.coordinators.filter(c => c.programme !== values.programme).map(c => <option key={c.id} value={c.id}>{c.name} · {c.programme}</option>)}</PortalSelect></label>
-        <label className="form-label">Start date (Malaysia)<input type="date" required min={malaysiaToday()} className={fieldClass} value={values.startsOn} disabled={saving} onChange={e => setValues({ ...values, startsOn: e.target.value })} /></label>
-        <label className="form-label">End date (inclusive)<input type="date" required min={values.startsOn || malaysiaToday()} className={fieldClass} value={values.endsOn} disabled={saving} onChange={e => setValues({ ...values, endsOn: e.target.value })} /></label></div>
+        <label className="form-label">Start date (Malaysia)<DateField required min={malaysiaToday()} className="mt-1" value={values.startsOn} disabled={saving} onChange={value => setValues({ ...values, startsOn: value })} /></label>
+        <label className="form-label">End date (inclusive)<DateField required min={values.startsOn || malaysiaToday()} className="mt-1" value={values.endsOn} disabled={saving} onChange={value => setValues({ ...values, endsOn: value })} /></label></div>
         <label className="form-label block">Justification<textarea required className={fieldClass} value={values.justification} disabled={saving} onChange={e => setValues({ ...values, justification: e.target.value })} /></label>
       </>}
       <div className="flex gap-2"><PortalButton disabled={needsReview || loading} type="submit" variant={revoking ? 'danger' : 'primary'} isLoading={saving}>{revoking ? 'Confirm revocation' : 'Create grant'}</PortalButton><PortalButton disabled={saving} onClick={() => discard.request(cancel)}>Cancel</PortalButton></div>
