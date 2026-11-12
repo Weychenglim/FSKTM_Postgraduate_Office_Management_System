@@ -13,9 +13,9 @@ from django.db.models.functions import Lower
 from django.utils import timezone
 
 from academics.models import AcademicSemester
-from appointments.models import CoSupervisorAppointment, PanelAppointment, SupervisorApplication, SupervisorAppointment
+from appointments.models import SupervisorApplication, SupervisorAppointment
 
-from .authorization import coordinator_manages_programme, coordinator_programmes
+from .authorization import coordinator_manages_programme, coordinator_programmes, programme_coordinators
 from .models import ProjectRegistration, ProjectRegistrationChange, Student, StudentCompletion, StudentSemester, User
 from .project_stage_marks import COUNTS, MarksChanged, apply_marks, preview_marks, touches_marks
 from .semester_rules import LEAVE_OUTCOMES, NOT_REGISTERED, STUDIED, active_semester, rule_for, starts_later
@@ -42,6 +42,9 @@ REASONS = {
     "OTHER": "Other",
 }
 CHOICES = (P1, P2, NONE, AUTOMATIC)
+STAGE_NAMES = {P1: "RP1", P2: "RP2"}
+CORRECTION_ASKED = "Student requested a correction"
+CORRECTION_KEPT = "Correction request closed, answer kept"
 
 
 @dataclass(frozen=True)
@@ -245,16 +248,6 @@ def _save(record, student, academic_semester, *, stage, status, source, actor):
     return record, previous
 
 
-def appointed_ids(student_ids):
-    """Students Marks can give tasks to: anyone with an active supervisor, supporting supervisor or panel member."""
-    ids = list(student_ids)
-    active = "ACTIVE"
-    appointed = set(SupervisorAppointment.objects.filter(student_id__in=ids, status=active).values_list("student_id", flat=True))
-    appointed |= set(CoSupervisorAppointment.objects.filter(student_id__in=ids, status=active).values_list("student_id", flat=True))
-    appointed |= set(PanelAppointment.objects.filter(profile__student_id__in=ids, status=active).values_list("profile__student_id", flat=True))
-    return appointed
-
-
 def current_semester():
     from academics.services import current_effective_semester
 
@@ -273,29 +266,140 @@ def question_for(student, portal=...):
     if not (open_question or said_yes):
         return None
     code, name = research_course(student)
+    record = ProjectRegistration.objects.filter(pk=answer.record_id).first() if answered and answer.record_id else None
     return {
         "semester": portal,
         "answer": ("YES" if said_yes else "NO") if answered else None,
-        "canChange": not answered or student.pk not in appointed_ids([student.pk]),
+        "canChange": not answered,
         "code": code,
         "name": name,
+        "correction": correction_state(record),
     }
+
+
+def correction_state(record):
+    if record is None or record.correction_requested_at is None:
+        return None
+    if record.correction_closed_at is None:
+        return "REQUESTED"
+    return "KEPT" if record.correction_kept else "DONE"
+
+
+def _notify(users, *, event_key, title, summary, message, target, record_type="", record_id=""):
+    from announcements.models import Notification
+
+    rows = [
+        Notification(
+            recipient=user,
+            event_key=event_key[:160],
+            title=title[:255],
+            service="Postgraduate Office",
+            summary=summary[:255],
+            message=message,
+            is_announcement=False,
+            module_label="Student Registry",
+            target_module=target,
+            record_type=record_type,
+            record_id=record_id[:64],
+        )
+        for user in users
+    ]
+    if rows:
+        Notification.objects.bulk_create(rows, ignore_conflicts=True)
+
+
+def _answer_words(record, code):
+    if record.stage == P1:
+        return f"registered for {code}" if code else "registered for the Research Project"
+    return "not registered for the Research Project"
+
+
+@transaction.atomic
+def request_correction(student, note, actor):
+    """The student asks their programme coordinator to correct a locked answer. Once a semester."""
+    Student.objects.select_for_update().get(pk=student.pk)
+    question = question_for(student)
+    if question is None or question["answer"] is None:
+        raise StageConflict("There is no answer to correct this semester.")
+    record = ProjectRegistration.objects.select_for_update().get(student=student, academic_semester=question["semester"])
+    if record.correction_requested_at is not None:
+        raise StageConflict("You have already requested a correction this semester.")
+    note = " ".join(note.split())[:300]
+    record.correction_requested_at = timezone.now()
+    record.correction_note = note
+    record.save(update_fields=["correction_requested_at", "correction_note"])
+    _write_change(record, actor, record.stage, record.status, f"{CORRECTION_ASKED}: {note}" if note else CORRECTION_ASKED, {})
+    name = f"{student.user.full_name} ({student.matric_no})"
+    said = _answer_words(record, question["code"])
+    _notify(
+        programme_coordinators(student.programme),
+        event_key=f"registry:stage-correction:{record.pk}",
+        title="Research Project registration: correction requested",
+        summary=f"{name} asked to correct their answer for {question['semester'].label}.",
+        message=f"{name} answered that they {said} in MAYA for {question['semester'].label}, and has asked for a correction."
+        + (f" Reason given: {note}" if note else ""),
+        target="REGISTRY",
+        record_type="PROJECT_STAGE",
+        record_id=student.matric_no,
+    )
+    return record
+
+
+def _close_correction(record, *, kept):
+    record.correction_closed_at = timezone.now()
+    record.correction_kept = kept
+    record.save(update_fields=["correction_closed_at", "correction_kept"])
+
+
+@transaction.atomic
+def keep_answers(academic_semester, matrics, actor):
+    """The coordinator checked the student's MAYA registration and the answer was right."""
+    _semester_check(academic_semester)
+    wanted = {matric.strip().lower(): matric.strip() for matric in matrics}
+    students = list(
+        Student.objects.select_for_update().select_related("user").annotate(matric_key=Lower("matric_no"))
+        .filter(matric_key__in=list(wanted)).order_by("pk")
+    )
+    kept, left_out = [], []
+    for student in students:
+        record = ProjectRegistration.objects.select_for_update().filter(student=student, academic_semester=academic_semester).first()
+        if not can_change(actor, student, lock=True):
+            left_out.append({"matric": student.matric_no, "name": student.user.full_name, "why": "Not in a programme you manage."})
+            continue
+        if record is None or not record.correction_open:
+            left_out.append({"matric": student.matric_no, "name": student.user.full_name, "why": "No correction request to close."})
+            continue
+        _close_correction(record, kept=True)
+        _write_change(record, actor, record.stage, record.status, CORRECTION_KEPT, {})
+        _notify(
+            [student.user],
+            event_key=f"registry:stage-correction-kept:{record.pk}",
+            title="Research Project registration checked",
+            summary="Your programme coordinator checked your registration and kept your answer.",
+            message=f"Your programme coordinator checked your MAYA registration for {academic_semester.label} and kept your answer: "
+            f"{_answer_words(record, research_course(student)[0])}.",
+            target="DASHBOARD",
+        )
+        kept.append(student.matric_no)
+    found = {student.matric_key for student in students}
+    missing = [{"matric": matric, "name": "", "why": "Not found."} for key, matric in wanted.items() if key not in found]
+    return {"changed": kept, "leftOut": left_out + missing}
 
 
 @transaction.atomic
 def answer_question(student, choice, actor):
-    """The student's own answer. Once they have a supervisor it can no longer change, so it never touches Marks."""
+    """The student's own answer, given once a semester. After that only a programme coordinator can change it."""
     Student.objects.select_for_update().get(pk=student.pk)
     question = question_for(student)
     if question is None:
         raise StageConflict("There is nothing to answer this semester.")
-    if not question["canChange"]:
-        raise StageConflict("Ask your programme coordinator to change this.")
     stage = P1 if choice == "YES" else NONE
     portal = question["semester"]
     record = ProjectRegistration.objects.select_for_update().filter(student=student, academic_semester=portal).first()
     if record and record.status == CONFIRMED and record.source == Source.STUDENT and record.stage == stage:
         return record
+    if not question["canChange"]:
+        raise StageConflict("Your answer is already recorded. To correct it, contact your programme coordinator.")
     record, previous = _save(record, student, portal, stage=stage, status=CONFIRMED, source=Source.STUDENT, actor=actor)
     _write_change(record, actor, *previous, "Student's answer", {})
     return record
@@ -393,6 +497,17 @@ def change_stages(academic_semester, items, *, choice, reason, actor, checked=Fa
                     apply_marks(student, academic_semester, before[student.pk].stage, after.stage, token=impact.get("token", ""), actor=actor, reason=label)
                 except MarksChanged as exc:
                     raise StageConflict("Marks has changed since you checked. Look again.") from exc
+                if record.correction_open:
+                    _close_correction(record, kept=False)
+                    _notify(
+                        [student.user],
+                        event_key=f"registry:stage-correction-done:{record.pk}",
+                        title="Research Project registration updated",
+                        summary=f"Your programme coordinator updated your Research Project stage to {STAGE_NAMES.get(after.stage, 'Not started')}.",
+                        message=f"Your programme coordinator updated your Research Project stage for {academic_semester.label} "
+                        f"to {STAGE_NAMES.get(after.stage, 'Not started')}.",
+                        target="DASHBOARD",
+                    )
             changed.append(student.matric_no)
         except _LeftOut as left:
             if single:
@@ -422,6 +537,21 @@ def visible_to(user, students):
         return students
     managed = {programme.casefold() for programme in coordinator_programmes(user)}
     return [student for student in students if (student.programme or "").strip().casefold() in managed]
+
+
+def open_corrections(user):
+    """Correction requests waiting for this coordinator in the current semester."""
+    portal = current_semester()
+    if portal is None or getattr(user, "role", None) != User.Role.COORDINATOR:
+        return 0
+    rows = ProjectRegistration.objects.filter(
+        academic_semester=portal,
+        status=ProjectRegistration.Status.CONFIRMED,
+        correction_requested_at__isnull=False,
+        correction_closed_at__isnull=True,
+        student__status__in=[Student.Status.ACTIVE, Student.Status.DEFERRED],
+    ).select_related("student")
+    return len(visible_to(user, [row.student for row in rows]))
 
 
 def supervision_of(student_ids):

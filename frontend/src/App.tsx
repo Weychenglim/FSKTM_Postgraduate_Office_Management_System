@@ -67,6 +67,7 @@ import { useMaintenanceWatch } from './context/maintenanceWatch';
 import { MaintenanceBanner, MaintenanceScreen, SignInMaintenanceNotice } from './components/MaintenanceNotices';
 import { maintenanceStatus } from './utils/maintenance';
 import { toDoLabel, useFileToDo } from './context/fileToDo';
+import { correctionLabel, useStageCorrections } from './context/stageCorrections';
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
@@ -189,6 +190,7 @@ export default function App() {
   const maintenanceWatch = useMaintenanceWatch();
   const maintenanceOn = maintenanceStatus(maintenanceWatch.maintenance) === 'on';
   const fileToDo = useFileToDo(currentUser?.role === 'Student' && !currentUser.mustChangePassword && !maintenanceOn, pathname);
+  const stageCorrections = useStageCorrections(currentUser?.role === 'Programme Coordinator' && !currentUser.mustChangePassword && !maintenanceOn, pathname);
 
   // The API client clears the token and fires this when the backend rejects it
   // mid-session. Without a listener the user stays in an authenticated shell
@@ -542,7 +544,10 @@ export default function App() {
           userName={currentUser.fullName}
           userRole={currentUser.role}
           feedbackScopeKey={`${currentUser.id}:${currentUser.role}`}
-          sidebarBadges={fileToDo ? { [SIDEBAR_ITEMS.FILE_MANAGEMENT]: { count: fileToDo, label: toDoLabel(fileToDo) } } : undefined}
+          sidebarBadges={fileToDo || stageCorrections ? {
+            ...(fileToDo ? { [SIDEBAR_ITEMS.FILE_MANAGEMENT]: { count: fileToDo, label: toDoLabel(fileToDo) } } : {}),
+            ...(stageCorrections ? { [SIDEBAR_ITEMS.REGISTRY]: { count: stageCorrections, label: correctionLabel(stageCorrections) } } : {}),
+          } : undefined}
           activeModal={activePortalModal}
           setActiveModal={setActivePortalModal}
         >
@@ -774,6 +779,7 @@ export default function App() {
               <StudentRegistry
                 readOnly={currentUser.role !== 'Office Staff/Admin'}
                 showProjectStages={currentUser.role === 'Programme Coordinator'}
+                projectStageAlerts={stageCorrections}
               />
             ) : activeSidebarItem === SIDEBAR_ITEMS.DASHBOARD ? (
               pathname === APP_ROUTES.myProfile && !isStudentWorkspace ? (

@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from academics.models import AcademicSemester
 
-from .models import Student, User
+from .models import ProjectRegistration, Student, User
 from .project_stages import (
     CHOICES,
     COORDINATOR,
@@ -20,10 +20,13 @@ from .project_stages import (
     answer_question,
     change_stages,
     current_semester,
+    keep_answers,
+    open_corrections,
     page_students,
     preview_change,
     project_stages,
     question_for,
+    request_correction,
     shown,
     supervision_of,
     visible_to,
@@ -46,13 +49,13 @@ def _semester(semester_id):
 def _staff(request):
     role = getattr(request.user, "role", None)
     if role not in (User.Role.OFFICE_ADMIN, User.Role.COORDINATOR):
-        raise PermissionDenied("Only the office and programme coordinators can see project stages.")
+        raise PermissionDenied("Only the office and programme coordinators can see RP registration.")
     return role
 
 
 def _coordinator(request):
     if getattr(request.user, "role", None) != User.Role.COORDINATOR:
-        raise PermissionDenied("Only programme coordinators can change project stages.")
+        raise PermissionDenied("Only programme coordinators can change RP registration.")
 
 
 def _person(student):
@@ -80,9 +83,18 @@ def project_stages_view(request):
     portal = current_semester()
     current = portal is not None and portal.pk == semester.pk
     students = visible_to(request.user, page_students(semester, current=current))
+    wanted = (request.query_params.get("student") or "").strip().casefold()
+    if wanted:
+        students = [student for student in students if student.matric_no.casefold() == wanted]
     ids = [student.pk for student in students]
     answers = project_stages(semester, ids)
     supervised, waiting = supervision_of(ids)
+    corrections = dict(
+        ProjectRegistration.objects.filter(
+            academic_semester=semester, student_id__in=ids,
+            correction_requested_at__isnull=False, correction_closed_at__isnull=True,
+        ).values_list("student_id", "correction_note")
+    )
     rows, not_studying = [], 0
     for student in students:
         answer = answers[student.pk]
@@ -97,6 +109,8 @@ def project_stages_view(request):
             "requestWaiting": student.pk in waiting,
             "notAnswered": current and answer.reason == NOT_ANSWERED,
             "setByCoordinator": answer.source == COORDINATOR,
+            "correctionRequested": student.pk in corrections,
+            "correctionNote": corrections.get(student.pk, ""),
         })
     return Response({
         "semester": {"id": semester.pk, "label": semester.label, "current": current},
@@ -106,6 +120,13 @@ def project_stages_view(request):
         "canChange": role == User.Role.COORDINATOR and current,
         "reasons": REASON_OPTIONS,
     })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def project_stage_waiting_view(request):
+    """The coordinator's open correction requests, for the sidebar number."""
+    return Response({"corrections": open_corrections(request.user)})
 
 
 @api_view(["GET"])
@@ -173,6 +194,7 @@ def _question(student):
         "name": question["name"],
         "answer": question["answer"],
         "canChange": question["canChange"],
+        "correction": question["correction"],
     }}
 
 
@@ -198,3 +220,46 @@ def my_project_stage_view(request):
     except StageConflict as exc:
         return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
     return Response(_question(Student.objects.get(pk=student.pk)))
+
+
+class CorrectionSerializer(serializers.Serializer):
+    note = serializers.CharField(max_length=300, allow_blank=True, required=False, default="")
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def my_project_stage_correction_view(request):
+    """The student asks their programme coordinator to correct a locked answer."""
+    if getattr(request.user, "role", None) != User.Role.STUDENT:
+        raise PermissionDenied("Only students request this.")
+    student = Student.objects.select_related("user").filter(pk=request.user.pk).first()
+    if student is None:
+        return Response({"error": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+    serializer = CorrectionSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    try:
+        request_correction(student, serializer.validated_data["note"], request.user)
+    except StageConflict as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
+    return Response(_question(Student.objects.get(pk=student.pk)))
+
+
+class KeepSerializer(serializers.Serializer):
+    semesterId = serializers.IntegerField()
+    students = serializers.ListField(child=serializers.CharField(max_length=64), allow_empty=False, max_length=500)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def project_stage_keep_view(request):
+    """Close correction requests where the student's answer was right."""
+    _coordinator(request)
+    serializer = KeepSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    semester = _semester(serializer.validated_data["semesterId"])
+    if semester is None:
+        return Response({"error": "That semester no longer exists."}, status=status.HTTP_404_NOT_FOUND)
+    try:
+        return Response(keep_answers(semester, serializer.validated_data["students"], request.user))
+    except StageConflict as exc:
+        return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)

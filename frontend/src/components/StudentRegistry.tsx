@@ -53,6 +53,8 @@ import { LoadingState, ErrorState } from './StateViews';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
 import { StudentStatusCards } from './ParticipantStatusCards';
 import { StudentSemestersCard } from './StudentSemestersCard';
+import { StudentProjectStageCard } from './StudentProjectStageCard';
+import { correctionLabel } from '../context/stageCorrections';
 import {
   ImportCommitResponse,
   ImportDefaults,
@@ -219,11 +221,13 @@ export const ActionButton: React.FC<ActionButtonProps> = ({ onClick, icon: Icon,
 interface StudentRegistryProps {
   readOnly?: boolean;
   showProjectStages?: boolean;
+  projectStageAlerts?: number;
 }
 
 export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   readOnly = false,
   showProjectStages = false,
+  projectStageAlerts = 0,
 }) => {
   // Master Student Registry State: loaded from studentsApi (mock-backed today).
   const [students, setStudents] = useState<StudentRecord[]>([]);
@@ -1002,8 +1006,13 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 {readOnly ? (
                   <>
                     {showProjectStages && (
-                      <PortalButton onClick={() => navigate(APP_ROUTES.registryProjectStages)} variant="primary" size="md">
-                        Project stages
+                      <PortalButton onClick={() => navigate(APP_ROUTES.registryProjectStages)} variant="primary" size="md" aria-label={projectStageAlerts > 0 ? `RP Registration, ${correctionLabel(projectStageAlerts)}` : undefined}>
+                        RP Registration
+                        {projectStageAlerts > 0 && (
+                          <span aria-hidden="true" className="ml-2 inline-flex min-w-[19px] h-[19px] px-1.5 items-center justify-center rounded-full bg-rose-600 text-[10.5px] font-extrabold leading-none text-white tabular-nums">
+                            {projectStageAlerts}
+                          </span>
+                        )}
                       </PortalButton>
                     )}
                     <PortalButton onClick={handleExportCSV} variant="secondary" size="md" icon={Download}>
@@ -1018,7 +1027,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     actions={[
                       { label: 'Current semester', onSelect: () => navigate(APP_ROUTES.registryUpdateSemester) },
                       { label: 'Graduation', onSelect: () => navigate(APP_ROUTES.registryGraduations) },
-                      { label: 'Project stages', onSelect: () => navigate(APP_ROUTES.registryProjectStages) },
+                      { label: 'RP Registration', onSelect: () => navigate(APP_ROUTES.registryProjectStages) },
                       { label: 'Data retention', onSelect: () => navigate(APP_ROUTES.registryRetention) },
                       { label: 'Export CSV', onSelect: handleExportCSV },
                     ]}
@@ -2244,6 +2253,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   </div>
 
                 </div>
+
+                {showProjectStages && <StudentProjectStageCard key={`stage:${viewingStudent.id}`} matric={viewingStudent.id} />}
 
                 <StudentSemestersCard
                   key={`semesters:${viewingStudent.id}:${shownStatus(viewingStudent)}`}

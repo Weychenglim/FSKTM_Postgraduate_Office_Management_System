@@ -885,6 +885,10 @@ class ProjectRegistration(models.Model):
     )
     confirmed_at = models.DateTimeField(default=timezone.now)
     revision = models.PositiveIntegerField(default=1)
+    correction_requested_at = models.DateTimeField(null=True, blank=True)
+    correction_note = models.CharField(max_length=300, blank=True, default="")
+    correction_closed_at = models.DateTimeField(null=True, blank=True)
+    correction_kept = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
@@ -892,6 +896,10 @@ class ProjectRegistration(models.Model):
                 fields=["student", "academic_semester"], name="unique_project_registration_per_semester"
             )
         ]
+
+    @property
+    def correction_open(self):
+        return self.correction_requested_at is not None and self.correction_closed_at is None
 
 
 class ProjectRegistrationChangeQuerySet(models.QuerySet):

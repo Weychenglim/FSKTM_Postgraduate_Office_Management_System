@@ -18,6 +18,9 @@ urlpatterns = [
     path("project-stages/impact/", registry_project_stages.project_stage_impact_view, name="registry-project-stage-impact"),
     path("project-stages/change/", registry_project_stages.project_stage_change_view, name="registry-project-stage-change"),
     path("project-stages/mine/", registry_project_stages.my_project_stage_view, name="registry-my-project-stage"),
+    path("project-stages/mine/correction/", registry_project_stages.my_project_stage_correction_view, name="registry-my-project-stage-correction"),
+    path("project-stages/keep/", registry_project_stages.project_stage_keep_view, name="registry-project-stage-keep"),
+    path("project-stages/waiting/", registry_project_stages.project_stage_waiting_view, name="registry-project-stage-waiting"),
     path("retention/", retention.retention_view, name="registry-retention"),
     path(
         "students/import/",

@@ -40,7 +40,8 @@ from accounts.project_stage_marks import count_tasks
 from accounts.semesters import read
 from accounts.test_registry_semesters import DS, make_student, semesters_for
 from accounts.test_student_lifecycle import make_semester
-from appointments.models import PanelAppointment, PanelRecommendation, StudentResearchProfile, SupervisorApplication, SupervisorAppointment
+from announcements.models import Notification
+from appointments.models import StudentResearchProfile, SupervisorApplication, SupervisorAppointment
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
 
 Outcome = StudentSemester.Outcome
@@ -300,24 +301,35 @@ class StudentQuestionTests(StageBase):
     def test_a_first_semester_student_is_not_asked(self):
         self.assertIsNone(self.ask(self.student("SQ1", S2_26, intake="2026/2027 Semester II")))
 
-    def test_the_question_names_the_course_and_yes_then_no_are_saved_with_history(self):
+    def test_the_question_names_the_course_and_the_answer_is_saved_once_with_history(self):
         student = self.student("SQ2", S1_26, S2_26)
         question = self.ask(student)
         self.assertEqual((question["code"], question["name"], question["answer"], question["canChange"]), ("WQD7025", "Data Science Research Project", None, True))
-        self.assertEqual(self.reply(student, "YES").data["question"]["answer"], "YES")
+        saved = self.reply(student, "YES").data["question"]
+        self.assertEqual((saved["answer"], saved["canChange"]), ("YES", False))
         self.assertEqual(self.answer(student).stage, "P1")
+        refused = self.reply(student, "NO")
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn("contact your programme coordinator", refused.data["error"])
+        self.assertEqual(self.answer(student).stage, "P1")
+        history = list(ProjectRegistrationChange.objects.order_by("id"))
+        self.assertEqual([(row.previous_stage, row.new_stage, row.actor_id, row.reason) for row in history], [("", "P1", student.pk, "Student's answer")])
+
+    def test_not_this_semester_is_locked_too(self):
+        student = self.student("SQ11", S1_26, S2_26)
         self.assertEqual(self.reply(student, "NO").data["question"]["answer"], "NO")
         self.assertEqual(self.answer(student).state, NOT_STARTED)
-        history = list(ProjectRegistrationChange.objects.order_by("id"))
-        self.assertEqual([(row.previous_stage, row.new_stage, row.actor_id, row.reason) for row in history], [("", "P1", student.pk, "Student's answer"), ("P1", "NONE", student.pk, "Student's answer")])
+        self.assertFalse(self.ask(student)["canChange"])
+        self.assertEqual(self.reply(student, "YES").status_code, 409)
+        self.assertEqual(self.answer(student).state, NOT_STARTED)
 
     def test_the_same_answer_twice_adds_no_history(self):
         student = self.student("SQ3", S1_26, S2_26)
         self.reply(student, "YES")
-        self.reply(student, "YES")
+        self.assertEqual(self.reply(student, "YES").status_code, 200)
         self.assertEqual(ProjectRegistrationChange.objects.count(), 1)
 
-    def test_an_answer_is_locked_once_the_student_has_a_supervisor(self):
+    def test_a_student_with_a_supervisor_also_answers_once(self):
         student = self.student("SQ4", S1_25, S1_26, S2_26)
         self.approve(student, self.s1_26)
         self.said(student, self.s1_26, "NONE", source=ProjectRegistration.Source.COORDINATOR)
@@ -347,16 +359,6 @@ class StudentQuestionTests(StageBase):
         student = self.student("SQ9", S1_26, S2_26)
         Student.objects.filter(pk=student.pk).update(status=Student.Status.WITHDRAWN)
         self.assertEqual(self.answer(student).reason, "")
-
-    def test_a_panel_or_supporting_supervisor_also_locks_the_answer(self):
-        student = self.student("SQ10", S1_26, S2_26)
-        self.reply(student, "YES")
-        profile = StudentResearchProfile.objects.create(student=student.user, matric_no=student.matric_no, student_name="S", programme=DS, semester="S2", proposed_topic="T", supervisor=self.lecturer)
-        member = User.objects.create_user(email="panel@example.test", password="pw", full_name="Dr Panel", role=User.Role.LECTURER)
-        recommendation = PanelRecommendation.objects.create(profile=profile, supervisor=self.lecturer, recommended_member=member, status="APPROVED")
-        PanelAppointment.objects.create(recommendation=recommendation, profile=profile, supervisor=self.lecturer, panel_member=member, approved_by=self.office)
-        self.assertFalse(self.ask(student)["canChange"])
-        self.assertEqual(self.reply(student, "NO").status_code, 409)
 
     def test_a_student_on_leave_is_not_asked(self):
         student = self.student("SQ7", S1_26, S2_26)
@@ -584,3 +586,124 @@ class GraduationOnP2Tests(StageBase):
         data = self.client.get("/api/registry/graduation/").data
         found = [row for group in ("ready", "check", "stop") for row in data[group] if row["matric"] == "GP1"]
         self.assertTrue(found and found[0]["onP2"])
+
+
+class CorrectionTests(PageAndChangeBase):
+    MINE = STAGES + "mine/"
+
+    def reply(self, student, answer):
+        self.client.force_authenticate(student.user)
+        return self.client.post(self.MINE, {"answer": answer}, format="json")
+
+    def correct(self, student, note=""):
+        self.client.force_authenticate(student.user)
+        return self.client.post(self.MINE + "correction/", {"note": note}, format="json")
+
+    def keep(self, matrics):
+        self.client.force_authenticate(self.coordinator)
+        return self.client.post(STAGES + "keep/", {"semesterId": self.portal.pk, "students": matrics}, format="json")
+
+    def told(self, user):
+        return list(Notification.objects.filter(recipient=user).values_list("title", flat=True))
+
+    def test_a_student_requests_a_correction_once_and_the_coordinator_is_told(self):
+        student = self.student("CR1", S1_26, S2_26)
+        self.reply(student, "YES")
+        response = self.correct(student, "  I clicked the wrong   one ")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["question"]["correction"], "REQUESTED")
+        self.assertEqual(self.correct(student).status_code, 409)
+        self.assertEqual(ProjectRegistration.objects.get(student=student).correction_note, "I clicked the wrong one")
+        self.assertEqual(self.told(self.coordinator), ["Research Project registration: correction requested"])
+        row = self.page().data["rows"][0]
+        self.assertEqual((row["correctionRequested"], row["correctionNote"]), (True, "I clicked the wrong one"))
+        reasons = list(ProjectRegistrationChange.objects.order_by("id").values_list("reason", flat=True))
+        self.assertEqual(reasons, ["Student's answer", "Student requested a correction: I clicked the wrong one"])
+
+    def waiting(self, user):
+        self.client.force_authenticate(user)
+        return self.client.get(STAGES + "waiting/").data["corrections"]
+
+    def test_the_sidebar_number_counts_open_requests_in_the_coordinators_programmes(self):
+        first = self.student("CR8", S1_26, S2_26)
+        second = self.student("CR9", S1_26, S2_26)
+        other = self.student("CR10", S1_26, S2_26, programme=CS)
+        for student in (first, second, other):
+            self.reply(student, "YES")
+            self.correct(student)
+        self.assertEqual(self.waiting(self.coordinator), 2)
+        self.assertEqual(self.waiting(self.office), 0)
+        self.assertEqual(self.waiting(first.user), 0)
+        self.keep(["CR8"])
+        self.assertEqual(self.waiting(self.coordinator), 1)
+        self.change([("CR9", "P1")], "NONE", reason="WRONG_ANSWER")
+        self.assertEqual(self.waiting(self.coordinator), 0)
+
+    def test_the_page_can_show_one_student_for_their_record(self):
+        self.student("CR11", S1_26, S2_26)
+        self.student("CR12", S1_26, S2_26)
+        self.student("CR13", S1_26, S2_26, programme=CS)
+        self.client.force_authenticate(self.coordinator)
+        rows = self.client.get(STAGES + "?student=cr12").data["rows"]
+        self.assertEqual([row["matric"] for row in rows], ["CR12"])
+        self.assertEqual(self.client.get(STAGES + "?student=CR13").data["rows"], [])
+
+    def test_there_is_nothing_to_correct_before_an_answer(self):
+        student = self.student("CR2", S1_26, S2_26)
+        self.assertEqual(self.correct(student).status_code, 409)
+        self.assertFalse(Notification.objects.exists())
+
+    def test_a_coordinator_change_closes_the_request_and_tells_the_student(self):
+        student = self.student("CR3", S1_26, S2_26)
+        self.reply(student, "YES")
+        self.correct(student)
+        self.assertEqual(self.change([("CR3", "P1")], "NONE", reason="WRONG_ANSWER").status_code, 200)
+        record = ProjectRegistration.objects.get(student=student)
+        self.assertEqual((record.correction_open, record.correction_kept), (False, False))
+        self.assertEqual(self.answer(student).state, NOT_STARTED)
+        self.assertEqual(self.told(student.user), ["Research Project registration updated"])
+        self.assertFalse(self.page().data["rows"][0]["correctionRequested"])
+
+    def test_keeping_the_answer_closes_the_request_for_good(self):
+        student = self.student("CR4", S1_26, S2_26)
+        self.reply(student, "NO")
+        self.correct(student)
+        self.assertEqual(self.keep(["CR4"]).data, {"changed": ["CR4"], "leftOut": []})
+        self.assertEqual(self.answer(student).state, NOT_STARTED)
+        self.client.force_authenticate(student.user)
+        self.assertEqual(self.client.get(self.MINE).data["question"]["correction"], "KEPT")
+        self.assertEqual(self.told(student.user), ["Research Project registration checked"])
+        self.assertEqual(self.correct(student).status_code, 409)
+        self.assertEqual(self.keep(["CR4"]).data["leftOut"][0]["why"], "No correction request to close.")
+
+    def test_only_the_students_own_coordinator_can_keep_an_answer(self):
+        other = self.student("CR5", S1_26, S2_26, programme=CS)
+        self.reply(other, "YES")
+        self.correct(other)
+        self.assertEqual(self.keep(["CR5"]).data["leftOut"][0]["why"], "Not in a programme you manage.")
+        self.client.force_authenticate(other.user)
+        self.assertEqual(self.client.post(STAGES + "keep/", {"semesterId": self.portal.pk, "students": ["CR5"]}, format="json").status_code, 403)
+
+    def test_the_coordinator_can_switch_a_correction_back(self):
+        student = self.student("CR6", S1_26, S2_26)
+        self.reply(student, "YES")
+        self.correct(student, "Wrong button")
+        self.assertEqual(self.change([("CR6", "P1")], "NONE", reason="WRONG_ANSWER").status_code, 200)
+        self.assertEqual(self.answer(student).state, NOT_STARTED)
+        self.assertEqual(self.change([("CR6", "NOT_STARTED")], "P1", reason="WRONG_ANSWER").status_code, 200)
+        self.assertEqual((self.answer(student).stage, self.answer(student).source), ("P1", COORDINATOR))
+        self.assertEqual(self.told(student.user), ["Research Project registration updated"])
+        self.assertEqual(self.change([("CR6", "P1")], "AUTO").status_code, 200)
+        self.client.force_authenticate(student.user)
+        question = self.client.get(self.MINE).data["question"]
+        self.assertEqual((question["answer"], question["canChange"]), (None, True))
+
+    def test_a_kept_answer_can_still_be_changed_by_the_coordinator(self):
+        student = self.student("CR7", S1_26, S2_26)
+        self.reply(student, "YES")
+        self.correct(student)
+        self.keep(["CR7"])
+        self.assertEqual(self.change([("CR7", "P1")], "NONE", reason="WRONG_ANSWER").status_code, 200)
+        self.assertEqual(self.answer(student).state, NOT_STARTED)
+        self.assertEqual(self.change([("CR7", "NOT_STARTED")], "P1", reason="WRONG_ANSWER").status_code, 200)
+        self.assertEqual(self.answer(student).stage, "P1")
