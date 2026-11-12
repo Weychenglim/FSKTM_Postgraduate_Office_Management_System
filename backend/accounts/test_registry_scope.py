@@ -135,6 +135,18 @@ class RegistryScopeTests(APITestCase):
                 status.HTTP_404_NOT_FOUND,
             )
 
+    def test_a_lecturer_reads_every_student_of_their_programme(self):
+        Lecturer.objects.filter(user=self.co_supervisor).update(programme=f" {DS.lower()} ")
+        self.assertEqual(self._ids(self.co_supervisor), {"SCOPE-S1", "SCOPE-S2", "SCOPE-S4", "SCOPE-S5"})
+        self.assertEqual(self._ids(self.co_supervisor, "?search=SCOPE-S4"), {"SCOPE-S4"})
+        self.client.force_authenticate(self.co_supervisor)
+        self.assertEqual(self.client.get("/api/registry/students/SCOPE-S4/").status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.get("/api/registry/students/SCOPE-S3/").status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            self.client.patch("/api/registry/students/SCOPE-S4/", {"phone": "012-1"}).status_code,
+            status.HTTP_403_FORBIDDEN,
+        )
+
     def test_coordinators_read_their_managed_programme(self):
         self.assertEqual(self._ids(self.coordinator), {"SCOPE-S3"})
         self.client.force_authenticate(self.coordinator)

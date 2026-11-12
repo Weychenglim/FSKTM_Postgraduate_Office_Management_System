@@ -22,6 +22,16 @@ for (const guarded of [
   assert.match(registry, guarded, `write action is not hidden from read-only users: ${guarded}`);
 }
 
+assert.match(registry, /if \(e\.target\.value\.trim\(\) && statusView !== 'All'\) setStatusView\('All'\);/, 'a search looks across every tab');
+
+const staffForm = readFileSync(resolve('src/components/StaffAccountForm.tsx'), 'utf8');
+const staffPage = readFileSync(resolve('src/components/StaffAccountPage.tsx'), 'utf8');
+const staffDialogs = readFileSync(resolve('src/components/StaffAccountDialogs.tsx'), 'utf8');
+assert.match(staffForm, /role === 'Lecturer' && \(\s*<Field id=\{id\('programme'\)\} label="Programme \(optional\)"/);
+assert.match(staffForm, /role === 'Programme Coordinator' \|\| \(role === 'Lecturer' && programme\) \? \{ programme \}/);
+assert.match(staffPage, /\{lecturerLike && \(\s*<div[^>]*>\s*<div>\s*<p[^>]*>\{account\.role === 'Programme Coordinator' \? 'Programme they coordinate' : 'Programme'\}/);
+assert.match(staffDialogs, /if \(!coordinator\) return;/, 'a lecturer programme needs no approvals check');
+
 assert.match(registry, /summariseRegistry\(students\)/);
 assert.match(registry, /value: NO_SUPERVISOR, label: 'No supervisor yet'/);
 for (const fabricated of [

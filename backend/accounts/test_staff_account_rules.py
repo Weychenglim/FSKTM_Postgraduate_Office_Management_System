@@ -242,9 +242,24 @@ class ProgrammeTests(StaffRulesBase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["programme"], "")
 
-    def test_only_coordinators_have_a_programme(self):
-        self.assertEqual(self.move(self.lecturer, AI).status_code, status.HTTP_409_CONFLICT)
+    def test_only_lecturers_and_coordinators_have_a_programme(self):
+        self.assertEqual(self.move(self.office, AI).status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(self.move(self.coordinator, "MASTER OF NOTHING").status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(self.move(self.lecturer, "MASTER OF NOTHING").status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_a_lecturer_programme_is_saved_logged_and_can_be_cleared(self):
+        other = self.make_lecturer("rules.second", "Second Lecturer")
+        self.assertEqual(self.move(other, DS).status_code, status.HTTP_200_OK)
+        response = self.move(self.lecturer, DS)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["programme"], DS)
+        self.assertEqual(Lecturer.objects.get(user=self.lecturer).programme, DS)
+        self.assertEqual(AccountChange.objects.get(account=self.lecturer).details, {"from": "", "to": DS})
+        self.assertEqual(self.move(self.lecturer, DS).status_code, status.HTTP_200_OK)
+        self.assertEqual(AccountChange.objects.filter(account=self.lecturer).count(), 1)
+        cleared = self.move(self.lecturer, "")
+        self.assertEqual(cleared.data["programme"], "")
+        self.assertFalse(Coordinator.objects.filter(lecturer__user=self.lecturer).exists())
 
 
 class SignInTests(StaffRulesBase):

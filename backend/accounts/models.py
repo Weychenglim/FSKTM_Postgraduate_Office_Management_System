@@ -341,6 +341,9 @@ class Lecturer(models.Model):
     )
     staff_no = models.CharField(max_length=64, unique=True)
     department = models.CharField(max_length=255, blank=True, default="")
+    # The programme a lecturer teaches in. They read all of its students in
+    # the registry. Coordinators use Coordinator.programme_managed instead.
+    programme = models.CharField(max_length=255, blank=True, default="")
     title = models.CharField(max_length=64, blank=True, default="")
     specialization = models.CharField(max_length=255, blank=True, default="")
     lifecycle_status = models.CharField(

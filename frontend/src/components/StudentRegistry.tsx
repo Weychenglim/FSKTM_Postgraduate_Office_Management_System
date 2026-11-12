@@ -1103,6 +1103,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     value={searchQuery}
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
+                      if (e.target.value.trim() && statusView !== 'All') setStatusView('All');
                       setCurrentPage(1);
                     }}
                     className="w-full bg-white border border-slate-200 text-slate-700 pl-10 pr-4 py-2.5 rounded-xl placeholder:text-slate-450 outline-none focus:ring-1 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-3xs font-sans not-italic normal-case tracking-normal text-[13px] font-semibold"

@@ -120,10 +120,20 @@ class CreateAccountTests(StaffAccountsBase):
         self.assertEqual(response.data["account"]["programme"], AI)
         self.assertEqual(response.data["account"]["duties"], [])
 
+    def test_a_lecturer_can_be_given_a_programme(self):
+        response = self.create(programme=DS)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(Lecturer.objects.get(staff_no="SMOKE-LEC-100").programme, DS)
+        self.assertEqual(response.data["account"]["programme"], DS)
+        self.assertFalse(Coordinator.objects.filter(lecturer__staff_no="SMOKE-LEC-100").exists())
+        plain = self.create(email="plain.lecturer@example.test", staffId="SMOKE-LEC-101")
+        self.assertEqual(plain.status_code, status.HTTP_201_CREATED, plain.data)
+        self.assertEqual(plain.data["account"]["programme"], "")
+
     def test_role_rules(self):
         cases = [
             ({"role": User.Role.COORDINATOR, "duties": []}, "programme"),
-            ({"role": User.Role.LECTURER, "programme": DS}, "programme"),
+            ({"role": User.Role.OFFICE_ADMIN, "duties": [], "programme": DS}, "programme"),
             ({"role": User.Role.COORDINATOR, "programme": DS, "duties": ["Panel"]}, "duties"),
             ({"role": User.Role.OFFICE_ADMIN, "duties": ["Supervisor"]}, "duties"),
             ({"role": User.Role.OFFICE_ADMIN, "duties": [], "title": "Dr."}, "title"),

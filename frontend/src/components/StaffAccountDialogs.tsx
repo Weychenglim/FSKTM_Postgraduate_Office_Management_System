@@ -137,6 +137,7 @@ export const ProgrammeDialog: React.FC<DialogProps> = ({ account, isOpen, onClos
   const [preview, setPreview] = useState<ProgrammeMoveCheck | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const coordinator = account.role === 'Programme Coordinator';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -153,6 +154,7 @@ export const ProgrammeDialog: React.FC<DialogProps> = ({ account, isOpen, onClos
     setChoice(value);
     setPreview(null);
     setProblem(null);
+    if (!coordinator) return;
     setBusy(true);
     try {
       setPreview(await checkProgrammeMove(account.id, value === NONE ? '' : value));
@@ -167,7 +169,10 @@ export const ProgrammeDialog: React.FC<DialogProps> = ({ account, isOpen, onClos
     setBusy(true);
     try {
       const updated = await changeStaffProgramme(account.id, choice === NONE ? '' : choice);
-      onDone(updated, choice === NONE ? `${account.name} no longer coordinates a programme.` : `${account.name} now coordinates ${programmeName(choice)}.`);
+      const message = coordinator
+        ? choice === NONE ? `${account.name} no longer coordinates a programme.` : `${account.name} now coordinates ${programmeName(choice)}.`
+        : choice === NONE ? `${account.name} no longer has a programme.` : `${account.name} is now in ${programmeName(choice)}.`;
+      onDone(updated, message);
     } catch (err) {
       setProblem(errorText(err, 'Could not change the programme.'));
     } finally {
@@ -177,7 +182,7 @@ export const ProgrammeDialog: React.FC<DialogProps> = ({ account, isOpen, onClos
 
   const choices = [
     ...PROGRAMME_OPTIONS.filter(programme => programme !== account.programme).map(programme => {
-      const holder = holderOf(programme);
+      const holder = coordinator ? holderOf(programme) : undefined;
       const taken = Boolean(holder && holder.id !== account.id);
       return {
         value: programme as string,
@@ -186,7 +191,7 @@ export const ProgrammeDialog: React.FC<DialogProps> = ({ account, isOpen, onClos
         disabled: taken,
       };
     }),
-    ...(account.programme ? [{ value: NONE, label: 'No programme', description: 'Needed before their sign-in can be turned off.' }] : []),
+    ...(account.programme ? [{ value: NONE, label: 'No programme', description: coordinator ? 'Needed before their sign-in can be turned off.' : undefined }] : []),
   ];
 
   return (
@@ -198,7 +203,14 @@ export const ProgrammeDialog: React.FC<DialogProps> = ({ account, isOpen, onClos
       onClose={onClose}
       footer={<>
         <PortalButton onClick={onClose} disabled={busy}>Cancel</PortalButton>
-        <PortalButton variant="primary" isLoading={busy && Boolean(preview)} disabled={!preview || busy} onClick={() => void save()}>Change programme</PortalButton>
+        <PortalButton
+          variant="primary"
+          isLoading={busy && (Boolean(preview) || !coordinator)}
+          disabled={(coordinator ? !preview : !choice) || busy}
+          onClick={() => void save()}
+        >
+          Change programme
+        </PortalButton>
       </>}
     >
       <p className="text-[13px] text-slate-600">

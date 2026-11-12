@@ -242,7 +242,7 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 | GET, PATCH | `<id>/` | `{name, email, phone, staffId, department, title, researchArea, position}` | the account page (the account plus `capacity`, `activeWork`, `deletion`); PATCH returns `{account, oldAddressTold}` |
 | DELETE | `<id>/` | | 204, only for an unused account |
 | POST | `<id>/duties/` | `{duties: [Supervisor, Panel]}` | the account page |
-| POST | `<id>/programme/` | `{programme, check}` (blank means none) | the account page; with `check`, `{from, to}` and the approvals waiting in each |
+| POST | `<id>/programme/` | `{programme, check}` (blank means none) | the account page; with `check`, `{from, to}` and the approvals waiting in each. A coordinator's programme is the one they manage; a lecturer's is the one they teach in, and they read all of its students in the Student Registry |
 | POST | `<id>/sign-in/` | `{on, reason}` (a reason is needed to turn it off) | the account page |
 | POST | `<id>/send-link/` | | `{kind: activation or reset, sent}` |
 | POST | `<id>/activation-link/` | | `{link}`, only before activation |
