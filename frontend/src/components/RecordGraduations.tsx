@@ -15,6 +15,7 @@ import { PortalButton, StatusBadge } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { PeopleFilters, PersonRow, PersonTickRow, SelectionBar } from './RegistryPersonRow';
 import { SelectMenu } from './SelectMenu';
+import { DateField } from './DateFields';
 import { ErrorState, LoadingState } from './StateViews';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
@@ -339,7 +340,7 @@ export const RecordGraduations: React.FC = () => {
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
                 Senate date
-                <input type="date" className="form-control form-control-md" max={today()} value={senateDate} disabled={busy} onChange={event => setSenateDate(event.target.value)} />
+                <DateField max={today()} value={senateDate} disabled={busy} onChange={setSenateDate} />
               </label>
               <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
                 Meeting reference

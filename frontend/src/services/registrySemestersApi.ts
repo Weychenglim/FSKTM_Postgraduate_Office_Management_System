@@ -277,6 +277,8 @@ export interface StageRow {
   requestWaiting: boolean;
   notAnswered: boolean;
   setByCoordinator: boolean;
+  correctionRequested: boolean;
+  correctionNote: string;
 }
 
 export interface ProjectStagesPage {
@@ -300,8 +302,24 @@ export interface StageChangeResult {
   leftOut: Array<{ matric: string; name: string; why: string }>;
 }
 
-export const getProjectStages = (semesterId: number | null) =>
-  request<ProjectStagesPage>(`${BASE}/project-stages/${semesterId ? `?semester=${semesterId}` : ''}`);
+/** Fired after a coordinator changes stages or keeps answers, so the sidebar number refreshes. */
+export const STAGES_CHANGED_EVENT = 'fsktm:stages-changed';
+
+function stagesChanged<T>(result: T): T {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(STAGES_CHANGED_EVENT));
+  return result;
+}
+
+export const getProjectStages = (semesterId: number | null, student = '') => {
+  const params = new URLSearchParams();
+  if (semesterId) params.set('semester', String(semesterId));
+  if (student) params.set('student', student);
+  const query = params.toString();
+  return request<ProjectStagesPage>(`${BASE}/project-stages/${query ? `?${query}` : ''}`);
+};
+
+export const getProjectStageWaiting = () =>
+  request<{ corrections: number }>(`${BASE}/project-stages/waiting/`).then(data => data.corrections);
 
 export const getProjectStageImpact = (semesterId: number, matric: string, stage: StageChoice) =>
   request<MarksImpact>(`${BASE}/project-stages/impact/?semester=${semesterId}&matric=${encodeURIComponent(matric)}&stage=${stage}`);
@@ -313,7 +331,10 @@ export const changeProjectStages = (input: {
   students: Array<{ matric: string; shown: StageShown }>;
   checked: boolean;
   token: string;
-}) => request<StageChangeResult>(`${BASE}/project-stages/change/`, json('POST', input));
+}) => request<StageChangeResult>(`${BASE}/project-stages/change/`, json('POST', input)).then(stagesChanged);
+
+export const keepProjectStageAnswers = (semesterId: number, students: string[]) =>
+  request<StageChangeResult>(`${BASE}/project-stages/keep/`, json('POST', { semesterId, students })).then(stagesChanged);
 
 export interface ProjectStageQuestion {
   semester: string;
@@ -321,7 +342,11 @@ export interface ProjectStageQuestion {
   name: string;
   answer: 'YES' | 'NO' | null;
   canChange: boolean;
+  correction: 'REQUESTED' | 'KEPT' | 'DONE' | null;
 }
+
+export const requestProjectStageCorrection = (note: string) =>
+  request<{ question: ProjectStageQuestion | null }>(`${BASE}/project-stages/mine/correction/`, json('POST', { note })).then(data => data.question);
 
 export const getMyProjectStage = () =>
   request<{ question: ProjectStageQuestion | null }>(`${BASE}/project-stages/mine/`).then(data => data.question);

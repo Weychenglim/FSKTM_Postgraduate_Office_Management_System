@@ -25,6 +25,8 @@ const DUTIES: { value: StaffDuty }[] = [
   { value: 'Panel' },
 ];
 
+const NO_PROGRAMME = 'NONE';
+
 type Details = { name: string; title: string; email: string; staffId: string; department: string; phone: string; researchArea: string; position: string };
 const EMPTY: Details = { name: '', title: '', email: '', staffId: '', department: '', phone: '', researchArea: '', position: '' };
 
@@ -110,7 +112,7 @@ export const StaffAccountForm: React.FC = () => {
         ...(lecturerLike ? { title: details.title.trim() } : {}),
         ...(role === 'Lecturer' ? { researchArea: details.researchArea.trim(), duties } : {}),
         ...(role === 'Office Staff/Admin' ? { position: details.position.trim() } : {}),
-        ...(role === 'Programme Coordinator' ? { programme } : {}),
+        ...(role === 'Programme Coordinator' || (role === 'Lecturer' && programme) ? { programme } : {}),
         sendActivation: sendNow,
       });
       done.current = true;
@@ -217,6 +219,23 @@ export const StaffAccountForm: React.FC = () => {
                   <Field id={id('phone')} label="Phone (optional)" problem={problems.phone}>
                     <input id={id('phone')} type="tel" className={inputClass(problems.phone)} value={details.phone} onChange={set('phone')} maxLength={32} aria-describedby={describedBy('phone')} />
                   </Field>
+                  {role === 'Lecturer' && (
+                    <Field id={id('programme')} label="Programme (optional)" problem={problems.programme} className="sm:col-span-2">
+                      <SelectMenu
+                        id={id('programme')}
+                        value={programme}
+                        placeholder="No programme"
+                        options={[
+                          ...(options?.programmes ?? []).map(row => ({ value: row.programme, label: programmeName(row.programme) })),
+                          ...(programme ? [{ value: NO_PROGRAMME, label: 'No programme' }] : []),
+                        ]}
+                        onChange={value => {
+                          setProgramme(value === NO_PROGRAMME ? '' : value);
+                          setProblems(current => ({ ...current, programme: '' }));
+                        }}
+                      />
+                    </Field>
+                  )}
                   {role === 'Lecturer' && (
                     <Field id={id('researchArea')} label="Research area (optional)" problem={problems.researchArea} className="sm:col-span-2">
                       <input id={id('researchArea')} className={inputClass(problems.researchArea)} value={details.researchArea} onChange={set('researchArea')} maxLength={255} />

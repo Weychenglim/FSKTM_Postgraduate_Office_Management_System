@@ -2,7 +2,9 @@ import type { BadgeTone } from '../components/PortalPrimitives';
 import type { MarksImpact, StageChangeResult, StageChoice, StageRow, StageShown } from '../services/registrySemestersApi';
 import { studentCount } from './registrySemesters';
 
-export type StageChip = 'noSupervisor' | 'notAnswered' | 'needsLook' | 'P1' | 'P2' | 'NOT_STARTED' | 'COMPLETED';
+export type StageChip = 'correction' | 'noSupervisor' | 'notAnswered' | 'needsLook' | 'P1' | 'P2' | 'NOT_STARTED' | 'COMPLETED';
+
+export type DialogChoice = StageChoice | 'KEEP';
 
 export const STAGE_LABEL: Record<StageShown, string> = {
   P1: 'RP1',
@@ -21,6 +23,7 @@ export const STAGE_TONE: Record<StageShown, BadgeTone> = {
 };
 
 const CHIPS: Array<{ value: StageChip; label: string; attention: boolean; matches: (row: StageRow) => boolean }> = [
+  { value: 'correction', label: 'Correction requested', attention: true, matches: row => row.correctionRequested },
   { value: 'noSupervisor', label: 'RP1, no supervisor yet', attention: true, matches: row => row.noSupervisor },
   { value: 'notAnswered', label: 'Not answered', attention: true, matches: row => row.notAnswered },
   { value: 'needsLook', label: 'Needs a look', attention: true, matches: row => row.shown === 'NOT_CONFIRMED' },
@@ -48,6 +51,7 @@ export function firstChip(rows: StageRow[]): StageChip {
 }
 
 export function rowNote(row: StageRow): string | null {
+  if (row.correctionRequested) return row.correctionNote ? `Correction requested: "${row.correctionNote}"` : 'Correction requested';
   if (row.shown === 'NOT_CONFIRMED') return row.reason === 'BREAK_AFTER_P1' ? 'Not studying right after RP1' : 'No semester on record';
   if (row.noSupervisor) return row.requestWaiting ? 'Supervisor request waiting' : 'No supervisor request';
   if (row.setByCoordinator) return 'Set by a coordinator';
@@ -60,9 +64,12 @@ const CHOICES: Array<{ value: StageChoice; label: string }> = [
   { value: 'NONE', label: 'Not started' },
 ];
 
-/** "Back to automatic" only makes sense when a coordinator set every one of them. */
-export function stageChoices(rows: StageRow[]): Array<{ value: StageChoice; label: string }> {
-  return rows.length > 0 && rows.every(row => row.setByCoordinator) ? [...CHOICES, { value: 'AUTO', label: 'Back to automatic' }] : CHOICES;
+/** "Back to automatic" only makes sense when a coordinator set every one of them, "Keep their answer" when every one asked for a correction. */
+export function stageChoices(rows: StageRow[]): Array<{ value: DialogChoice; label: string }> {
+  const choices: Array<{ value: DialogChoice; label: string }> = [...CHOICES];
+  if (rows.length > 0 && rows.every(row => row.setByCoordinator)) choices.push({ value: 'AUTO', label: 'Back to automatic' });
+  if (rows.length > 0 && rows.every(row => row.correctionRequested)) choices.push({ value: 'KEEP', label: 'Keep their answer' });
+  return choices;
 }
 
 export const touchesMarks = (impact: MarksImpact | null) => Boolean(impact && impact.notStarted + impact.draft + impact.submitted > 0);
@@ -70,13 +77,28 @@ export const touchesMarks = (impact: MarksImpact | null) => Boolean(impact && im
 export const marksLine = (impact: MarksImpact) =>
   `In Marks: ${impact.notStarted} not started, ${impact.draft} draft, ${impact.submitted} submitted.`;
 
-export function changeSummary(result: StageChangeResult): string {
+export function changeSummary(result: StageChangeResult, kept = false): string {
   if (result.changed.length === 0) return 'Nothing changed.';
-  return `${studentCount(result.changed.length)} changed.`;
+  return kept ? `Answer kept for ${studentCount(result.changed.length)}.` : `${studentCount(result.changed.length)} changed.`;
 }
 
-export const questionText = (code: string, name: string) =>
-  code ? `Did you register ${code}${name ? ` ${name}` : ''} in Maya this semester?` : 'Did you register your Research Project course in Maya this semester?';
+export function correctionLine(correction: 'REQUESTED' | 'KEPT' | 'DONE' | null): string {
+  if (correction === 'REQUESTED') return 'Correction requested. Your programme coordinator will review it.';
+  if (correction === 'KEPT') return 'Your programme coordinator reviewed this and kept your answer.';
+  return 'Only your programme coordinator can change this.';
+}
 
-export const answerText = (answer: 'YES' | 'NO', code: string) =>
-  answer === 'YES' ? `You registered ${code || 'it'} this semester.` : 'You said not this semester.';
+const courseName = (code: string, name: string) => (code ? `${code}${name ? ` ${name}` : ''}` : 'your Research Project course');
+
+export const questionText = (code: string, name: string, semester: string) =>
+  `Have you registered for ${courseName(code, name)} in MAYA for ${semester || 'this semester'}?`;
+
+export const answerText = (answer: 'YES' | 'NO', code: string, name: string) =>
+  answer === 'YES'
+    ? (code ? `Registered: ${courseName(code, name)}` : 'Registered for the Research Project')
+    : 'Not registered for the Research Project this semester';
+
+export const confirmText = (answer: 'YES' | 'NO', code: string, name: string) =>
+  answer === 'YES'
+    ? `You have registered for ${courseName(code, name)} in MAYA.`
+    : 'You have not registered for the Research Project this semester.';

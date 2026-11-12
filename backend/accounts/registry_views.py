@@ -107,8 +107,9 @@ def _registry_scope(user):
 
     Office Staff/Admin read everything. Programme Coordinators read the
     programmes they currently manage (their own while eligible, plus active
-    delegations), and Coordinators and Lecturers read the students they
-    currently supervise or co-supervise.
+    delegations). Lecturers read the programme the office set on their
+    account. Coordinators and Lecturers also read the students they currently
+    supervise or co-supervise.
     """
     if user.role == User.Role.OFFICE_ADMIN:
         return Student.objects.all()
@@ -122,6 +123,9 @@ def _registry_scope(user):
         co_supervisor_appointments__status=CoSupervisorAppointment.Status.ACTIVE,
     )
     scope |= coordinator_scope_q(user)
+    taught = (Lecturer.objects.filter(user=user).values_list("programme", flat=True).first() or "").strip()
+    if taught:
+        scope |= Q(programme__trim__iexact=taught)
     return Student.objects.filter(scope).distinct()
 
 

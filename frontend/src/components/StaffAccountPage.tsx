@@ -207,10 +207,10 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
                   {account.role === 'Lecturer' && <Fact label="Research area">{account.researchArea}</Fact>}
                   {account.role === 'Office Staff/Admin' && <Fact label="Position">{account.position}</Fact>}
                 </dl>
-                {account.role === 'Programme Coordinator' && (
+                {lecturerLike && (
                   <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
                     <div>
-                      <p className="text-[12px] text-slate-500">Programme they coordinate</p>
+                      <p className="text-[12px] text-slate-500">{account.role === 'Programme Coordinator' ? 'Programme they coordinate' : 'Programme'}</p>
                       <p className="text-[14px] font-semibold text-slate-800">{programmeName(account.programme) || 'No programme'}</p>
                     </div>
                     <PortalButton size="sm" onClick={() => setDialog('programme')}>Change programme</PortalButton>

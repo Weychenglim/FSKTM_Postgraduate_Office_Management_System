@@ -124,8 +124,8 @@ class StaffAccountCreateSerializer(StaffDetailsMixin):
             errors["duties"] = "Only lecturer accounts have duties."
         if role == COORDINATOR and not attrs.get("programme"):
             errors["programme"] = "Choose the programme this coordinator manages."
-        if attrs.get("programme") and role != COORDINATOR:
-            errors["programme"] = "Only coordinator accounts manage a programme."
+        if attrs.get("programme") and not lecturer_like:
+            errors["programme"] = "Only lecturer and coordinator accounts have a programme."
         if errors:
             raise serializers.ValidationError(errors)
         return attrs
@@ -306,8 +306,8 @@ def staff_duties_view(request, account_id):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def staff_programme_view(request, account_id):
-    """Move a coordinator to another programme, or to none. ``check`` only
-    counts the approvals that would move."""
+    """Move a coordinator or lecturer to another programme, or to none.
+    ``check`` only counts the approvals that would move."""
     return _change(
         request,
         ProgrammeSerializer,

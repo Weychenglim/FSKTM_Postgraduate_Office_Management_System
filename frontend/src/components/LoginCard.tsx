@@ -18,6 +18,8 @@ import { PasswordInput } from './PasswordInput';
 import { ActionButton } from './ActionButton';
 import { AlertMessage } from './AlertMessage';
 import { DEMO_LOGIN_CONFIG, type DemoRoleKey } from '../config/demoLogin';
+import { QUICK_LOGINS, type QuickLogin } from '../config/quickLogins';
+import { QuickLoginPanel } from './QuickLoginPanel';
 import type { DemoUser } from '../types';
 import { authApi, ApiError } from '../services';
 import { authenticationErrorMessage } from '../utils/authErrorMessage';
@@ -95,6 +97,13 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
       type: 'info',
       message: `Loaded credentials for "${creds.user.role}". Click Sign In to continue.`,
     });
+  };
+
+  const handleQuickLogin = (login: QuickLogin) => {
+    setIdentifier(login.email);
+    setPassword(login.password);
+    setErrors({});
+    setAlert({ type: 'info', message: `Loaded ${login.name} (${[login.course, login.role].filter(Boolean).join(' ')}). Click Sign In to continue.` });
   };
 
   return (
@@ -263,8 +272,10 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
         </PortalModal>
       </motion.div>
 
+      {QUICK_LOGINS && <QuickLoginPanel groups={QUICK_LOGINS} selected={identifier} onPick={handleQuickLogin} />}
+
       {/* Interactive demo prefiller console */}
-      {DEMO_LOGIN_CONFIG && (
+      {!QUICK_LOGINS && DEMO_LOGIN_CONFIG && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

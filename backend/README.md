@@ -242,7 +242,7 @@ Office Staff/Admin only (UC03). Everyone else gets 403. Students and Technical A
 | GET, PATCH | `<id>/` | `{name, email, phone, staffId, department, title, researchArea, position}` | the account page (the account plus `capacity`, `activeWork`, `deletion`); PATCH returns `{account, oldAddressTold}` |
 | DELETE | `<id>/` | | 204, only for an unused account |
 | POST | `<id>/duties/` | `{duties: [Supervisor, Panel]}` | the account page |
-| POST | `<id>/programme/` | `{programme, check}` (blank means none) | the account page; with `check`, `{from, to}` and the approvals waiting in each |
+| POST | `<id>/programme/` | `{programme, check}` (blank means none) | the account page; with `check`, `{from, to}` and the approvals waiting in each. A coordinator's programme is the one they manage; a lecturer's is the one they teach in, and they read all of its students in the Student Registry |
 | POST | `<id>/sign-in/` | `{on, reason}` (a reason is needed to turn it off) | the account page |
 | POST | `<id>/send-link/` | | `{kind: activation or reset, sent}` |
 | POST | `<id>/activation-link/` | | `{link}`, only before activation |
@@ -322,10 +322,13 @@ How long a programme takes, how far along each student is, and acting on many st
 | POST | `graduation/correct/` | Undo a wrong entry (`matric`, `reason`). The student goes back to waiting for the Senate. Closed appointments stay closed. |
 | POST | `graduation/match-list/` | Read an Excel, CSV or PDF copy of the Senate's list (`file`) and say who is `matched`, `notWaiting` or `notFound`. The file is not kept. |
 | POST | `students/<matric>/status-action/` | Record what happened (`action`: `LEAVE`, `END_LEAVE`, `WITHDRAW`, `TERMINATE`, `DECEASED`, `REINSTATE`; `reason`; `outcome` for leave; `exitReason` for termination). |
-| GET | `project-stages/` | Office and coordinators: each student's RP1/RP2 stage for a semester (`?semester=`), with who has no supervisor yet and who has not answered. Coordinators only see the programmes they manage. |
+| GET | `project-stages/` | Office and coordinators: each student's RP1/RP2 stage for a semester (`?semester=`), with who has no supervisor yet and who has not answered. Coordinators only see the programmes they manage. `?student=<matric>` narrows it to one student (the Student Record card). |
+| GET | `project-stages/waiting/` | `{corrections}`: open correction requests in the current semester for the coordinator's programmes (0 for everyone else). Drives the red number on Registry Management and Project stages. |
 | GET | `project-stages/impact/` | Coordinators: what one change would touch in Marks, without saving it (`semester`, `matric`, `stage`). |
 | POST | `project-stages/change/` | Coordinators: set RP1, RP2, Not started or back to automatic for the current semester (`semesterId`, `stage`, `reason`, `students` with what the page showed, `checked`, `token`). Students whose change touches Marks are left out when several change at once. |
-| GET, POST | `project-stages/mine/` | Students: this semester's Research Project question, and their answer (`YES` or `NO`). |
+| GET, POST | `project-stages/mine/` | Students: this semester's Research Project question, and their answer (`YES` or `NO`). The answer is given once; a different answer later is refused (409). `correction` is `null`, `REQUESTED`, `KEPT` or `DONE`. |
+| POST | `project-stages/mine/correction/` | Students: ask the programme coordinator to correct a locked answer (`note`, optional, up to 300 characters). Once a semester; the student's coordinators are notified. |
+| POST | `project-stages/keep/` | Coordinators: close correction requests where the student's answer was right (`semesterId`, `students` as matric numbers); the student is notified. A stage change through `project-stages/change/` closes an open request too. |
 | GET | `retention/` | Who has passed the retention period (`STUDENT_RETENTION_YEARS`, default 8). Nothing is removed. |
 | GET | `students/<matric>/graduation-check/` | The same check for one student. |
 

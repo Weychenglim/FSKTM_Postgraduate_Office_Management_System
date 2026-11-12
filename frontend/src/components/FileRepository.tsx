@@ -18,6 +18,7 @@ import { shortDocumentDate, studentsLine, uploadedLine } from '../utils/document
 import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
 import { titleCase } from '../utils/programmeLabel';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { DateField } from './DateFields';
 import { PortalSelect } from './PortalSelect';
 import { OfficeToolViews } from './OfficeToolPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
@@ -381,11 +382,11 @@ export const FileRepository: React.FC = () => {
                 </label>
                 <label className="form-label">
                   Uploaded from
-                  <input type="date" value={filters.from} onChange={event => update({ from: event.target.value })} className="form-control form-control-sm mt-1" />
+                  <DateField size="sm" clearable placeholder="Any date" className="mt-1" value={filters.from} max={filters.to || undefined} onChange={value => update({ from: value })} />
                 </label>
                 <label className="form-label">
                   Uploaded to
-                  <input type="date" value={filters.to} onChange={event => update({ to: event.target.value })} className="form-control form-control-sm mt-1" />
+                  <DateField size="sm" clearable placeholder="Any date" className="mt-1" value={filters.to} min={filters.from || undefined} onChange={value => update({ to: value })} />
                 </label>
                 {canSeeArchived && (
                   <label className="form-label">

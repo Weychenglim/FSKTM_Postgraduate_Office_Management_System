@@ -303,7 +303,7 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
   }
 
   if (target.targetModule === 'REGISTRY') {
-    return APP_ROUTES.registry;
+    return target.recordType === 'PROJECT_STAGE' ? APP_ROUTES.registryProjectStages : APP_ROUTES.registry;
   }
 
   if (target.targetModule === 'DASHBOARD') {

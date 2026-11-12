@@ -16,6 +16,7 @@ import { AFTER_DUE_OPTIONS, STAGE_LABEL, STATE_LABEL, STATE_TONE, afterDueText, 
 import { DialogShell } from './DocumentDialogs';
 import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { SelectMenu } from './SelectMenu';
+import { DateField, TimeField } from './DateFields';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
@@ -278,11 +279,11 @@ export const SubmissionsBoard: React.FC = () => {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
                 Due date
-                <input type="date" className="form-control form-control-md" value={draft.dueDate} disabled={busy} onChange={event => patch({ dueDate: event.target.value })} />
+                <DateField value={draft.dueDate} disabled={busy} onChange={value => patch({ dueDate: value })} />
               </label>
               <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
                 Time
-                <input type="time" className="form-control form-control-md" value={draft.dueTime} disabled={busy} onChange={event => patch({ dueTime: event.target.value })} />
+                <TimeField value={draft.dueTime} disabled={busy} onChange={value => patch({ dueTime: value })} />
               </label>
             </div>
             <fieldset className="space-y-1.5">
@@ -304,11 +305,11 @@ export const SubmissionsBoard: React.FC = () => {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
                       Last day
-                      <input type="date" className="form-control form-control-md" value={draft.lateDate} disabled={busy} onChange={event => patch({ lateDate: event.target.value })} />
+                      <DateField value={draft.lateDate} min={draft.dueDate || undefined} disabled={busy} onChange={value => patch({ lateDate: value })} />
                     </label>
                     <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
                       Time
-                      <input type="time" className="form-control form-control-md" value={draft.lateTime} disabled={busy} onChange={event => patch({ lateTime: event.target.value })} />
+                      <TimeField value={draft.lateTime} disabled={busy} onChange={value => patch({ lateTime: value })} />
                     </label>
                   </div>
                 )}
@@ -480,11 +481,11 @@ const SubmissionStudents: React.FC<{ id: number; refreshKey: number; onChanged: 
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
             New due date
-            <input type="date" className="form-control form-control-md" value={extDate} disabled={busy} onChange={event => setExtDate(event.target.value)} />
+            <DateField value={extDate} disabled={busy} onChange={setExtDate} />
           </label>
           <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
             Time
-            <input type="time" className="form-control form-control-md" value={extTime} disabled={busy} onChange={event => setExtTime(event.target.value)} />
+            <TimeField value={extTime} disabled={busy} onChange={setExtTime} />
           </label>
         </div>
         <div className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">

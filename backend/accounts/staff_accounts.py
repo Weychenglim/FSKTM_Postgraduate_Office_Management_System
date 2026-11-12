@@ -184,7 +184,7 @@ def to_staff_dict(user, viewer=None):
         "researchArea": lecturer.specialization if lecturer else "",
         "position": office.position if office else "",
         "duties": duties_of(user),
-        "programme": coordinator.programme_managed if coordinator else "",
+        "programme": coordinator.programme_managed if coordinator else lecturer.programme if lecturer else "",
         "status": account_status(user),
         "lifecycle": lecturer.lifecycle_status if lecturer else None,
         "lastSignedIn": signed_in.isoformat() if signed_in else None,
@@ -335,6 +335,7 @@ def create_account(*, actor, data):
             department=data.get("department", ""),
             title=data.get("title", ""),
             specialization=data.get("researchArea", ""),
+            programme=data.get("programme", "") if role == LECTURER else "",
         )
         if role == COORDINATOR:
             Coordinator.objects.create(
@@ -348,6 +349,8 @@ def create_account(*, actor, data):
             if PANEL in duties:
                 Panel.objects.create(lecturer=lecturer)
             details["duties"] = duties
+            if data.get("programme"):
+                details["programme"] = data["programme"]
     record(user, actor, AccountChange.Action.CREATED, details)
     return staff_accounts().get(pk=user.pk)
 
@@ -650,17 +653,34 @@ def waiting_approvals(programme):
     return counts
 
 
+def _change_lecturer_programme(*, actor, user, programme, check):
+    lecturer = Lecturer.objects.select_for_update().filter(user=user).first()
+    if lecturer is None:
+        raise StaffAccountError({"error": "This account has no staff details yet. Ask the technical administrator."}, status=409)
+    before = lecturer.programme.strip()
+    if check:
+        return {"from": {"programme": before, "waiting": None}, "to": {"programme": programme, "waiting": None}}
+    if before.casefold() != programme.casefold():
+        lecturer.programme = programme
+        lecturer.save(update_fields=["programme"])
+        record(user, actor, AccountChange.Action.PROGRAMME_CHANGED, {"from": before, "to": programme})
+    return staff_accounts().get(pk=user.pk)
+
+
 @transaction.atomic
 def change_programme(*, actor, account_id, programme, check=False):
-    """Move a coordinator to another programme, or to none. With ``check``,
-    nothing is saved and the approvals that would move are counted."""
+    """Move a coordinator or lecturer to another programme, or to none. With
+    ``check``, nothing is saved and, for a coordinator, the approvals that
+    would move are counted."""
     _lock_staff_accounts()
     user = find_account(account_id, lock=True)
     if user is None:
         raise StaffAccountError({"error": "No such account."}, status=404)
+    if user.role == LECTURER:
+        return _change_lecturer_programme(actor=actor, user=user, programme=programme, check=check)
     coordinator = Coordinator.objects.select_for_update().filter(lecturer__user=user).first()
     if user.role != COORDINATOR or coordinator is None:
-        raise StaffAccountError({"error": "Only coordinator accounts manage a programme."}, status=409)
+        raise StaffAccountError({"error": "Only lecturer and coordinator accounts have a programme."}, status=409)
     before = coordinator.programme_managed.strip()
     if programme and user.is_active:
         _check_unique(programme=programme, account=user)
