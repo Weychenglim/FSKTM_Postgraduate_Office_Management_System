@@ -44,6 +44,7 @@ from .session_tokens import (
     blacklist_user_refresh_tokens,
     delete_refresh_cookie,
     end_session,
+    end_sign_in,
     SessionTokenRefreshSerializer,
     issue_refresh,
     make_room_for_tab,
@@ -183,6 +184,7 @@ def logout_view(request):
     _require_json_request(request)
     tab = request.refresh_tab
     request.auth.blacklist()
+    end_sign_in(request.auth)
     end_session(request, tab)
     response = Response({"message": "Logged out successfully."})
     delete_refresh_cookie(response, tab)

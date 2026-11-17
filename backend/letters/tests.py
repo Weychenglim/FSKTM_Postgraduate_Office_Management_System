@@ -44,20 +44,22 @@ class LetterTemplateAuthorizationTests(TestCase):
                     200,
                 )
 
-    def test_only_office_staff_and_coordinator_can_create_templates(self):
+    def test_only_office_staff_can_create_templates(self):
         for role in User.Role.values:
             with self.subTest(role=role):
                 self.authenticate(role)
                 response = self.client.post(
                     "/api/letter-templates/", self.payload, format="json"
                 )
-                expected = 201 if role in {
-                    User.Role.OFFICE_ADMIN,
-                    User.Role.COORDINATOR,
-                } else 403
+                expected = 201 if role == User.Role.OFFICE_ADMIN else 403
                 self.assertEqual(response.status_code, expected)
 
-    def test_only_office_staff_and_coordinator_can_modify_templates(self):
+    def test_a_coordinator_cannot_delete_a_template(self):
+        self.authenticate(User.Role.COORDINATOR)
+        self.assertEqual(self.client.delete(f"/api/letter-templates/{self.template.pk}/").status_code, 403)
+        self.assertTrue(type(self.template).objects.filter(pk=self.template.pk).exists())
+
+    def test_only_office_staff_can_modify_templates(self):
         for role in User.Role.values:
             with self.subTest(role=role):
                 self.authenticate(role)
@@ -66,8 +68,5 @@ class LetterTemplateAuthorizationTests(TestCase):
                     {"name": f"Updated by {role}"},
                     format="json",
                 )
-                expected = 200 if role in {
-                    User.Role.OFFICE_ADMIN,
-                    User.Role.COORDINATOR,
-                } else 403
+                expected = 200 if role == User.Role.OFFICE_ADMIN else 403
                 self.assertEqual(response.status_code, expected)

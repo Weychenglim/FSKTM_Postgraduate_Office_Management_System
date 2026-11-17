@@ -218,9 +218,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
         <div className="lg:col-span-2 space-y-6">
           {/* Account & contact */}
           <PortalCard>
-            <SectionTitle icon={User} title="Account & Contact" subtitle="Your personal contact information." />
+            <SectionTitle icon={User} title="Account & Contact" />
             <form onSubmit={handleSaveContact} className="mt-5">
-              <FormInput id="settings-full-name" label="Full Name" value={currentUser.fullName} disabled />
+              <FormInput id="settings-full-name" label="Full Name" value={currentUser.fullName} readOnly aria-describedby="settings-email-policy" className="bg-slate-100 text-slate-500" />
               <div className="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-4">
                 <FormInput
                   id="settings-email"
@@ -230,6 +230,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                   value={currentUser.email}
                   readOnly
                   aria-describedby="settings-email-policy"
+                  className="bg-slate-100 text-slate-500"
                 />
                 <FormInput
                   id="settings-phone"
@@ -244,7 +245,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                   error={phoneError}
                 />
               </div>
-              <p id="settings-email-policy" className="card-description mb-4">Email changes are managed by the Office.</p>
+              <p id="settings-email-policy" className="card-description mb-4">Your name and email can only be changed by the Postgraduate Office.</p>
               <div className="flex justify-end">
                 <PortalButton type="submit" variant="primary" size="md" icon={Save}>
                   Save Changes
@@ -255,7 +256,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
 
           {/* Security */}
           <PortalCard>
-            <SectionTitle icon={ShieldCheck} title="Security" subtitle="You'll be signed out on all devices." />
+            <SectionTitle icon={ShieldCheck} title="Security" subtitle="After a password change, you will be signed out on all devices." />
             <form onSubmit={handleSavePassword} className="mt-5">
               <FormInput
                 id="settings-current-pw"

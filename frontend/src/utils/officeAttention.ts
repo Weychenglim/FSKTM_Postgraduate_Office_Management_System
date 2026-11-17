@@ -2,9 +2,11 @@ import {APP_ROUTES,routeForMarkRecord,routeForPanelRecord,routeForSupportingSupe
 import type {OfficeAttentionRecord,OfficeAttentionSummary} from '../services/officeAttentionApi';
 
 export const officeAttentionPreview=(summary:OfficeAttentionSummary[])=>summary.slice(0,4);
-export const officeAttentionCategoryRoute=(group:OfficeAttentionSummary)=>group.category==='documents'?APP_ROUTES.supervisorAppointmentRequirements:`${APP_ROUTES.dashboardAttention}?${new URLSearchParams({category:group.category,responsibility:group.responsibility})}`;
+const MODULE_PAGES:Partial<Record<OfficeAttentionSummary['category'],string>>={letters:APP_ROUTES.lettersRequests,questions:APP_ROUTES.faqQuestions};
+export const officeAttentionCategoryRoute=(group:OfficeAttentionSummary)=>MODULE_PAGES[group.category]??(group.category==='documents'?APP_ROUTES.supervisorAppointmentRequirements:`${APP_ROUTES.dashboardAttention}?${new URLSearchParams({category:group.category,responsibility:group.responsibility})}`);
 export function officeAttentionRecordRoute(row:OfficeAttentionRecord):string {
   const id=row.recordId;
+  if(MODULE_PAGES[row.category])return MODULE_PAGES[row.category] as string;
   if(row.recordType==='SUPERVISOR_DOCUMENT_REQUIREMENTS')return APP_ROUTES.supervisorAppointmentRequirements;
   if(row.recordType==='RECONCILIATION_ISSUE')return APP_ROUTES.dashboardWorkflowReconciliation;
   if(row.recordType==='LECTURER_CAPACITY')return `${APP_ROUTES.dashboardLecturerCapacity}?${new URLSearchParams(id?{lecturer:id}:{})}`;

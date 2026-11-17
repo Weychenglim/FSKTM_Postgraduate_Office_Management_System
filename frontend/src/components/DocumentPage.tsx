@@ -9,9 +9,10 @@ import { Archive, CheckCircle2, Download } from 'lucide-react';
 import type { DocumentAutoTag, DocumentDetail } from '../types';
 import { deleteDocument, downloadDocument, getDocument, restoreDocument } from '../services/filesApi';
 import { APP_ROUTES } from '../constants/routes';
-import { historyTime, shortDocumentDate, studentsLine } from '../utils/documentDisplay';
+import { historyTime, shortDocumentDate, studentsLine, submissionDueLine } from '../utils/documentDisplay';
 import { filtersToParams } from '../utils/documentFilters';
 import { PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
 import { AutoTagChips, OverflowMenu, type MenuAction } from './DocumentParts';
@@ -194,6 +195,21 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
                       ))}
                     </dd>
                   </div>
+                  {document.submissions.length > 0 && (
+                    <div className="sm:col-span-2">
+                      <dt className="text-[12px] text-slate-500">Sent for</dt>
+                      <dd className="mt-0.5 space-y-1 text-[14px] font-semibold text-slate-800">
+                        {document.submissions.map(link => (
+                          <span key={link.id} className="block">
+                            {link.canOpen ? (
+                              <Link to={`${APP_ROUTES.files}?view=submissions`} className="underline decoration-slate-300 underline-offset-4 hover:decoration-brand-navy">{link.title}</Link>
+                            ) : link.title}
+                            <span className="font-normal text-slate-500">{submissionDueLine(link)}</span>
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
+                  )}
                   <Fact label="Type">{document.type.label}</Fact>
                   <Fact label="Semester">{document.semester?.label ?? 'Not linked'}</Fact>
                   <Fact label="Reference">{document.reference}</Fact>
@@ -269,7 +285,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
           <ArchiveDialog document={document} isOpen={dialog === 'archive'} onClose={() => setDialog(null)} onDone={finished} />
         </>
       )}
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </RecordPage>
   );
 };

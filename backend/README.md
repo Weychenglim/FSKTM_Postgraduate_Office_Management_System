@@ -143,9 +143,9 @@ audit record.
 
 | Method | Path | Actor |
 | ------ | ---- | ----- |
-| POST | `requests/` (`{templateId, note?, details?}`) | Active student |
+| POST | `requests/` (`{templateId, note?, details?}`) | A student the letter type is for (see Who can request a letter) |
 | GET | `requests/recipient-options/` | Signed in: the visible purposes, organisations (with saved addresses) and optional details |
-| GET | `requests/form/<template id>/` | Active student (Active request letters) or Office Staff/Admin (any request letter): the letter's questions with what to choose from |
+| GET | `requests/form/<template id>/` | A student the letter type is for (Active request letters) or Office Staff/Admin (any request letter): the letter's questions with what to choose from |
 | GET, POST | `lists/` (`{name, itemNoun?, description?}`) | Office Staff/Admin: every list with its counts; make a simple list |
 | GET, PATCH, DELETE | `lists/<id>/` | Office Staff/Admin: one list with its purposes and entries, hidden ones included |
 | POST | `lists/<id>/groups/` (`{name, nameMs?, itemNoun?, allowOther?}`) | Office Staff/Admin: a purpose in the recipients list |
@@ -160,6 +160,7 @@ audit record.
 | POST | `requests/<id>/approve/` (`{values: {NAME: text}}`) | Office Staff/Admin, while Pending |
 | POST | `requests/<id>/reject/` (`{reason}`) | Office Staff/Admin, while Pending |
 | GET | `requests/<id>/pdf/` | The letter's student or Office Staff/Admin, once Issued |
+| GET | `requests/<id>/word/` | Office Staff/Admin, once Issued: the same letter as a Word file (`python-docx`). Students and lecturers only get the locked PDF |
 | POST | `requests/<id>/resend-notification/` | Office Staff/Admin, once Issued |
 | POST | `requests/<id>/revoke/` (`{reason}`) | Office Staff/Admin, once Issued |
 | POST | `requests/<id>/reissue/` (`{values?}`) | Office Staff/Admin, an Issued appointment letter |
@@ -168,6 +169,14 @@ audit record.
 | GET | `appointment-letters/received/?student=` | A lecturer: the appointment letters sent to them |
 
 The office's `GET requests/` also takes `madeBy=request|automatic`.
+
+**Who can request a letter.** Each request letter type says who it is for (`LetterTemplate.audience`, set in the letter type editor under "Who can request it"; `letters/eligibility.py`):
+- `CURRENT` (the default): the student's status is Active and they are enrolled this semester.
+- `FINISHED`: the office marked the student Finished studies, or the student is Graduated. Used by the Completion Letter.
+- `INTERNATIONAL`: a current student who is not Malaysian. A record that says Malaysia or Malaysian, or holds an IC number and no passport number, is Malaysian; a record with no nationality is not held back.
+- Students are only sent the letter types they can ask for. Asking for another one returns 403 with `code: letter_not_for_this_student`.
+- A student who can ask for none (for example Withdrawn, or Graduated when no Active letter type is for finished students) is refused the whole module with `code: letters_need_active_status`, as before.
+- If the student stops fitting while a request waits, the review page tells the office and approval returns 409.
 
 **Requesting.**
 - A student asks for a letter from an Active template, with an optional note.
@@ -314,7 +323,7 @@ How long a programme takes, how far along each student is, and acting on many st
 | PATCH, DELETE | `students/<matric>/semesters/<id>/` | Correct or remove one. The record's current semester follows the latest row. |
 | PUT | `students/<matric>/semester-extension/` | Up to 3 semesters past the maximum, with a reason. |
 | GET | `semester-move/` | Who is on the active semester and who still needs it (the Current semester page). `?summary=1` gives only the counts, for the Students tab. Anyone whose intake is later is left out and counted as `notStarted`. |
-| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Activating a normal semester already does this for everyone, so this is for a Special Semester and for anyone who arrives afterwards. Only the active semester, and running it twice changes nothing. Later intakes and students waiting for the Senate are skipped. |
+| POST | `semester-move/` | Put students on it (`semesterId`, `matrics`). Activating a semester already does this for everyone, so this is for anyone who arrives afterwards. At a Special Semester, students back from leave are not put on it, so the office adds any who registered here. Only the active semester, and running it twice changes nothing. Later intakes and students waiting for the Senate are skipped. |
 | GET | `graduation/` | The Graduation page: Active students near or past the minimum as `ready`, `check` and `stop`, plus `waiting` (finished, waiting for the Senate) and `lastSemesters`. Students 2 or more below the minimum, or who have not started, are only counted (`tooEarly`). |
 | POST | `graduation/finish/` | Step 1: mark as finished (`matrics`, `earlyApproved`, `lastSession`, `lastTerm`). Each student is checked separately. Unfinished Marks and waiting requests stop a student here. A later Registered semester is removed. |
 | POST | `graduation/senate/` | Step 2: record the Senate's decision (`matrics`, `decidedOn`, `reference`). Only students waiting for the Senate. The Senate date is kept. |
@@ -336,7 +345,7 @@ How long a programme takes, how far along each student is, and acting on many st
 - **The minimum is enforced in `transition_student`,** so Student Record and Manage Participants cannot get around it. One semester below needs `early_approved` (Regulation 20(3)), which only Student Registry sends. Further below, or with no semester rows, is refused.
 - **Stops graduating:** unfinished marks; waiting supervisor, supporting supervisor or panel requests; too few semesters; no semester record. **Only warns:** letter requests, a waiting transfer or research change, past the maximum, no rule for the programme.
 - CGPA and credits are in Maya, so the office works from the Senate's list.
-- A student's semesters come from their intake and current semester when they are registered or imported, and from migration `accounts.0016` for existing students. Past Special Semesters cannot be inferred, so the office adds them.
+- A student's semesters come from their intake and current semester when they are registered or imported, including the Special Semesters in between, because all three programmes plan one after Semester II. Migration `accounts.0016` filled in normal semesters only for students who existed then.
 - Notices (`accounts.lifecycle_notices`, target `DASHBOARD` / `STUDENT_STATUS`): the student, whenever their academic status changes.
 - An appointment that ends as `COMPLETED` keeps its issued letter (`letters.appointment_letters.revoke_after_end`). Other endings still revoke it.
 
@@ -465,7 +474,7 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 | GET, PUT | `<id>/sharing/` | The staff member who uploaded a staff file (`audience`, `programmes`) |
 | POST | `<id>/archive/` (`{reason}`), `<id>/restore/` | The programme coordinator of a student the file is about |
 | GET | `history/?show=&q=` | Office Staff/Admin |
-| GET, POST | `submissions/` | List: programme coordinators (their programmes) and the office. Set one up: coordinators, for the current semester (`title`, `type`, `programmes`, `stage` ALL/P1/P2, `dueAt`, `afterDue` CLOSE/ACCEPT_LATE, `lateUntil`) |
+| GET, POST | `submissions/` | List: programme coordinators (their programmes) and the office. Set one up: coordinators, for the current semester (`title`, `type`, `programmes`, `stage` ALL/P1/P2, `dueAt`, `afterDue` CLOSE/ACCEPT_LATE, `lateUntil`). `newType` instead of `type` adds the coordinator's own file type on save (same name in any case reuses a type; stage follows `stage`); also on PATCH |
 | GET, PATCH | `submissions/<id>/` | Detail with each student's status, time sent and how late. Change: coordinators of all its programmes; moving the due date earlier needs `confirm` when files sent on time would become late |
 | POST | `submissions/<id>/open/` | Coordinators: switch it on or off (`open`) |
 | POST, DELETE | `submissions/<id>/extensions/`, `submissions/<id>/extensions/<matric>/` | Coordinators: one student's later due date (`matric`, `dueAt`, `reason`), or remove it |
@@ -493,7 +502,22 @@ python manage.py export_faq_review     # the review list for the office, as Exce
 
 **Document types (11 November 2026).** The list follows the faculty's research project timeline: P1 Research Report (RP1); Final Research Report, Turnitin Report and AI Use Declaration (RP2); Supporting Document (any time, kept from the panel); Staff Document. Supervisor appointment forms, evaluations and letters live in their own modules. There is no settings page: the Technical Admin adds, changes or switches off a type in Django admin (Documents > Document types), and who sees a type's files changes for the files already there too. A student's upload page shows their own RP stage first (`options.me.stage`). Migrations `documents.0008` and `0009` built the list, removed the types other modules handle with their files, and dropped required documents and the settings history. Students hand in dated work through Submissions.
 
+**Links to submissions (13 November 2026).** For staff, a file's detail lists the `submissions` it was sent for (`id`, `title`, `dueAt`, `open`, `student`, `canOpen`); a student gets an empty list. Archiving such a file shows its student as not sent, so the archive pop-up warns first: when `open` is true the student can send again, otherwise they cannot. Restoring the file brings the entry back.
+
 **History.** The office reads the history, which keeps deleted files as text.
+
+## Dashboard tasks from Registry, Letters, File Management and the FAQ
+
+`accounts.dashboard_tasks.module_tasks(user, now)` returns each module's waiting work in the dashboard's task shape, and `dashboard.actions.build_dashboard_tasks` adds it to the list. Each module answers for its own work in its own `dashboard_tasks.py`:
+
+| Role | Task | Opens |
+| ---- | ---- | ----- |
+| Student | One per document that is due and not sent (`submission_<id>`), with its due date | File Submission |
+| Programme coordinator | RP Registration correction requests waiting (`registry_stage_corrections`) | RP Registration |
+| Office Staff/Admin | Letter requests still Pending (`letters_requests`), the same number as the Requests tab | Letter requests |
+| Office Staff/Admin | Student questions with no answer yet (`faq_questions`) | FAQ > Student questions |
+
+The office's two tasks show under Needs attention as the groups Letter requests and Student questions (`dashboard/office_attention.py`).
 
 ## Portal maintenance
 

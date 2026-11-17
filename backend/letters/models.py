@@ -31,6 +31,12 @@ class LetterPurpose(models.TextChoices):
     CO_SUPERVISOR_APPOINTMENT = "CO_SUPERVISOR_APPOINTMENT", "Supporting supervisor appointment letter"
 
 
+class LetterAudience(models.TextChoices):
+    CURRENT = "CURRENT", "Current students"
+    FINISHED = "FINISHED", "Students who have finished their studies"
+    INTERNATIONAL = "INTERNATIONAL", "International students"
+
+
 AUTOMATIC_PURPOSES = (
     LetterPurpose.SUPERVISOR_APPOINTMENT,
     LetterPurpose.PANEL_APPOINTMENT,
@@ -52,6 +58,8 @@ class LetterTemplate(models.Model):
     letter_type = models.CharField(max_length=128, default="Academic Certification")
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.DRAFT)
     description = models.CharField(max_length=500, blank=True, default="")
+    # Which students may ask for it (see eligibility.py); only used by request letters.
+    audience = models.CharField(max_length=16, choices=LetterAudience.choices, default=LetterAudience.CURRENT)
     content = models.TextField(
         blank=True,
         default="",
@@ -126,6 +134,7 @@ class LetterTemplate(models.Model):
             "purpose": self.purpose,
             "status": self.status,
             "description": self.description,
+            "audience": self.audience,
             "referencePrefix": self.reference_prefix,
             "signatoryName": self.signatory_name,
             "signatoryTitle": self.signatory_title,
@@ -136,7 +145,7 @@ class LetterTemplate(models.Model):
             "formQuestions": list(self.form_questions or []),
             "validMonths": self.valid_months,
             "readyInDays": self.ready_in_days,
-            "lastModified": localtime(self.updated_at).strftime("%b %d, %Y"),
+            "lastModified": localtime(self.updated_at).strftime("%d %b %Y"),
             "modifiedBy": self.modified_by,
         }
         if include_wording:

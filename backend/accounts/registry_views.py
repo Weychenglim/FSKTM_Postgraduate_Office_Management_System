@@ -52,14 +52,16 @@ from .semesters import read as read_semester
 from .semester_rules import (
     active_semester,
     completion_of,
+    expected_completion,
     intake_label,
+    progress_of,
     maximum_flag,
     record_semester,
     rules_by_programme,
     seed_student,
     shown_status,
 )
-from .semesters import read as read_semester
+from .semesters import stored_label
 from .session_tokens import blacklist_user_refresh_tokens
 from .throttles import AccessLinkRateThrottle, BatchInvitationRateThrottle
 from .tokens import activation_link
@@ -200,7 +202,7 @@ def _readable_semester(value):
     text = value.strip()
     if text and read_semester(text) is None:
         raise serializers.ValidationError("Choose a semester like 2026/2027 Semester I.")
-    return text
+    return stored_label(text)
 
 
 class StudentRecordCreateSerializer(serializers.Serializer):
@@ -209,7 +211,10 @@ class StudentRecordCreateSerializer(serializers.Serializer):
     id = serializers.CharField(max_length=64)
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField(max_length=254)
-    programme = serializers.ChoiceField(choices=APPROVED_PROGRAMMES, required=False)
+    programme = serializers.ChoiceField(
+        choices=APPROVED_PROGRAMMES,
+        error_messages={"required": "Choose the programme.", "invalid_choice": "Choose the programme."},
+    )
     phone = serializers.CharField(
         max_length=32, allow_blank=True, required=False, validators=[validate_phone]
     )
@@ -284,11 +289,15 @@ class StudentRecordUpdateSerializer(serializers.Serializer):
     )
     semester = serializers.CharField(max_length=64, allow_blank=True, required=False)
     intakeDate = serializers.CharField(max_length=32, allow_blank=True, required=False)
+    expectedCompletion = serializers.CharField(max_length=64, allow_blank=True, required=False)
 
     def validate_semester(self, value):
         return _readable_semester(value)
 
     def validate_intakeDate(self, value):
+        return _readable_semester(value)
+
+    def validate_expectedCompletion(self, value):
         return _readable_semester(value)
 
     def validate_name(self, value):
@@ -349,7 +358,9 @@ def student_records_view(request):
 
     rules = rules_by_programme()
     active = active_semester()
-    return Response([to_record(student, rules, active) for student in queryset])
+    records = [to_record(student, rules, active) for student in queryset]
+    records.sort(key=lambda record: (record["name"].casefold(), record["id"]))
+    return Response(records)
 
 
 def send_activation_email(user, connection=None) -> bool:
@@ -816,6 +827,18 @@ def _find_student(matric_no, queryset=None):
     return matches[0], None
 
 
+def _record_detail(student):
+    """The record plus Expected completion: the office's own entry, and the
+    semester the programme minimum points to when there is none."""
+    registry = _registry_or_none(student)
+    expected = expected_completion(progress_of(student))
+    return {
+        **to_record(student),
+        "expectedCompletion": registry.expected_completion if registry else "",
+        "expectedCompletionEstimate": stored_label(expected.label) if expected else "",
+    }
+
+
 @api_view(["GET", "PATCH"])
 @permission_classes([IsAuthenticated])
 def student_record_detail_view(request, matric_no):
@@ -824,7 +847,7 @@ def student_record_detail_view(request, matric_no):
         student, error = _find_student(matric_no, _require_registry_reader(request))
         if error:
             return error
-        return Response(to_record(student))
+        return Response(_record_detail(student))
 
     _require_office_admin(request)
     student, error = _find_student(matric_no)
@@ -934,10 +957,14 @@ def student_record_detail_view(request, matric_no):
             registry, _ = StudentRegistry.objects.get_or_create(student=student)
             registry.current_semester = data["semester"]
             registry.save(update_fields=["current_semester", "updated_at"])
+        if "expectedCompletion" in data:
+            registry, _ = StudentRegistry.objects.get_or_create(student=student)
+            registry.expected_completion = data["expectedCompletion"]
+            registry.save(update_fields=["expected_completion", "updated_at"])
         seed_student(student, actor=request.user)
 
     student.refresh_from_db()
-    payload = to_record(student)
+    payload = _record_detail(student)
     if email_change:
         # As for staff: only someone who has signed in used the old address,
         # so only they are told; an unactivated account needs a new link.

@@ -3,19 +3,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// The "Student form" step of a letter type: the questions students answer when
+// The "Questions for students" step of a letter type: the questions students answer when
 // they ask for it, in order, with a live preview of their form. "Who is the
 // letter for?" offers the office's recipients list; the office's own questions
 // become blanks it can place in the letter.
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowUp, ListChecks, Pencil, Plus, Trash2, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, Building2, CalendarDays, List, ListChecks, ListPlus, Pencil, Plus, ToggleLeft, Trash2, Type, X, type LucideIcon } from 'lucide-react';
 import { PortalButton, StatusBadge } from './PortalPrimitives';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { ToggleSwitch } from './ToggleSwitch';
 import { PortalSelect } from './PortalSelect';
 import { LetterFormFields } from './LetterFormFields';
-import { FloatingMenu } from './FloatingMenu';
 import type { ChoiceListSummary, LetterFormQuestion, LetterQuestion, LetterQuestionKind, LetterRecipientPurpose } from '../types';
 import { EMPTY_REQUEST_DETAILS, OPTIONAL_DETAIL_LABELS, offeredDetails } from '../utils/letterRecipients';
 import { MAX_QUESTIONS, QUESTION_KINDS, isCustomQuestion, listInWords, newQuestion, questionKindLabel } from '../utils/letterEditor';
@@ -37,6 +36,7 @@ interface LetterQuestionsEditorProps {
 }
 
 const today = new Date().toISOString();
+const KIND_ICONS: Record<LetterQuestionKind, LucideIcon> = { recipient: Building2, extras: ListPlus, text: Type, date: CalendarDays, choice: List, yesno: ToggleLeft };
 
 export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
   questions,
@@ -53,7 +53,6 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
   const [editing, setEditing] = useState<number | null>(null);
   const [adding, setAdding] = useState<LetterQuestionKind | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const addButton = useRef<HTMLDivElement>(null);
   const [newLabel, setNewLabel] = useState('');
   const [labelError, setLabelError] = useState<string | null>(null);
   const simpleLists = (lists ?? []).filter((list) => list.kind === 'SIMPLE');
@@ -99,7 +98,6 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
     }
     const taken = [...takenNames, ...questions.map((question) => question.name ?? '').filter(Boolean)];
     const added = newQuestion(adding, label, taken);
-    if (adding === 'choice' && simpleLists[0]) added.listId = Number(simpleLists[0].id);
     onChange([...questions, added]);
     setAdding(null);
     setEditing(questions.length);
@@ -117,6 +115,10 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
         if (question.kind === 'extras') {
           return offered.length ? [{ kind: 'extras', options: offered.map((code) => ({ code, label: OPTIONAL_DETAIL_LABELS[code] })) }] : [];
         }
+        if (question.kind === 'choice' && !question.listId) {
+          const typed = [...new Set((question.options ?? []).map((option) => option.trim()).filter(Boolean))];
+          return [{ ...question, kind: 'choice', list: { id: null, name: '', itemNoun: 'Option', items: typed.map((option) => ({ id: option, name: option })) } }];
+        }
         if (question.kind === 'choice') {
           const list = simpleLists.find((item) => item.id === String(question.listId));
           return [{ ...question, kind: 'choice', list: { id: list?.id ?? null, name: list?.name ?? '', itemNoun: list?.itemNoun ?? 'Item', items: listItems[String(question.listId)] ?? [] } }];
@@ -131,21 +133,22 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
       const chosen = question.purposes?.length
         ? (purposes ?? []).filter((p) => question.purposes?.includes(p.code)).map((p) => p.label)
         : ['every purpose'];
-      return `Offers ${listInWords(chosen)}${question.askAddress === false ? ', without the address' : ', then the address'}.`;
+      return `Students choose from ${listInWords(chosen)}${question.askAddress === false ? '.' : ', then give the address.'}`;
     }
     if (question.kind === 'extras') {
       return offered.length
-        ? `Tick boxes for ${listInWords(offered.map((code) => OPTIONAL_DETAIL_LABELS[code].toLowerCase()))}. Those lines print only when ticked.`
+        ? `Students tick ${listInWords(offered.map((code) => OPTIONAL_DETAIL_LABELS[code].toLowerCase()))} to show them on the letter.`
         : 'The letter shows none of these yet. Add Semesters Left or Current Semester in Write the letter.';
     }
     const parts = [
       questionKindLabel(question.kind),
-      question.required ? 'required' : 'optional',
-      wording.includes(`{{${question.name}}}`) ? 'in the letter' : 'not in the letter yet',
-    ];
+      question.kind === 'yesno' ? '' : question.required ? 'Required' : 'Optional',
+      wording.includes(`{{${question.name}}}`) ? 'Shown on the letter' : 'Not on the letter yet',
+    ].filter(Boolean);
     if (question.kind === 'choice') {
       const list = simpleLists.find((item) => item.id === String(question.listId));
-      parts.splice(1, 0, list ? `from ${list.name}` : 'no list chosen');
+      const typed = (question.options ?? []).filter((option) => option.trim()).length;
+      parts.splice(1, 0, question.listId ? (list ? `from ${list.name}` : 'No list chosen') : typed ? `${typed} option${typed === 1 ? '' : 's'}` : 'No options yet');
     }
     return parts.join(' · ');
   };
@@ -156,16 +159,18 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
         <div className="flex items-start gap-3">
           <AppointmentIcon icon={ListChecks} tone="info" />
           <div className="min-w-0">
-            <h2 id="letter-questions-heading" className="section-label">Questions students answer</h2>
+            <h2 id="letter-questions-heading" className="section-label">Questions</h2>
+            <p className="card-caption mt-0.5">The student's name, matric number, programme and today's date are filled in for them.</p>
           </div>
         </div>
         {error && <p role="alert" className="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</p>}
 
+        {questions.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-300 px-4 py-5 text-center card-description">
+            No questions yet. Students can still write a note to the office.
+          </p>
+        ) : (
         <ol className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-          <li className="flex items-center gap-3 px-4 py-3 bg-slate-50/60">
-            <span className="card-value text-slate-500">Programme</span>
-            <span className="card-caption">From the student record. Always asked.</span>
-          </li>
           {questions.map((question, index) => (
             <li key={`${question.kind}-${question.name ?? index}`} className="px-4 py-3 space-y-3">
               <div className="flex items-start gap-3">
@@ -186,8 +191,8 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
               {editing === index && question.kind === 'recipient' && (
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
                   <fieldset className="space-y-2">
-                    <legend className="text-[12.5px] font-semibold text-slate-700">Purposes offered</legend>
-                    <p className="card-caption">None ticked offers every purpose.</p>
+                    <legend className="text-[12.5px] font-semibold text-slate-700">Purposes students can choose</legend>
+                    <p className="card-caption">Select none to offer every purpose.</p>
                     <div className="flex flex-wrap gap-2">
                       {(purposes ?? []).map((purpose) => {
                         const on = question.purposes?.includes(purpose.code) ?? false;
@@ -224,27 +229,81 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                     <input className="form-control form-control-sm mt-1" maxLength={80} value={question.label ?? ''} onChange={(event) => replace(index, { label: event.target.value })} />
                   </label>
                   <label className="form-label sm:col-span-2">
-                    Hint (optional)
-                    <input className="form-control form-control-sm mt-1" maxLength={200} value={question.hint ?? ''} placeholder="Shown beside the field" onChange={(event) => replace(index, { hint: event.target.value })} />
+                    Help text (optional)
+                    <input className="form-control form-control-sm mt-1" maxLength={200} value={question.hint ?? ''} placeholder="Shown under the question" onChange={(event) => replace(index, { hint: event.target.value })} />
                   </label>
-                  {question.kind === 'choice' && (
+                  {question.kind === 'choice' && !question.listId && (
+                    <fieldset className="space-y-2 sm:col-span-2">
+                      <legend className="form-label">Options</legend>
+                      {(question.options ?? []).map((option, optionIndex) => (
+                        <div key={optionIndex} className="flex items-center gap-2">
+                          <span aria-hidden="true" className="h-3.5 w-3.5 shrink-0 rounded-full border-2 border-slate-300" />
+                          <input
+                            className="form-control form-control-sm"
+                            maxLength={120}
+                            aria-label={`Option ${optionIndex + 1}`}
+                            placeholder={`Option ${optionIndex + 1}`}
+                            value={option}
+                            onChange={(event) => {
+                              const options = [...(question.options ?? [])];
+                              options[optionIndex] = event.target.value;
+                              replace(index, { options });
+                            }}
+                            onPaste={(event) => {
+                              const lines = event.clipboardData.getData('text').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+                              if (lines.length < 2) return;
+                              event.preventDefault();
+                              const options = [...(question.options ?? [])];
+                              options.splice(optionIndex, 1, ...lines);
+                              replace(index, { options });
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key !== 'Enter') return;
+                              event.preventDefault();
+                              const options = [...(question.options ?? [])];
+                              options.splice(optionIndex + 1, 0, '');
+                              replace(index, { options });
+                            }}
+                          />
+                          <PortalButton
+                            size="icon"
+                            variant="ghost"
+                            icon={X}
+                            aria-label={`Remove option ${optionIndex + 1}`}
+                            disabled={(question.options ?? []).length <= 2}
+                            onClick={() => replace(index, { options: (question.options ?? []).filter((_, i) => i !== optionIndex) })}
+                          />
+                        </div>
+                      ))}
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-5">
+                        <button type="button" className="text-[12.5px] font-semibold text-blue-700 hover:underline cursor-pointer" onClick={() => replace(index, { options: [...(question.options ?? []), ''] })}>
+                          + Add option
+                        </button>
+                        <span className="card-caption">Paste a list to add many at once.</span>
+                      </div>
+                      {simpleLists.length > 0 && (
+                        <button type="button" className="pl-5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer" onClick={() => replace(index, { options: undefined, listId: Number(simpleLists[0].id) })}>
+                          Use a saved list instead
+                        </button>
+                      )}
+                    </fieldset>
+                  )}
+                  {question.kind === 'choice' && Boolean(question.listId) && (
                     <label className="form-label sm:col-span-2">
-                      List
+                      Saved list
                       <PortalSelect
                         className="form-control form-control-sm mt-1"
                         value={question.listId ? String(question.listId) : ''}
                         onChange={(event) => replace(index, { listId: Number(event.target.value) || undefined })}
                       >
-                        <option value="">Choose a list</option>
                         {simpleLists.map((list) => (
                           <option key={list.id} value={list.id}>{list.name} ({list.itemCount})</option>
                         ))}
                       </PortalSelect>
-                      {simpleLists.length === 0 && (
-                        <span className="card-caption mt-1 block">
-                          No lists yet. <button type="button" className="font-semibold text-blue-700 hover:underline cursor-pointer" onClick={onOpenLists}>Make one in Lists</button>
-                        </span>
-                      )}
+                      <span className="mt-1 flex flex-wrap gap-x-4">
+                        <button type="button" className="text-[12px] font-semibold text-blue-700 hover:underline cursor-pointer" onClick={onOpenLists}>Edit saved lists</button>
+                        <button type="button" className="text-[12px] font-semibold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer" onClick={() => replace(index, { listId: undefined, options: ['', ''] })}>Type the options instead</button>
+                      </span>
                     </label>
                   )}
                   {question.kind !== 'yesno' && (
@@ -254,22 +313,19 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                     </label>
                   )}
                   <p className="card-caption sm:col-span-2">
-                    {wording.includes(`{{${question.name}}}`) ? 'The answer is in the letter.' : 'To print the answer, add it from Insert detail in Write the letter.'}
+                    {wording.includes(`{{${question.name}}}`) ? 'The answer is shown on the letter.' : 'To show the answer on the letter, add it with Insert detail in step 3, Write the letter.'}
                   </p>
                 </div>
               )}
             </li>
           ))}
-          <li className="flex items-center gap-3 px-4 py-3 bg-slate-50/60">
-            <span className="card-value text-slate-500">Application date</span>
-            <span className="card-caption">Today. Always shown.</span>
-          </li>
         </ol>
+        )}
 
         {adding ? (
           <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <label htmlFor="new-question-label" className="block text-[12.5px] font-semibold text-slate-700">
-              {questionKindLabel(adding)}: what should the student be asked?
+              {questionKindLabel(adding)}: type the question students will see
             </label>
             <input
               id="new-question-label"
@@ -277,7 +333,7 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
               className={`form-control form-control-sm ${labelError ? 'form-control-error' : ''}`}
               maxLength={80}
               value={newLabel}
-              placeholder={adding === 'date' ? 'For example: Travel date' : adding === 'choice' ? 'For example: Which embassy?' : adding === 'yesno' ? 'For example: Travelling with family?' : 'For example: Passport expiry date'}
+              placeholder={adding === 'date' ? 'For example: Travel date' : adding === 'choice' ? 'For example: Which embassy?' : adding === 'yesno' ? 'For example: Travelling with family?' : 'For example: Passport number'}
               onChange={(event) => {
                 setNewLabel(event.target.value);
                 setLabelError(null);
@@ -296,30 +352,44 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
             </div>
           </div>
         ) : (
-          <div ref={addButton} className="w-fit">
-            <PortalButton icon={Plus} disabled={questions.length >= MAX_QUESTIONS} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>
+          menuOpen ? (
+            <div role="group" aria-labelledby="add-question-heading" className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 id="add-question-heading" className="card-value text-slate-800">Add a question</h3>
+                <PortalButton size="icon" variant="ghost" icon={X} aria-label="Close" onClick={() => setMenuOpen(false)} />
+              </div>
+              {[true, false].map((readyMade) => (
+                <div key={String(readyMade)} className="space-y-2">
+                  <p className="card-label">{readyMade ? 'Common questions' : 'Your own question'}</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {QUESTION_KINDS.filter((kind) => kind.readyMade === readyMade).map((kind) => {
+                      const taken = kind.readyMade && has(kind.kind);
+                      const Icon = KIND_ICONS[kind.kind];
+                      return (
+                        <button
+                          key={kind.kind}
+                          type="button"
+                          disabled={taken}
+                          onClick={() => startAdding(kind.kind)}
+                          className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-left hover:border-brand-navy hover:shadow-sm disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                        >
+                          <Icon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+                          <span className="min-w-0">
+                            <span className="block text-[13px] font-semibold text-slate-800">{kind.label}{taken ? ' (added)' : ''}</span>
+                            <span className="block text-[12px] text-slate-500">{kind.description}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <PortalButton icon={Plus} disabled={questions.length >= MAX_QUESTIONS} onClick={() => setMenuOpen(true)}>
               Add question
             </PortalButton>
-            {menuOpen && (
-              <FloatingMenu anchor={addButton} onClose={() => setMenuOpen(false)} width={320} className="rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
-                {QUESTION_KINDS.map((kind) => {
-                  const taken = (kind.kind === 'recipient' || kind.kind === 'extras') && has(kind.kind);
-                  return (
-                    <button
-                      key={kind.kind}
-                      type="button"
-                      disabled={taken}
-                      onClick={() => startAdding(kind.kind)}
-                      className="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                    >
-                      <span className="card-value text-slate-800">{kind.label}{taken ? ' (already added)' : ''}</span>
-                      <span className="card-caption text-[11.5px]">{kind.description}</span>
-                    </button>
-                  );
-                })}
-              </FloatingMenu>
-            )}
-          </div>
+          )
         )}
       </section>
 

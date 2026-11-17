@@ -10,6 +10,7 @@
 
 import {
   GeneratedLetter,
+  LetterAudience,
   LetterCustomField,
   LetterPlaceholder,
   LetterPurpose,
@@ -52,6 +53,7 @@ export interface LetterTemplateInput {
   referencePrefix?: string;
   customFields?: LetterCustomField[];
   purpose?: LetterPurpose;
+  audience?: LetterAudience;
   signatoryName?: string;
   signatoryTitle?: string;
   signatoryNameMs?: string;
@@ -319,11 +321,20 @@ export async function getReceivedLetters(studentMatric = ''): Promise<GeneratedL
 
 /** Download the PDF of an issued letter, locked against editing. */
 export async function downloadLetterPdf(letter: GeneratedLetter): Promise<void> {
-  const blob = await requestBlob(`/letters/requests/${letter.id}/pdf/`);
+  await saveLetterFile(letter, 'pdf');
+}
+
+/** Office: download the Word copy of an issued letter. */
+export async function downloadLetterWord(letter: GeneratedLetter): Promise<void> {
+  await saveLetterFile(letter, 'word');
+}
+
+async function saveLetterFile(letter: GeneratedLetter, kind: 'pdf' | 'word'): Promise<void> {
+  const blob = await requestBlob(`/letters/requests/${letter.id}/${kind}/`);
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${letterFileName(letterDataFromIssued(letter))}.pdf`;
+  link.download = `${letterFileName(letterDataFromIssued(letter))}.${kind === 'pdf' ? 'pdf' : 'docx'}`;
   document.body.appendChild(link);
   link.click();
   link.remove();

@@ -96,7 +96,7 @@ class SettingsForEveryRowTests(BatchSettingsBase):
         )
         student = Student.objects.get(matric_no="WQD280301")
         self.assertEqual(student.intake_semester, "2026/2027 Semester I")
-        self.assertEqual(StudentRegistry.objects.get(student=student).current_semester, "Semester I 2026/2027")
+        self.assertEqual(StudentRegistry.objects.get(student=student).current_semester, "2026/2027 Semester I")
         batch = RegistryImportBatch.objects.get()
         self.assertEqual(
             batch.settings_used,

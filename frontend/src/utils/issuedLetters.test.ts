@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { OFFICE_CONTACT, OFFICE_CONTACT_LINE } from '../constants/office';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { GeneratedLetter } from '../types';
@@ -185,9 +186,15 @@ const pythonStrings = (name: string) => {
   return [...match[1].matchAll(/"([^"\n]*)"/g)].map(([, text]) => text);
 };
 assert.equal(pythonStrings('FACULTY').join(''), LETTERHEAD.faculty);
-assert.deepEqual(pythonStrings('ADDRESS_LINES'), [...LETTERHEAD.addressLines]);
+// the contact line comes from OFFICE_PHONE / OFFICE_EMAIL, the same as constants/office.ts
+assert.deepEqual(pythonStrings('ADDRESS_LINES'), LETTERHEAD.addressLines.slice(0, 2));
+assert.equal(LETTERHEAD.addressLines[2], OFFICE_CONTACT_LINE);
 assert.equal(pythonStrings('MALAY_FACULTY').join(''), LETTERHEAD.malayFaculty);
-assert.deepEqual(pythonStrings('MALAY_ADDRESS_LINES'), [...LETTERHEAD.malayAddressLines]);
+assert.deepEqual(pythonStrings('MALAY_ADDRESS_LINES'), LETTERHEAD.malayAddressLines.slice(0, 2));
+assert.equal(LETTERHEAD.malayAddressLines[2], OFFICE_CONTACT_LINE);
+const settingsSource = readFileSync(resolve('../backend/config/settings.py'), 'utf8');
+assert.ok(settingsSource.includes(`"OFFICE_PHONE", "${OFFICE_CONTACT.phone}"`), 'backend and frontend office phone match');
+assert.ok(settingsSource.includes(`"OFFICE_EMAIL", "${OFFICE_CONTACT.email}"`), 'backend and frontend office email match');
 assert.equal(pythonStrings('DISCLAIMER').join(''), LETTERHEAD.disclaimer);
 assert.equal(pythonStrings('APPOINTMENT_DISCLAIMER').join(''), LETTERHEAD.appointmentDisclaimer);
 assert.equal(pythonStrings('MALAY_DISCLAIMER').join(''), LETTERHEAD.malayDisclaimer);

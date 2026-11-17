@@ -13,6 +13,9 @@ import { SelectMenu } from './SelectMenu';
 import type { LetterFormQuestion, LetterRecipientPurpose, LetterRequestDetails } from '../types';
 import { COUNTRIES, MALAYSIA, MALAYSIAN_STATES, asksState } from '../utils/addressPlaces';
 
+// Up to this many options show as radio buttons; more become a searchable dropdown.
+const RADIO_LIMIT = 6;
+
 export const FORM_ROW = 'grid gap-1.5 sm:grid-cols-[10rem_minmax(0,1fr)] lg:grid-cols-[11rem_minmax(0,30rem)_minmax(0,1fr)] sm:gap-x-6 sm:items-start';
 // The office's preview sits in half a page, so its hints go under the field.
 const COMPACT_ROW = 'grid gap-1.5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-x-4 sm:items-start';
@@ -240,7 +243,7 @@ export const LetterFormFields: React.FC<LetterFormFieldsProps> = ({
     if (question.kind === 'recipient') return recipientRows(question);
     if (question.kind === 'extras') {
       return (
-        <FormRow key="extras" label="Additional Information" hint="Shown on the letter" error={errors.include}>
+        <FormRow key="extras" label="Optional study details" hint="Tick to show on the letter" error={errors.include}>
           <div className="space-y-3 sm:pt-3">
             {question.options.map((option) => (
               <label key={option.code} className="flex items-center gap-2.5 text-[13px] font-medium text-slate-700 cursor-pointer">
@@ -291,13 +294,34 @@ export const LetterFormFields: React.FC<LetterFormFieldsProps> = ({
     }
     if (question.kind === 'choice') {
       const items = question.list.items;
+      if (items.length > 0 && items.length <= RADIO_LIMIT) {
+        return (
+          <FormRow key={name} label={question.label ?? ''} required={question.required} hint={question.hint || undefined} error={error}>
+            <div role="radiogroup" aria-label={question.label ?? ''} aria-invalid={error ? true : undefined} className="space-y-2.5 sm:pt-3">
+              {items.map((item) => (
+                <label key={item.id} className="flex items-center gap-2.5 text-[13px] font-medium text-slate-700 cursor-pointer">
+                  <input
+                    type="radio"
+                    name={id}
+                    className="h-4 w-4 accent-brand-navy"
+                    checked={value === item.id}
+                    disabled={off}
+                    onChange={() => onAnswer(name, item.id)}
+                  />
+                  {item.name}
+                </label>
+              ))}
+            </div>
+          </FormRow>
+        );
+      }
       return (
         <FormRow key={name} label={question.label ?? ''} htmlFor={id} required={question.required} hint={question.hint || undefined} error={error}>
           <SelectMenu
             id={id}
             value={typeof value === 'string' ? value : ''}
             placeholder={items.length ? 'Choose an option' : `No ${question.list.itemNoun.toLowerCase()} listed yet`}
-            searchPlaceholder={items.length > 7 ? 'Search' : undefined}
+            searchPlaceholder="Search"
             options={items.map((item) => ({ value: item.id, label: item.name }))}
             disabled={off || items.length === 0}
             aria-invalid={error ? true : undefined}

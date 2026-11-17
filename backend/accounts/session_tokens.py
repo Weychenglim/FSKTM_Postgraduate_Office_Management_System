@@ -2,8 +2,11 @@ import hashlib
 import re
 import secrets
 
+import jwt
+
 from django.conf import settings
 from django.core.cache import cache
+from django.utils import timezone
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.settings import api_settings
@@ -17,6 +20,10 @@ from rest_framework_simplejwt.utils import datetime_from_epoch
 # Whether the person ticked "Remember me" when signing in. Sessions from
 # before the choice existed have no claim and stay remembered, as they were.
 REMEMBER_CLAIM = "remember"
+
+# One sign-in, kept through refresh rotation and copied into every access
+# token made from it, so signing out can end its access tokens at once.
+SESSION_CLAIM = "sid"
 
 # A reload that cuts off a refresh leaves the browser holding the refresh
 # cookie the server has just replaced, which signed people out. For a short
@@ -126,6 +133,23 @@ def rotation_grace_allows(request, token, tab=None):
     return bool(key) and cache.get(_rotated_key(token)) == key and not cache.get(f"auth:ended:{key}")
 
 
+def _ended_key(sid):
+    return f"auth:sid-ended:{sid}"
+
+
+def end_sign_in(token):
+    """Sign-out: access tokens made from this sign-in stop working now."""
+    sid = token.get(SESSION_CLAIM) if token is not None else None
+    if sid:
+        lifetime = settings.SIMPLE_JWT["ACCESS_TOKEN_LIFETIME"]
+        cache.set(_ended_key(sid), True, int(lifetime.total_seconds()) + 60)
+
+
+def sign_in_ended(token):
+    sid = token.get(SESSION_CLAIM)
+    return bool(sid) and bool(cache.get(_ended_key(sid)))
+
+
 def end_session(request, tab=None):
     """Sign-out: the replaced tokens of this session may no longer renew it."""
     key = _session_key_hash(request, tab)
@@ -149,6 +173,7 @@ def issue_refresh(user, remember):
     """A refresh token for a new sign-in, remembered on this device or not."""
     refresh = SessionRefreshToken.for_user(user)
     refresh[REMEMBER_CLAIM] = bool(remember)
+    refresh[SESSION_CLAIM] = secrets.token_urlsafe(16)
     refresh.set_exp()
     OutstandingToken.objects.filter(jti=refresh[api_settings.JTI_CLAIM]).update(
         expires_at=datetime_from_epoch(refresh["exp"])
@@ -218,6 +243,7 @@ def sign_out_account_in_browser(request, response, user, open_tabs=()):
         if token is None or not _belongs_to(token, user):
             continue
         token.blacklist()
+        end_sign_in(token)
         end_session(request, tab)
         delete_refresh_cookie(response, tab)
     return response
@@ -242,6 +268,12 @@ def blacklist_user_refresh_tokens(user):
     outstanding_tokens = OutstandingToken.objects.filter(user=user).exclude(
         blacklistedtoken__isnull=False
     )
+    for row in outstanding_tokens.filter(expires_at__gt=timezone.now()):
+        try:
+            claims = jwt.decode(row.token, options={"verify_signature": False})
+        except jwt.PyJWTError:
+            continue
+        end_sign_in(claims)
     BlacklistedToken.objects.bulk_create(
         [BlacklistedToken(token=token) for token in outstanding_tokens],
         ignore_conflicts=True,

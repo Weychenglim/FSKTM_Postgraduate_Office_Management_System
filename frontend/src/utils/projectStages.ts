@@ -83,9 +83,9 @@ export function changeSummary(result: StageChangeResult, kept = false): string {
 }
 
 export function correctionLine(correction: 'REQUESTED' | 'KEPT' | 'DONE' | null): string {
-  if (correction === 'REQUESTED') return 'Correction requested. Your programme coordinator will review it.';
-  if (correction === 'KEPT') return 'Your programme coordinator reviewed this and kept your answer.';
-  return 'Only your programme coordinator can change this.';
+  if (correction === 'REQUESTED') return 'Your programme coordinator will review your correction request.';
+  if (correction === 'KEPT') return 'Your programme coordinator reviewed your request and kept this record.';
+  return 'Only your programme coordinator can change this record.';
 }
 
 const courseName = (code: string, name: string) => (code ? `${code}${name ? ` ${name}` : ''}` : 'your Research Project course');
@@ -93,10 +93,48 @@ const courseName = (code: string, name: string) => (code ? `${code}${name ? ` ${
 export const questionText = (code: string, name: string, semester: string) =>
   `Have you registered for ${courseName(code, name)} in MAYA for ${semester || 'this semester'}?`;
 
-export const answerText = (answer: 'YES' | 'NO', code: string, name: string) =>
-  answer === 'YES'
-    ? (code ? `Registered: ${courseName(code, name)}` : 'Registered for the Research Project')
-    : 'Not registered for the Research Project this semester';
+export interface StageCardView {
+  asking: boolean;
+  value: string;
+  badge: string;
+  badgeTone: 'success' | 'warning' | 'neutral';
+  detail: string;
+  note: string;
+}
+
+interface StageCardQuestion {
+  semester: string;
+  code: string;
+  name: string;
+  answer: 'YES' | 'NO' | null;
+  canChange: boolean;
+  correction: 'REQUESTED' | 'KEPT' | 'DONE' | null;
+}
+
+/** What the student's Research Project Registration card shows. */
+export function stageCard(question: StageCardQuestion): StageCardView {
+  const semester = question.semester || 'this semester';
+  if (question.answer === null && question.canChange) {
+    return {
+      asking: true,
+      value: 'Not confirmed',
+      badge: 'Action required',
+      badgeTone: 'warning',
+      detail: questionText(question.code, question.name, question.semester),
+      note: '',
+    };
+  }
+  const registered = question.answer === 'YES';
+  const requested = question.correction === 'REQUESTED';
+  return {
+    asking: false,
+    value: registered ? 'Registered' : 'Not registered',
+    badge: requested ? 'Correction requested' : semester,
+    badgeTone: requested ? 'warning' : registered ? 'success' : 'neutral',
+    detail: question.code ? courseName(question.code, question.name) : 'Research Project',
+    note: correctionLine(question.correction),
+  };
+}
 
 export const confirmText = (answer: 'YES' | 'NO', code: string, name: string) =>
   answer === 'YES'

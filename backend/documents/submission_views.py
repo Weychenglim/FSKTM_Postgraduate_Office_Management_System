@@ -67,6 +67,9 @@ def _summary(submission, rows, scope, at):
         "stage": submission.stage,
         "semester": submission.academic_semester.label,
         "isCurrent": bool(portal and portal.pk == submission.academic_semester_id),
+        "instructions": submission.instructions,
+        "opensAt": _when(submission.opens_at),
+        "notOpenYet": rules.not_open_yet(submission, at),
         "dueAt": _when(submission.due_at),
         "afterDue": submission.after_due,
         "lateUntil": _when(submission.late_until),
@@ -94,6 +97,7 @@ def _row_dict(row, visible_ids):
         "firstSentAt": _when(entry.first_sent_at) if entry else None,
         "lateBySeconds": _seconds(row.late_by),
         "documentId": entry.document_id if entry and entry.document_id in visible_ids else None,
+        "fileArchived": bool(entry and entry.document.archived_at),
         "extension": {
             "dueAt": _when(row.extension.due_at),
             "reason": row.extension.reason,
@@ -115,9 +119,23 @@ def _options(scope):
 def _values(request, scope):
     data = request.data
     errors = {}
-    doc_type = DocumentType.objects.filter(code=str(data.get("type") or ""), is_active=True).first()
-    if doc_type is None or doc_type not in rules.uploadable_types():
-        errors["type"] = ["Choose a file type students can upload."]
+    new_type = rules.type_name(data.get("newType"))
+    if new_type:
+        doc_type = rules.type_named(new_type)
+        if len(new_type) < 2:
+            errors["newType"] = ["Give the new file type a name."]
+        elif len(new_type) > rules.NEW_TYPE_LIMIT:
+            errors["newType"] = [f"Keep the name to {rules.NEW_TYPE_LIMIT} characters."]
+        elif doc_type is not None and not doc_type.is_active and not doc_type.custom:
+            errors["newType"] = [f"{doc_type.label} is switched off."]
+        elif doc_type is not None and doc_type.is_active and doc_type not in rules.uploadable_types():
+            errors["newType"] = [f"{doc_type.label} is not something students send."]
+        elif doc_type is not None and not doc_type.is_active:
+            doc_type = None
+    else:
+        doc_type = DocumentType.objects.filter(code=str(data.get("type") or ""), is_active=True).first()
+        if doc_type is None or doc_type not in rules.uploadable_types():
+            errors["type"] = ["Choose a file type students can upload."]
     programmes = []
     raw = data.get("programmes") or []
     for value in raw if isinstance(raw, list) else [raw]:
@@ -135,12 +153,18 @@ def _values(request, scope):
     due_at = _parse_when(data.get("dueAt"))
     if data.get("dueAt") not in (None, "") and due_at is None:
         errors["dueAt"] = ["Choose the due date and time."]
+    opens_at = _parse_when(data.get("opensAt"))
+    if data.get("opensAt") not in (None, "") and opens_at is None:
+        errors["opensAt"] = ["Choose the opening date and time."]
     late_until = _parse_when(data.get("lateUntil"))
     if data.get("lateUntil") not in (None, "") and late_until is None:
         errors["lateUntil"] = ["Choose the last day for late work."]
     values = {
         "title": str(data.get("title") or ""),
+        "instructions": str(data.get("instructions") or ""),
+        "opens_at": opens_at,
         "doc_type": doc_type,
+        "new_type": new_type,
         "programmes": programmes,
         "stage": stage,
         "due_at": due_at,
@@ -166,7 +190,10 @@ def submissions_view(request):
         errors.update(rules.check_values(values, creating=True) if not errors else {})
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-        submission = rules.create(values, actor=request.user, semester=semester)
+        try:
+            submission = rules.create(values, actor=request.user, semester=semester)
+        except rules.SubmissionRefused as refused_create:
+            return Response({"detail": str(refused_create)}, status=status.HTTP_409_CONFLICT)
         return Response({"id": submission.pk}, status=status.HTTP_201_CREATED)
     at = rules.now()
     items = []
@@ -324,6 +351,8 @@ def _card(submission, student, at):
         "title": submission.title,
         "type": _type_dict(submission.doc_type),
         "semester": submission.academic_semester.label,
+        "instructions": submission.instructions,
+        "opensAt": _when(submission.opens_at),
         "dueAt": _when(view["due"]),
         "originalDueAt": _when(submission.due_at),
         "extended": extension is not None,
@@ -336,7 +365,8 @@ def _card(submission, student, at):
         "state": view["state"],
         "sentAt": _when(entry.last_sent_at) if entry else None,
         "lateBySeconds": _seconds(view["lateBy"]),
-        "documentId": entry.document_id if entry else None,
+        "documentId": entry.document_id if entry and not entry.document.archived_at else None,
+        "fileArchived": bool(entry and entry.document.archived_at),
     }
 
 

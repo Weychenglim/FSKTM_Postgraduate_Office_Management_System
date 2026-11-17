@@ -22,6 +22,8 @@ CATEGORIES = {
     'documents': 'Configure supervisor document requirements',
     'supervision': 'Supervision requests',
     'panel': 'Panel appointment requests',
+    'letters': 'Letter requests',
+    'questions': 'Student questions',
 }
 URGENCY = {'overdue': 0, 'due': 1, 'blocking': 2, 'normal': 3}
 OWNERS = {
@@ -79,6 +81,10 @@ def category_for(task):
         return 'panel'
     if task.get('targetModule') == 'SUPERVISOR_APPOINTMENTS':
         return 'supervision'
+    if task.get('targetModule') == 'LETTERS':
+        return 'letters'
+    if task.get('targetModule') == 'FAQ':
+        return 'questions'
     return None
 
 
@@ -115,6 +121,8 @@ def summaries(rows):
             detail = ' · '.join(f'{amount} {role}' for role, amount in sorted(roles.items())) + ' role entries'
         elif category == 'reconciliation':
             detail = f'{count} blocking {"issue" if count == 1 else "issues"}'
+        elif category in {'letters', 'questions'}:
+            detail = entries[0]['statusText']
         elif responsibility == 'waiting':
             owners = sorted({OWNERS.get(row['waitingOn'], row['waitingOn'].replace('_', ' ').title()) for row in entries})
             detail += ' · Waiting on ' + ', '.join(owners)

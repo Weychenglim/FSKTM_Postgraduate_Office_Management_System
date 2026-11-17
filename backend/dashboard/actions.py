@@ -405,6 +405,7 @@ def _sort_key(task):
 
 def build_dashboard_tasks(user, *, now=None, limit=MAX_DASHBOARD_ACTIONS):
     from .amendment_tracking import amendment_actions
+    from accounts.dashboard_tasks import module_tasks
     now = now or timezone.now()
     semester = current_effective_semester()
     active_timeline = (
@@ -424,6 +425,7 @@ def build_dashboard_tasks(user, *, now=None, limit=MAX_DASHBOARD_ACTIONS):
         *_timeline_actions(user, now),
         *_capacity_actions(user, semester),
         *(_reconciliation_actions(user, include_programme=True) if limit is None else _reconciliation_actions(user)),
+        *(_task(**task) for task in module_tasks(user, now)),
     ]
     if user.role == User.Role.OFFICE_ADMIN:
         tasks.append(

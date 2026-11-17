@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { ChevronDown, Download, MoreHorizontal, Search, X } from 'lucide-react';
+import { ChevronDown, Download, MoreHorizontal, Search, Tag, X } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { FloatingMenu } from './FloatingMenu';
 import type { DocumentAutoTag, DocumentKind, TaggableStudent } from '../types';
@@ -208,6 +208,96 @@ export const StudentPicker: React.FC<{
   );
 };
 
+/** A text box that suggests known names while typing; any other name is fine too. */
+export const NameSuggestBox: React.FC<{
+  id: string;
+  value: string;
+  suggestions: string[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+  maxLength?: number;
+  invalid?: boolean;
+}> = ({ id, value, suggestions, onChange, placeholder, maxLength, invalid = false }) => {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const listId = useId();
+  const wrapper = useRef<HTMLDivElement>(null);
+  const wanted = value.trim().toLowerCase();
+  const matches = suggestions.filter(name => !wanted || (name.toLowerCase().includes(wanted) && name.toLowerCase() !== wanted));
+  const shown = open && matches.length > 0;
+  const pick = (name: string) => {
+    onChange(name);
+    setOpen(false);
+    setActive(-1);
+  };
+
+  return (
+    <div>
+      <div ref={wrapper} className={`flex h-12 items-center gap-2 rounded-xl border bg-white px-3.5 focus-within:border-brand-navy focus-within:ring-1 focus-within:ring-brand-navy ${invalid ? 'border-rose-300' : 'border-slate-200'}`}>
+        <Tag className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+        <input
+          id={id}
+          type="text"
+          role="combobox"
+          autoComplete="off"
+          aria-expanded={shown}
+          aria-controls={shown ? listId : undefined}
+          aria-autocomplete="list"
+          aria-activedescendant={shown && active >= 0 ? `${listId}-${active}` : undefined}
+          aria-invalid={invalid || undefined}
+          value={value}
+          maxLength={maxLength}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 border-0 bg-transparent text-[14px] font-medium text-slate-800 outline-none placeholder:text-slate-400"
+          onFocus={() => setOpen(true)}
+          onBlur={() => setOpen(false)}
+          onChange={event => {
+            onChange(event.target.value);
+            setOpen(true);
+            setActive(-1);
+          }}
+          onKeyDown={event => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault();
+              setOpen(true);
+              setActive(index => Math.min(index + 1, matches.length - 1));
+            } else if (event.key === 'ArrowUp') {
+              event.preventDefault();
+              setActive(index => Math.max(index - 1, 0));
+            } else if (event.key === 'Enter' && shown && active >= 0) {
+              event.preventDefault();
+              pick(matches[active]);
+            } else if (event.key === 'Escape' && shown) {
+              event.preventDefault();
+              setOpen(false);
+            }
+          }}
+        />
+      </div>
+      {shown && (
+        <FloatingMenu anchor={wrapper} onClose={() => setOpen(false)} maxHeight={288} className="rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg">
+          <ul id={listId} role="listbox" aria-label="Suggestions">
+            {matches.map((name, index) => (
+              <li
+                key={name}
+                id={`${listId}-${index}`}
+                role="option"
+                aria-selected={index === active}
+                className={`cursor-pointer truncate rounded-lg px-3 py-2.5 text-[14px] font-semibold text-slate-700 ${index === active ? 'bg-slate-100' : ''}`}
+                onMouseDown={event => event.preventDefault()}
+                onMouseEnter={() => setActive(index)}
+                onClick={() => pick(name)}
+              >
+                {name}
+              </li>
+            ))}
+          </ul>
+        </FloatingMenu>
+      )}
+    </div>
+  );
+};
+
 /** The tags the system gave a file. With `onPick`, each one filters the list by it. */
 export const AutoTagChips: React.FC<{ tags: DocumentAutoTag[]; onPick?: (tag: DocumentAutoTag) => void; limit?: number; className?: string }> = ({
   tags,
@@ -217,7 +307,7 @@ export const AutoTagChips: React.FC<{ tags: DocumentAutoTag[]; onPick?: (tag: Do
 }) => {
   const shown = limit ? tags.slice(0, limit) : tags;
   const hidden = tags.length - shown.length;
-  const look = 'inline-flex max-w-full items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11.5px] font-semibold text-slate-600';
+  const look = 'inline-flex max-w-full items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[12px] font-semibold text-slate-600';
   return (
     <ul aria-label="Tags" className={`flex flex-wrap gap-1.5 ${className}`}>
       {shown.map(tag => (
@@ -231,7 +321,7 @@ export const AutoTagChips: React.FC<{ tags: DocumentAutoTag[]; onPick?: (tag: Do
           )}
         </li>
       ))}
-      {hidden > 0 && <li className="inline-flex items-center px-1 text-[11.5px] font-semibold text-slate-400">+{hidden}</li>}
+      {hidden > 0 && <li className="inline-flex items-center px-1 text-[12px] font-semibold text-slate-500">+{hidden}</li>}
     </ul>
   );
 };

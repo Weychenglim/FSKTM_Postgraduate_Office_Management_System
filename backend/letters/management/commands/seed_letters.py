@@ -11,7 +11,7 @@ from importlib import import_module
 
 from django.core.management.base import BaseCommand
 
-from letters.models import LetterTemplate
+from letters.models import LetterAudience, LetterTemplate
 
 # The same wording the migration adds, so a fresh seed matches a migrated database.
 confirmation = import_module("letters.migrations.0007_student_confirmation_letter")
@@ -48,15 +48,16 @@ TEMPLATES = [
             "registration status is {{CURRENT_STATUS}}. This letter is issued upon the "
             "student's request for official purposes.\n\n"
             "Should you require any further verification, please contact the "
-            "Postgraduate Office at +603-7967 6300."
+            "Postgraduate Office at +603-7967 6316."
         ),
     },
     {
         "name": "Visa Support Letter",
         "letter_type": "Visa & Immigration",
+        "audience": LetterAudience.INTERNATIONAL,
         "status": LetterTemplate.Status.ACTIVE,
         "reference_prefix": "UMF/PG/VS",
-        "description": "Embassy-ready documentation supporting a student visa application.",
+        "description": "Supports a student visa application at an embassy.",
         "content": (
             "To Whom It May Concern,\n\n"
             "This letter is issued to support the student visa application of "
@@ -90,6 +91,7 @@ TEMPLATES = [
         # have no system data source, so they render as blank fill-in lines for
         # the office to complete by hand.
         "name": "Confirmation Letter for Student Pass Renewal",
+        "audience": LetterAudience.INTERNATIONAL,
         "letter_type": "Visa & Immigration",
         "status": LetterTemplate.Status.ACTIVE,
         "reference_prefix": "UM.W/606/2",
@@ -123,16 +125,17 @@ TEMPLATES = [
             "SUPERVISOR(S): {{SUPERVISOR_NAME}}\n"
             "EXPECTED COMPLETION OF STUDY: {{EXPECTED_COMPLETION}}\n\n"
             "Should you require any further enquiries, please do not hesitate to "
-            "contact us at +603-7967 6408.\n\n"
+            "contact us at +603-7967 6316.\n\n"
             "Thank you."
         ),
     },
     {
         "name": "Completion Letter",
         "letter_type": "Academic Certification",
+        "audience": LetterAudience.FINISHED,
         "status": LetterTemplate.Status.DRAFT,
         "reference_prefix": "UMF/PG/CMP",
-        "description": "Proof of degree fulfilment, issued after the viva.",
+        "description": "Confirms that the student has completed the programme.",
         "content": (
             "To Whom It May Concern,\n\n"
             "We are pleased to verify that {{STUDENT_NAME}} (Matric No: {{STUDENT_ID}}) "

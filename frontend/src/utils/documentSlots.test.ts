@@ -23,9 +23,9 @@ const file = (id: number, code: string, title: string, uploadedAt = '2026-02-14T
 const NOW = Date.parse('2026-11-11T04:00:00Z');
 const submission = (overrides: Partial<MySubmission>): MySubmission => ({
   id: 7, title: 'RP2 final report', type: { code: 'final-research-report', label: 'Final Research Report', allowedKinds: ['PDF'] },
-  semester: 'Semester I 2026/2027', dueAt: '2026-11-23T15:59:00Z', originalDueAt: '2026-11-23T15:59:00Z', extended: false, closesAt: null,
+  semester: 'Semester I 2026/2027', instructions: '', opensAt: null, dueAt: '2026-11-23T15:59:00Z', originalDueAt: '2026-11-23T15:59:00Z', extended: false, closesAt: null,
   afterDue: 'CLOSE', isOpen: true, canSend: true, lateIfSentNow: false, why: '', state: 'NOT_SENT', sentAt: null, lateBySeconds: null,
-  documentId: null, ...overrides,
+  documentId: null, fileArchived: false, ...overrides,
 });
 const view = (groups: ReturnType<typeof documentSlots>) =>
   groups.map(group => `${group.label}${group.now ? ' (now)' : ''}: ${group.rows.map(row => `${row.name} | ${row.line} | ${row.tone} | ${row.action ?? '-'}`).join(' ; ')}`);
@@ -70,4 +70,23 @@ assert.deepEqual(view(supporting).slice(2), [
   'Other files: Old form | Sent 14 Feb 2026 | sent | -',
 ]);
 
+// A file type a coordinator added shows only when a submission asks for it or a file was sent.
+const ethics: DocumentTypeOption = { ...type('ethics-form', 'Ethics form', 'SUPPORTING', 'Supporting Documents', false), custom: true };
+assert.deepEqual(view(documentSlots([...types, ethics], '', [], [], NOW)), view(documentSlots(types, '', [], [], NOW)));
+const askedForm = documentSlots([...types, ethics], '', [], [submission({ id: 9, title: 'Ethics approval', type: { code: 'ethics-form', label: 'Ethics form', allowedKinds: ['PDF'] } })], NOW);
+assert.equal(view(askedForm).at(-1), 'Supporting Documents: Ethics approval | Due 23 Nov 2026, 23:59 · 12 days 11 hours left | due | Upload');
+assert.equal(addLabel(askedForm.at(-1)!.addType!), 'Add a supporting document', 'The add button stays the general one');
+
+// A sent file the coordinator archived keeps its sent time; the student sends a new file, not a version.
+const archived = documentSlots(types, 'P2', [], [submission({ state: 'ON_TIME', sentAt: '2026-11-10T14:04:00Z', documentId: null, fileArchived: true })], NOW);
+assert.deepEqual([archived[0].rows[0].line, archived[0].rows[0].action, archived[0].rows[0].document], [
+  'Sent 10 Nov 2026, 22:04, on time · File archived by the coordinator', 'Upload', null,
+]);
+
 console.log('Document rows read as the student needs them.');
+
+// Not open yet: the row says when it opens and has no Upload.
+assert.deepEqual(
+  view(documentSlots(types, 'P2', [], [submission({ opensAt: '2026-11-16T00:00:00Z', canSend: false, why: 'Opens 16 Nov 2026, 8:00 AM.' })], NOW)).find(line => line.startsWith('Research Project 2')),
+  'Research Project 2 (now): Final Research Report | Opens 16 Nov 2026, 08:00 · Due 23 Nov 2026, 23:59 | plain | - ; Turnitin Report | Not sent | plain | Upload',
+);

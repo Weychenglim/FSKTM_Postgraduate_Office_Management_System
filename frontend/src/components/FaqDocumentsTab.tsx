@@ -18,6 +18,7 @@ import {
 import { documentState } from '../utils/faqOffice';
 import { shortDocumentDate } from '../utils/documentDisplay';
 import { PortalButton, PortalToast } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { AppointmentSection } from './AppointmentPrimitives';
 import { WorkspaceSectionHeader } from './RequestWorkspacePrimitives';
@@ -229,7 +230,7 @@ export const FaqDocumentsTab: React.FC = () => {
       </section>
       <input ref={replaceInput} type="file" accept=".pdf,.docx" className="hidden" aria-hidden="true" tabIndex={-1} onChange={event => void replace(event.target.files?.[0])} />
       <RenameDialog document={renaming} onClose={() => setRenaming(null)} onDone={updated => { setRenaming(null); changed(updated, 'Renamed.'); }} />
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </div>
   );
 };

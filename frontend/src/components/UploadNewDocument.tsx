@@ -19,7 +19,7 @@ import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
 import { SelectMenu } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
-import { KindBadge, StudentPicker } from './DocumentParts';
+import { KindBadge, NameSuggestBox, StudentPicker } from './DocumentParts';
 
 interface UploadNewDocumentProps {
   onBack: () => void;
@@ -238,7 +238,6 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
         <LoadingState message="Loading the upload form..." />
       ) : (
         <form
-          className="max-w-3xl"
           noValidate
           onSubmit={event => {
             event.preventDefault();
@@ -272,56 +271,57 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                 })}
               </div>
 
-              {staffFile ? (
+              {staffFile && (
                 <Field label="Who can see it">
                   <div role="radiogroup" aria-label="Who can see it" className="flex flex-wrap gap-2">
                     {STAFF_AUDIENCES.map(item => (
                       <Choice key={item.value} selected={audience === item.value} onSelect={() => setAudience(item.value)}>{item.label}</Choice>
                     ))}
                   </div>
-                  {audience !== 'OFFICE' && (
-                    <SelectMenu<string>
-                      aria-label="Programme"
-                      variant="filter"
-                      prefix="Programme"
-                      value={programme}
-                      options={[{ value: '', label: 'All programmes', triggerLabel: 'All' }, ...(options.programmes ?? []).map(item => ({ value: item, label: item }))]}
-                      onChange={setProgramme}
-                    />
-                  )}
-                </Field>
-              ) : (
-                <Field label="Students" htmlFor="document-students">
-                  <StudentPicker inputId="document-students" picked={students} onChange={setStudents} />
-                  <FieldError message={errors.students} />
                 </Field>
               )}
 
-              {types.length ? (
-                <Field label="What is it?" htmlFor="document-what">
-                  <input
-                    id="document-what"
-                    list={types.length > 1 ? 'document-kinds' : undefined}
-                    autoComplete="off"
-                    className="form-control form-control-md text-[14px]"
-                    maxLength={200}
-                    value={what}
-                    onChange={event => {
-                      setWhat(event.target.value);
-                      setExisting(null);
-                      setErrors(current => ({ ...current, what: '', title: '', type: '', file: '' }));
-                    }}
-                  />
-                  {types.length > 1 && (
-                    <datalist id="document-kinds">
-                      {types.map(item => <option key={item.code} value={item.label} />)}
-                    </datalist>
-                  )}
-                  <FieldError message={errors.what || errors.title || errors.type} />
-                </Field>
-              ) : (
-                <p className="text-[13.5px] font-semibold text-rose-700">You cannot upload a file for these students.</p>
-              )}
+              <div className={`grid gap-7 lg:gap-6 ${staffFile && audience === 'OFFICE' ? '' : 'lg:grid-cols-2'}`}>
+                {staffFile ? (
+                  audience !== 'OFFICE' && (
+                    <Field label="Programme">
+                      <SelectMenu<string>
+                        aria-label="Programme"
+                        className="h-12"
+                        value={programme}
+                        options={[{ value: '', label: 'All programmes' }, ...(options.programmes ?? []).map(item => ({ value: item, label: item }))]}
+                        onChange={setProgramme}
+                      />
+                    </Field>
+                  )
+                ) : (
+                  <Field label="Students" htmlFor="document-students">
+                    <StudentPicker inputId="document-students" picked={students} onChange={setStudents} />
+                    <FieldError message={errors.students} />
+                  </Field>
+                )}
+
+                {types.length ? (
+                  <Field label="What is it?" htmlFor="document-what">
+                    <NameSuggestBox
+                      id="document-what"
+                      value={what}
+                      suggestions={types.length > 1 ? types.map(item => item.label) : []}
+                      placeholder="Type or pick a name"
+                      maxLength={200}
+                      invalid={Boolean(errors.what || errors.title || errors.type)}
+                      onChange={value => {
+                        setWhat(value);
+                        setExisting(null);
+                        setErrors(current => ({ ...current, what: '', title: '', type: '', file: '' }));
+                      }}
+                    />
+                    <FieldError message={errors.what || errors.title || errors.type} />
+                  </Field>
+                ) : (
+                  <p className="text-[13.5px] font-semibold text-rose-700">You cannot upload a file for these students.</p>
+                )}
+              </div>
 
               <Field label="File">
                 <input
@@ -355,14 +355,16 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                       setDragging(false);
                       chooseFile(event.dataTransfer.files?.[0] ?? null);
                     }}
-                    className={`flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-4 py-6 text-center transition-colors sm:flex-row ${dragging ? 'border-brand-navy bg-indigo-50' : 'border-slate-300 bg-slate-50'}`}
+                    className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-4 py-6 text-center transition-colors ${dragging ? 'border-brand-navy bg-indigo-50' : 'border-slate-300 bg-slate-50'}`}
                   >
-                    <Upload className="h-6 w-6 text-slate-400" aria-hidden="true" />
-                    <span className="text-[14px] font-semibold text-slate-700">Drag a file here or</span>
-                    <PortalButton size="sm" type="button" onClick={() => fileInput.current?.click()}>Browse</PortalButton>
+                    <div className="flex flex-col items-center gap-3 sm:flex-row">
+                      <Upload className="h-6 w-6 text-slate-400" aria-hidden="true" />
+                      <span className="text-[14px] font-semibold text-slate-700">Drag a file here or</span>
+                      <PortalButton size="sm" type="button" onClick={() => fileInput.current?.click()}>Browse</PortalButton>
+                    </div>
+                    <p className="text-[12.5px] text-slate-500">{`${type ? kindsSentence(kinds) : 'PDF, Word, a photo, Excel or PowerPoint'}, up to ${formatFileSize(maxBytes)}`}</p>
                   </div>
                 )}
-                <p className="text-[12.5px] text-slate-500">{type ? `${kindsSentence(kinds)}, up to ${formatFileSize(maxBytes)}` : `PDF, Word, a photo, Excel or PowerPoint, up to ${formatFileSize(maxBytes)}`}</p>
                 <FieldError message={errors.file || clientProblem || undefined} />
               </Field>
 
@@ -383,20 +385,21 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                 </button>
                 {moreOpen && (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <span className="block text-[13px] font-bold text-slate-700">Semester</span>
+                    <Field label="Semester">
                       <SelectMenu<string>
                         aria-label="Semester"
+                        className="h-12"
                         value={semester}
                         options={[...(options.semesters ?? []).map(item => ({ value: String(item.id), label: item.label })), { value: 'none', label: 'Not linked to a semester' }]}
                         onChange={setSemester}
                       />
                       <FieldError message={errors.semester} />
-                    </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <label htmlFor="document-note" className="block text-[13px] font-bold text-slate-700">Note</label>
-                      <textarea id="document-note" className="form-control min-h-24 px-3.5 py-3 text-[14px]" maxLength={1000} value={description} onChange={event => setDescription(event.target.value)} />
-                      <FieldError message={errors.description} />
+                    </Field>
+                    <div className="sm:col-span-2">
+                      <Field label="Note" htmlFor="document-note">
+                        <textarea id="document-note" className="form-control min-h-24 px-3.5 py-3 text-[14px]" maxLength={1000} value={description} onChange={event => setDescription(event.target.value)} />
+                        <FieldError message={errors.description} />
+                      </Field>
                     </div>
                   </div>
                 )}

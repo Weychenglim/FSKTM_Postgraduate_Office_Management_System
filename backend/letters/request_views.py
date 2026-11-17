@@ -51,16 +51,17 @@ from .appointment_letters import (
     revoke_appointment_letter,
 )
 from .details import letter_details
-from .eligibility import inactive_student_refusal
+from .eligibility import inactive_student_refusal, template_problem, template_refusal
 from .choice_lists import recipient_options
 from .confirmation import add_months, english_date, malay_values, request_values
 from .form_questions import answer_values, clean_answers, custom_questions, known_fields, resolve
 from .issuing import issue_letter, letter_wording
-from .models import AUTOMATIC_PURPOSES, GeneratedLetter, LetterPurpose, LetterTemplate
+from .models import AUTOMATIC_PURPOSES, GeneratedLetter, LetterAudience, LetterPurpose, LetterTemplate
 from .notices import send_notice
 from .pdf_export import build_letter_pdf
 from .placeholders import VALUE_KEYS, letter_fields, placeholder_problems, used_names, value_problem
 from .recipients import OPTIONAL_DETAILS, clean_request_details, same_recipient
+from .word_export import WORD_TYPE, build_letter_docx
 
 PDF_TYPE = "application/pdf"
 # Students' notifications point at their letter; office ones at the request.
@@ -300,6 +301,9 @@ def _create_request(request):
     ).first()
     if template is None:
         raise NotFound("This letter is no longer available.")
+    refusal = template_refusal(request.user, template)
+    if refusal:
+        return Response(refusal, status=status.HTTP_403_FORBIDDEN)
     unknown, malformed = placeholder_problems(f"{template.content}\n{template.content_ms}", known_fields(template))
     if unknown or malformed or not template.content.strip():
         return _conflict("This letter cannot be requested right now. Please contact the postgraduate office.")
@@ -371,6 +375,25 @@ def _earlier_copies(letter):
     return list(copies)
 
 
+def _current_student_problem(student):
+    if student.status != student.Status.ACTIVE:
+        return (
+            f"The student's status is now {student.get_status_display()}. Letters are issued only "
+            "to Active students, so reject this request with the reason."
+        )
+    if enrolment_problem(student):
+        return "The student is not enrolled this semester, so reject this request with the reason."
+    return None
+
+
+def _audience_problem(student, template):
+    if template.audience == LetterAudience.FINISHED:
+        return "This letter is for students who have finished their studies, so reject this request with the reason."
+    return _current_student_problem(student) or (
+        "This letter is for international students, so reject this request with the reason."
+    )
+
+
 def _review(letter):
     """What the office needs to decide a pending request: the template's current
     wording and every value it needs, from the student's record or typed in."""
@@ -396,13 +419,10 @@ def _review(letter):
         problem = "The appointment for this letter no longer exists."
     elif letter.student is None:
         problem = "The student's account no longer exists."
-    elif letter.student.status != letter.student.Status.ACTIVE:
-        problem = (
-            f"The student's status is now {letter.student.get_status_display()}. Letters are issued only "
-            "to Active students, so reject this request with the reason."
-        )
-    elif enrolment_problem(letter.student):
-        problem = "The student is not enrolled this semester, so reject this request with the reason."
+    elif letter.is_automatic:
+        problem = _current_student_problem(letter.student)
+    elif template_problem(letter.student, template):
+        problem = _audience_problem(letter.student, template)
     else:
         problem = None
     today = timezone.localdate()
@@ -466,6 +486,9 @@ def letter_form(request, template_id):
     template = templates.filter(pk=template_id).first()
     if template is None:
         raise NotFound("This letter is no longer available.")
+    refusal = None if _is_office(request.user) else template_refusal(request.user, template)
+    if refusal:
+        return Response(refusal, status=status.HTTP_403_FORBIDDEN)
     return Response({"templateId": str(template.pk), "questions": resolve(template), "readyInDays": template.ready_in_days})
 
 
@@ -624,10 +647,10 @@ def reject_request(request, pk):
     return Response(letter.to_public_dict(include_content=False))
 
 
-def _file_name(letter):
+def _file_name(letter, extension="pdf"):
     slug = re.sub(r"[^a-z0-9]+", "_", letter.template_name, flags=re.IGNORECASE).strip("_")
     matric = re.sub(r"[^a-z0-9]+", "", (letter.student_data or {}).get("matricNumber", ""), flags=re.IGNORECASE)
-    return f"UM_{slug or 'Letter'}{f'_{matric}' if matric else ''}.pdf"
+    return f"UM_{slug or 'Letter'}{f'_{matric}' if matric else ''}.{extension}"
 
 
 @api_view(["GET"])
@@ -644,6 +667,21 @@ def letter_pdf(request, pk):
         return _conflict("This letter has not been issued.")
     response = HttpResponse(build_letter_pdf(letter), content_type=PDF_TYPE)
     response["Content-Disposition"] = f'attachment; filename="{_file_name(letter)}"'
+    return response
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def letter_word(request, pk):
+    """Office: an issued letter as a Word file. Students and lecturers get the locked PDF."""
+    _require_office(request)
+    letter = get_object_or_404(GeneratedLetter, pk=pk)
+    if letter.status == Status.REVOKED:
+        return _conflict("This letter was revoked and can no longer be downloaded.")
+    if letter.status != Status.ISSUED:
+        return _conflict("This letter has not been issued.")
+    response = HttpResponse(build_letter_docx(letter), content_type=WORD_TYPE)
+    response["Content-Disposition"] = f'attachment; filename="{_file_name(letter, "docx")}"'
     return response
 
 

@@ -10,7 +10,7 @@ from django.db import transaction
 
 from .models import ProgrammeRule, Student, StudentCompletion, StudentRegistry, StudentSemester, StudentSemesterMove
 from .registry_programmes import programme_key
-from .semesters import Semester, from_parts, nth_normal, read, seeded_semesters
+from .semesters import Semester, following, from_parts, nth_normal, read, seeded_semesters
 
 STUDIED = StudentSemester.Outcome.STUDIED
 LEAVE = StudentSemester.Outcome.LEAVE
@@ -205,6 +205,19 @@ def progress_of(student, rules=None, rows=None, registry=...):
     )
 
 
+def expected_completion(progress):
+    """The semester a student reaches the programme's minimum, studying every
+    semester in the plan from the last one on the record, the Special Semester too
+    when it counts. None without a rule or without semesters on the record, where
+    it would only be a guess."""
+    if progress.rule is None or progress.current is None:
+        return None
+    semester = progress.current
+    for _ in range(progress.short_of_minimum):
+        semester = following(semester, progress.rule.special_counts)
+    return semester
+
+
 def maximum_flag(student, rules=None, registry=...):
     """Whether an Active student is on their last allowed semester, or past it."""
     if student.status != student.Status.ACTIVE or is_waiting(student):
@@ -332,10 +345,11 @@ def put_on_semester(students, semester, *, outcome, actor, note=""):
 
 
 def end_leaves(semester, *, actor):
-    """Leave is one semester at a time, so a new semester ends it unless leave was already recorded for it."""
+    """Leave is one semester at a time, so a new semester ends it unless leave was already recorded for it.
+    Returns the ids of the students who came back."""
     from .participant_lifecycle import ParticipantLifecycleConflict, transition_student
 
-    ended = 0
+    ended = []
     for student in Student.objects.filter(status=Student.Status.DEFERRED).exclude(pk__in=on_semester(semester)):
         if starts_later(student, semester):
             continue
@@ -348,20 +362,23 @@ def end_leaves(semester, *, actor):
             )
         except (ParticipantLifecycleConflict, PermissionError, ValueError):
             continue
-        ended += 1
+        ended.append(student.pk)
     return ended
 
 
 @transaction.atomic
 def move_everyone_on(portal, actor=None):
-    """Activating a normal semester moves everyone on it. Only some take a Special Semester, so the office picks those."""
+    """Activating a semester moves everyone on it. Leave is for normal semesters, so at a Special Semester it
+    ends but the student is not put on it: the office adds anyone who registered."""
     semester = from_parts(portal.academic_session, portal.term)
-    if semester is None or semester.is_special:
+    if semester is None:
         return None
     back = end_leaves(semester, actor=actor)
-    already_on = set(on_semester(semester).values_list("student_id", flat=True))
+    skip = set(on_semester(semester).values_list("student_id", flat=True))
+    if semester.is_special:
+        skip.update(back)
     active = Student.objects.filter(status=Student.Status.ACTIVE).exclude(pk__in=waiting_ids()).select_for_update()
-    moving = [student for student in active if student.pk not in already_on and not starts_later(student, semester)]
+    moving = [student for student in active if student.pk not in skip and not starts_later(student, semester)]
     put_on_semester(moving, semester, outcome=STUDIED, actor=actor)
     if not moving and not back:
         return None
@@ -369,7 +386,7 @@ def move_everyone_on(portal, actor=None):
         session=semester.session,
         term=semester.term,
         moved_count=len(moving),
-        back_from_leave_count=back,
+        back_from_leave_count=len(back),
         moved_by=actor,
         automatic=True,
     )
@@ -392,7 +409,7 @@ def seed_student(student, *, actor=None, note="From the intake and current semes
     if student.semesters.exists():
         return
     registry = _registry(student)
-    semesters = seeded_semesters(student.intake_semester, registry.current_semester if registry else "")
+    semesters = seeded_semesters(student.intake_semester, registry.current_semester if registry else "", with_special=True)
     StudentSemester.objects.bulk_create(
         [
             StudentSemester(student=student, session=s.session, term=s.term, note=note, created_by=actor)

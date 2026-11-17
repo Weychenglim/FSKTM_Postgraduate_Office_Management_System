@@ -34,6 +34,12 @@ POSSIBLE = "POSSIBLE"
 NONE = "NONE"
 MAX_CHOICES = 3
 MAX_RELATED = 3
+# A shown answer has to clearly beat the next entry on meaning; closer than
+# this, the student chooses. Choices come from this many leading entries.
+CLEAR_MARGIN = 0.05
+CHOICE_POOL = 6
+# Among entries that tie on meaning, one this far ahead on keywords still wins.
+KEYWORD_LEAD = 0.2
 
 
 @dataclass
@@ -86,6 +92,9 @@ class Result:
     mode: str
     passage: object = None
     possible: float = 0.0
+    # Sure enough to answer, but other entries are as close: the student chooses,
+    # and the AI, when on, may still write from them.
+    close_call: bool = False
 
     @property
     def top(self):
@@ -266,7 +275,36 @@ def find(text, *, strong=None, possible=None, **kinds):
         ranked = [leader, *(c for c in ranked if c is not leader)]
     confidence = ranked[0].confidence
     band = STRONG if confidence >= strong else POSSIBLE if confidence >= possible else NONE
-    return Result(band, ranked, mode, possible=possible)
+    close_call = False
+    if band == STRONG and not keywords_only:
+        winner = _clear_winner(ranked)
+        if winner is None:
+            band, close_call = POSSIBLE, True
+        elif winner is not ranked[0]:
+            ranked = [winner, *(c for c in ranked if c is not winner)]
+    if band == POSSIBLE:
+        pool = sorted(ranked[:CHOICE_POOL], key=lambda c: -c.confidence)
+        ranked = [*pool, *ranked[CHOICE_POOL:]]
+    return Result(band, ranked, mode, possible=possible, close_call=close_call)
+
+
+def _clear_winner(ranked):
+    """The entry to show, or None when the leading entries are too close to call.
+    Entries within CLEAR_MARGIN of the best meaning are contenders; the top
+    entry must be one of them, and among several the keywords must decide."""
+    pool = ranked[:CHOICE_POOL]
+    if ranked[0].meaning is None:
+        return ranked[0]
+    best = max(c.meaning or 0.0 for c in pool)
+    contenders = [c for c in pool if (c.meaning or 0.0) >= best - CLEAR_MARGIN]
+    if ranked[0] not in contenders:
+        return None
+    if len(contenders) == 1:
+        return ranked[0]
+    leader = max(contenders, key=lambda c: c.keywords)
+    if all(leader.keywords - c.keywords >= KEYWORD_LEAD for c in contenders if c is not leader):
+        return leader
+    return None
 
 
 # Passages from the office's reference documents, searched only when no

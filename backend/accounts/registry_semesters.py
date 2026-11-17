@@ -454,8 +454,8 @@ class MoveStudentsSerializer(serializers.Serializer):
 def semester_move_view(request):
     """Office: who is on the active semester, and put on anyone who isn't yet.
 
-    Activating a normal semester already moves everyone. This is for a Special
-    Semester and for anyone who arrived after that. Only the active semester can
+    Activating a semester already moves everyone. This is for anyone who arrived
+    after that, or came back from leave at a Special Semester. Only the active semester can
     be used, and a student has one row per semester, so running this twice changes
     nothing. Anyone whose intake is later is skipped.
     """
@@ -475,7 +475,7 @@ def semester_move_view(request):
             payload.update(
                 students=rows,
                 movingFrom=_usual_semester(rows),
-                onSemester=[] if semester.is_special else _on_semester_rows(semester),
+                onSemester=_on_semester_rows(semester),
                 onLeave=StudentSemester.objects.filter(
                     session=semester.session, term=semester.term, outcome__in=LEAVE_OUTCOMES,
                 ).count(),
@@ -494,8 +494,10 @@ def semester_move_view(request):
     wanted = {matric.strip().casefold(): matric.strip() for matric in data["matrics"] if matric.strip()}
     with transaction.atomic():
         first_update = not StudentSemesterMove.objects.filter(session=semester.session, term=semester.term).exists()
-        back = end_leaves(semester, actor=request.user) if first_update and not semester.is_special else 0
+        back = end_leaves(semester, actor=request.user) if first_update else []
         on_it = set(on_semester(semester).values_list("student_id", flat=True))
+        if semester.is_special:
+            on_it.update(back)
         active = list(Student.objects.filter(status=Student.Status.ACTIVE).exclude(pk__in=waiting_ids()).select_for_update())
         waiting = [student for student in active if student.pk not in on_it and not starts_later(student, semester)]
         moving = [student for student in waiting if student.matric_no.casefold() in wanted]
@@ -507,7 +509,7 @@ def semester_move_view(request):
             term=semester.term,
             moved_count=len(moving),
             left_out_count=left_out,
-            back_from_leave_count=back,
+            back_from_leave_count=len(back),
             moved_by=request.user,
         )
     return Response(

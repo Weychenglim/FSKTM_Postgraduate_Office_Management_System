@@ -106,7 +106,7 @@ DEMO_USERS = [
             "matric_no": "DEMO-STUDENT-001",
             "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
-            "intake_semester": "2024/2025 Semester 1",
+            "intake_semester": "2024/2025 Semester I",
         },
     },
     {
@@ -117,7 +117,7 @@ DEMO_USERS = [
             "matric_no": "DEMO-STUDENT-002",
             "programme": "Master of Computer Science (By Coursework)",
             "status": Student.Status.ACTIVE,
-            "intake_semester": "2024/2025 Semester 1",
+            "intake_semester": "2024/2025 Semester I",
         },
         "student_registry": {
             "ic_number": "",
@@ -141,7 +141,7 @@ DEMO_USERS = [
             "matric_no": "DEMO-STUDENT-003",
             "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
-            "intake_semester": "2025/2026 Semester 1",
+            "intake_semester": "2025/2026 Semester I",
         },
     },
     {
@@ -152,7 +152,7 @@ DEMO_USERS = [
             "matric_no": "DEMO-STUDENT-004",
             "programme": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
             "status": Student.Status.ACTIVE,
-            "intake_semester": "2025/2026 Semester 1",
+            "intake_semester": "2025/2026 Semester I",
         },
     },
 ]

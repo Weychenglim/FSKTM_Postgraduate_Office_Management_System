@@ -303,7 +303,7 @@ const NotificationsContent: React.FC<NotificationsAnnouncementsProps> = ({
   }, [requestedId, items]);
 
   return (
-    <div id="notifications-announcements-root" className="space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
+    <div id="notifications-announcements-root" className="readable-list space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
 
       <PageHeader
@@ -346,8 +346,8 @@ const NotificationsContent: React.FC<NotificationsAnnouncementsProps> = ({
             />
           </div>
 
-          <div className="card-caption text-slate-400 shrink-0">
-            Total {filteredNotifications.length} {noun}
+          <div className="text-[12px] font-medium text-slate-500 shrink-0">
+            {filteredNotifications.length} {filteredNotifications.length === 1 ? noun.slice(0, -1) : noun}
           </div>
         </div>
 

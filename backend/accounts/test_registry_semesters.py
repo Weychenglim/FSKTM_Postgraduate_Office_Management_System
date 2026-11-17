@@ -86,6 +86,35 @@ class LabelTests(SimpleTestCase):
         self.assertEqual(labels("nonsense", "more nonsense"), [])
         self.assertEqual(labels("2026/2027 Semester I", "2024/2025 Semester I"), ["Semester I, 2026/2027 Session"])
 
+    def test_a_new_student_also_gets_the_special_semesters_in_the_plan(self):
+        labels = lambda *args: [s.label for s in seeded_semesters(*args, with_special=True)]
+        self.assertEqual(
+            labels("2025/2026 Semester I", "Semester I, 2026/2027 Session"),
+            [
+                "Semester I, 2025/2026 Session",
+                "Semester II, 2025/2026 Session",
+                "Special Semester, 2025/2026 Session",
+                "Semester I, 2026/2027 Session",
+            ],
+        )
+        self.assertEqual(
+            labels("2025/2026 Semester II", "Semester II, 2026/2027 Session"),
+            [
+                "Semester II, 2025/2026 Session",
+                "Special Semester, 2025/2026 Session",
+                "Semester I, 2026/2027 Session",
+                "Semester II, 2026/2027 Session",
+            ],
+        )
+        self.assertEqual(
+            labels("2026/2027 Semester I", "Special Semester, 2026/2027 Session"),
+            ["Semester I, 2026/2027 Session", "Semester II, 2026/2027 Session", "Special Semester, 2026/2027 Session"],
+        )
+        self.assertEqual(
+            labels("2025/2026 Special Semester", "Semester II, 2026/2027"),
+            ["Special Semester, 2025/2026 Session", "Semester I, 2026/2027 Session", "Semester II, 2026/2027 Session"],
+        )
+
 
 class ProgressTests(APITestCase):
     def test_programmes_start_from_the_handbook(self):
@@ -100,6 +129,29 @@ class ProgressTests(APITestCase):
         progress = progress_of(student)
         self.assertEqual((progress.studied, progress.minimum, progress.short_of_minimum), (3, 3, 0))
         self.assertEqual(progress.maximum_semester.label, "Semester II, 2029/2030 Session")
+
+    def test_expected_completion_goes_through_the_special_semester_when_it_counts(self):
+        from accounts.semester_rules import expected_completion
+
+        student = make_student("P5")
+        semesters_for(student, "Semester I, 2026/2027", "Semester II, 2026/2027")
+        self.assertEqual(expected_completion(progress_of(student)).label, "Special Semester, 2026/2027 Session")
+        StudentSemester.objects.filter(student=student, term="SEMESTER_II").update(outcome=StudentSemester.Outcome.NOT_REGISTERED)
+        self.assertEqual(expected_completion(progress_of(student)).label, "Semester I, 2027/2028 Session")
+        ProgrammeRule.objects.filter(programme=DS).update(special_counts=False)
+        StudentSemester.objects.filter(student=student, term="SEMESTER_II").update(outcome=StudentSemester.Outcome.STUDIED)
+        self.assertEqual(expected_completion(progress_of(student)).label, "Semester I, 2027/2028 Session")
+
+    def test_a_new_student_record_is_filled_with_the_special_semester(self):
+        from accounts.semester_rules import seed_student
+
+        student = make_student("P6", intake="2025/2026 Semester I", current="Semester I, 2026/2027 Session")
+        seed_student(student)
+        self.assertEqual(
+            [(row.session, row.term) for row in student.semesters.order_by("session", "term")],
+            [("2025/2026", "SEMESTER_I"), ("2025/2026", "SEMESTER_II"), ("2025/2026", "SPECIAL"), ("2026/2027", "SEMESTER_I")],
+        )
+        self.assertEqual(progress_of(student).studied, 4)
 
     def test_special_does_not_count_when_the_rule_says_so(self):
         ProgrammeRule.objects.filter(programme=DS).update(special_counts=False)
@@ -269,7 +321,8 @@ class RegistrySemesterApiTests(APITestCase):
         )
         self.assertEqual(response.status_code, 201, response.data)
         rows = StudentSemester.objects.filter(student__matric_no="NEW1")
-        self.assertEqual(rows.count(), 3)
+        self.assertEqual(rows.count(), 4)
+        self.assertTrue(rows.filter(session="2025/2026", term="SPECIAL").exists())
         blank = make_student("NEW2", intake="")
         self.assertFalse(blank.semesters.exists())
         patched = self.client.patch("/api/registry/students/NEW2/", {"intakeDate": "2026/2027 Semester I"}, format="json")
@@ -278,7 +331,7 @@ class RegistrySemesterApiTests(APITestCase):
         typed = self.client.patch("/api/registry/students/NEW2/", {"semester": "Semester II, 2026/2027 Session"}, format="json")
         self.assertEqual(typed.status_code, 200, typed.data)
         self.assertEqual(blank.semesters.count(), 2)
-        self.assertEqual(typed.data["semester"], "Semester II, 2026/2027 Session")
+        self.assertEqual(typed.data["semester"], "2026/2027 Semester II")
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
@@ -369,17 +422,21 @@ class MoveStudentsApiTests(APITestCase):
         on_leave.refresh_from_db()
         self.assertEqual(on_leave.status, Student.Status.DEFERRED)
 
-    def test_a_special_semester_moves_only_those_added_and_nobody_on_leave(self):
+    def test_a_special_semester_ends_leave_without_putting_the_student_on_it(self):
         self.portal.term = "SPECIAL"
         self.portal.code = "2026-2027-SP"
         self.portal.save()
         self.client.force_authenticate(self.office)
         data = self.client.get(self.url).data
         self.assertTrue(data["semester"]["isSpecial"])
-        response = self.client.post(self.url, self.body("MV2"), format="json")
+        response = self.client.post(self.url, self.body("MV2", "MV4"), format="json")
         self.assertEqual((response.data["moved"], response.data["semester"]), (1, "Special Semester, 2026/2027 Session"))
+        self.deferred.refresh_from_db()
+        self.assertEqual(self.deferred.status, Student.Status.ACTIVE)
         self.assertFalse(self.deferred.semesters.filter(term="SPECIAL").exists())
         self.assertEqual(self.two.semesters.filter(term="SPECIAL").count(), 1)
+        self.assertEqual(StudentSemesterMove.objects.get().back_from_leave_count, 1)
+        self.assertEqual([row["matric"] for row in self.client.get(self.url).data["onSemester"]], ["MV2"])
 
     def test_it_refuses_a_stale_page_and_no_active_semester(self):
         self.client.force_authenticate(self.office)
@@ -482,14 +539,53 @@ class SemesterMovesOnActivationTests(APITestCase):
         self.assertEqual(self.one.semesters.count(), 2)
         self.assertEqual(StudentSemesterMove.objects.count(), 1)
 
-    def test_a_special_semester_moves_nobody(self):
+    def test_a_special_semester_moves_everyone_and_ends_leave_without_moving_them(self):
         self.make_it_special()
         self.activate()
-        self.assertFalse(StudentSemester.objects.filter(term="SPECIAL").exists())
-        self.assertFalse(StudentSemesterMove.objects.exists())
+        row = self.one.semesters.get(session="2026/2027", term="SPECIAL")
+        self.assertEqual(row.outcome, StudentSemester.Outcome.STUDIED)
+        self.assertEqual(StudentRegistry.objects.get(student=self.one).current_semester, "Special Semester, 2026/2027 Session")
+        self.assertTrue(self.later.semesters.filter(term="SPECIAL").exists())
+        self.deferred.refresh_from_db()
+        self.assertEqual(self.deferred.status, Student.Status.ACTIVE)
+        self.assertFalse(self.deferred.semesters.exists())
+        self.assertFalse(self.gone.semesters.exists())
+        move = StudentSemesterMove.objects.get()
+        self.assertEqual((move.moved_count, move.back_from_leave_count, move.automatic), (2, 1, True))
         data = self.client.get(self.url).data
-        self.assertEqual([row["matric"] for row in data["students"]], ["AM1", "AM2"])
-        self.assertEqual((data["onSemester"], data["lastMove"]), ([], None))
+        self.assertEqual([row["matric"] for row in data["onSemester"]], ["AM1", "AM2"])
+        self.assertEqual([row["matric"] for row in data["students"]], ["AM3"])
+
+    def test_leave_recorded_for_the_special_semester_stays(self):
+        self.make_it_special()
+        StudentSemester.objects.create(
+            student=self.deferred, session="2026/2027", term="SPECIAL", outcome=StudentSemester.Outcome.LEAVE,
+        )
+        self.activate()
+        self.deferred.refresh_from_db()
+        self.assertEqual(self.deferred.status, Student.Status.DEFERRED)
+        self.assertEqual(self.deferred.semesters.get().outcome, StudentSemester.Outcome.LEAVE)
+
+    def test_a_special_semester_skips_who_is_waiting_for_the_senate_and_later_intakes(self):
+        from accounts.models import StudentCompletion
+
+        self.make_it_special()
+        StudentCompletion.objects.create(student=self.one, last_session="2025/2026", last_term="SEMESTER_II", marked_by=self.office)
+        early = make_student("AM6", intake="2027/2028 Semester I")
+        self.activate()
+        self.assertFalse(self.one.semesters.filter(term="SPECIAL").exists())
+        self.assertFalse(early.semesters.exists())
+
+    def test_marking_a_special_semester_not_registered_takes_it_off_the_count(self):
+        self.make_it_special()
+        self.activate()
+        self.assertEqual(progress_of(self.one).studied, 2)
+        self.one.semesters.filter(term="SPECIAL").update(outcome=StudentSemester.Outcome.NOT_REGISTERED)
+        progress = progress_of(self.one)
+        self.assertEqual(progress.studied, 1)
+        from accounts.semester_rules import limit_warnings
+
+        self.assertEqual(limit_warnings(progress), [])
 
     def test_a_failed_move_leaves_the_semester_active_and_can_be_redone(self):
         from unittest.mock import patch

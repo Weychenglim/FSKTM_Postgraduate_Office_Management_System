@@ -25,7 +25,7 @@ from accounts.models import Student
 from .choice_lists import recipients_list
 from .confirmation import request_values
 from .details import letter_details
-from .eligibility import inactive_student_refusal
+from .eligibility import inactive_student_refusal, open_templates, template_refusal
 from .form_questions import clean_questions, known_fields, question_names
 from .models import GeneratedLetter, LetterPurpose, LetterTemplate
 from .placeholders import VALUE_KEYS, field_names, placeholder_catalogue, placeholder_problems, purpose_hint
@@ -33,8 +33,8 @@ from .serializers import LetterTemplateSerializer
 
 ACTIVE_CLASH_CODE = "appointment_template_already_active"
 
-# Roles allowed to manage (write) templates. Students/lecturers are read-only.
-STAFF_ROLES = {"Office Staff/Admin", "Programme Coordinator"}
+# Only Office Staff manage letter types (UC21). Everyone else reads live ones.
+STAFF_ROLES = {"Office Staff/Admin"}
 
 
 def _is_staff(user):
@@ -212,7 +212,9 @@ def templates_list(request):
         if status_param:
             queryset = queryset.filter(status__iexact=status_param)
         include_wording = _is_staff(request.user)
-        return Response([t.to_public_dict(include_wording=include_wording) for t in queryset])
+        student = None if include_wording else request.user._related_or_none("student")
+        templates = open_templates(student, queryset) if student is not None else queryset
+        return Response([t.to_public_dict(include_wording=include_wording) for t in templates])
 
     _require_staff(request)
     serializer = LetterTemplateSerializer(data=request.data)
@@ -252,6 +254,9 @@ def templates_detail(request, pk):
         staff = _is_staff(request.user)
         if not staff and (template.status != LetterTemplate.Status.ACTIVE or template.is_automatic):
             raise NotFound("Letter template not found.")
+        refusal = None if staff else template_refusal(request.user, template)
+        if refusal:
+            return Response(refusal, status=status.HTTP_403_FORBIDDEN)
         return Response(template.to_public_dict(include_wording=staff))
 
     _require_staff(request)

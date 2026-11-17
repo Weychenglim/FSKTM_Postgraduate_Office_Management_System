@@ -9,7 +9,7 @@ from accounts.models import ProjectRegistration, Student, StudentCompletion, Stu
 from announcements.models import Notification
 
 from .fixtures import CS, DS, TEST_MEDIA, DocumentPeople, pdf_bytes, upload
-from .models import Document, Submission, SubmissionChange, SubmissionEntry
+from .models import Document, DocumentType, Submission, SubmissionChange, SubmissionEntry
 from .test_access import DocumentClient
 
 BASE = "/api/documents/submissions/"
@@ -61,7 +61,8 @@ class SubmissionClient(DocumentClient):
         current = self.detail(pk)
         values = {
             "title": current["title"], "type": current["type"]["code"], "programmes": current["programmes"], "stage": current["stage"],
-            "dueAt": current["dueAt"], "afterDue": current["afterDue"], "lateUntil": current["lateUntil"], **body,
+            "dueAt": current["dueAt"], "afterDue": current["afterDue"], "lateUntil": current["lateUntil"],
+            "instructions": current["instructions"], "opensAt": current["opensAt"], **body,
         }
         return self.client.patch(f"{BASE}{pk}/", values, format="json")
 
@@ -335,3 +336,137 @@ class UploadStageTests(SubmissionBase):
         self.assertEqual(self.client.get("/api/documents/options/").data["me"]["stage"], "P2")
         self.client.force_authenticate(self.chen.user)
         self.assertEqual(self.client.get("/api/documents/options/").data["me"]["stage"], "")
+
+
+@TEST_MEDIA
+class NewFileTypeTests(SubmissionBase):
+    def labels(self, user):
+        self.client.force_authenticate(user)
+        if hasattr(user, "student"):
+            return {row["label"]: row["custom"] for row in self.client.get("/api/documents/options/").data["types"]}
+        return [row["label"] for row in self.client.get(BASE).data["options"]["types"]]
+
+    def test_a_coordinator_adds_a_file_type_when_setting_up_a_submission(self):
+        pk = self.made(type="", newType="  Ethics   approval form ")
+        added = DocumentType.objects.get(label="Ethics approval form")
+        self.assertEqual((added.custom, added.added_by, added.group, added.one_per_student), (True, self.coordinator, "SUPPORTING", False))
+        self.assertEqual((added.share_supervisors, added.share_panel, added.share_coordinator), (True, False, True))
+        self.assertEqual(self.detail(pk)["type"]["label"], "Ethics approval form")
+        self.assertIn("Ethics approval form", self.labels(self.coordinator))
+        self.assertTrue(self.labels(self.bella.user)["Ethics approval form"])
+        self.assertFalse(self.labels(self.bella.user)["P1 Research Report"])
+        self.assertEqual(self.hand_in(self.bella, pk).status_code, 201)
+        self.assertEqual(Document.objects.get(doc_type=added).title, "RP2 final report")
+
+    def test_rp1_and_rp2_types_go_with_that_stage_and_the_panel_sees_them(self):
+        self.made(type="", newType="Progress slides", stage="P1")
+        self.made(type="", newType="Poster", stage="P2")
+        self.assertEqual(
+            list(DocumentType.objects.filter(custom=True).order_by("label").values_list("label", "group", "share_panel")),
+            [("Poster", "RP2", True), ("Progress slides", "RP1", True)],
+        )
+
+    def test_the_same_name_in_any_case_is_the_same_type(self):
+        self.made(type="", newType="Ethics form")
+        self.made(type="", newType="ETHICS FORM")
+        self.made(type="", newType="final research report")
+        self.assertEqual(list(DocumentType.objects.filter(custom=True).values_list("label", flat=True)), ["Ethics form"])
+        self.assertEqual(Submission.objects.filter(doc_type__code="final-research-report").count(), 1)
+
+    def test_names_that_cannot_be_used(self):
+        before = DocumentType.objects.count()
+        self.assertIn("newType", self.make(type="", newType="Staff Document").data)
+        self.assertIn("newType", self.make(type="", newType="x").data)
+        self.assertIn("newType", self.make(type="", newType="a" * 81).data)
+        DocumentType.objects.filter(code="turnitin-report").update(is_active=False)
+        self.assertIn("newType", self.make(type="", newType="Turnitin report").data)
+        self.assertEqual(DocumentType.objects.count(), before)
+
+    def test_a_misspelt_type_leaves_the_lists_when_the_submission_is_corrected(self):
+        pk = self.made(type="", newType="Ethcs form")
+        self.assertEqual(self.edit(pk, type="", newType="Ethics form").status_code, 200)
+        self.assertEqual(self.detail(pk)["type"]["label"], "Ethics form")
+        self.assertFalse(DocumentType.objects.get(label="Ethcs form").is_active)
+        self.assertNotIn("Ethcs form", self.labels(self.coordinator))
+        self.assertNotIn("Ethcs form", self.labels(self.bella.user))
+        self.made(type="", newType="ethcs form")
+        self.assertTrue(DocumentType.objects.get(label="Ethcs form").is_active)
+        self.assertEqual(DocumentType.objects.filter(label__iexact="ethcs form").count(), 1)
+
+    def test_the_type_follows_who_must_send_it_until_files_arrive(self):
+        pk = self.made(type="", newType="Progress slides", stage="P1")
+        self.assertEqual(self.edit(pk, stage="ALL").status_code, 200)
+        added = DocumentType.objects.get(label="Progress slides")
+        self.assertEqual((added.group, added.share_panel), ("SUPPORTING", False))
+        self.hand_in(self.bella, pk)
+        self.assertEqual(self.edit(pk, stage="P1").status_code, 200)
+        added.refresh_from_db()
+        self.assertEqual((added.group, added.share_panel), ("SUPPORTING", False))
+
+    def test_a_type_in_use_stays_when_one_submission_moves_away(self):
+        first = self.made(type="", newType="Ethics form")
+        self.made(type="", newType="Ethics form", title="Ethics form again")
+        self.assertEqual(self.edit(first, type="p1-research-report").status_code, 200)
+        self.assertTrue(DocumentType.objects.get(label="Ethics form").is_active)
+        self.assertTrue(DocumentType.objects.get(code="p1-research-report").is_active)
+
+    def test_nothing_is_added_when_the_change_is_refused(self):
+        pk = self.made()
+        self.hand_in(self.bella, pk)
+        self.assertEqual(self.edit(pk, type="", newType="Another form").status_code, 409)
+        self.assertFalse(DocumentType.objects.filter(label="Another form").exists())
+
+
+@TEST_MEDIA
+class InstructionsAndOpeningTests(SubmissionBase):
+    def test_instructions_reach_the_student_and_the_email(self):
+        text = "Use the faculty template.\nInclude the Turnitin report."
+        with mock.patch("documents.submissions.email_users") as emailed:
+            pk = self.made(instructions=f"  {text}  ")
+        self.assertEqual(self.detail(pk)["instructions"], text)
+        self.assertEqual(self.card(self.bella, pk)["instructions"], text)
+        self.assertIn(text, emailed.call_args.args[3])
+
+    def test_instructions_have_a_limit(self):
+        self.assertIn("instructions", self.make(instructions="x" * 2001).data)
+
+    def test_nobody_can_send_before_it_opens(self):
+        opens = self.due - timedelta(days=3)
+        pk = self.made(opensAt=opens.isoformat())
+        with at(opens - timedelta(seconds=1)):
+            card = self.card(self.bella, pk)
+            self.assertEqual((card["canSend"], card["lateIfSentNow"]), (False, False))
+            self.assertTrue(card["why"].startswith("Opens "))
+            self.assertEqual(self.hand_in(self.bella, pk).status_code, 409)
+            self.assertTrue(self.detail(pk)["notOpenYet"])
+        with at(opens):
+            self.assertEqual(self.hand_in(self.bella, pk).status_code, 201)
+        self.assertEqual(self.row(pk, "DOC-S2")["state"], "ON_TIME")
+
+    def test_the_students_are_told_when_it_opens(self):
+        opens = timezone.now() + timedelta(days=2)
+        pk = self.made(opensAt=opens.isoformat())
+        message = Notification.objects.get(recipient=self.bella.user, record_id=str(pk)).message
+        self.assertIn("opens on", message)
+
+    def test_it_must_open_before_the_due_date(self):
+        self.assertIn("opensAt", self.make(opensAt=self.due.isoformat()).data)
+        self.assertIn("opensAt", self.make(opensAt="soon").data)
+
+    def test_nothing_is_counted_or_reminded_before_it_opens(self):
+        pk = self.made(opensAt=(timezone.now() + timedelta(days=2)).isoformat())
+        self.client.force_authenticate(self.bella.user)
+        self.assertEqual(self.client.get("/api/documents/summary/").data["toDo"], 0)
+        self.client.force_authenticate(self.coordinator)
+        refused = self.client.post(f"{BASE}{pk}/remind/")
+        self.assertEqual(refused.status_code, 409)
+        self.assertIn("not open yet", refused.data["detail"])
+
+    def test_changing_the_opening_date_and_clearing_it(self):
+        pk = self.made(opensAt=(timezone.now() + timedelta(days=2)).isoformat())
+        self.assertEqual(self.edit(pk, opensAt=None, instructions="Name it Matric_RP2.pdf").status_code, 200)
+        data = self.detail(pk)
+        self.assertEqual((data["opensAt"], data["notOpenYet"], data["instructions"]), (None, False, "Name it Matric_RP2.pdf"))
+        change = SubmissionChange.objects.filter(action="CHANGED").get()
+        self.assertEqual(change.details["after"]["instructions"], "Name it Matric_RP2.pdf")
+        self.assertEqual(self.hand_in(self.bella, pk).status_code, 201)

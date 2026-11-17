@@ -176,6 +176,17 @@ class SearchTests(DocumentBase):
         self.assertEqual(self.ask("thesis").data["outcome"], "NO_MATCH")
         self.assertEqual(self.ask("thesis submission deadline").data["outcome"], "DOCUMENT")
 
+    @override_settings(FAQ_STRONG_MATCH=0.9, FAQ_POSSIBLE_MATCH=0.5)
+    def test_a_better_passage_answers_when_the_faq_only_loosely_matches(self):
+        clear_index()
+        loose = FaqEntry.objects.create(
+            question="How much is the thesis printing fee?", answer="RM 20 at the library.", category=self.category, status=FaqEntry.Status.PUBLISHED,
+        )
+        response = self.ask("When do I submit my thesis?")
+        self.assertEqual(response.data["outcome"], "DOCUMENT", response.data)
+        self.assertIn("Thesis submission", response.data["passage"]["text"])
+        self.assertEqual([link["id"] for link in response.data["related"]], [str(loose.pk)])
+
 
 class FileTests(DocumentBase):
     def test_who_can_open_a_document(self):
@@ -206,3 +217,4 @@ class PassageSplitTests(APITestCase):
         self.assertTrue(all(text.endswith(".") for _, text in found))
         self.assertEqual(found[-1], (2, "Short page two."))
         self.assertEqual(sum(len(text.split()) for page, text in found if page == 1), 320)
+

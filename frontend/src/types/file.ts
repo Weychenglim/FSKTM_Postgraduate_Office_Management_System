@@ -24,6 +24,7 @@ export interface DocumentTypeOption {
   shareCoordinator: boolean;
   onePerStudent: boolean;
   isActive: boolean;
+  custom?: boolean;
 }
 
 export interface DocumentOptions {
@@ -110,9 +111,20 @@ export interface PortalDocument {
   permissions: DocumentPermissions;
 }
 
+/** A dated submission this file was sent for. `open` says whether its student could still send another file. */
+export interface DocumentSubmissionLink {
+  id: number;
+  title: string;
+  dueAt: string;
+  open: boolean;
+  student: string;
+  canOpen: boolean;
+}
+
 export interface DocumentDetail extends PortalDocument {
   sharedWith: Array<{ name: string; role: string }>;
   versions: DocumentFileInfo[];
+  submissions: DocumentSubmissionLink[];
   history?: HistoryEntry[];
 }
 

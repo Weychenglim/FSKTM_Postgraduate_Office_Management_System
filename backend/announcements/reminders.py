@@ -12,9 +12,11 @@ from datetime import datetime, time, timedelta
 
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from academics.services import current_effective_semester
+from accounts.models import Student
 from dashboard.models import SemesterTimelineEntry, TimelineAuditLog
 
 from .emails import DEADLINE, SIGN_OFF, SUMMARY, email_users, portal_link
@@ -31,6 +33,8 @@ TIMELINE_ROLES = {
     "OFFICE_STAFF": User.Role.OFFICE_ADMIN,
 }
 SUMMARY_ITEMS = 20
+# Students who have left get no deadline reminders, as they get no announcements.
+LEFT_STUDIES = (Student.Status.GRADUATED, Student.Status.WITHDRAWN, Student.Status.TERMINATED, Student.Status.DECEASED)
 
 
 def _due_in(days):
@@ -53,7 +57,7 @@ def timeline_notices(now, days, *, recipient_id=None, entry_id=None):
         deadline_end__gte=today,
     ).order_by("deadline_end", "display_order")
     if entry_id is not None:
-        entries = entries.filter(source_entry_id=entry_id)
+        entries = entries.filter(Q(source_entry_id=entry_id) | Q(source_entry_id__isnull=True, pk=entry_id))
     last_run = DeadlineReminderRun.objects.filter(completed_at__isnull=False,error='').order_by('-completed_at').first()
     opening_since = min(today, timezone.localdate(last_run.completed_at)) if last_run else today
     result = []
@@ -61,7 +65,9 @@ def timeline_notices(now, days, *, recipient_id=None, entry_id=None):
         stable_id = entry.source_entry_id or entry.pk
         left = (entry.deadline_end - today).days
         roles = [TIMELINE_ROLES[role] for role in entry.target_roles if role in TIMELINE_ROLES]
-        users = User.objects.filter(is_active=True, role__in=roles, deadline_reminders=True)
+        users = User.objects.filter(is_active=True, role__in=roles, deadline_reminders=True).exclude(
+            student__status__in=LEFT_STUDIES
+        )
         if recipient_id is not None:
             users = users.filter(pk=recipient_id)
         for user in users:

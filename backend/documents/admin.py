@@ -50,8 +50,9 @@ class DocumentTypeAdmin(admin.ModelAdmin):
     """The Technical Admin keeps the list of types. Switch one off instead of deleting it."""
 
     form = DocumentTypeForm
-    list_display = ("label", "group", "kind", "display_order", "is_active")
-    list_filter = ("group", "kind", "is_active")
+    list_display = ("label", "group", "kind", "display_order", "is_active", "custom")
+    list_filter = ("group", "kind", "is_active", "custom")
+    readonly_fields = ("custom", "added_by")
     search_fields = ("label", "code")
     ordering = ("display_order", "label")
 

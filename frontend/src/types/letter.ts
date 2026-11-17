@@ -14,6 +14,9 @@ export type LetterTemplateStatus = 'Active' | 'Draft' | 'Archived';
  */
 export type LetterPurpose = 'REQUEST' | 'SUPERVISOR_APPOINTMENT' | 'PANEL_APPOINTMENT' | 'CO_SUPERVISOR_APPOINTMENT';
 
+/** Which students may ask for a request letter. */
+export type LetterAudience = 'CURRENT' | 'FINISHED' | 'INTERNATIONAL';
+
 /** One placeholder a template may use, from `GET /api/letter-templates/placeholders/`. */
 export interface LetterPlaceholder {
   tag: string;
@@ -54,6 +57,7 @@ export interface LetterTemplate {
   /** Prefix used to build the reference number, e.g. "UMF/PG". */
   referencePrefix?: string;
   purpose?: LetterPurpose;
+  audience?: LetterAudience;
   /** Printed under the signature line; blank keeps the faculty default. */
   signatoryName?: string;
   signatoryTitle?: string;
@@ -87,7 +91,9 @@ export interface LetterQuestion {
   label?: string;
   hint?: string;
   required?: boolean;
-  /** A "Choose from a list" question's list. */
+  /** A "Choose one option" question: the options the office typed... */
+  options?: string[];
+  /** ...or a saved list from the Lists tab. */
   listId?: number;
 }
 
@@ -116,7 +122,7 @@ export interface LetterRecipientPurpose {
 
 /** A question as the student's form shows it, with what to choose from. */
 export type LetterFormQuestion =
-  | (LetterQuestion & { kind: 'recipient'; options: LetterRecipientPurpose[] })
+  | (Omit<LetterQuestion, 'options'> & { kind: 'recipient'; options: LetterRecipientPurpose[] })
   | { kind: 'extras'; options: { code: string; label: string }[] }
   | (LetterQuestion & { kind: 'choice'; list: { id: string | null; name: string; itemNoun: string; items: { id: string; name: string }[] } })
   | (LetterQuestion & { kind: 'text' | 'date' | 'yesno' });

@@ -108,6 +108,20 @@ class ZipDownloadTests(DocumentPeople, DocumentClient, APITestCase):
         self.assertEqual(self.post(self.supervisor, [self.thesis["id"], 999999]).status_code, 404)
         self.assertEqual(self.post(self.supervisor, [self.thesis["id"]]).status_code, 200)
 
+    def test_a_missing_stored_file_is_reported_not_a_server_error(self):
+        from .models import Document
+        version = Document.objects.get(pk=self.letter["id"]).current_version
+        version.file.storage.delete(version.file.name)
+        response = self.post(self.office, [self.thesis["id"], self.letter["id"]])
+        self.assertEqual((response.status_code, response.data["code"]), (404, "file_missing"))
+        self.assertEqual(response.data["detail"], "File not found. Please tell the PG office.")
+        self.assertEqual(DocumentEvent.objects.filter(action="DOWNLOADED", details__bulk=True).count(), 0)
+
+    def test_a_file_lost_while_the_zip_is_written_is_reported_too(self):
+        with mock.patch("documents.views._read", side_effect=[b"%PDF-1.4", None]):
+            response = self.post(self.office, [self.thesis["id"], self.letter["id"]])
+        self.assertEqual((response.status_code, response.data["code"]), (404, "file_missing"))
+
     def test_limits(self):
         self.assertEqual(self.post(self.office, []).status_code, 400)
         self.assertEqual(self.post(self.office, list(range(1, 52))).status_code, 400)

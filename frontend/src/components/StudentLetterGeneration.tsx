@@ -17,7 +17,7 @@ import { StudentLetterRequests, shortDate } from './IssuedLetters';
 import { StudentLetterRequestForm, type LetterRequestStart } from './StudentLetterRequestForm';
 import { GeneratedLetter, LetterTemplate } from '../types';
 import { getMyLetterRequests, getStudentLetterTemplates, inactiveStudentReason } from '../services';
-import { isCustomQuestion, listInWords } from '../utils/letterEditor';
+import { listInWords } from '../utils/letterEditor';
 
 export type StudentLetterView = 'new' | 'history';
 
@@ -33,16 +33,6 @@ interface StudentLetterGenerationProps {
   studentName?: string;
   studentId?: string;
   programme?: string;
-}
-
-/** What a letter's form will ask, in a few words, e.g. "who it is for and your travel date". */
-export function askedFor(template: LetterTemplate): string {
-  const questions = template.formQuestions ?? [];
-  const parts = [
-    questions.some((question) => question.kind === 'recipient') ? 'who it is for' : '',
-    ...questions.filter(isCustomQuestion).map((question) => (question.label ?? '').replace(/\?$/, '').toLowerCase()),
-  ].filter(Boolean);
-  return parts.length ? listInWords(parts) : '';
 }
 
 export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = ({
@@ -206,7 +196,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   const waiting = letters.filter((letter) => letter.status === 'Pending').length;
 
   return (
-    <div id="student-letter-generation-workspace" className="space-y-6 text-left font-sans text-xs pb-12">
+    <div id="student-letter-generation-workspace" className="readable-list space-y-6 text-left font-sans text-xs pb-12">
       <PortalToast message={toast} />
 
       <PageHeader title="Letter Generation" />
@@ -251,7 +241,6 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                 {templates.map((template) => {
                   const pending = pendingFor(template.id);
                   const copies = currentCopies(template.id);
-                  const asks = askedFor(template);
                   return (
                     <li key={template.id}>
                       <article aria-label={template.name} className="flex h-full flex-col gap-3 rounded-xl border border-slate-200 p-5">
@@ -265,12 +254,6 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
                         </div>
                         {template.description && <p className="card-description text-slate-700">{template.description}</p>}
                         <dl className="space-y-1.5 text-[12.5px]">
-                          {asks && (
-                            <div className="flex gap-2">
-                              <dt className="text-slate-500">You will be asked</dt>
-                              <dd className="font-medium text-slate-700">{asks}</dd>
-                            </div>
-                          )}
                           {template.readyInDays ? (
                             <div className="flex items-center gap-1.5 text-slate-500">
                               <Clock aria-hidden="true" className="h-3.5 w-3.5" />

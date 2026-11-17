@@ -6,7 +6,7 @@ import { SettingsView } from './SettingsView';
 const html = renderToStaticMarkup(<SettingsView currentUser={{ id: '5', fullName: 'Test Student', email: 'student@example.com', role: 'Student', phone: '0123456789', department: 'Computing' }} onLogout={() => {}} onUserUpdated={() => {}} onPasswordChanged={() => {}} />);
 assert.match(html, /Loading settings/);
 assert.match(html, /Urgent notifications always stay on/);
-assert.match(html, /Email changes are managed by the Office/);
+assert.match(html, /Your name and email can only be changed by the Postgraduate Office/);
 assert.match(html, /Not available/);
 assert.match(html, /signed out on all devices/);
 assert.doesNotMatch(html, /Receive important updates by email/);

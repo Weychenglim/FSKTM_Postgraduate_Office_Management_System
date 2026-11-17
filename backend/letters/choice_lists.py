@@ -96,7 +96,7 @@ def list_summary(choice_list):
 
 
 def list_detail(choice_list):
-    items = choice_list.items.annotate(used_count=Count("letters", distinct=True))
+    items = choice_list.items.annotate(used_count=Count("letters", distinct=True)).order_by("order", "id")
     group_letters = {}
     if choice_list.kind == ChoiceList.Kind.RECIPIENTS:
         for group in choice_list.groups.all():
