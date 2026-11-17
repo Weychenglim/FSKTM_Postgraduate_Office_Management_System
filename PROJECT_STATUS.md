@@ -1,3 +1,124 @@
+## Special Semester moves students automatically (16 November 2026)
+
+The portal is only for Master by coursework in AI, Data Science and Cyber Security. All three plan Semester I, Semester II, then the Special Semester, so Xiang asked for the Special Semester to move students like a normal one. Plan and sources: `docs/superpowers/plans/2026-11-16-special-semester-automatic.md`.
+
+- **Activating a Special Semester** puts every Active student who has started and is not waiting for the Senate on it as Registered. The office marks anyone who skipped it as Not registered on the Current semester page, as for a normal semester. Not registered for a Special Semester still gives no warning (Regulation 5(5) counts normal semesters).
+- **Leave:** a student on leave in Semester II goes back to Active at the Special Semester but is not put on it. The Current semester page lists them under "Not on this semester" to tick anyone who registered. Leave already recorded for the Special Semester stays.
+- **New students:** adding or importing a student fills in the Special Semesters between the intake and the current semester. Migration `accounts.0016` is unchanged.
+- **Expected completion** goes through the Special Semester when the programme counts it.
+- **RP stage and the maximum:** unchanged. A skipped Special Semester is not a break, so RP1 in Semester II then RP2 in Semester I stays allowed (confirmed by Xiang).
+- No migration, no dev DB change. No change to Wey Cheng's files.
+- **Not committed yet.**
+
+## Submissions: instructions, opening date and a full page (16 November 2026)
+
+Xiang asked for Spectrum-style instructions on a submission and a date it opens, set on a page instead of a pop-up.
+
+- **New submission and Edit submission are a page** (`SubmissionFormPage.tsx`), with Details, Who must send it and Dates sections and a "What students see" preview beside the form. Leaving with unsaved changes asks first. Moving the due date so files become late asks in a confirm box.
+- **Instructions** (optional, up to 2,000 characters). Students open them under their row with "Instructions". They are in the email the students get.
+- **Submission opens** is Immediately or Scheduled. Before it opens, students see "Opens ... · Due ..." with no Upload, it does not count in their to-do number, and Remind is refused. It must open before the due date. The coordinator's card shows the opening date until then.
+- **Database:** `documents.0011` (two new fields). Dev DB backed up first to `db-backups/fsktm_pg_office_before_submission_fields_2026-11-16.dump`.
+- **Not committed yet.**
+
+## QA fixes: the High and Medium issues (15 November 2026)
+
+Xiang asked to fix the serious issues from the 13 to 14 November QA run (`QA_2026-11-13/ISSUES.md`, plan in `QA_2026-11-13/FIX_PLAN.md`), checked against the FRs and UCs. A second session did the five UX fixes below at the same time; the two split the files. Status of every issue is at the top of ISSUES.md.
+
+- **Sign-out ends the session at once (ISS-001, FR-02, UC01 step 11).** Each sign-in puts a session id (`sid`) in its tokens, which renewing keeps. Signing out, or anything that ends all of a person's sign-ins (password change or reset, suspension), marks the id as ended in the cache, and `PasswordPolicyJWTAuthentication` answers 401 "Your session has ended. Please sign in again." Other open tabs keep their own sign-in. Tokens from before this change still run out within 15 minutes.
+- **Password rules (ISS-002, UC02 step 9).** `accounts/password_rules.py`: a password close to the person's name, email name, matric or staff number is refused, and it must have letters and numbers.
+- **Letter types are the office's (ISS-006, UC21).** Only Office Staff create, edit or delete them; coordinators no longer see Letter Generation (`auth/permissions.ts`, a shared file).
+- **One office contact (ISS-010).** +603-7967 6316 and tdit_fsktm@um.edu.my, the numbers the FAQ answers cite from the faculty's postgraduate page and the official RP timeline. Set once in `OFFICE_PHONE` / `OFFICE_EMAIL` (backend, can be changed in `.env`) and `frontend/src/constants/office.ts`; letters, Word copies, the maintenance page and the sign-in page use them, and a test keeps the two the same. The old +603-7967 6300 / pg.fsktm@um.edu.my had no source. **Xiang to confirm.** Wey Cheng's `AppLayout.tsx` still says postgrad.fsktm@edu.my.
+- **Student records (ISS-013, 014, 027, 040).**
+  - Adding a student without a programme is refused.
+  - The record has **Linked records**: panel, marks (office only), files, letters (office only) and announcements, each with a link (`GET /api/registry/students/<matric>/links/`, `accounts/student_links.py`, `StudentRecordLinks.tsx`).
+  - **Expected completion** can be set on the record. Without it, letters and the record use the semester the programme minimum points to, when the student has semesters on record (shown as "estimated").
+  - Semesters are saved in one spelling, "2025/2026 Semester I". `accounts.0025` fixes old records and `announcements.0009` old intake targets. Announcement targeting compares the semester, not the text, so "Semester 1" and "Semester I" students both get it.
+- **Files (ISS-022, 023).** A zip with a missing stored file says "File not found. Please tell the PG office." Archiving a file sent for a submission keeps the student's sent time and on time or late; the coordinator's row and the student's row say "File archived", and the student can send a new file while it is open. The archive API asks for `confirmed` when the file belongs to a submission (UC27 EF1); the Archive pop-up sends it after showing the warning.
+- **Lists keep their order (ISS-025).** Letter lists, FAQ answers and FAQ documents always come back in their saved order.
+- **Passport is never an IC (ISS-026).** `{{PASSPORT_NUMBER}}` is the passport only; new `{{IC_OR_PASSPORT}}` for "IC/Passport Number" lines. `letters.0016` moves the Student Confirmation Letter to it.
+- **FAQ chatbot (ISS-032, 033, 034).**
+  - An answer is shown only when it clearly beats the next entry on meaning (or wins a meaning tie on keywords); otherwise the student chooses. The AI, when on, still gets these close calls.
+  - A reference document passage answers when it fits better than a loose FAQ match; the loose entries show under it as related questions.
+  - Without the AI, a follow-up that points back ("what if...", "it", "that") is searched with the question before it.
+  - Real model on a copy of the dev data: the 25 QA questions went from 18 right, 4 among choices, 2 wrong, 1 missed to 18, 7, 0, 0; 25 new questions 21, 4, 0, 0 before and after; all 167 entry wordings still answered right; the parking and library handbook questions now answered from the handbook; 2 of 3 follow-up pairs answered right without the AI (the third gives the earlier topic).
+- **Announcements and reminders (ISS-041, 042, 043, 004).** Deadline reminders skip Graduated, Withdrawn, Terminated and Deceased students. The form has **Expires at** again (UC30); a start after the expiry is refused, and an expired announcement leaves everyone's feed and the bell count. An empty title or message is marked "Required". The three old reminder tests now use a published timeline, and reminder emails also work for timeline entries without a source id.
+- **Database:** `accounts.0025`, `announcements.0009`, `letters.0016` (data only).
+- **Shared or teammate files touched:** `auth/permissions.ts` (coordinator modules), `announcements/reminders.py` (two lines in a function Wey Cheng last changed), `announcements/models.py` `visible_notifications` (one line).
+- **Not committed yet.**
+
+## Five UX fixes on Xiang's modules (15 November 2026)
+
+Xiang asked whether the Registry, Letters, File Management, Announcements and FAQ screens are easy to use. A look at 54 screens on a 1366x768 laptop found the student side good and the older staff list pages slow: rows hidden under cards and filter boxes, tiny grey capital text, stiff wording, mixed semester styles. Xiang said to go ahead with all five fixes.
+
+- **1. Rows first on the staff list pages.** Letter requests, Issued letters, Letter types, File Management, FAQ answers and Staff & Lecturers now use the Student Registry's layout: status chips with counts, one search row, the rest behind **Filters** (`components/ListToolbar.tsx`). The summary cards, section titles, hint sentences and the boxed filter cards are gone from these pages.
+  - Letter requests: the three cards and the Status dropdown became chips (Pending, Approved, Rejected, plus Withdrawn and Revoked when there are any, then All). The counts now add up to All.
+  - Issued letters: one card; search and Status in the row; dates and "Made by" behind Filters; 10 rows a page.
+  - Letter types: search and "Used" in the row; Current and Archived chips appear only when something is archived.
+  - File Management: search, Filters and Select files in one row; chosen filters show as chips with Clear filters. The type line under a file name is hidden when it only repeats the name.
+  - FAQ Chatbot: the four cards are gone. Counts are on the chips and on the Student questions tab; this month's figures are one line beside the chips.
+  - Rows visible without scrolling, before to after: Letter requests first row at 798 px to 397 px; FAQ answers 0 to 5 of 25; Files 1 to 4 of 10; Letter types 2 to 4 of 8; Issued letters 3 to 4 of 8; Staff & Lecturers 5 to 6 of 8. The Lists tab was left as it is.
+  - Staff & Lecturers and Issued letters no longer scroll sideways inside the page on a phone (QA ISS-015, ISS-028).
+- **2. Wording and one semester style.**
+  - Every screen in the Registry, File Management and My Profile shows a semester as **Semester I 2026/2027**, the same as the dashboard and Wey Cheng's modules (`displaySemester` in `utils/registrySemesters.ts`). Stored values are unchanged, so nothing needs migrating. Text typed into announcements is left as typed.
+  - Student Record labels: Programme, Status, Supervisor, Email, Phone (were "Programme Mapped", "Academic Status", "Academic Supervisor", "Administrative Email", "Direct Mobile Contact").
+  - Announcement form: "New Announcement", Title, Audience, Priority, Message. Problems show as a red popup without the word "Error:" ("Enter a title."), and success popups close by themselves.
+  - Also: "Sign out" in the account menu (was "Logout to Screen"); "1 announcement" (was "Total 1 announcements"); "Find an embassy"; "Changed 10 Jun 2026" on letter types; the reinstate message now covers both cases; Settings shows the name and email as locked and says who can change them.
+  - Two sample letter descriptions were reworded in the seed data and, by the migration below, in rows that still carry the old text.
+- **3. Larger text on the list pages.** A scoped style, `.readable-list` in `index.css`, gives these lists 12 px sentence-case column headings, 13 px cells and 12 px captions. It is used on the pages above, the Student Registry, Notifications and the student's letter list. The portal-wide table style is untouched, so Wey Cheng's screens look the same. Text under 12 px, before to after: Registry 54 to 17 of 98, Files 81 to 26, Issued letters 54 to 18 (what is left is buttons and status badges, which keep the portal's style).
+- **4. Student Record and Register New Students have their own addresses.** `/registry/students/<matric>` and `/registry/register`. A reload stays on the page, Back returns to the list with its search and page kept, a link can be sent to a colleague, and old `/registry?student=` links are redirected. An unknown matric number goes back to the list with a message. The student list comes in name order from the server (QA ISS-016). The import preview and "Create accounts" button appear only once a file is chosen.
+- **5. Who can request a letter.** Each request letter type has **Who can request it** (step 1 of the letter type editor): Current students (the default), Students who have finished their studies, or International students. Students are only offered the letters they can ask for, the server refuses the others, and the review page tells the office if a waiting request no longer fits. A graduate can now open Letter Generation when a letter is set for finished students. This closes "a student who has not finished can ask for a Completion Letter" and QA ISS-026 and ISS-031.
+  - Data: `letters.0015` (`LetterTemplate.audience`). It sets Completion Letter to finished students, and the Student Pass Renewal and Visa Support letters to international students, where those names exist. The office should confirm these three, and can change any of them in the editor.
+  - A record that says Malaysia or Malaysian, or has an IC number and no passport number, counts as Malaysian. A record with no nationality is not held back, so sample students without one still see the visa letters.
+  - Dev database migrated (backup first: `db-backups/fsktm_pg_office_before_letter_audience_2026-11-15.dump`).
+- **Shared files touched:** `TopHeader.tsx` (one word), `index.css` (new scoped rules at the end), `constants/routes.ts` (two routes).
+- **Checks:** backend letters, accounts, announcements, documents, faq and dashboard: 1442 tests with only the 7 failures already on main (3 in `announcements.test_reminders`, 4 dashboard timeline tests). New tests: 10 for who can request a letter, 1 for name order. Frontend 246 of 254 test files (the same 8 as on main) plus the new `ListToolbar.test.tsx`; type check with only Wey Cheng's 2 known errors; build passes. Browser check on a private database copy: 61 screens with no page errors and no sideways scroll, and a click-through of the five fixes, 35 of 35.
+- **Not committed yet.**
+
+## Requirement gaps closed, Word letters and the RP Registration card (13 November 2026)
+
+Xiang asked to close the gaps left from the 29 October requirements check, to add Word export because FR-55 names it, and to fix the look, place and wording of the student's Research Project question. Nothing here needs a database change.
+
+- **Popups close by themselves (FR-65, UC33):** success and info popups on nine of Xiang's screens now close after 4 seconds (`utils/toastDuration.ts`): the file page, FAQ entry and FAQ documents, Programmes, RP Registration and its card on the Student Record, the staff account page, the student's File Submission and Submissions. Hovering pauses the timer. Warnings and errors stay until closed so nobody misses one; UC33 says errors close too, so this is on purpose. Wey Cheng's `DecisionDialog`, `MarkEntryDetail` and `OperationalPeriodManagement` still never close and are his to change.
+- **Dashboard tasks from Registry, Letters, File Management and the FAQ (FR-63, UC31):**
+  - **Student:** one task for each document that is due and not sent, with "Due in 5 days", "Due today" or "2 days overdue". It opens File Submission and goes away once the file is sent. The dashboard no longer says "No actions waiting" beside a red number on File Submission.
+  - **Programme coordinator:** "RP Registration correction requests", with how many are waiting. It opens RP Registration.
+  - **Office:** "Letter requests to review" (the same number as the Requests tab, with the oldest wait) and "Student questions to answer". They show under Needs attention as two new groups, Letter requests and Student questions, and open those pages. The office home shows the first four groups only, so a group can sit under View all attention.
+  - **Lecturers:** nothing new.
+  - **How:** each app answers for its own work in a `dashboard_tasks.py`, and `accounts.dashboard_tasks.module_tasks` collects them for `build_dashboard_tasks`.
+  - **Wey Cheng's files, small additions only (tell him):** `dashboard/actions.py` (two lines), `dashboard/office_attention.py` (two groups), `services/officeAttentionApi.ts`, `utils/officeAttention.ts`, `utils/workflowAgeing.ts`, `types/dashboard.ts` and `StudentDashboard.tsx`.
+- **Files linked to their submission, with a warning before archiving (FR-50, UC27):** staff see "Sent for" on the file page, with the submission's title and due date (a link to Submissions for coordinators and the office). Archiving a file that was sent for a submission has always shown its student as not sent, so the Archive pop-up now says so first, and says whether the student can send again (still open) or cannot (closed). The coordinator can still go ahead, and Restore brings the entry back. Students do not see the line.
+- **Word export (FR-55):** the office downloads an issued letter as a Word file with the same letterhead, reference, wording, detail rows, closing and Malay page as the PDF (`letters/word_export.py`, `GET /api/letters/requests/<id>/word/`). Download Word is on the request page and in the Issued letters pop-up. Students and lecturers keep the locked PDF only, because a Word file can be edited. `python-docx` is added to `requirements.txt`.
+- **RP Registration card on the student dashboard:** rebuilt in the same style as the Supervisor Status and Panel Appointment cards. While an answer is needed it sits at the top with an amber border: "Not confirmed", "Action required", the question and the two buttons. Once confirmed it moves below the timeline, next to the appointment cards: "Registered" or "Not registered", the semester, the course code and name, "Only your programme coordinator can change this record." and Request a correction. The wording is formal throughout (`stageCard` in `utils/projectStages.ts`).
+- **Checks:** backend 2401 tests with only the 8 failures already on main (4 dashboard timeline tests, run again on an untouched copy of the last commit; 3 in `announcements.test_reminders`; 1 appointments concurrency test). New tests: 4 Word export, 10 dashboard tasks, 6 file links. Frontend 246 of 254 test files (the same 8 as on main), type check with only Wey Cheng's 2 known errors, and the build. Browser check on a copy of the dev database, 32 of 32, as a student, a coordinator and the office at desktop and phone width: the card before and after answering, the correction request, each task opening its page, "Sent for", the archive warning, a popup closing at 4.0 seconds, and the Word file downloaded and opened in Word (two pages, matching the PDF).
+- **Not committed yet.**
+
+## AI replies in the FAQ chatbot switched on (13 November 2026)
+
+Xiang asked to turn the AI on and make sure it works for answers added later.
+
+- **Switched on** in the dev database through FAQ > Settings > Reply with AI (backup first: `db-backups/fsktm_pg_office_before_ai_on_2026-11-13.dump`). Both free models are still on OpenRouter; the backup model (Dots-3-Note) ends on 31 December 2026, after which only Flint answers.
+- **Answers added later need no extra step:** the search rebuilds itself when an answer is published, edited, archived or given another wording, and the AI only ever gets what the search finds. New tests (`FutureAnswersTests`) add, edit, re-word and archive an answer through the office API with no restart. Browser check with the real model on a database copy: the office published a new answer and a student's AI reply used it at once, with its facts copied exactly.
+- **Follow-up fix:** "how much does it cost?" after a question about printing a poster was answered with the total programme fee, because the AI was also given far answers. A follow-up now gets only the answers close to the best match (plus the follow-up's own best match), and the AI is told a follow-up is about the earlier topic unless it names something new. A follow-up that names something new ("and what about my tuition fees?") still moves to it.
+- **Real-model checks:** office Test page 8 of 9 as expected (GPA, phone number, word limit, change of programme replies correct; Python, "my CGPA", "ignore your instructions" and an exact FAQ question never get an AI reply); student chat 9 of 9 on a database copy. Chatbot tests: 179 pass.
+- **Malay questions get English AI replies** (Xiang's choice). A Malay reply was always blocked by the safety check (a Malay sentence shares almost no words with the English answer, and the local meaning model can't tell a good Malay sentence from an off-topic one), so the student waited 13 to 20 seconds for the official answer. The AI is now told to reply in English, which passes the same check: 3 of 3 Malay questions that reached the AI got a correct English reply in 3 to 5 seconds.
+- **At most 10 seconds for AI** (`FAQ_AI_TIMEOUT_SECONDS`, was 20; Xiang's choice). The first model gets about 7 seconds and the backup what is left; after that the official answer shows. Slowest reply in the last check: 5.1 seconds.
+
+## Coordinators can add file types (12 November 2026)
+
+Xiang wants the file types open-ended: a coordinator may need a file that is not on the faculty list.
+
+- **Where:** New submission (and Change), File type list, last choice **New file type**, then one name box. The type is added only when the submission saves, so a cancelled form or a refused change adds nothing.
+- **What it gets:** the stage follows "Who must send it" (RP1, RP2, or Supporting Documents for Everyone). Supervisors and the coordinator see the files; the panel too for RP1 and RP2 types, like the faculty's own types. Students send PDF, Word or images; each submission gets its own file.
+- **Same name, any case or spacing,** is the same type, so two coordinators never make "Ethics form" twice; typing a faculty type's name uses that type.
+- **Other people:** students see a coordinator's type only when a submission asks them for it or they have sent one, so other programmes' students never get an empty row. The staff upload box finds it by name; anything else typed there is still a Supporting Document. Filters and lists pick it up from the type list.
+- **Misspelt names:** correcting the name in Change takes the old one out of the lists when nothing else uses it. A type stops changing stage once a file has been sent.
+- **Data:** `documents.0010` (`DocumentType.custom`, `added_by`), shown in Django admin. Backup first: `db-backups/fsktm_pg_office_before_custom_file_types_2026-11-12.dump`.
+- **Checks:** 8 new backend tests (documents and accounts 784 pass), front-end checks for the student list, staff typing and the form; browser check on a database copy 11 of 11 (Data Science student sees it with its due date, Cyber Security student does not); read-only check on Xiang's running servers.
+
+Also fixed the calendar showing as one long column: an open tab had missed the new 7-column style, so the calendar now sets its own columns.
+
+**Upload a file page evened out** (Xiang: uneven and ugly): Students and "What is it?" are the same 48px box with an icon and a placeholder, and the gaps between fields are equal (the hidden browser suggestion list had added extra space). "What is it?" suggests names in the system's own list (`NameSuggestBox` in `DocumentParts.tsx`) instead of the browser's; any other name can still be typed. The file kinds line sits inside the drop area, and Semester and Note use the same labels as the other fields. The card now fills the page like the other full pages (it stopped at a fixed width, leaving the right side empty): on wide screens Students and "What is it?" sit side by side, and for a staff file "Who can see it" takes the first row with Programme and "What is it?" side by side below (one row when it is PG office only).
+
 ## New date and time pickers (12 November 2026)
 
 Xiang found the browser's own date and time boxes ugly and out of place. New shared pickers in `components/DateFields.tsx`:
@@ -128,7 +249,7 @@ One status was answering several questions, and two of its values did not match 
 The office used to activate a semester and then remember to update the students on a second page. Now activating a normal semester does both.
 
 - **What happens:** Active students get the semester as Studied and Deferred students get it as On leave. Later intakes, Graduated and Withdrawn students are skipped. It runs right after activation commits (`activate_semester` calls `move_everyone_on`), so a failed move leaves the semester active and Student Registry still offers the update.
-- **Special Semester:** not automatic, because only some students take it. The office ticks who is taking it, as before.
+- **Special Semester:** not automatic at first. Since 16 November 2026 it moves students too (see the entry at the top).
 - **Not registered:** a new semester outcome, in UM's own words. It does not count as a semester studied and the maximum stays the same. The office marks it on the Current semester page (renamed from Update current semester) or on the Student Record.
 - **Students tab:** says how many moved for the first 14 days. It still asks if someone is not on the semester, such as a student added afterwards.
 - **Migration:** `accounts.0020`. The new columns have database defaults, so older code keeps working on a migrated database.

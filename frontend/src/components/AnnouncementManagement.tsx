@@ -34,6 +34,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, StatusBadge, StatusDot, getStatusBadgeTone, type BadgeTone } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { DateTimeField } from './DateFields';
 import { todayInMalaysia } from '../utils/dateFields';
@@ -49,7 +50,7 @@ import {
   updateAnnouncement,
   deleteAnnouncement,
 } from '../services';
-import { formatScheduleMoment, isScheduledFor, scheduleTime } from '../utils/announcementSchedule';
+import { formatScheduleMoment, isScheduledFor, scheduleProblem, scheduleTime } from '../utils/announcementSchedule';
 import { toMalaysiaDateTimeLocalValue } from '../utils/malaysiaDateTime';
 import { describeProgramme } from '../utils/programmeLabel';
 import { pageWindow } from '../utils/pageWindow';
@@ -113,7 +114,7 @@ const targetingSummary = (item: AnnouncementItem) =>
   [...(item.targetProgrammes ?? []).map(programmeName), ...(item.targetIntakes ?? [])].join(', ');
 
 // List filters; 'any' turns a filter off.
-type StatusFilter = Exclude<AnnouncementItem['status'], 'Expired'> | 'any';
+type StatusFilter = AnnouncementItem['status'] | 'any';
 type AudienceFilter = AnnouncementItem['target'] | 'any';
 type PriorityFilter = AnnouncementItem['priority'] | 'any';
 
@@ -145,11 +146,12 @@ const LIST_HEADING: Record<StatusFilter, string> = {
   Active: 'Live announcements',
   Scheduled: 'Scheduled announcements',
   Draft: 'Drafts',
+  Expired: 'Expired announcements',
 };
 
 const STATUS_FILTER_OPTIONS: SelectMenuOption<StatusFilter>[] = [
   { value: 'any', label: 'All statuses', triggerLabel: 'All' },
-  ...(['Active', 'Scheduled', 'Draft'] as const).map((status) => ({
+  ...(['Active', 'Scheduled', 'Draft', 'Expired'] as const).map((status) => ({
     value: status,
     label: STATUS_LOOK[status].label,
     leading: <StatusDot tone={STATUS_LOOK[status].tone} className="w-2 h-2" />,
@@ -184,11 +186,13 @@ const audienceLine = (item: AnnouncementItem) => {
     .join(' · ');
 };
 
-// When it went out, or goes out for a scheduled one.
+// When it went out (or goes out) and when it ends.
 const timingLine = (item: AnnouncementItem) => {
-  if (item.status === 'Draft') return `Created ${item.dateCreated}`;
-  if (item.status === 'Scheduled') return `Publishes ${formatScheduleMoment(item.publishAt) || 'at its set time'}`;
-  return `Published ${formatScheduleMoment(item.publishAt) || item.dateCreated}`;
+  const ends = formatScheduleMoment(item.expiresAt);
+  if (item.status === 'Draft') return `Created ${item.dateCreated}${ends ? `, ends ${ends}` : ''}`;
+  if (item.status === 'Scheduled') return `Publishes ${formatScheduleMoment(item.publishAt) || 'at its set time'}${ends ? `, ends ${ends}` : ''}`;
+  const published = formatScheduleMoment(item.publishAt) || item.dateCreated;
+  return `Published ${published}${ends ? `, ${item.status === 'Expired' ? 'ended' : 'ends'} ${ends}` : ''}`;
 };
 
 // A summary count that also filters the list; pressing it again shows everything.
@@ -223,17 +227,15 @@ const StatusTile: React.FC<{
 // Headline, audience, priority, content, publish time, programmes, intakes
 // and the attachment removal, in that order.
 const formSnapshot = (values: unknown[]) => JSON.stringify(values);
-const EMPTY_FORM = formSnapshot(['', [], 'Info', '', '', [], [], false]);
+const EMPTY_FORM = formSnapshot(['', [], 'Info', '', '', '', [], [], false]);
 
 type PendingPublish = { draft: AnnouncementItem | null; count: number | null; schedule: boolean };
 
 export const AnnouncementManagement: React.FC = () => {
   // --- 1. Notification Toast and State Manager ---
-  const [toast, setToast] = useState<string | null>(null);
-  const showToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  };
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
+  const showToast = (message: string) => setToast({ message, tone: 'success' });
+  const showProblem = (message: string) => setToast({ message, tone: 'danger' });
 
   // --- View state: 'create' (draft form) vs 'history' (broadcast records) ---
   const [view, setView] = useState<'create' | 'history'>('history');
@@ -280,7 +282,10 @@ export const AnnouncementManagement: React.FC = () => {
   // Publish time (datetime-local, Malaysia time; empty = publish when saved)
   // and registry targeting for student announcements.
   const [publishAtInput, setPublishAtInput] = useState('');
+  const [expiresAtInput, setExpiresAtInput] = useState('');
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  // Required fields left empty, marked on the form (UC30 EF1).
+  const [missing, setMissing] = useState<{ title?: boolean; content?: boolean }>({});
   const [targetProgrammes, setTargetProgrammes] = useState<string[]>([]);
   const [targetIntakes, setTargetIntakes] = useState<string[]>([]);
   const [audienceOptions, setAudienceOptions] = useState<AnnouncementAudienceOptions | null>(null);
@@ -378,10 +383,18 @@ export const AnnouncementManagement: React.FC = () => {
   // Publishing (status Active) makes the backend fan it out to the target audience.
   const submitAnnouncement = async (status: 'Active' | 'Draft') => {
     let publishAt: string | null;
+    let expiresAt: string | null;
     try {
       publishAt = scheduleTime(publishAtInput);
+      expiresAt = scheduleTime(expiresAtInput);
     } catch (err) {
       setScheduleError(err instanceof Error ? err.message : 'Enter a valid Malaysia date and time.');
+      return;
+    }
+    const problem = scheduleProblem(publishAt, expiresAt, status === 'Active');
+    if (problem) {
+      setScheduleError(problem);
+      showProblem(problem);
       return;
     }
     setScheduleError(null);
@@ -400,8 +413,7 @@ export const AnnouncementManagement: React.FC = () => {
         attachment: attachedFile,
         removeAttachment: removeExistingAttachment,
         publishAt,
-        // Announcements no longer expire; saving clears an end time set before.
-        expiresAt: null,
+        expiresAt,
         targetProgrammes: forStudents ? targetProgrammes : [],
         targetIntakes: forStudents ? targetIntakes : [],
       };
@@ -421,7 +433,7 @@ export const AnnouncementManagement: React.FC = () => {
         showToast(
           wasPublished
             ? `Changes saved. ${reach} recipient${reach === 1 ? '' : 's'} see the updated announcement.`
-            : `Success: Announcement published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`,
+            : `Announcement published and delivered to ${reach} recipient${reach === 1 ? '' : 's'}.`,
         );
       } else {
         showToast(editingId ? 'Draft updated and saved.' : 'Announcement saved as a draft.');
@@ -431,8 +443,8 @@ export const AnnouncementManagement: React.FC = () => {
       loadAnnouncements();
     } catch (err) {
       const fields = fieldErrors(err);
-      setScheduleError(fields.publishAt ?? null);
-      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to save announcement.'}`);
+      setScheduleError(fields.publishAt ?? fields.expiresAt ?? null);
+      showProblem(err instanceof Error ? err.message : 'The announcement could not be saved.');
     } finally {
       submittingRef.current = false;
       setSubmitting(false);
@@ -449,6 +461,8 @@ export const AnnouncementManagement: React.FC = () => {
     setTargetAudiences(audiencesOf(draft));
     setPriorityLevel(draft.priority);
     setPublishAtInput(toMalaysiaDateTimeLocalValue(draft.publishAt));
+    setExpiresAtInput(toMalaysiaDateTimeLocalValue(draft.expiresAt));
+    setMissing({});
     setTargetProgrammes(draft.targetProgrammes ?? []);
     setTargetIntakes(draft.targetIntakes ?? []);
     setScheduleError(null);
@@ -461,6 +475,7 @@ export const AnnouncementManagement: React.FC = () => {
       draft.priority,
       draft.content ?? draft.summary ?? '',
       toMalaysiaDateTimeLocalValue(draft.publishAt),
+      toMalaysiaDateTimeLocalValue(draft.expiresAt),
       draft.targetProgrammes ?? [],
       draft.targetIntakes ?? [],
       false,
@@ -499,7 +514,6 @@ export const AnnouncementManagement: React.FC = () => {
         priority: draft.priority,
         status: 'Active',
         attachment: null,
-        expiresAt: null,
       });
       const reach = saved.deliveredTo ?? 0;
       showToast(
@@ -510,7 +524,7 @@ export const AnnouncementManagement: React.FC = () => {
       if (editingId === draft.id) resetForm();
       loadAnnouncements();
     } catch (err) {
-      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to publish draft.'}`);
+      showProblem(err instanceof Error ? err.message : 'The draft could not be published.');
     }
   };
 
@@ -522,16 +536,15 @@ export const AnnouncementManagement: React.FC = () => {
   // Submit flow: Publish Now
   const handlePublishNow = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!headline.trim()) {
-      showToast('Error: Please enter a descriptive headline title.');
-      return;
-    }
-    if (!contentBody.trim()) {
-      showToast('Error: Please provide descriptive Content Body details.');
+    const empty = { title: !headline.trim(), content: !contentBody.trim() };
+    if (empty.title || empty.content) {
+      setMissing(empty);
+      showProblem(empty.title && empty.content ? 'Enter the title and the message.' : empty.title ? 'Enter a title.' : 'Enter the message.');
+      document.getElementById(empty.title ? 'announcement-headline' : 'announcement-content')?.focus();
       return;
     }
     if (!sendTo.length) {
-      showToast('Error: Choose who it is for.');
+      showProblem('Choose who it is for.');
       return;
     }
     // Saving changes to a published notice doesn't send it again, so only a first send is confirmed.
@@ -554,11 +567,13 @@ export const AnnouncementManagement: React.FC = () => {
   const handleSaveDraft = (e: React.FormEvent) => {
     e.preventDefault();
     if (!headline.trim()) {
-      showToast('Error: Please enter at least a headline before saving as draft.');
+      setMissing({ title: true });
+      showProblem('Enter a title before saving the draft.');
+      document.getElementById('announcement-headline')?.focus();
       return;
     }
     if (!sendTo.length) {
-      showToast('Error: Choose who it is for.');
+      showProblem('Choose who it is for.');
       return;
     }
     void submitAnnouncement('Draft');
@@ -573,6 +588,8 @@ export const AnnouncementManagement: React.FC = () => {
     setEditingId(null);
     setEditingStatus('Draft');
     setPublishAtInput('');
+    setExpiresAtInput('');
+    setMissing({});
     setScheduleError(null);
     setTargetProgrammes([]);
     setTargetIntakes([]);
@@ -590,6 +607,7 @@ export const AnnouncementManagement: React.FC = () => {
       priorityLevel,
       contentBody,
       publishAtInput,
+      expiresAtInput,
       targetProgrammes,
       targetIntakes,
       removeExistingAttachment,
@@ -607,7 +625,7 @@ export const AnnouncementManagement: React.FC = () => {
       if (editingId === id) resetForm();
       showToast(`Removed announcement: "${title}"`);
     } catch (err) {
-      showToast(`Error: ${err instanceof Error ? err.message : 'Failed to remove announcement.'}`);
+      showProblem(err instanceof Error ? err.message : 'The announcement could not be removed.');
     } finally {
       setDeleting(false);
       setPendingDelete(null);
@@ -682,7 +700,7 @@ export const AnnouncementManagement: React.FC = () => {
   return (
     <div id="announcement-module" className="text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in">
 
-      <PortalToast message={toast} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
 
       {view === 'create' ? (
       /* ==================== CREATE ANNOUNCEMENT VIEW ==================== */
@@ -692,7 +710,7 @@ export const AnnouncementManagement: React.FC = () => {
               ? editingStatus === 'Active'
                 ? 'Edit Published Announcement'
                 : editingStatus === 'Scheduled' ? 'Edit Scheduled Announcement' : 'Edit Draft Announcement'
-              : 'Draft New Announcement'
+              : 'New Announcement'
           }
         subtitle={
             editingId
@@ -701,7 +719,7 @@ export const AnnouncementManagement: React.FC = () => {
                 : editingStatus === 'Scheduled'
                   ? 'It publishes at the time below. Clear the time to publish it now.'
                   : 'Update the draft below, then save it or publish it.'
-              : 'Craft your message for the FSKTM community.'
+              : ''
           }
         backLabel="Back to Announcements"
         onBack={() => { resetForm(); setView('history'); }}
@@ -721,16 +739,18 @@ export const AnnouncementManagement: React.FC = () => {
             {/* Field A: Headline */}
             <div className="space-y-1.5">
               <label htmlFor="announcement-headline" className="form-label block">
-                Headline
+                Title
               </label>
               <input
                 id="announcement-headline" 
                 type="text"
-                placeholder="Enter a descriptive title..."
                 value={headline}
-                onChange={(e) => setHeadline(e.target.value)}
-                className="form-control form-control-md"
+                onChange={(e) => { setHeadline(e.target.value); setMissing(current => ({ ...current, title: false })); }}
+                aria-invalid={missing.title || undefined}
+                aria-describedby={missing.title ? 'announcement-headline-error' : undefined}
+                className={`form-control form-control-md ${missing.title ? 'border-rose-500 ring-1 ring-rose-200' : ''}`}
               />
+              {missing.title && <p id="announcement-headline-error" className="text-[11px] font-semibold text-rose-600">Required</p>}
             </div>
 
             {/* Field B: Target Audience Chips Row */}
@@ -747,9 +767,9 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="space-y-2">
               <div className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <span id="announcement-audience-label" className="form-label block">
-                  Target Audience
+                  Audience
                 </span>
-                <span className="text-[10px] text-slate-400 font-semibold">Choose one or more.</span>
+                <span className="text-[12px] text-slate-500 font-semibold">Choose one or more.</span>
               </div>
               <div role="group" aria-labelledby="announcement-audience-label" className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-5 gap-3">
                 {AUDIENCE_CHOICES.map(({ value, label, icon: Icon }) => {
@@ -810,7 +830,7 @@ export const AnnouncementManagement: React.FC = () => {
             {/* Field C: Priority Selector boxes */}
             <div className="space-y-2">
               <label className="form-label block">
-                Priority Level
+                Priority
               </label>
               <div className="grid grid-cols-3 gap-3">
                 {/* Urgent */}
@@ -870,7 +890,7 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label htmlFor="announcement-content" className="form-label block">
-                  Content Body
+                  Message
                 </label>
                 <button
                   type="button"
@@ -893,11 +913,13 @@ export const AnnouncementManagement: React.FC = () => {
                 <textarea
                   id="announcement-content"
                   rows={6}
-                  placeholder="Write your announcement content here..."
                   value={contentBody}
-                  onChange={(e) => setContentBody(e.target.value)}
-                  className="form-control form-control-md resize-none"
+                  onChange={(e) => { setContentBody(e.target.value); setMissing(current => ({ ...current, content: false })); }}
+                  aria-invalid={missing.content || undefined}
+                  aria-describedby={missing.content ? 'announcement-content-error' : undefined}
+                  className={`form-control form-control-md resize-none ${missing.content ? 'border-rose-500 ring-1 ring-rose-200' : ''}`}
                 />
+                {missing.content && <p id="announcement-content-error" className="text-[11px] font-semibold text-rose-600">Required</p>}
 
                 {/* Below the message, not over it, so it never hides text. */}
                 {(attachedFile || existingAttachmentName) && (
@@ -932,7 +954,7 @@ export const AnnouncementManagement: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label htmlFor="announcement-publish-at" className="form-label block">
-                  Publish At (optional)
+                  Publish at (optional)
                 </label>
                 <DateTimeField
                   id="announcement-publish-at"
@@ -943,7 +965,22 @@ export const AnnouncementManagement: React.FC = () => {
                   invalid={Boolean(scheduleError)}
                   onChange={(value) => { setPublishAtInput(value); setScheduleError(null); }}
                 />
-                <p className="text-[10px] text-slate-400 font-semibold">Leave empty to publish now.</p>
+                <p className="text-[12px] text-slate-500 font-semibold">Leave empty to publish now.</p>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="announcement-expires-at" className="form-label block">
+                  Expires at (optional)
+                </label>
+                <DateTimeField
+                  id="announcement-expires-at"
+                  label="Expires at"
+                  value={expiresAtInput}
+                  min={todayInMalaysia()}
+                  clearable
+                  invalid={Boolean(scheduleError)}
+                  onChange={(value) => { setExpiresAtInput(value); setScheduleError(null); }}
+                />
+                <p className="text-[12px] text-slate-500 font-semibold">Leave empty if it does not expire.</p>
               </div>
               {scheduleError && (
                 <p role="alert" className="md:col-span-2 text-[11px] font-semibold text-rose-600">{scheduleError}</p>
@@ -998,7 +1035,7 @@ export const AnnouncementManagement: React.FC = () => {
           <div className="bg-white border border-slate-200/80 rounded-2xl p-6 md:p-8 space-y-4 text-left shadow-3xs">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="section-label">Saved Drafts</h3>
+                <h3 className="section-label">Saved drafts</h3>
               </div>
               <StatusBadge tone="warning" className="rounded-lg px-2.5 py-1 text-[9px] shrink-0">
                 {drafts.length} draft{drafts.length === 1 ? '' : 's'}
@@ -1183,7 +1220,7 @@ export const AnnouncementManagement: React.FC = () => {
               {LIST_HEADING[statusFilter]}
             </h2>
             {!loading && !error && (
-              <span className="card-caption text-slate-400 text-right">
+              <span className="text-[12px] font-medium text-slate-500 text-right">
                 {filteredAnnouncements.length} {filteredAnnouncements.length === 1 ? 'announcement' : 'announcements'}, newest first
               </span>
             )}
@@ -1237,11 +1274,11 @@ export const AnnouncementManagement: React.FC = () => {
                           tone={look.tone}
                           dot={item.status === 'Active'}
                           pulse={item.status === 'Active'}
-                          className="px-2 py-0.5 text-[9px]"
+                          className="px-2 py-0.5"
                         >
                           {look.label}
                         </StatusBadge>
-                        <StatusBadge tone={getStatusBadgeTone(item.priority)} className="px-2 py-0.5 text-[9px]">
+                        <StatusBadge tone={getStatusBadgeTone(item.priority)} className="px-2 py-0.5">
                           {item.priority}
                         </StatusBadge>
                       </div>
@@ -1250,7 +1287,7 @@ export const AnnouncementManagement: React.FC = () => {
                         {preview || 'No message yet.'}
                       </p>
 
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 card-caption text-slate-500">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pt-0.5 text-[12px] font-medium text-slate-500">
                         <span className="inline-flex items-center gap-1.5 min-w-0">
                           <Users aria-hidden="true" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           <span className="sr-only">Audience:</span>

@@ -252,7 +252,7 @@ const TopHeaderContent: React.FC<TopHeaderProps> = ({
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
                   >
                     <LogOut className="w-4 h-4 text-rose-500" />
-                    <span>Logout to Screen</span>
+                    <span>Sign out</span>
                   </button>
                 </motion.div>
               </>

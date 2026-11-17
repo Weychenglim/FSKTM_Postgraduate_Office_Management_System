@@ -166,7 +166,8 @@ class DeadlineReminderRun(models.Model):
 
 def visible_notifications(user):
     """Current-role projection also protects staff history after an account role change."""
-    rows = Notification.objects.filter(recipient=user)
+    # An announcement leaves everyone's feed once it expires (UC30 schedule).
+    rows = Notification.objects.filter(recipient=user).exclude(announcement__status=Announcement.Status.EXPIRED)
     if user.role == user.Role.STUDENT:
         rows = rows.exclude(
             Q(target_module='MARKS')

@@ -22,6 +22,7 @@ import { FAQ_PORTAL_LINKS } from '../utils/faqText';
 import { FAQ_STATUS_CHIP, FAQ_STATUS_LABEL, faqHistoryLine } from '../utils/faqOffice';
 import { historyTime } from '../utils/documentDisplay';
 import { PortalButton, PortalConfirmModal, PortalToast, SegmentedControl } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { RecordPage } from './RecordPage';
 import { SelectMenu } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
@@ -526,7 +527,7 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
         onConfirm={() => void remove()}
         onCancel={() => setConfirmDelete(false)}
       />
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </RecordPage>
   );
 };

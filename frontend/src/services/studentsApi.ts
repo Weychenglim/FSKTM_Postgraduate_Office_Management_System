@@ -47,6 +47,7 @@ export interface StudentRecordUpdate {
   phone?: string;
   semester?: string;
   intakeDate?: string;
+  expectedCompletion?: string;
 }
 
 export async function getStudents(search?: string): Promise<StudentRecord[]> {
@@ -178,4 +179,17 @@ export async function commitStudentImport(
 /** The Excel template for typing a list: Programme is a dropdown, and Student ID and Phone keep leading zeros. */
 export async function downloadImportTemplate(): Promise<Blob> {
   return requestBlob('/registry/students/import/template/');
+}
+
+export interface StudentLinks {
+  supervisors: Array<{ name: string; since: string }>;
+  panel: Array<{ name: string; since: string }>;
+  files: number;
+  announcements: { total: number; latest: Array<{ title: string; date: string | null }> };
+  marks: Array<{ period: string; evaluator: string; role: string; status: string }> | null;
+  letters: { total: number; latest: Array<{ id: number; name: string; reference: string; status: string; date: string | null }> } | null;
+}
+
+export function getStudentLinks(id: string): Promise<StudentLinks> {
+  return request<StudentLinks>(`/registry/students/${encodeURIComponent(id)}/links/`);
 }

@@ -8,7 +8,7 @@
 // copy, so it always carries the original reference number and date.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Ban, BellRing, Eye, FileDown, Printer, RotateCcw, Search, Undo2, X } from 'lucide-react';
+import { Ban, BellRing, Eye, FileDown, FileText, Printer, RotateCcw, Undo2, X } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge, type BadgeTone } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { LoadingState, ErrorState } from './StateViews';
@@ -18,10 +18,13 @@ import type { ApprovalStep } from '../utils/approvalProcess';
 import { LetterPages } from './LetterPages';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { DateField } from './DateFields';
+import { ListFiltersButton, ListSearch, ListToolbar, ListToolbarRow } from './ListToolbar';
+import { WORKSPACE_PAGE_SIZE, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
 import { MissingAppointmentLetters } from './MissingAppointmentLetters';
 import { GeneratedLetter, GeneratedLetterStatus, LetterRequestFilters } from '../types';
 import {
   downloadLetterPdf,
+  downloadLetterWord,
   fieldErrors,
   getLetterRequest,
   getLetterRequests,
@@ -35,7 +38,7 @@ import { canReissue, letterOrigin, recipientsLine } from '../utils/appointmentLe
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 
-type OutputAction = 'view' | 'print' | 'pdf';
+type OutputAction = 'view' | 'print' | 'pdf' | 'word';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
@@ -57,7 +60,7 @@ const STATUS_TONE: Record<GeneratedLetterStatus, BadgeTone> = {
 };
 
 export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus; replaced?: boolean }> = ({ status, replaced = false }) => (
-  <StatusBadge tone={replaced ? 'neutral' : STATUS_TONE[status] ?? 'neutral'} className="px-2 py-0.5 text-[9px] rounded-md">
+  <StatusBadge tone={replaced ? 'neutral' : STATUS_TONE[status] ?? 'neutral'} className="px-2 py-0.5 rounded-md">
     {replaced ? 'Replaced' : LETTER_STATUS_LABEL[status] ?? status}
   </StatusBadge>
 );
@@ -120,9 +123,20 @@ export function useLetterOutput(onMessage: (message: string) => void) {
     }
   };
 
+  const downloadWord = async (letter: GeneratedLetter) => {
+    setBusy(`${letter.id}:word`);
+    try {
+      await downloadLetterWord(letter);
+    } catch (err) {
+      onMessage(errorText(err, 'Could not download the Word file.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const isBusy = (letter: GeneratedLetter, action: OutputAction) => busy === `${letter.id}:${action}`;
   const closeView = () => setViewing(null);
-  return { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView };
+  return { viewLetter, printLetter, downloadPdf, downloadWord, isBusy, viewing, closeView };
 }
 
 /** The letter as it was issued, on A4 pages like the printed copy. Read only,
@@ -189,14 +203,6 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
     </PortalModal>
   );
 };
-
-const TableMessage: React.FC<{ colSpan: number; children: React.ReactNode }> = ({ colSpan, children }) => (
-  <tr>
-    <td colSpan={colSpan} className="px-5 py-12 text-center text-slate-400 font-semibold">
-      {children}
-    </td>
-  </tr>
-);
 
 const DAY = 24 * 60 * 60 * 1000;
 const OFFICE = 'Postgraduate office';
@@ -444,6 +450,9 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   const [to, setTo] = useState('');
   const [statusFilter, setStatusFilter] = useState<RegisterStatus>('Issued,Revoked');
   const [madeBy, setMadeBy] = useState<MadeBy>('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(WORKSPACE_PAGE_SIZE);
   const [reissuing, setReissuing] = useState<GeneratedLetter | null>(null);
   const [reissueSaving, setReissueSaving] = useState(false);
   const [revoking, setRevoking] = useState<GeneratedLetter | null>(null);
@@ -452,7 +461,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   const [revokeSaving, setRevokeSaving] = useState(false);
   const [resending, setResending] = useState(false);
   const latestLoad = useRef(0);
-  const { viewLetter, isBusy, viewing, closeView } = useLetterOutput(onMessage);
+  const { viewLetter, downloadWord, isBusy, viewing, closeView } = useLetterOutput(onMessage);
 
   const load = useCallback(() => {
     const loadId = ++latestLoad.current;
@@ -476,6 +485,12 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
   }, [load]);
 
   const filtersActive = Boolean(search || from || to || statusFilter !== 'Issued,Revoked' || madeBy);
+  const moreFilters = [from, to, madeBy].filter(Boolean).length;
+  const pageCount = Math.max(1, Math.ceil(letters.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = letters.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => setPage(1), [search, from, to, statusFilter, madeBy]);
 
   const reissue = async () => {
     if (!reissuing) return;
@@ -542,121 +557,94 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
     <div id="issued-letters-register" className="space-y-6">
       <MissingAppointmentLetters onMessage={onMessage} onMade={load} onOpenTemplates={onOpenTemplates} />
 
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-3xs grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-        <label className="md:col-span-3 block">
-          <span className="form-label block">Search</span>
-          <span className="relative block">
-            <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-slate-400">
-              <Search className="w-3.5 h-3.5" />
-            </span>
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Student name, matric number, letter or reference"
-              className="form-control form-control-sm pl-9"
+      <section aria-label="Issued letters" className="app-card readable-list space-y-4 p-4 sm:p-5">
+        <ListToolbar>
+          <ListToolbarRow>
+            <ListSearch label="Search issued letters" placeholder="Search student, matric number, letter or reference" value={search} onChange={setSearch} />
+            <SelectMenu<RegisterStatus>
+              variant="filter"
+              prefix="Status"
+              aria-label="Filter by status"
+              value={statusFilter}
+              options={REGISTER_STATUS_OPTIONS}
+              onChange={setStatusFilter}
             />
-          </span>
-        </label>
-        <label className="md:col-span-2 block">
-          <span className="form-label block">Issued from</span>
-          <DateField size="sm" clearable placeholder="Any date" value={from} max={to || undefined} onChange={setFrom} />
-        </label>
-        <label className="md:col-span-2 block">
-          <span className="form-label block">Issued to</span>
-          <DateField size="sm" clearable placeholder="Any date" value={to} min={from || undefined} onChange={setTo} />
-        </label>
-        <div className="md:col-span-2 block">
-          <span className="form-label block">Status</span>
-          <SelectMenu<RegisterStatus>
-            size="sm"
-            aria-label="Status"
-            value={statusFilter}
-            options={REGISTER_STATUS_OPTIONS}
-            onChange={setStatusFilter}
-          />
-        </div>
-        <div className="md:col-span-2 block">
-          <span className="form-label block">Made by</span>
-          <SelectMenu<MadeBy>
-            size="sm"
-            aria-label="Made by"
-            value={madeBy}
-            options={MADE_BY_OPTIONS}
-            onChange={setMadeBy}
-          />
-        </div>
-        <div className="md:col-span-1">
-          <PortalButton
-            variant="ghost"
-            size="md"
-            disabled={!filtersActive}
-            onClick={() => { setSearch(''); setFrom(''); setTo(''); setStatusFilter('Issued,Revoked'); setMadeBy(''); }}
-            className="w-full"
-          >
-            Reset
-          </PortalButton>
-        </div>
-      </div>
+            <ListFiltersButton open={filtersOpen} active={moreFilters} onToggle={() => setFiltersOpen((open) => !open)} />
+          </ListToolbarRow>
+          {filtersOpen && (
+            <ListToolbarRow>
+              <DateField size="sm" clearable className="w-44" aria-label="Issued from" placeholder="Issued from" value={from} max={to || undefined} onChange={setFrom} />
+              <DateField size="sm" clearable className="w-44" aria-label="Issued to" placeholder="Issued to" value={to} min={from || undefined} onChange={setTo} />
+              <SelectMenu<MadeBy>
+                variant="filter"
+                prefix="Made by"
+                aria-label="Filter by how the letter was made"
+                value={madeBy}
+                options={MADE_BY_OPTIONS}
+                onChange={setMadeBy}
+              />
+              {moreFilters > 0 && (
+                <PortalButton variant="ghost" size="md" onClick={() => { setFrom(''); setTo(''); setMadeBy(''); }}>
+                  Clear filters
+                </PortalButton>
+              )}
+            </ListToolbarRow>
+          )}
+        </ListToolbar>
 
-      <div className="bg-white border border-slate-200/80 rounded-2xl shadow-3xs overflow-hidden">
-        <div className="px-5 pt-5 pb-3 flex items-center justify-between gap-3">
-          <h2 className="section-label">Issued Letters</h2>
-          <span className="text-[11px] font-semibold text-slate-400">
-            {letters.length} letter{letters.length === 1 ? '' : 's'}
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="data-table text-xs">
-            <thead>
-              <tr className="data-thead bg-[#f8fafc]">
-                <th className="data-th">Reference</th>
-                <th className="data-th">Student</th>
-                <th className="data-th">Letter</th>
-                <th className="data-th">Issued</th>
-                <th className="data-th">Status</th>
-                <th className="data-th text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading && letters.length === 0 ? (
-                <tr><td colSpan={6} className="p-0"><LoadingState message="Loading issued letters…" /></td></tr>
-              ) : error ? (
-                <tr><td colSpan={6} className="p-0"><ErrorState message={error} onRetry={load} /></td></tr>
-              ) : letters.length === 0 ? (
-                <TableMessage colSpan={6}>
-                  {filtersActive ? 'No letters match these filters.' : 'No letters have been issued yet.'}
-                </TableMessage>
-              ) : (
-                letters.map((letter) => (
-                  <tr key={letter.id} className="hover:bg-slate-50/50 transition">
-                    <td className="data-td-strong font-mono whitespace-nowrap">{letter.referenceNumber}</td>
-                    <td className="data-td">
+        {loading && letters.length === 0 ? (
+          <LoadingState message="Loading issued letters…" />
+        ) : error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : letters.length === 0 ? (
+          <p className="rounded-xl bg-slate-50 px-4 py-6 card-description">
+            {filtersActive ? 'No letters match this search.' : 'No letters have been issued yet.'}
+          </p>
+        ) : (
+          <>
+            <table aria-label="Issued letters" className="data-table block table-fixed lg:table">
+              <colgroup className="hidden lg:table-column-group">
+                {[20, 20, 24, 14, 12, 10].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
+              </colgroup>
+              <thead className="hidden lg:table-header-group">
+                <tr className="data-thead bg-slate-50">
+                  {['Reference', 'Student', 'Letter', 'Issued', 'Status', 'Action'].map((column) => <th key={column} scope="col" className="data-th">{column}</th>)}
+                </tr>
+              </thead>
+              <tbody className="block space-y-3 lg:table-row-group lg:space-y-0">
+                {pageRows.map((letter) => (
+                  <tr key={letter.id} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 py-2 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-0">
+                    <td className="data-td-strong col-span-2 block min-w-0 px-3 py-2 align-middle font-mono [overflow-wrap:anywhere] lg:table-cell lg:px-5 lg:py-4">{letter.referenceNumber}</td>
+                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:col-span-1 lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Student</span>
                       <span className="block font-bold text-slate-800">{letter.studentName || 'Unknown student'}</span>
-                      <span className="block text-[10px] text-slate-400">{letter.matricNumber}</span>
+                      <span className="card-caption mt-0.5 block">{letter.matricNumber}</span>
                     </td>
-                    <td className="data-td">
+                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:col-span-1 lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Letter</span>
                       <span className="block font-bold text-slate-800">{letter.templateName}</span>
-                      {letterForLine(letter) && <span className="block text-[10.5px] font-semibold text-slate-500">{letterForLine(letter)}</span>}
-                      <span className="block text-[10px] text-slate-400">{letterOrigin(letter)}</span>
+                      <span className="card-caption mt-0.5 block">{letterForLine(letter) || letterOrigin(letter)}</span>
                     </td>
-                    <td className="data-td whitespace-nowrap">
-                      {letter.date}
-                      {letter.decidedBy && <span className="block text-[10px] text-slate-400">by {letter.decidedBy}</span>}
+                    <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Issued</span>
+                      {shortDate(letter.issuedAt) || letter.date}
+                      {letter.decidedBy && <span className="card-caption mt-0.5 block">by {letter.decidedBy}</span>}
                     </td>
-                    <td className="data-td">
+                    <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Status</span>
                       <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
                       {letter.status === 'Revoked' && letter.revokeReason && (
-                        <p className={`mt-1 text-[10px] font-semibold leading-snug max-w-[220px] ${letter.replacedById ? 'text-slate-500' : 'text-rose-600'}`}>
+                        <p className={`card-caption mt-1 line-clamp-2 ${letter.replacedById ? '' : 'text-rose-700'}`}>
                           {letter.replacedById ? letter.revokeReason : `Reason: ${letter.revokeReason}`}
                         </p>
                       )}
                     </td>
-                    <td className="data-td text-right">
+                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:col-span-1 lg:table-cell lg:px-5 lg:py-4">
                       <PortalButton
                         variant="secondary"
                         size="sm"
                         icon={Eye}
+                        className="whitespace-nowrap"
                         isLoading={isBusy(letter, 'view')}
                         aria-label={`View ${letter.referenceNumber}`}
                         onClick={() => void viewLetter(letter)}
@@ -665,12 +653,24 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                       </PortalButton>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                ))}
+              </tbody>
+            </table>
+            <WorkspacePagination
+              page={currentPage}
+              pageCount={pageCount}
+              total={letters.length}
+              noun="letters"
+              onPage={setPage}
+              pageSize={pageSize}
+              onPageSize={(size) => {
+                setPageSize(workspacePageSize(size));
+                setPage(1);
+              }}
+            />
+          </>
+        )}
+      </section>
 
       {viewing && (
         <LetterView
@@ -684,6 +684,9 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                 </PortalButton>
                 <PortalButton variant="secondary" icon={BellRing} isLoading={resending} onClick={() => void resend(viewing)}>
                   Resend notification
+                </PortalButton>
+                <PortalButton variant="secondary" icon={FileText} isLoading={isBusy(viewing, 'word')} onClick={() => void downloadWord(viewing)}>
+                  Download Word
                 </PortalButton>
                 {canReissue(viewing) && (
                   <PortalButton variant="secondary" icon={RotateCcw} onClick={() => setReissuing(viewing)}>

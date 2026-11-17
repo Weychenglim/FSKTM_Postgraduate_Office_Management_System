@@ -36,6 +36,9 @@ export interface StudentRecord {
   supervisorStaffNo?: string;
   intakeDate: string;
   intakeLabel?: string;
+  /** Set by the office; the estimate comes from the programme minimum. */
+  expectedCompletion?: string;
+  expectedCompletionEstimate?: string;
   activated?: boolean;
   lastLogin?: string | null;
 }

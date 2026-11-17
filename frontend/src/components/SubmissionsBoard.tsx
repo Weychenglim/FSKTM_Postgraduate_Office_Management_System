@@ -6,16 +6,18 @@
 import React, { useEffect, useId, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { BellRing, CalendarClock, Download, Plus } from 'lucide-react';
-import type { AfterDue, SubmissionDetail, SubmissionInput, SubmissionOptions, SubmissionStage, SubmissionState, SubmissionStudent, SubmissionSummary } from '../services/submissionsApi';
-import { changeSubmission, createSubmission, getSubmission, getSubmissions, giveExtension, remindSubmission, removeExtension, setSubmissionOpen } from '../services/submissionsApi';
+import type { SubmissionDetail, SubmissionOptions, SubmissionState, SubmissionStudent, SubmissionSummary } from '../services/submissionsApi';
+import { getSubmission, getSubmissions, giveExtension, remindSubmission, removeExtension, setSubmissionOpen } from '../services/submissionsApi';
 import { ApiError } from '../services/apiClient';
 import { routeForDocument } from '../constants/routes';
 import { historyTime } from '../utils/documentDisplay';
 import { shortProgramme, studentCount } from '../utils/registrySemesters';
-import { AFTER_DUE_OPTIONS, STAGE_LABEL, STATE_LABEL, STATE_TONE, afterDueText, csvName, defaultDueDate, fromMalaysia, malaysiaParts, sentText, submissionCsv } from '../utils/submissions';
+import { STAGE_LABEL, STATE_LABEL, STATE_TONE, afterDueText, csvName, fromMalaysia, malaysiaParts, sentText, submissionCsv } from '../utils/submissions';
 import { DialogShell } from './DocumentDialogs';
 import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { SelectMenu } from './SelectMenu';
+import { SubmissionFormPage } from './SubmissionFormPage';
 import { DateField, TimeField } from './DateFields';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 
@@ -31,60 +33,6 @@ const Switch: React.FC<{ on: boolean; label: string; busy: boolean; onChange: (o
   </button>
 );
 
-interface Draft {
-  title: string;
-  type: string;
-  programmes: string[];
-  stage: SubmissionStage;
-  dueDate: string;
-  dueTime: string;
-  afterDue: AfterDue;
-  limitLate: boolean;
-  lateDate: string;
-  lateTime: string;
-}
-
-const blankDraft = (options: SubmissionOptions): Draft => ({
-  title: '',
-  type: options.types[0]?.code ?? '',
-  programmes: [...options.programmes],
-  stage: 'ALL',
-  dueDate: defaultDueDate(Date.now()),
-  dueTime: '23:59',
-  afterDue: 'CLOSE',
-  limitLate: false,
-  lateDate: '',
-  lateTime: '23:59',
-});
-
-const draftOf = (item: SubmissionSummary): Draft => {
-  const due = malaysiaParts(item.dueAt);
-  const late = malaysiaParts(item.lateUntil);
-  return {
-    title: item.title,
-    type: item.type.code,
-    programmes: [...item.programmes],
-    stage: item.stage,
-    dueDate: due.date,
-    dueTime: due.time,
-    afterDue: item.afterDue,
-    limitLate: Boolean(item.lateUntil),
-    lateDate: late.date,
-    lateTime: late.time,
-  };
-};
-
-const inputOf = (draft: Draft, confirm = false): SubmissionInput => ({
-  title: draft.title.trim(),
-  type: draft.type,
-  programmes: draft.programmes,
-  stage: draft.stage,
-  dueAt: fromMalaysia(draft.dueDate, draft.dueTime),
-  afterDue: draft.afterDue,
-  lateUntil: draft.afterDue === 'ACCEPT_LATE' && draft.limitLate && draft.lateDate ? fromMalaysia(draft.lateDate, draft.lateTime) : null,
-  ...(confirm ? { confirm: true } : {}),
-});
-
 const firstProblem = (err: unknown, fallback: string) => {
   if (err instanceof ApiError && err.body && typeof err.body === 'object') {
     const values = Object.values(err.body as Record<string, unknown>).flat();
@@ -96,16 +44,13 @@ const firstProblem = (err: unknown, fallback: string) => {
 
 /** File Management's Submissions: coordinators set dated hand-ins and follow them, the office looks. */
 export const SubmissionsBoard: React.FC = () => {
-  const titleId = useId();
   const [items, setItems] = useState<SubmissionSummary[] | null>(null);
   const [options, setOptions] = useState<SubmissionOptions | null>(null);
   const [canCreate, setCanCreate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
   const [openId, setOpenId] = useState<number | null>(null);
-  const [editing, setEditing] = useState<{ item: SubmissionSummary | null; draft: Draft } | null>(null);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [confirmCount, setConfirmCount] = useState(0);
+  const [editing, setEditing] = useState<{ item: SubmissionSummary | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
 
@@ -126,39 +71,15 @@ export const SubmissionsBoard: React.FC = () => {
   }, [reload]);
 
   const startNew = () => {
-    if (!options) return;
-    setProblem(null);
-    setConfirmCount(0);
-    setEditing({ item: null, draft: blankDraft(options) });
+    if (options) setEditing({ item: null });
   };
 
-  const startEdit = (item: SubmissionSummary) => {
-    setProblem(null);
-    setConfirmCount(0);
-    setEditing({ item, draft: draftOf(item) });
-  };
+  const startEdit = (item: SubmissionSummary) => setEditing({ item });
 
-  const patch = (change: Partial<Draft>) => setEditing(current => (current ? { ...current, draft: { ...current.draft, ...change } } : current));
-
-  const save = async (confirm = false) => {
-    if (!editing) return;
-    setBusy(true);
-    setProblem(null);
-    try {
-      if (editing.item) await changeSubmission(editing.item.id, inputOf(editing.draft, confirm));
-      else await createSubmission(inputOf(editing.draft));
-      setToast({ message: editing.item ? 'Saved.' : 'Submission set up. The students have been told.', tone: 'success' });
-      setEditing(null);
-      setReload(value => value + 1);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409 && (err.body as { code?: string } | null)?.code === 'would_become_late') {
-        setConfirmCount(Number((err.body as { count?: number }).count) || 1);
-      } else {
-        setProblem(firstProblem(err, 'Could not save this.'));
-      }
-    } finally {
-      setBusy(false);
-    }
+  const saved = (message: string) => {
+    setToast({ message, tone: 'success' });
+    setEditing(null);
+    setReload(value => value + 1);
   };
 
   const toggle = async (item: SubmissionSummary, on: boolean) => {
@@ -176,9 +97,6 @@ export const SubmissionsBoard: React.FC = () => {
 
   if (error) return <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />;
   if (!items || !options) return <LoadingState message="Loading submissions..." />;
-
-  const draft = editing?.draft;
-  const canSave = Boolean(draft && draft.title.trim() && draft.type && draft.programmes.length && draft.dueDate && (draft.afterDue === 'CLOSE' || !draft.limitLate || draft.lateDate));
 
   return (
     <div className="space-y-4">
@@ -200,7 +118,9 @@ export const SubmissionsBoard: React.FC = () => {
                 <p className="text-[13px] text-slate-500">
                   {[item.type.label, item.programmes.map(shortProgramme).join(', '), item.stage !== 'ALL' ? STAGE_LABEL[item.stage] : '', item.isCurrent ? '' : item.semester].filter(Boolean).join(' · ')}
                 </p>
-                <p className="text-[13px] font-semibold text-slate-700">Due {historyTime(item.dueAt)} · {afterDueText(item)}</p>
+                <p className="text-[13px] font-semibold text-slate-700">
+                  {item.notOpenYet && item.opensAt ? `Opens ${historyTime(item.opensAt)} · ` : ''}Due {historyTime(item.dueAt)} · {afterDueText(item)}
+                </p>
               </div>
               {item.canManage ? (
                 <Switch on={item.isOpen} label={`${item.title} open`} busy={busy} onChange={on => void toggle(item, on)} />
@@ -225,101 +145,8 @@ export const SubmissionsBoard: React.FC = () => {
         ))
       )}
 
-      <DialogShell
-        title={editing?.item ? 'Change submission' : 'New submission'}
-        titleId={titleId}
-        isOpen={editing !== null}
-        busy={busy}
-        onClose={() => setEditing(null)}
-        footer={confirmCount ? (
-          <>
-            <PortalButton disabled={busy} onClick={() => setConfirmCount(0)}>Back</PortalButton>
-            <PortalButton variant="primary" isLoading={busy} onClick={() => void save(true)}>Save anyway</PortalButton>
-          </>
-        ) : (
-          <>
-            <PortalButton disabled={busy} onClick={() => setEditing(null)}>Cancel</PortalButton>
-            <PortalButton variant="primary" isLoading={busy} disabled={!canSave} onClick={() => void save()}>Save</PortalButton>
-          </>
-        )}
-      >
-        {draft && (confirmCount ? (
-          <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13.5px] font-semibold text-amber-900">
-            {confirmCount === 1 ? '1 file sent on time would become late.' : `${confirmCount} files sent on time would become late.`}
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-              Title
-              <input className="form-control form-control-md" maxLength={120} value={draft.title} placeholder="RP2 final report" disabled={busy} onChange={event => patch({ title: event.target.value })} />
-            </label>
-            <div className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-              <span id={`${titleId}-type`}>File type</span>
-              <SelectMenu aria-labelledby={`${titleId}-type`} value={draft.type} options={options.types.map(type => ({ value: type.code, label: type.label }))} disabled={busy} onChange={value => patch({ type: value })} />
-            </div>
-            {options.programmes.length > 1 && (
-              <fieldset className="space-y-1.5">
-                <legend className="text-[13px] font-bold text-slate-700">Programmes</legend>
-                {options.programmes.map(programme => (
-                  <label key={programme} className="flex items-center gap-2 text-[13.5px] font-semibold text-slate-700">
-                    <input type="checkbox" className="h-4 w-4" checked={draft.programmes.includes(programme)} disabled={busy} onChange={event => patch({ programmes: event.target.checked ? [...draft.programmes, programme] : draft.programmes.filter(value => value !== programme) })} />
-                    {shortProgramme(programme)}
-                  </label>
-                ))}
-              </fieldset>
-            )}
-            <div className="space-y-1.5">
-              <p className="text-[13px] font-bold text-slate-700">Who must send it</p>
-              <div role="group" aria-label="Who must send it" className="flex flex-wrap gap-2">
-                {options.stages.map(stage => (
-                  <button key={stage.value} type="button" aria-pressed={draft.stage === stage.value} disabled={busy} onClick={() => patch({ stage: stage.value })} className={pill(draft.stage === stage.value)}>{stage.label}</button>
-                ))}
-              </div>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-                Due date
-                <DateField value={draft.dueDate} disabled={busy} onChange={value => patch({ dueDate: value })} />
-              </label>
-              <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-                Time
-                <TimeField value={draft.dueTime} disabled={busy} onChange={value => patch({ dueTime: value })} />
-              </label>
-            </div>
-            <fieldset className="space-y-1.5">
-              <legend className="text-[13px] font-bold text-slate-700">After the due date</legend>
-              {AFTER_DUE_OPTIONS.map(option => (
-                <label key={option.value} className="flex items-center gap-2 text-[13.5px] font-semibold text-slate-700">
-                  <input type="radio" name={`${titleId}-after`} className="h-4 w-4" checked={draft.afterDue === option.value} disabled={busy} onChange={() => patch({ afterDue: option.value })} />
-                  {option.label}
-                </label>
-              ))}
-            </fieldset>
-            {draft.afterDue === 'ACCEPT_LATE' && (
-              <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <label className="flex items-center gap-2 text-[13.5px] font-semibold text-slate-700">
-                  <input type="checkbox" className="h-4 w-4" checked={draft.limitLate} disabled={busy} onChange={event => patch({ limitLate: event.target.checked, lateDate: draft.lateDate || draft.dueDate })} />
-                  Stop late work after a date
-                </label>
-                {draft.limitLate && (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-                      Last day
-                      <DateField value={draft.lateDate} min={draft.dueDate || undefined} disabled={busy} onChange={value => patch({ lateDate: value })} />
-                    </label>
-                    <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
-                      Time
-                      <TimeField value={draft.lateTime} disabled={busy} onChange={value => patch({ lateTime: value })} />
-                    </label>
-                  </div>
-                )}
-              </div>
-            )}
-            {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
-          </div>
-        ))}
-      </DialogShell>
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      {editing && <SubmissionFormPage options={options} item={editing.item} onClose={() => setEditing(null)} onSaved={saved} />}
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </div>
   );
 };
@@ -437,7 +264,7 @@ const SubmissionStudents: React.FC<{ id: number; refreshKey: number; onChanged: 
         </div>
         <div className="flex flex-wrap gap-2">
           {detail.canManage && (
-            <PortalButton size="sm" icon={BellRing} isLoading={busy} disabled={detail.remindedToday || !detail.counts.NOT_SENT} onClick={() => void remind()}>
+            <PortalButton size="sm" icon={BellRing} isLoading={busy} disabled={detail.remindedToday || detail.notOpenYet || !detail.counts.NOT_SENT} onClick={() => void remind()}>
               {detail.remindedToday ? 'Reminded today' : 'Remind'}
             </PortalButton>
           )}
@@ -453,7 +280,7 @@ const SubmissionStudents: React.FC<{ id: number; refreshKey: number; onChanged: 
               <div className="min-w-0 flex-[1_1_14rem]">
                 <p className="text-[14px] font-bold text-slate-900 [overflow-wrap:anywhere]">{row.name}</p>
                 <p className="text-[12.5px] text-slate-500">{row.matric} · {shortProgramme(row.programme)}{row.expected ? '' : ' · No longer expected'}</p>
-                <p className={`text-[12.5px] font-semibold ${row.state === 'LATE' ? 'text-amber-800' : 'text-slate-600'}`}>{sentText(row.sentAt, row.lateBySeconds)}</p>
+                <p className={`text-[12.5px] font-semibold ${row.state === 'LATE' ? 'text-amber-800' : 'text-slate-600'}`}>{sentText(row.sentAt, row.lateBySeconds)}{row.fileArchived ? ' · File archived' : ''}</p>
                 {row.extension && <p className="text-[12.5px] font-semibold text-blue-800">Extension to {historyTime(row.extension.dueAt)} · {row.extension.reason}</p>}
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-3">

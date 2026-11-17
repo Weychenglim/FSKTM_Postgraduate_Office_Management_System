@@ -121,11 +121,18 @@ def shared_with(document, students):
     return people
 
 
+def _submission_links(document, scope):
+    from .submissions import links_for
+
+    return links_for(document, scope)
+
+
 def detail_dict(document, user, scope):
     payload = document_dict(document, user, scope)
     students = [link.student for link in document.student_links.all()]
     payload["sharedWith"] = [] if user.role == User.Role.STUDENT else shared_with(document, students)
     payload["versions"] = [version_dict(version) for version in document.versions.order_by("-number")]
+    payload["submissions"] = [] if user.role == User.Role.STUDENT else _submission_links(document, scope)
     if scope.office:
         payload["history"] = file_history(document)
     return payload

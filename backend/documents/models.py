@@ -11,7 +11,8 @@ from django.utils import timezone
 
 class DocumentType(models.Model):
     """A kind of document from the faculty's research project timeline: who may
-    upload it and who sees it. The Technical Admin keeps the list in Django admin."""
+    upload it and who sees it. The Technical Admin keeps the list in Django admin,
+    and coordinators add their own when they set up a submission."""
 
     class Group(models.TextChoices):
         RP1 = "RP1", "Research Project 1"
@@ -40,6 +41,8 @@ class DocumentType(models.Model):
     one_per_student = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     display_order = models.PositiveIntegerField(default=0)
+    custom = models.BooleanField(default=False)
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -82,6 +85,7 @@ class DocumentType(models.Model):
             "shareCoordinator": self.share_coordinator,
             "onePerStudent": self.one_per_student,
             "isActive": self.is_active,
+            "custom": self.custom,
         }
 
 
@@ -263,6 +267,8 @@ class Submission(models.Model):
     )
     programmes = models.JSONField(default=list)
     stage = models.CharField(max_length=8, choices=Stage.choices, default=Stage.ALL)
+    instructions = models.TextField(blank=True, default="")
+    opens_at = models.DateTimeField(null=True, blank=True)
     due_at = models.DateTimeField()
     after_due = models.CharField(max_length=16, choices=AfterDue.choices, default=AfterDue.CLOSE)
     late_until = models.DateTimeField(null=True, blank=True)

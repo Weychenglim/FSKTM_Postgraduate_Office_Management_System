@@ -290,9 +290,10 @@ class StudentRegistry(models.Model):
     def to_letter_dict(self):
         """The letter-placeholder values for this student (camelCase to match the
         frontend). ``initialSemester`` reuses the base Student's intake to avoid a
-        second source of truth; a passport falls back to the IC for local students."""
+        second source of truth. A passport number is never filled with an IC."""
         return {
-            "passportNumber": self.passport_number or self.ic_number,
+            "passportNumber": self.passport_number,
+            "icOrPassport": self.ic_number or self.passport_number,
             "country": self.nationality,
             "programmeMode": self.programme_mode,
             "fieldOfResearch": self.field_of_study,

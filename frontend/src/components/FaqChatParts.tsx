@@ -110,6 +110,12 @@ export const FaqReplyView: React.FC<FaqReplyViewProps> = ({ reply, asked, typed,
         <PortalButton size="sm" icon={FileText} onClick={() => onOpenDocument(passage.documentId, passage.fileName)}>
           Open document
         </PortalButton>
+        {reply.related.length > 0 && (
+          <div className="space-y-2">
+            <p className="card-label">Related questions</p>
+            <QuestionList questions={reply.related} disabled={busy} onPick={onPick} />
+          </div>
+        )}
         {footer}
       </AssistantRow>
     );

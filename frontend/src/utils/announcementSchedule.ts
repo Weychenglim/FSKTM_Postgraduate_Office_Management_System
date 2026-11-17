@@ -23,6 +23,15 @@ export function isScheduledFor(publishAt: string, now: Date = new Date()): boole
   }
 }
 
+/** Why a publish and expiry time can't be saved, or null (UC30 EF2). */
+export function scheduleProblem(publishAt: string | null, expiresAt: string | null, publishing: boolean, now: Date = new Date()): string | null {
+  if (!expiresAt) return null;
+  const ends = Date.parse(expiresAt);
+  if (publishAt && Date.parse(publishAt) >= ends) return 'The expiry time must be after the publish time.';
+  if (publishing && ends <= now.getTime()) return 'The expiry time has already passed.';
+  return null;
+}
+
 /** "12 Oct 2026, 9:00 am" in Malaysia time, for list rows and messages. */
 export function formatScheduleMoment(iso: string | null | undefined): string {
   if (!iso) return '';

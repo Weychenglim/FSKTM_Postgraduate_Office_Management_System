@@ -9,8 +9,9 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Max, Q
 from django.utils import timezone
+from django.utils.text import slugify
 
 from accounts.models import Student, StudentCompletion, StudentSemester, User
 from accounts.project_stages import project_stages
@@ -30,6 +31,7 @@ EXTENSION_REASONS = {
     "OTHER": "Other",
 }
 RECORD = "SUBMISSION"
+INSTRUCTIONS_LIMIT = 2000
 CLOSE, ACCEPT_LATE = Submission.AfterDue.CLOSE, Submission.AfterDue.ACCEPT_LATE
 ALL = Submission.Stage.ALL
 
@@ -61,11 +63,17 @@ def closes_at(submission, due):
     return max(submission.late_until, due)
 
 
+def not_open_yet(submission, at):
+    return submission.opens_at is not None and at < submission.opens_at
+
+
 def window(submission, extension, at):
     """(can send, would be late, why not)."""
     due = due_for(submission, extension)
     if not submission.is_open:
         return False, at > due, "This submission is closed."
+    if not_open_yet(submission, at):
+        return False, False, f"Opens {due_text(submission.opens_at)}."
     end = closes_at(submission, due)
     if end is not None and at > end:
         return False, True, "The deadline has passed."
@@ -111,7 +119,7 @@ class Standing:
 def _entries(submission):
     return {
         entry.student_id: entry
-        for entry in submission.entries.filter(document__archived_at__isnull=True).select_related("student__user", "document")
+        for entry in submission.entries.select_related("student__user", "document")
     }
 
 
@@ -268,6 +276,29 @@ def is_sent_for_a_submission(document):
     return SubmissionEntry.objects.filter(document=document).exists()
 
 
+def links_for(document, scope, at=None):
+    """The submissions a file was sent for, for the file page and the archive warning.
+    Archiving the file keeps the student's sent time; ``open`` says whether they can still send a new file."""
+    at = at or now()
+    entries = SubmissionEntry.objects.filter(document=document).select_related("submission", "student__user")
+    links = []
+    for entry in sorted(entries, key=lambda row: (row.submission.due_at, row.pk)):
+        submission = entry.submission
+        extension = submission.extensions.filter(student=entry.student).first()
+        can_send, _late, _why = window(submission, extension, at)
+        links.append(
+            {
+                "id": submission.pk,
+                "title": submission.title,
+                "dueAt": due_for(submission, extension).isoformat(),
+                "open": can_send,
+                "student": entry.student.user.full_name,
+                "canOpen": scope.office or any(programme_key(programme) in scope.coordinated for programme in submission.programmes),
+            }
+        )
+    return links
+
+
 def _record(submission, action, actor, details=None):
     SubmissionChange.objects.create(
         submission=submission, action=action, actor=actor, actor_name=actor.full_name if actor else "", details=details or {},
@@ -280,6 +311,8 @@ def _values(submission):
         "type": submission.doc_type.label,
         "programmes": list(submission.programmes),
         "stage": submission.stage,
+        "instructions": submission.instructions,
+        "opensAt": submission.opens_at.isoformat() if submission.opens_at else None,
         "dueAt": submission.due_at.isoformat(),
         "afterDue": submission.after_due,
         "lateUntil": submission.late_until.isoformat() if submission.late_until else None,
@@ -298,6 +331,80 @@ def uploadable_types():
     ]
 
 
+NEW_TYPE_LIMIT = 80
+STAGE_GROUP = {Submission.Stage.P1: DocumentType.Group.RP1, Submission.Stage.P2: DocumentType.Group.RP2}
+
+
+def type_name(text):
+    return " ".join(str(text or "").split())
+
+
+def type_named(name):
+    return DocumentType.objects.filter(label__iexact=type_name(name)).first()
+
+
+def _free_code(name):
+    base = slugify(name)[:56] or "file-type"
+    code, number = base, 2
+    while DocumentType.objects.filter(code=code).exists():
+        code, number = f"{base}-{number}", number + 1
+    return code
+
+
+def _group_for(stage):
+    return STAGE_GROUP.get(stage, DocumentType.Group.SUPPORTING)
+
+
+def _fit_type(doc_type, stage, submission):
+    """A coordinator's own type with no files yet follows who must send it."""
+    if not doc_type.custom or doc_type.documents.exists() or doc_type.submissions.exclude(pk=submission.pk).exists():
+        return
+    group = _group_for(stage)
+    if doc_type.group != group:
+        doc_type.group = group
+        doc_type.share_panel = group != DocumentType.Group.SUPPORTING
+        doc_type.save(update_fields=["group", "share_panel", "updated_at"])
+
+
+def _type_for(values, actor):
+    """The submission's file type, adding the coordinator's new one the first time it is used."""
+    if values["doc_type"] is not None:
+        return values["doc_type"]
+    name = type_name(values["new_type"])
+    found = DocumentType.objects.select_for_update().filter(label__iexact=name).first()
+    if found is not None:
+        if not found.custom and not found.is_active:
+            raise SubmissionRefused("That file type is switched off.")
+        if not found.is_active:
+            found.is_active = True
+            found.save(update_fields=["is_active", "updated_at"])
+        return found
+    group = _group_for(values["stage"])
+    top = DocumentType.objects.aggregate(top=Max("display_order"))["top"] or 0
+    return DocumentType.objects.create(
+        code=_free_code(name),
+        label=name,
+        group=group,
+        kind=DocumentType.Kind.STUDENT,
+        uploaders=["STUDENT", "SUPERVISOR", "COORDINATOR"],
+        allowed_kinds=["PDF", "DOCX", "IMAGE"],
+        share_supervisors=True,
+        share_panel=group != DocumentType.Group.SUPPORTING,
+        share_coordinator=True,
+        one_per_student=False,
+        display_order=top + 1,
+        custom=True,
+        added_by=actor,
+    )
+
+
+def _drop_if_unused(doc_type):
+    """A coordinator's type nothing uses any more, such as a misspelt one, leaves the lists."""
+    if doc_type.custom and doc_type.is_active and not doc_type.submissions.exists() and not doc_type.documents.exists():
+        doc_type.is_active = False
+        doc_type.save(update_fields=["is_active", "updated_at"])
+
+
 def check_values(values, *, creating, at=None):
     """Plain checks on a submission's fields. Returns {field: [message]}."""
     at = at or now()
@@ -306,12 +413,16 @@ def check_values(values, *, creating, at=None):
         errors["title"] = ["Give it a title."]
     elif len(values["title"]) > 120:
         errors["title"] = ["Keep the title to 120 characters."]
+    if len(values["instructions"]) > INSTRUCTIONS_LIMIT:
+        errors["instructions"] = [f"Keep the instructions to {INSTRUCTIONS_LIMIT} characters."]
     if not values["programmes"]:
         errors["programmes"] = ["Choose at least one programme."]
     if values["due_at"] is None:
         errors["dueAt"] = ["Choose the due date and time."]
     elif creating and values["due_at"] <= at:
         errors["dueAt"] = ["The due date must be in the future."]
+    if values["opens_at"] is not None and values["due_at"] is not None and values["opens_at"] >= values["due_at"]:
+        errors["opensAt"] = ["The opening date must be before the due date."]
     if values["after_due"] == ACCEPT_LATE and values["late_until"] is not None and values["due_at"] is not None and values["late_until"] <= values["due_at"]:
         errors["lateUntil"] = ["The last day for late work must be after the due date."]
     return errors
@@ -319,6 +430,8 @@ def check_values(values, *, creating, at=None):
 
 def _apply(submission, values):
     submission.title = values["title"].strip()
+    submission.instructions = values["instructions"].strip()
+    submission.opens_at = values["opens_at"]
     submission.doc_type = values["doc_type"]
     submission.programmes = values["programmes"]
     submission.stage = values["stage"]
@@ -329,9 +442,11 @@ def _apply(submission, values):
 
 def create(values, *, actor, semester):
     with transaction.atomic():
+        values = {**values, "doc_type": _type_for(values, actor)}
         submission = Submission(academic_semester=semester, created_by=actor)
         _apply(submission, values)
         submission.save()
+        _fit_type(submission.doc_type, submission.stage, submission)
         _record(submission, SubmissionChange.Action.CREATED, actor, _values(submission))
         recipients = [student.user for student in expected_students(submission) if student.user.is_active]
         transaction.on_commit(lambda: tell_students(submission, recipients, reminder=False))
@@ -354,14 +469,20 @@ def would_become_late(submission, values):
 def change(submission, values, *, actor, confirmed):
     with transaction.atomic():
         submission = Submission.objects.select_for_update().select_related("doc_type").get(pk=submission.pk)
-        if submission.doc_type_id != values["doc_type"].pk and submission.entries.exists():
+        wanted = values["doc_type"]
+        if (wanted is None or wanted.pk != submission.doc_type_id) and submission.entries.exists():
             raise SubmissionRefused("Students have already sent files, so the file type can't change.")
         count = would_become_late(submission, values)
         if count and not confirmed:
             raise NeedsConfirming(count)
+        values = {**values, "doc_type": _type_for(values, actor)}
+        old_type = submission.doc_type
         before = _values(submission)
         _apply(submission, values)
         submission.save()
+        _fit_type(submission.doc_type, submission.stage, submission)
+        if old_type.pk != submission.doc_type_id:
+            _drop_if_unused(old_type)
         after = _values(submission)
         if before != after:
             _record(submission, SubmissionChange.Action.CHANGED, actor, {"before": before, "after": after})
@@ -410,6 +531,8 @@ def remind(submission, *, actor):
     at = now()
     with transaction.atomic():
         submission = Submission.objects.select_for_update().get(pk=submission.pk)
+        if not_open_yet(submission, at):
+            raise SubmissionRefused("It is not open yet. You can remind students once it opens.")
         if reminded_today(submission, actor):
             raise SubmissionRefused("You already reminded them today. You can remind them again tomorrow.")
         recipients = [
@@ -431,6 +554,9 @@ def tell_students(submission, recipients, *, reminder):
     due = due_text(submission.due_at)
     title = f"{'Reminder: send' if reminder else 'New submission:'} {submission.title}"
     message = f"Send your {submission.doc_type.label} for {submission.title} by {due}."
+    if not reminder and not_open_yet(submission, now()):
+        message = f"{submission.title} opens on {due_text(submission.opens_at)}. Send your {submission.doc_type.label} by {due}."
+    instructions = f"Instructions:\n{submission.instructions}\n\n" if submission.instructions else ""
     Notification.objects.bulk_create(
         [
             Notification(
@@ -454,7 +580,7 @@ def tell_students(submission, recipients, *, reminder):
         [user for user in recipients if user.role == User.Role.STUDENT],
         DEADLINE,
         title,
-        f"{message}\n\nSend it in the portal: {portal_link('/files?tab=todo')}\n\n"
+        f"{message}\n\n{instructions}Send it in the portal: {portal_link('/files?tab=todo')}\n\n"
         "You get this email because deadline reminders are on in your Settings.\n\n"
         f"{SIGN_OFF}",
         wait=False,

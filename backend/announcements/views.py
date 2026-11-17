@@ -33,6 +33,7 @@ from rest_framework.response import Response
 from accounts.authorization import coordinator_programmes
 from accounts.models import Student
 from accounts.programmes import APPROVED_PROGRAMMES, normalise_programme
+from accounts.semesters import read as read_semester, same_semester, stored_label
 from appointments.models import CoSupervisorAppointment, SupervisorAppointment
 
 from .emails import ANNOUNCEMENT, SIGN_OFF, email_users, portal_link
@@ -195,8 +196,16 @@ def _matches_targeting(user, announcement):
     return (
         not announcement.target_programmes or student.programme in announcement.target_programmes
     ) and (
-        not announcement.target_intakes or student.intake_semester in announcement.target_intakes
+        not announcement.target_intakes
+        or any(same_semester(student.intake_semester, intake) for intake in announcement.target_intakes)
     )
+
+
+def _intake_spellings(intakes):
+    """Every stored intake that names one of these semesters."""
+    wanted = {stored_label(intake) for intake in intakes}
+    stored = Student.objects.exclude(intake_semester="").values_list("intake_semester", flat=True).distinct()
+    return [text for text in stored if stored_label(text) in wanted]
 
 
 def _targeting_q(user):
@@ -209,7 +218,7 @@ def _targeting_q(user):
         return listed & Q(target_programmes=[], target_intakes=[])
     return listed & (
         Q(target_programmes=[]) | Q(target_programmes__contains=[student.programme])
-    ) & (Q(target_intakes=[]) | Q(target_intakes__contains=[student.intake_semester]))
+    ) & (Q(target_intakes=[]) | Q(target_intakes__contains=[stored_label(student.intake_semester)]))
 
 
 def _can_read(user, announcement):
@@ -274,7 +283,7 @@ def _recipients_for(announcement):
             if announcement.target_programmes:
                 group &= Q(student__programme__in=announcement.target_programmes)
             if announcement.target_intakes:
-                group &= Q(student__intake_semester__in=announcement.target_intakes)
+                group &= Q(student__intake_semester__in=_intake_spellings(announcement.target_intakes))
         reached |= group
     return active.filter(reached)
 
@@ -633,16 +642,12 @@ def audience_options(request):
     if scope is not None:
         programmes = scope["programmes"]
         students = students.filter(programme__in=programmes)
-    intakes = (
-        students.exclude(intake_semester="")
-        .values_list("intake_semester", flat=True)
-        .distinct()
-        .order_by("intake_semester")
-    )
+    labels = {stored_label(text) for text in students.exclude(intake_semester="").values_list("intake_semester", flat=True)}
+    intakes = sorted(labels, key=lambda label: (read_semester(label).key if read_semester(label) else (9999, 9), label))
     return Response({
         "scope": "office" if scope is None else "programme",
         "programmes": programmes,
-        "intakes": list(intakes),
+        "intakes": intakes,
     })
 
 

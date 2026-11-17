@@ -9,12 +9,13 @@
 // only be hidden, so issued letters keep what they said.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowDownAZ, ChevronDown, ChevronUp, ClipboardPaste, Eye, EyeOff, ListChecks, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
+import { ArrowDownAZ, ClipboardPaste, GripVertical, Eye, EyeOff, ListChecks, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { ToggleSwitch } from './ToggleSwitch';
 import { SelectMenu } from './SelectMenu';
+import { WorkspacePagination } from './RequestWorkspacePrimitives';
 import { LoadingState, ErrorState, EmptyState } from './StateViews';
 import type { ChoiceGroup, ChoiceItem, ChoiceListDetail, ChoiceListSummary } from '../types';
 import { COUNTRIES, MALAYSIA, MALAYSIAN_STATES, asksState } from '../utils/addressPlaces';
@@ -39,9 +40,9 @@ type GroupForm = { id?: string; name: string; nameMs: string; itemNoun: string; 
 type ListForm = { id?: string; name: string; itemNoun: string; description: string };
 
 const EMPTY_ITEM: ItemForm = { name: '', nameMs: '', addressLine1: '', addressLine2: '', postcode: '', city: '', state: '', country: '' };
-const NOT_SAVED = { value: '', label: 'Not saved' };
-const STATE_OPTIONS = [NOT_SAVED, ...MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))];
-const COUNTRY_OPTIONS = [NOT_SAVED, ...COUNTRIES.map((country) => ({ value: country, label: country }))];
+const STATE_OPTIONS = [{ value: '', label: 'Choose state' }, ...MALAYSIAN_STATES.map((state) => ({ value: state, label: state }))];
+const COUNTRY_OPTIONS = [{ value: '', label: 'Choose country' }, ...COUNTRIES.map((country) => ({ value: country, label: country }))];
+const PAGE_SIZE = 15;
 const errorText = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 const addressLine = (item: ChoiceItem) =>
   [item.addressLine1, item.addressLine2, [item.postcode, item.city].filter(Boolean).join(' '), item.state, item.country === MALAYSIA ? '' : item.country].filter(Boolean).join(', ');
@@ -54,6 +55,9 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
   const [detail, setDetail] = useState<ChoiceListDetail | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [busy, setBusy] = useState(false);
   const [itemForm, setItemForm] = useState<ItemForm | null>(null);
@@ -101,6 +105,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
 
   const choose = async (next: Selection) => {
     setSearch('');
+    setPage(1);
     setSelection(next);
     if (detail?.id === next.listId) return;
     if (recipients?.id === next.listId) {
@@ -139,6 +144,9 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
   );
   const shown = entries.filter((item) => (showHidden || !item.hidden) && item.name.toLowerCase().includes(search.trim().toLowerCase()));
   const hiddenCount = entries.filter((item) => item.hidden).length;
+  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  const onPage = shown.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
+  const editing = itemForm?.id ? entries.find((item) => item.id === itemForm.id) ?? null : null;
   // Entries can be moved only while every one of them is on screen.
   const canOrder = !search.trim() && (showHidden || hiddenCount === 0);
 
@@ -211,6 +219,18 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
     void run(() => orderChoiceList(detail.id, { groupId: group?.id ?? null, itemIds: ids })).then((ok) => ok && refresh());
   };
 
+  const dropOn = (targetId: string) => {
+    const from = entries.findIndex((item) => item.id === dragId);
+    const to = entries.findIndex((item) => item.id === targetId);
+    setDragId(null);
+    setOverId(null);
+    if (!detail || from < 0 || to < 0 || from === to) return;
+    const ids = entries.map((item) => item.id);
+    const [moved] = ids.splice(from, 1);
+    ids.splice(to, 0, moved);
+    void run(() => orderChoiceList(detail.id, { groupId: group?.id ?? null, itemIds: ids })).then((ok) => ok && refresh());
+  };
+
   const sortAZ = () => {
     if (!detail) return;
     const ids = [...entries].sort((a, b) => a.name.localeCompare(b.name)).map((item) => item.id);
@@ -238,15 +258,15 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
     `flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] cursor-pointer ${active ? 'bg-brand-navy text-white' : 'text-slate-700 hover:bg-slate-50'}`;
 
   return (
+    <div className="space-y-4">
+    <p className="card-description">The choices students pick from when they ask for a letter.</p>
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
       <aside className="lg:col-span-4 xl:col-span-3 space-y-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         {recipients && (
           <section aria-labelledby="lists-purposes-heading" className="space-y-2">
-            <div className="flex items-center justify-between gap-2 px-1">
-              <h2 id="lists-purposes-heading" className="card-label">Who a letter is for</h2>
-              <PortalButton size="sm" variant="ghost" icon={Plus} aria-label="Add a purpose" onClick={() => setGroupForm({ name: '', nameMs: '', itemNoun: 'Organisation', allowOther: true })}>
-                Purpose
-              </PortalButton>
+            <div className="px-1">
+              <h2 id="lists-purposes-heading" className="text-[13px] font-semibold text-slate-800">Who letters are for</h2>
+              <p className="card-caption mt-0.5">Students pick a purpose, then an organisation.</p>
             </div>
             <ul className="space-y-1">
               {recipients.groups.map((item) => {
@@ -262,14 +282,15 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
                 );
               })}
             </ul>
+            <PortalButton size="sm" variant="ghost" icon={Plus} className="w-full justify-start" onClick={() => setGroupForm({ name: '', nameMs: '', itemNoun: 'Organisation', allowOther: true })}>
+              Add purpose
+            </PortalButton>
           </section>
         )}
         <section aria-labelledby="lists-other-heading" className="space-y-2 border-t border-slate-100 pt-4">
-          <div className="flex items-center justify-between gap-2 px-1">
-            <h2 id="lists-other-heading" className="card-label">Other lists</h2>
-            <PortalButton size="sm" variant="ghost" icon={Plus} aria-label="Make a list" onClick={() => setListForm({ name: '', itemNoun: '', description: '' })}>
-              List
-            </PortalButton>
+          <div className="px-1">
+            <h2 id="lists-other-heading" className="text-[13px] font-semibold text-slate-800">Lists for questions</h2>
+            <p className="card-caption mt-0.5">Saved options for "Choose one option" questions.</p>
           </div>
           {simpleLists.length > 0 && (
             <ul className="space-y-1">
@@ -286,6 +307,9 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
               })}
             </ul>
           )}
+          <PortalButton size="sm" variant="ghost" icon={Plus} className="w-full justify-start" onClick={() => setListForm({ name: '', itemNoun: '', description: '' })}>
+            New list
+          </PortalButton>
         </section>
       </aside>
 
@@ -294,27 +318,29 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
           <EmptyState icon={ListChecks} title="Choose a list" description="Pick a purpose or a list on the left to see its entries." />
         ) : (
           <div className="space-y-5 p-5 sm:py-7">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 items-start gap-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
                 <AppointmentIcon icon={isRecipients ? Users : ListChecks} tone="info" />
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 id="list-detail-heading" className="section-heading">{isRecipients ? group?.name : detail.name}</h2>
                     {group?.hidden && <StatusBadge tone="warning">Hidden</StatusBadge>}
                   </div>
-                  <p className="card-description mt-1">
-                    {isRecipients
-                      ? `${group?.nameMs ? `On the Malay page: ${group.nameMs}. ` : ''}One entry is called a "${group?.itemNoun}". ${group?.usedCount ? `Used by ${group.usedCount} letter${group.usedCount === 1 ? '' : 's'}.` : 'Not used by any letter yet.'}`
-                      : `${detail.description ? `${detail.description} ` : ''}${detail.usedBy.length ? `Asked in ${detail.usedBy.join(', ')}.` : 'No letter asks from this list yet.'}`}
-                  </p>
+                  {(() => {
+                    const facts = isRecipients
+                      ? [group?.nameMs ? `Malay: ${group.nameMs}` : '', group?.usedCount ? `Used in ${group.usedCount} letter${group.usedCount === 1 ? '' : 's'}` : '']
+                      : [detail.description, detail.usedBy.length ? `Asked in ${detail.usedBy.join(', ')}` : ''];
+                    const line = facts.filter(Boolean).join(' · ');
+                    return line ? <p className="card-caption mt-1">{line}</p> : null;
+                  })()}
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex shrink-0 flex-wrap gap-2">
                 {isRecipients && group ? (
                   <>
-                    <PortalButton size="sm" icon={Pencil} onClick={() => setGroupForm({ id: group.id, name: group.name, nameMs: group.nameMs, itemNoun: group.itemNoun, allowOther: group.allowOther })}>Edit purpose</PortalButton>
+                    <PortalButton size="sm" icon={Pencil} onClick={() => setGroupForm({ id: group.id, name: group.name, nameMs: group.nameMs, itemNoun: group.itemNoun, allowOther: group.allowOther })}>Edit</PortalButton>
                     <PortalButton size="sm" icon={group.hidden ? Eye : EyeOff} disabled={busy} onClick={() => void run(() => updateChoiceGroup(group.id, { hidden: !group.hidden }), group.hidden ? `"${group.name}" is offered again.` : `"${group.name}" is hidden from new requests.`).then((ok) => ok && refresh())}>
-                      {group.hidden ? 'Show purpose' : 'Hide purpose'}
+                      {group.hidden ? 'Show to students' : 'Hide from students'}
                     </PortalButton>
                     <PortalButton size="sm" variant="ghost" icon={Trash2} disabled={busy || entries.length > 0 || group.usedCount > 0} title={entries.length || group.usedCount ? 'Only a purpose with no entries and no letters can be deleted. Hide it instead.' : undefined} onClick={() => setDeleting({ kind: 'group', id: group.id, name: group.name })}>
                       Delete
@@ -322,7 +348,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
                   </>
                 ) : (
                   <>
-                    <PortalButton size="sm" icon={Pencil} onClick={() => setListForm({ id: detail.id, name: detail.name, itemNoun: detail.itemNoun, description: detail.description })}>Edit list</PortalButton>
+                    <PortalButton size="sm" icon={Pencil} onClick={() => setListForm({ id: detail.id, name: detail.name, itemNoun: detail.itemNoun, description: detail.description })}>Edit</PortalButton>
                     <PortalButton size="sm" variant="ghost" icon={Trash2} disabled={busy || detail.usedBy.length > 0} title={detail.usedBy.length ? 'A letter still asks from this list.' : undefined} onClick={() => setDeleting({ kind: 'list', id: detail.id, name: detail.name })}>
                       Delete
                     </PortalButton>
@@ -334,116 +360,104 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
             {isRecipients && group && (
               <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="min-w-0">
-                  <p id="allow-other-label" className="card-value text-slate-800">Students may type a {group.itemNoun.toLowerCase()} that is not listed</p>
-                  <p className="card-caption mt-0.5">Turn off to keep students to this list.</p>
+                  <p id="allow-other-label" className="card-value text-slate-800">Students can type their own {group.itemNoun.toLowerCase()} if it is not listed</p>
                 </div>
                 <ToggleSwitch id="allow-other-switch" checked={group.allowOther} labelledBy="allow-other-label" className="py-0" onChange={(on) => void run(() => updateChoiceGroup(group.id, { allowOther: on })).then((ok) => ok && refresh())} />
               </div>
             )}
 
-            <div data-workspace-filter-card className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="flex flex-wrap items-end gap-3">
-                <label className="form-label min-w-48 flex-1">
-                  Find a {noun.toLowerCase()}
-                  <span className="relative mt-1 block">
-                    <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                    <input type="search" className="form-control form-control-sm pl-9" value={search} placeholder="Type a name" onChange={(event) => setSearch(event.target.value)} />
-                  </span>
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-4">
+              <span className="relative min-w-48 flex-1">
+                <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <input type="search" aria-label={`Search ${isRecipients ? group?.name : detail.name}`} className="form-control form-control-sm pl-9" value={search} placeholder="Search by name" onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
+              </span>
+              {hiddenCount > 0 && (
+                <label className="flex items-center gap-2 px-1 text-[12.5px] font-semibold text-slate-600 cursor-pointer">
+                  <input type="checkbox" className="h-4 w-4 accent-brand-navy" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} />
+                  Show hidden ({hiddenCount})
                 </label>
-                {hiddenCount > 0 && (
-                  <label className="flex items-center gap-2 pb-2 text-[12.5px] font-semibold text-slate-600 cursor-pointer">
-                    <input type="checkbox" className="h-4 w-4 accent-brand-navy" checked={showHidden} onChange={(event) => setShowHidden(event.target.checked)} />
-                    Show hidden ({hiddenCount})
-                  </label>
-                )}
-              </div>
-              <div className="mt-4 flex flex-wrap items-start justify-between gap-3 border-t border-slate-200 pt-3">
-                <PortalButton size="sm" icon={ArrowDownAZ} disabled={busy || entries.length < 2} onClick={sortAZ}>Sort A to Z</PortalButton>
-                <div className="flex flex-wrap gap-2">
-                  <PortalButton size="sm" icon={ClipboardPaste} onClick={() => { setFormError(null); setPasting(''); }}>Paste many</PortalButton>
-                  <PortalButton size="sm" variant="primary" icon={Plus} onClick={() => { setFormError(null); setItemForm({ ...EMPTY_ITEM }); }}>Add {noun.toLowerCase()}</PortalButton>
-                </div>
-              </div>
+              )}
+              <PortalButton size="sm" variant="ghost" icon={ArrowDownAZ} disabled={busy || entries.length < 2} onClick={sortAZ}>Sort A to Z</PortalButton>
+              <PortalButton size="sm" icon={ClipboardPaste} onClick={() => { setFormError(null); setPasting(''); }}>Add many</PortalButton>
+              <PortalButton size="sm" variant="primary" icon={Plus} onClick={() => { setFormError(null); setItemForm({ ...EMPTY_ITEM }); }}>Add {noun.toLowerCase()}</PortalButton>
             </div>
 
             {shown.length === 0 ? (
               <p className="rounded-xl bg-slate-50 px-4 py-6 text-center card-description">
-                {entries.length === 0 ? `No ${noun.toLowerCase()} yet. Add one, or paste many at once.` : 'Nothing matches this search.'}
+                {entries.length === 0 ? `Nothing here yet. Add the first ${noun.toLowerCase()}, or add many at once.` : 'Nothing matches this search.'}
               </p>
             ) : (
-              <table aria-label={`${isRecipients ? group?.name : detail.name} entries`} className="data-table block table-fixed lg:table">
-                <colgroup className="hidden lg:table-column-group">
-                  {(isRecipients ? [32, 30, 12, 26] : [56, 16, 28]).map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
-                </colgroup>
-                <thead className="hidden lg:table-header-group">
-                  <tr className="data-thead bg-slate-50">
-                    <th scope="col" className="data-th">{noun}</th>
-                    {isRecipients && <th scope="col" className="data-th">Saved address</th>}
-                    <th scope="col" className="data-th">Used in</th>
-                    <th scope="col" className="data-th text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="block space-y-3 lg:table-row-group lg:space-y-0">
-                  {shown.map((item) => {
-                    const index = entries.indexOf(item);
-                    return (
-                      <tr key={item.id} className={`data-row block rounded-xl border border-slate-200 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 ${item.hidden ? 'bg-slate-50/70' : ''}`}>
-                        <td className="data-td-strong block px-3 py-2 lg:table-cell lg:pl-3 lg:pr-5 lg:py-3 [overflow-wrap:anywhere]">
-                          <div className="flex items-start gap-2">
-                            {canOrder && (
-                              <span className="flex shrink-0 flex-col">
-                                <button type="button" aria-label={`Move ${item.name} up`} disabled={busy || index === 0} onClick={() => move(index, -1)} className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 cursor-pointer disabled:cursor-default">
-                                  <ChevronUp aria-hidden="true" className="h-4 w-4" />
-                                </button>
-                                <button type="button" aria-label={`Move ${item.name} down`} disabled={busy || index === entries.length - 1} onClick={() => move(index, 1)} className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30 cursor-pointer disabled:cursor-default">
-                                  <ChevronDown aria-hidden="true" className="h-4 w-4" />
-                                </button>
-                              </span>
-                            )}
-                            <div className="min-w-0 pt-0.5">
-                              <span className="flex flex-wrap items-center gap-2">
-                                <span className={item.hidden ? 'text-slate-500' : ''}>{item.name}</span>
-                                {item.hidden && <StatusBadge tone="warning">Hidden</StatusBadge>}
-                              </span>
-                              {item.nameMs && <span className="card-caption mt-0.5 block">Malay: {item.nameMs}</span>}
-                            </div>
-                          </div>
-                        </td>
-                        {isRecipients && (
-                          <td className="data-td block px-3 py-1 lg:table-cell lg:px-5 lg:py-3 [overflow-wrap:anywhere]">
-                            <span className="card-label mb-1 block lg:hidden">Saved address</span>
-                            {addressLine(item) || <span className="text-slate-400">None</span>}
-                          </td>
+              <>
+              <ul aria-label={`${isRecipients ? group?.name : detail.name} entries`} className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                {onPage.map((item) => {
+                  const index = entries.indexOf(item);
+                  const address = isRecipients ? addressLine(item) : '';
+                  return (
+                    <li
+                      key={item.id}
+                      draggable={canOrder && !busy}
+                      onDragStart={(event) => {
+                        setDragId(item.id);
+                        event.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(event) => {
+                        if (!dragId) return;
+                        event.preventDefault();
+                        if (overId !== item.id) setOverId(item.id);
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        dropOn(item.id);
+                      }}
+                      onDragEnd={() => {
+                        setDragId(null);
+                        setOverId(null);
+                      }}
+                      className={`flex items-center gap-3 px-3 py-3 ${item.hidden ? 'bg-slate-50/70' : ''} ${dragId === item.id ? 'opacity-40' : ''} ${overId === item.id && dragId !== item.id ? 'shadow-[inset_0_2px_0_0_#0b1329]' : ''}`}
+                    >
+                      {canOrder && (
+                        <button
+                          type="button"
+                          aria-label={`Move ${item.name}. Drag it, or press Alt with the up or down arrow.`}
+                          title="Drag to move"
+                          disabled={busy}
+                          onKeyDown={(event) => {
+                            if (!event.altKey) return;
+                            if (event.key === 'ArrowUp' && index > 0) {
+                              event.preventDefault();
+                              move(index, -1);
+                            } else if (event.key === 'ArrowDown' && index < entries.length - 1) {
+                              event.preventDefault();
+                              move(index, 1);
+                            }
+                          }}
+                          className="shrink-0 cursor-grab rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing disabled:opacity-30"
+                        >
+                          <GripVertical aria-hidden="true" className="h-4 w-4" />
+                        </button>
+                      )}
+                      <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                        <p className="flex flex-wrap items-center gap-2 text-[13.5px] font-semibold text-slate-800">
+                          <span className={item.hidden ? 'text-slate-500' : ''}>{item.name}</span>
+                          {item.hidden && <StatusBadge tone="warning">Hidden</StatusBadge>}
+                        </p>
+                        {(item.nameMs || address || item.usedCount > 0) && (
+                          <p className="card-caption mt-0.5">
+                            {[item.nameMs ? `Malay: ${item.nameMs}` : '', address, item.usedCount ? `Used in ${item.usedCount} letter${item.usedCount === 1 ? '' : 's'}` : ''].filter(Boolean).join(' · ')}
+                          </p>
                         )}
-                        <td className="data-td block px-3 py-1 lg:table-cell lg:px-5 lg:py-3 whitespace-nowrap">
-                          <span className="card-label mb-1 block lg:hidden">Used in</span>
-                          {item.usedCount ? `${item.usedCount} letter${item.usedCount === 1 ? '' : 's'}` : <span className="text-slate-400">Not used</span>}
-                        </td>
-                        <td className="data-td block px-3 py-2 lg:table-cell lg:px-5 lg:py-3">
-                          <div className="flex flex-wrap items-center gap-1 lg:flex-nowrap lg:justify-end">
-                            <PortalButton size="sm" icon={Pencil} onClick={() => { setFormError(null); setItemForm({ id: item.id, name: item.name, nameMs: item.nameMs, addressLine1: item.addressLine1, addressLine2: item.addressLine2, postcode: item.postcode, city: item.city, state: item.state, country: item.country }); }}>Edit</PortalButton>
-                            <PortalButton size="sm" icon={item.hidden ? Eye : EyeOff} disabled={busy} onClick={() => toggleHidden(item)}>{item.hidden ? 'Show' : 'Hide'}</PortalButton>
-                            <PortalButton
-                              size="icon"
-                              variant="ghost"
-                              icon={Trash2}
-                              disabled={busy || item.usedCount > 0}
-                              title={item.usedCount ? 'Letters used this entry. Hide it instead.' : 'Delete'}
-                              aria-label={`Delete ${item.name}`}
-                              onClick={() => setDeleting({ kind: 'item', id: item.id, name: item.name })}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                      </div>
+                      <PortalButton size="sm" icon={Pencil} aria-label={`Edit ${item.name}`} onClick={() => { setFormError(null); setItemForm({ id: item.id, name: item.name, nameMs: item.nameMs, addressLine1: item.addressLine1, addressLine2: item.addressLine2, postcode: item.postcode, city: item.city, state: item.state, country: item.country }); }}>Edit</PortalButton>
+                    </li>
+                  );
+                })}
+              </ul>
+              {shown.length > PAGE_SIZE && (
+                <WorkspacePagination page={Math.min(page, pageCount)} pageCount={pageCount} total={shown.length} noun="in this list" onPage={setPage} pageSize={PAGE_SIZE} />
+              )}
+              </>
             )}
-            <p className="card-caption">
-              Only entries no letter used can be deleted.
-              {hiddenCount > 0 && !showHidden ? ' Show hidden entries to put them in order.' : ''}
-            </p>
+            {hiddenCount > 0 && !showHidden && <p className="card-caption">Show hidden ones to change the order.</p>}
           </div>
         )}
       </section>
@@ -453,10 +467,10 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void saveItem(); }}>
             <h2 id={itemTitle} className="section-heading">{itemForm.id ? `Edit ${noun.toLowerCase()}` : `Add a ${noun.toLowerCase()}`}</h2>
             <label className="form-label block">Name<input autoFocus className="form-control form-control-md mt-1" maxLength={160} value={itemForm.name} onChange={(event) => setItemForm({ ...itemForm, name: event.target.value })} /></label>
-            <label className="form-label block">Name on the Malay page (optional)<input className="form-control form-control-md mt-1" maxLength={160} value={itemForm.nameMs} placeholder="Leave blank to use the same name" onChange={(event) => setItemForm({ ...itemForm, nameMs: event.target.value })} /></label>
+            <label className="form-label block">Malay name (optional)<input className="form-control form-control-md mt-1" maxLength={160} value={itemForm.nameMs} placeholder="Leave blank to use the same name" onChange={(event) => setItemForm({ ...itemForm, nameMs: event.target.value })} /></label>
             {isRecipients && (
               <fieldset className="space-y-3 border-t border-slate-100 pt-4">
-                <legend className="card-value text-slate-800">Saved address (optional)</legend>
+                <legend className="card-value text-slate-800">Address on the letter (optional)</legend>
                 <input aria-label="Address line 1" className="form-control form-control-sm" maxLength={120} placeholder="Address line 1" value={itemForm.addressLine1} onChange={(event) => setItemForm({ ...itemForm, addressLine1: event.target.value })} />
                 <input aria-label="Address line 2" className="form-control form-control-sm" maxLength={120} placeholder="Address line 2" value={itemForm.addressLine2} onChange={(event) => setItemForm({ ...itemForm, addressLine2: event.target.value })} />
                 <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
@@ -487,10 +501,33 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
               </fieldset>
             )}
             {formError && <p role="alert" className="text-sm text-rose-800">{formError}</p>}
-            <div className="flex justify-end gap-2">
-              <PortalButton type="button" disabled={busy} onClick={() => setItemForm(null)}>Cancel</PortalButton>
-              <PortalButton type="submit" variant="primary" isLoading={busy}>{itemForm.id ? 'Save' : 'Add'}</PortalButton>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-4">
+              <div className="flex flex-wrap gap-1">
+                {editing && (
+                  <>
+                    <PortalButton type="button" size="sm" variant="ghost" icon={editing.hidden ? Eye : EyeOff} disabled={busy} onClick={() => { setItemForm(null); toggleHidden(editing); }}>
+                      {editing.hidden ? 'Show to students' : 'Hide from students'}
+                    </PortalButton>
+                    <PortalButton
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      icon={Trash2}
+                      disabled={busy || editing.usedCount > 0}
+                      title={editing.usedCount ? 'Letters were issued with this. Hide it instead.' : undefined}
+                      onClick={() => { setItemForm(null); setDeleting({ kind: 'item', id: editing.id, name: editing.name }); }}
+                    >
+                      Delete
+                    </PortalButton>
+                  </>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <PortalButton type="button" disabled={busy} onClick={() => setItemForm(null)}>Cancel</PortalButton>
+                <PortalButton type="submit" variant="primary" isLoading={busy}>{itemForm.id ? 'Save' : 'Add'}</PortalButton>
+              </div>
             </div>
+            {editing && editing.usedCount > 0 && <p className="card-caption">It was used in issued letters, so it can be hidden but not deleted.</p>}
           </form>
         )}
       </PortalModal>
@@ -499,8 +536,8 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
         {pasting !== null && (
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void savePaste(); }}>
             <div>
-              <h2 id={pasteTitle} className="section-heading">Paste many {noun.toLowerCase()}s</h2>
-              <p className="card-description mt-1">One name per line.</p>
+              <h2 id={pasteTitle} className="section-heading">Add many at once</h2>
+              <p className="card-description mt-1">Type or paste one name per line.</p>
             </div>
             <textarea autoFocus rows={8} aria-label="Names, one per line" className="form-control form-control-md resize-y" value={pasting} onChange={(event) => setPasting(event.target.value)} />
             <p className="card-caption">{pasting.split('\n').filter((line) => line.trim()).length} name{pasting.split('\n').filter((line) => line.trim()).length === 1 ? '' : 's'}</p>
@@ -517,12 +554,12 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
         {groupForm && (
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void saveGroup(); }}>
             <h2 id={groupTitle} className="section-heading">{groupForm.id ? 'Edit purpose' : 'Add a purpose'}</h2>
-            <label className="form-label block">Purpose, as students see it<input autoFocus className="form-control form-control-md mt-1" maxLength={120} placeholder="For example: Insurance" value={groupForm.name} onChange={(event) => setGroupForm({ ...groupForm, name: event.target.value })} /></label>
-            <label className="form-label block">In Malay (optional)<input className="form-control form-control-md mt-1" maxLength={120} placeholder="For example: Insurans" value={groupForm.nameMs} onChange={(event) => setGroupForm({ ...groupForm, nameMs: event.target.value })} /></label>
-            <label className="form-label block">One entry is called<input className="form-control form-control-md mt-1" maxLength={60} placeholder="For example: Insurer" value={groupForm.itemNoun} onChange={(event) => setGroupForm({ ...groupForm, itemNoun: event.target.value })} /></label>
+            <label className="form-label block">Purpose name<input autoFocus className="form-control form-control-md mt-1" maxLength={120} placeholder="For example: Insurance" value={groupForm.name} onChange={(event) => setGroupForm({ ...groupForm, name: event.target.value })} /></label>
+            <label className="form-label block">Malay name (optional)<input className="form-control form-control-md mt-1" maxLength={120} placeholder="For example: Insurans" value={groupForm.nameMs} onChange={(event) => setGroupForm({ ...groupForm, nameMs: event.target.value })} /></label>
+            <label className="form-label block">What students pick<input className="form-control form-control-md mt-1" maxLength={60} placeholder="For example: Insurance company" value={groupForm.itemNoun} onChange={(event) => setGroupForm({ ...groupForm, itemNoun: event.target.value })} /></label>
             <label className="flex items-center gap-2 text-[13px] font-semibold text-slate-700 cursor-pointer">
               <input type="checkbox" className="h-4 w-4 accent-brand-navy" checked={groupForm.allowOther} onChange={(event) => setGroupForm({ ...groupForm, allowOther: event.target.checked })} />
-              Students may type one that is not listed
+              Students can type their own if it is not listed
             </label>
             {formError && <p role="alert" className="text-sm text-rose-800">{formError}</p>}
             <div className="flex justify-end gap-2">
@@ -537,15 +574,15 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
         {listForm && (
           <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); void saveList(); }}>
             <div>
-              <h2 id={listTitle} className="section-heading">{listForm.id ? 'Edit list' : 'Make a list'}</h2>
+              <h2 id={listTitle} className="section-heading">{listForm.id ? 'Edit list' : 'New list'}</h2>
             </div>
-            <label className="form-label block">Name<input autoFocus className="form-control form-control-md mt-1" maxLength={120} placeholder="For example: Embassies" value={listForm.name} onChange={(event) => setListForm({ ...listForm, name: event.target.value })} /></label>
-            <label className="form-label block">One entry is called<input className="form-control form-control-md mt-1" maxLength={60} placeholder="For example: Embassy" value={listForm.itemNoun} onChange={(event) => setListForm({ ...listForm, itemNoun: event.target.value })} /></label>
+            <label className="form-label block">List name<input autoFocus className="form-control form-control-md mt-1" maxLength={120} placeholder="For example: Embassies" value={listForm.name} onChange={(event) => setListForm({ ...listForm, name: event.target.value })} /></label>
+            <label className="form-label block">What students pick<input className="form-control form-control-md mt-1" maxLength={60} placeholder="For example: Embassy" value={listForm.itemNoun} onChange={(event) => setListForm({ ...listForm, itemNoun: event.target.value })} /></label>
             <label className="form-label block">Description (optional)<input className="form-control form-control-md mt-1" maxLength={300} value={listForm.description} onChange={(event) => setListForm({ ...listForm, description: event.target.value })} /></label>
             {formError && <p role="alert" className="text-sm text-rose-800">{formError}</p>}
             <div className="flex justify-end gap-2">
               <PortalButton type="button" disabled={busy} onClick={() => setListForm(null)}>Cancel</PortalButton>
-              <PortalButton type="submit" variant="primary" isLoading={busy}>{listForm.id ? 'Save' : 'Make list'}</PortalButton>
+              <PortalButton type="submit" variant="primary" isLoading={busy}>{listForm.id ? 'Save' : 'Create list'}</PortalButton>
             </div>
           </form>
         )}
@@ -561,6 +598,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
         onConfirm={() => void confirmDelete()}
         onCancel={() => setDeleting(null)}
       />
+    </div>
     </div>
   );
 };

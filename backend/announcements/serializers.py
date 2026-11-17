@@ -8,6 +8,7 @@ import json
 from rest_framework import serializers
 
 from accounts.programmes import normalise_programme
+from accounts.semesters import stored_label
 
 from .models import Announcement
 
@@ -88,7 +89,7 @@ class AnnouncementSerializer(serializers.Serializer):
             raise serializers.ValidationError("Choose at most 20 intakes.")
         if any(len(intake) > 32 for intake in value):
             raise serializers.ValidationError("An intake name is at most 32 characters.")
-        return value
+        return list(dict.fromkeys(stored_label(intake) for intake in value))
 
     def to_model_kwargs(self):
         """Return validated data keyed by model field names."""

@@ -54,7 +54,7 @@ export type SemesterNotice = { tone: 'amber' | 'rose'; text: string };
 /** The one thing worth saying about where a student stands against their maximum. */
 export function maximumNotice(progress: StudentSemesters): SemesterNotice | null {
   if (progress.pastMaximum) {
-    return { tone: 'rose', text: `Past the maximum of ${progress.maximumSemester}. The faculty decides what happens next. An appeal can add up to 3 semesters.` };
+    return { tone: 'rose', text: `Past the maximum of ${displaySemester(progress.maximumSemester)}. The faculty decides what happens next. An appeal can add up to 3 semesters.` };
   }
   if (progress.lastSemester) {
     return { tone: 'amber', text: 'This is the last allowed semester. Any appeal to the Dean for more time must be made now.' };
@@ -73,7 +73,6 @@ export function intakeNotice(progress: Pick<StudentSemesters, 'intake' | 'before
   return null;
 }
 
-export const shortSemester = (label: string) => label.replace(/ Session$/, '');
 
 const TERM_WORDS: Record<string, string> = { i: 'Semester I', 1: 'Semester I', ii: 'Semester II', 2: 'Semester II', iii: 'Special Semester', 3: 'Special Semester' };
 
@@ -88,17 +87,26 @@ export function canonicalSemester(text: string): string {
   return term ? `${prefix} ${TERM_WORDS[(term[1] ?? term[2]).toLowerCase()]}` : value;
 }
 
+/** A semester as every screen shows it, like Semester I 2026/2027. Text that can't be read comes back as it was. */
+export function displaySemester(text: string | null | undefined): string {
+  const value = canonicalSemester(text ?? '');
+  const match = /^(\d{4}\/\d{4}) (Semester I|Semester II|Special Semester)$/.exec(value);
+  return match ? `${match[2]} ${match[1]}` : value.replace(/ Session$/, '');
+}
+
+export const shortSemester = displaySemester;
+
 /** Semesters to pick from, newest first. A value outside the range is kept so it can still be shown. */
 export function semesterChoices(options: { special?: boolean; keep?: string; now?: Date } = {}): Array<{ value: string; label: string }> {
   const year = (options.now ?? new Date()).getFullYear();
   const choices: Array<{ value: string; label: string }> = [];
   for (let start = year + 1; start >= year - 8; start -= 1) {
     const session = `${start}/${start + 1}`;
-    if (options.special) choices.push({ value: `${session} Special Semester`, label: `Special Semester, ${session}` });
-    choices.push({ value: `${session} Semester II`, label: `Semester II, ${session}` });
-    choices.push({ value: `${session} Semester I`, label: `Semester I, ${session}` });
+    if (options.special) choices.push({ value: `${session} Special Semester`, label: `Special Semester ${session}` });
+    choices.push({ value: `${session} Semester II`, label: `Semester II ${session}` });
+    choices.push({ value: `${session} Semester I`, label: `Semester I ${session}` });
   }
-  if (options.keep && !choices.some(choice => choice.value === options.keep)) choices.push({ value: options.keep, label: options.keep });
+  if (options.keep && !choices.some(choice => choice.value === options.keep)) choices.push({ value: options.keep, label: displaySemester(options.keep) });
   return choices;
 }
 
@@ -145,7 +153,7 @@ export function findStudents<T extends { name: string; matric: string }>(student
   return students.filter(student => student.name.toLowerCase().includes(text) || student.matric.toLowerCase().includes(text));
 }
 
-/** Whether the Students tab should ask about students who aren't on the semester. Most students never take a Special Semester, so that only asks once. */
+/** Whether the Students tab should ask about students who aren't on the semester. At a Special Semester the ones left are mostly back from leave and not taking it, so that only asks until the move has run. */
 export const semesterMoveWaiting = (summary: { semester: { isSpecial?: boolean } | null; waiting: number; lastMove: unknown } | null) =>
   Boolean(summary?.semester && summary.waiting > 0 && !(summary.semester.isSpecial && summary.lastMove));
 
@@ -167,7 +175,7 @@ export function semesterMovedNotice(
 export function fixLink(item: Pick<GraduationItem, 'fix' | 'recordId'>, matric: string): { label: string; to: string } | null {
   const encoded = encodeURIComponent(matric);
   switch (item.fix) {
-    case 'record': return { label: 'Open record', to: `${APP_ROUTES.registry}?student=${encoded}` };
+    case 'record': return { label: 'Open record', to: `${APP_ROUTES.registryStudents}/${encoded}` };
     case 'marks': return { label: 'Open Marks', to: APP_ROUTES.marks };
     case 'supervisor': return { label: 'Open requests', to: APP_ROUTES.supervisorAppointmentRequests };
     case 'panel': return { label: 'Open requests', to: APP_ROUTES.panelAppointments };

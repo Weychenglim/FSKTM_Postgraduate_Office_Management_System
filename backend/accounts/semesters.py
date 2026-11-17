@@ -61,6 +61,23 @@ def read(label):
     return Semester(int(session.group(1)), _NUMBERED[(term.group(1) or term.group(2)).lower()])
 
 
+def stored_label(label):
+    """One spelling for saving a semester: "2025/2026 Semester I". A label that
+    cannot be read is kept as written."""
+    semester = read(label)
+    if semester is None:
+        return (label or "").strip()
+    return f"{semester.session} {TERM_NAMES[semester.term]}"
+
+
+def same_semester(first, second):
+    """True when two labels name the same semester, however they are written."""
+    a, b = read(first), read(second)
+    if a is None or b is None:
+        return (first or "").strip().casefold() == (second or "").strip().casefold()
+    return a == b
+
+
 def from_parts(session, term):
     """A semester from a stored session and term, or None when they are not valid."""
     match = _SESSION.fullmatch((session or "").strip())
@@ -90,19 +107,25 @@ def steps_to(now, target):
     return steps + (1 if target.is_special else 0)
 
 
-def seeded_semesters(intake, current):
-    """The semesters a record implies: every normal semester from the intake to the
-    current one. Past Special Semesters are not implied, so the office adds them."""
+def following(semester, with_special):
+    """The next semester in the plan: Semester I, Semester II, then the Special Semester when it is taken."""
+    if with_special and semester.term == SEMESTER_II:
+        return Semester(semester.year, SPECIAL)
+    return semester.next_normal()
+
+
+def seeded_semesters(intake, current, *, with_special=False):
+    """The semesters a record implies: every semester in the plan from the intake to the current one."""
     first, last = read(intake), read(current)
     if first is None:
         return [last] if last else []
     if last is None or last.key < first.key:
         return [first]
     rows = [first]
-    step = first.next_normal()
+    step = following(first, with_special)
     while step.key <= last.key and len(rows) < MAX_SEEDED_ROWS:
         rows.append(step)
-        step = step.next_normal()
+        step = following(step, with_special)
     if last.is_special and last != rows[-1] and len(rows) < MAX_SEEDED_ROWS:
         rows.append(last)
     return rows

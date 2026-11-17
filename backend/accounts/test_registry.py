@@ -93,6 +93,16 @@ class StudentRegistryApiTests(APITestCase):
         self.assertEqual(record["avatarText"], "AB")
         self.assertEqual(record["accountStatus"], "Verified")
 
+    def test_the_list_comes_in_name_order(self):
+        for index, name in enumerate(("zainal Abidin", "Bala a/l Muthu", "Chong Wei Ling")):
+            user = User.objects.create_user(
+                email=f"order{index}@example.test", password="pw-order-7784", full_name=name, role=User.Role.STUDENT
+            )
+            Student.objects.create(user=user, matric_no=f"ORDER-{index}", programme=self.student.programme)
+        self.client.force_authenticate(self.admin)
+        names = [record["name"] for record in self.client.get("/api/registry/students/").data]
+        self.assertEqual(names, ["Aisyah binti Rahman", "Bala a/l Muthu", "Chong Wei Ling", "zainal Abidin"])
+
     def test_search_filters_by_matric_and_name(self):
         self.client.force_authenticate(self.admin)
         hit = self.client.get("/api/registry/students/?search=WGA210045")
@@ -228,7 +238,7 @@ class StudentRegistryApiTests(APITestCase):
             {"semester": "Semester 2, 2025/2026"},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["semester"], "Semester 2, 2025/2026")
+        self.assertEqual(response.data["semester"], "2025/2026 Semester II")
         self.assertTrue(StudentRegistry.objects.filter(student=self.student).exists())
 
     def test_invalid_academic_status_is_rejected(self):
@@ -332,7 +342,7 @@ class StudentRegistryApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["id"], "DEMO-WGA260001")
         self.assertEqual(response.data["accountStatus"], "Verified")
-        self.assertEqual(response.data["semester"], "Semester 1, 2026/2027")
+        self.assertEqual(response.data["semester"], "2026/2027 Semester I")
 
         created = Student.objects.get(matric_no="DEMO-WGA260001")
         self.assertEqual(created.user.role, User.Role.STUDENT)

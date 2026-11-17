@@ -27,7 +27,7 @@ A Technical Administrator uses Django Admin for technical administration. This a
 | **Panel Appointments** | Supervisor nominations, selected panel-member acceptance or rejection, coordinator approval, assigned panel records, workload monitoring, and replacement or closure. |
 | **Marks and Project Evaluation** | Evaluation periods and rubrics, tasks linked to eligible appointments, lecturer drafts and submissions, completion monitoring, and authorised Office corrections or reopening with recorded reasons. |
 | **Workflow and Approval Tracking** | Request progress, current approval responsibility, elapsed waiting days, decision reasons, immutable workflow and lifecycle audits, reconciliation, progress dossiers, and authorised reports/exports. |
-| **Letter Management** | Office-managed templates and recipient lists, student letter requests, approval and numbered PDF issuance, bilingual wording, appointment letters, and revocation or reissue. |
+| **Letter Management** | Office-managed templates and recipient lists, student letter requests, approval and numbered PDF issuance, Word copies for the Office, bilingual wording, appointment letters, and revocation or reissue. |
 | **File Repository and Document Management** | Permission-controlled uploads and downloads, previews, versions, document checks and returns, sharing, tags, archives, and required-document tracking and reminders. |
 | **Announcements and Notifications** | Audience-targeted announcements, scheduled publication and expiry, attachments, in-app workflow notices and read status, deadline reminders, and optional email alerts and weekly summaries. |
 | **FAQ and Chatbot** | Office-maintained questions and answers, keyword and multilingual meaning search, suggested matches, reference-document passages, feedback, and unanswered-question review. |
@@ -55,7 +55,7 @@ The system supports postgraduate administrative and project workflows. Course re
 | Frontend | React 19, TypeScript, Vite, React Router, Tailwind CSS, Lucide icons, Motion |
 | Backend | Django 5.2 LTS, Django REST Framework, SimpleJWT |
 | Database | PostgreSQL |
-| Documents and exports | ReportLab, openpyxl, ExcelJS, PDFium, Pillow |
+| Documents and exports | ReportLab, python-docx, openpyxl, ExcelJS, PDFium, Pillow |
 | FAQ search | Keyword search and a multilingual model through FastEmbed, with keyword-only fallback |
 | Deployment | Frontend production build and Django API behind a same-origin Nginx reverse proxy |
 

@@ -12,6 +12,7 @@ import { changeSummary, firstChip, rowNote, rowsFor, STAGE_LABEL, STAGE_TONE, st
 import type { StageChip } from '../utils/projectStages';
 import { filterPeople, shortSemester, studentCount } from '../utils/registrySemesters';
 import { PortalToast, StatusBadge } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { ProjectStageChangeDialog } from './ProjectStageChangeDialog';
 import { RecordPage } from './RecordPage';
 import { PeopleFilters, PersonRow, PersonTickRow, SelectionBar } from './RegistryPersonRow';
@@ -166,7 +167,7 @@ export const ProjectStages: React.FC = () => {
         onSaved={saved}
         onBusy={setBusy}
       />
-      <PortalToast message={toast} tone="success" onClose={() => setToast(null)} />
+      <PortalToast message={toast} tone="success" durationMs={toastDuration()} onClose={() => setToast(null)} />
     </div>,
   );
 };

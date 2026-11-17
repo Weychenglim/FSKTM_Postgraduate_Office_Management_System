@@ -103,7 +103,7 @@ export function typeForName(name: string, types: DocumentTypeOption[]): Document
   if (!wanted) return null;
   const known = types.find(type => type.label.toLowerCase() === wanted);
   if (known) return known;
-  return types.find(type => type.group === 'SUPPORTING' || type.group === 'STAFF') ?? (types.length === 1 ? types[0] : null);
+  return types.find(type => !type.custom && (type.group === 'SUPPORTING' || type.group === 'STAFF')) ?? (types.length === 1 ? types[0] : null);
 }
 
 /** A typed name as the file's title: a known type keeps its own spelling. */

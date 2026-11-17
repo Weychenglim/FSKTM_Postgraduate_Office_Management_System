@@ -11,6 +11,7 @@ import { historyTime } from '../utils/documentDisplay';
 import { semesterChoices, semesterCount, semesterParts, shortSemester, studentCount, validCourseCode } from '../utils/registrySemesters';
 import { DialogShell } from './DocumentDialogs';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
 import { SelectMenu } from './SelectMenu';
 import { ErrorState, LoadingState } from './StateViews';
@@ -247,7 +248,7 @@ export const ProgrammeRules: React.FC = () => {
         onConfirm={() => void remove()}
         onCancel={() => setRemoving(null)}
       />
-      <PortalToast message={toast} tone="success" onClose={() => setToast(null)} />
+      <PortalToast message={toast} tone="success" durationMs={toastDuration()} onClose={() => setToast(null)} />
     </div>
   );
 };

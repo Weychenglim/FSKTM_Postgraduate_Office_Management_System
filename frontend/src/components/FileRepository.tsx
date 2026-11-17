@@ -8,15 +8,16 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, CalendarClock, FileSignature, FileStack, History, Plus, SlidersHorizontal, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, CalendarClock, FileSignature, FileStack, History, Plus, UsersRound, X } from 'lucide-react';
 import type { DocumentAutoTag, DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { getReceivedLetters } from '../services/lettersApi';
 import { APP_ROUTES, routeForDocument, routeForFileLetter } from '../constants/routes';
-import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams, moreFilterCount } from '../utils/documentFilters';
+import { EMPTY_DOCUMENT_FILTERS, filtersFromParams, filtersToParams } from '../utils/documentFilters';
 import { shortDocumentDate, studentsLine, uploadedLine } from '../utils/documentDisplay';
 import { MAX_ZIP_FILES, toggleSelection } from '../utils/documentPreview';
 import { titleCase } from '../utils/programmeLabel';
+import { displaySemester } from '../utils/registrySemesters';
 import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
 import { DateField } from './DateFields';
 import { PortalSelect } from './PortalSelect';
@@ -25,7 +26,8 @@ import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { AutoTagChips, DownloadIconButton, KindBadge } from './DocumentParts';
 import { SubmissionsBoard } from './SubmissionsBoard';
 import { ReceivedAppointmentLetters } from './ReceivedAppointmentLetters';
-import { WORKSPACE_PAGE_SIZE, WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
+import { ListFiltersButton, ListSearch, ListToolbar, ListToolbarRow } from './ListToolbar';
+import { WORKSPACE_PAGE_SIZE, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -53,7 +55,7 @@ export const FileRepository: React.FC = () => {
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(filters.q);
-  const [moreOpen, setMoreOpen] = useState(moreFilterCount(filters) > 0);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(WORKSPACE_PAGE_SIZE);
   const [downloading, setDownloading] = useState<number | null>(null);
@@ -191,7 +193,7 @@ export const FileRepository: React.FC = () => {
   const applied: Array<{ key: keyof DocumentFilters; label: string }> = [
     ...chip('group', groupLabel(filters.group)),
     ...chip('programme', titleCase(filters.programme)),
-    ...chip('intake', `Intake ${filters.intake}`),
+    ...chip('intake', `Intake ${displaySemester(filters.intake)}`),
     ...chip('semester', semesterLabel(filters.semester)),
     ...chip('sender', filters.sender ? `From ${SENDER_LABELS[filters.sender]}` : ''),
     ...chip('type', typeLabel(filters.type)),
@@ -212,8 +214,7 @@ export const FileRepository: React.FC = () => {
   const pageCount = Math.max(1, Math.ceil(count / pageSize));
 
   const columns = filters.student ? ['File', 'Uploaded', 'Action'] : ['File', 'Student', 'Uploaded', 'Action'];
-  const widths = filters.student ? [60, 24, 16] : [42, 24, 18, 16];
-  const heading = filters.view === 'staff' ? 'Staff files' : filters.student ? 'Their files' : 'All files';
+  const widths = filters.student ? [60, 24, 16] : [46, 22, 16, 16];
 
   return (
     <div className="space-y-6">
@@ -285,70 +286,58 @@ export const FileRepository: React.FC = () => {
       ) : filters.view === 'letters' && !filters.student ? (
         lecturerView ? <ReceivedAppointmentLetters /> : null
       ) : (
-        <section aria-label="Files" className="app-card appointment-workspace-card">
-          <WorkspaceSectionHeader
-            title={heading}
-            actions={selecting ? (
-              <>
-                <span className="text-[13px] font-bold text-slate-700">{selected.length} selected</span>
-                <PortalButton size="sm" variant="primary" disabled={!selected.length} isLoading={zipping} onClick={() => void downloadZip()}>Download as ZIP</PortalButton>
-                <PortalButton size="sm" onClick={stopSelecting}>Cancel</PortalButton>
-              </>
-            ) : rows.length > 0 ? (
-              <PortalButton size="sm" onClick={() => setSelecting(true)}>Select files</PortalButton>
-            ) : undefined}
-          />
-          <WorkspaceFilterCard
-            fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-5"
-            onReset={clearFilters}
-            actions={
-              <PortalButton size="sm" icon={SlidersHorizontal} aria-expanded={moreOpen} onClick={() => setMoreOpen(open => !open)}>
-                {moreOpen ? 'Fewer filters' : `More filters${moreFilterCount(filters) ? ` (${moreFilterCount(filters)})` : ''}`}
-              </PortalButton>
-            }
-          >
-            <label className="form-label sm:col-span-2">
-              Find a file
-              <input
-                type="search"
-                className="form-control form-control-sm mt-1"
+        <section aria-label="Files" className="app-card readable-list space-y-4 p-4 sm:p-5">
+          <ListToolbar>
+            <ListToolbarRow>
+              <ListSearch
+                label="Search files"
+                placeholder={filters.student ? 'Search this student’s files' : 'Search student, matric number, file name or programme'}
                 value={search}
-                onChange={event => setSearch(event.target.value)}
-                placeholder={filters.student ? 'Search this student’s files' : 'Student, matric number, file name or programme'}
+                onChange={setSearch}
               />
-            </label>
-            <label className="form-label">
-              Category
-              <PortalSelect className="form-control form-control-sm mt-1" value={filters.group} onChange={event => update({ group: event.target.value })}>
-                <option value="">All categories</option>
-                {(options?.groups ?? []).map(group => <option key={group.value} value={group.value}>{group.label}</option>)}
-              </PortalSelect>
-            </label>
-            {!filters.student && (
-              <label className="form-label">
-                Programme
-                <PortalSelect className="form-control form-control-sm mt-1" value={filters.programme} onChange={event => update({ programme: event.target.value })}>
-                  <option value="">All programmes</option>
-                  {(options?.programmes ?? []).map(programme => <option key={programme} value={programme}>{titleCase(programme)}</option>)}
-                </PortalSelect>
-              </label>
-            )}
-            <label className="form-label">
-              Semester
-              <PortalSelect className="form-control form-control-sm mt-1" value={filters.semester} onChange={event => update({ semester: event.target.value })}>
-                <option value="">All semesters</option>
-                {(options?.semesters ?? []).map(semester => <option key={semester.id} value={String(semester.id)}>{semester.label}</option>)}
-                <option value="none">Not linked to a semester</option>
-              </PortalSelect>
-            </label>
+              <ListFiltersButton open={moreOpen} active={applied.length} onToggle={() => setMoreOpen(open => !open)} />
+              {selecting ? (
+                <>
+                  <span className="text-[13px] font-bold text-slate-700">{selected.length} selected</span>
+                  <PortalButton variant="primary" disabled={!selected.length} isLoading={zipping} onClick={() => void downloadZip()}>Download as ZIP</PortalButton>
+                  <PortalButton onClick={stopSelecting}>Cancel</PortalButton>
+                </>
+              ) : rows.length > 0 ? (
+                <PortalButton onClick={() => setSelecting(true)}>Select files</PortalButton>
+              ) : null}
+            </ListToolbarRow>
             {moreOpen && (
-              <>
+              <div className="grid grid-cols-1 items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="form-label">
+                  Category
+                  <PortalSelect className="form-control form-control-sm mt-1" value={filters.group} onChange={event => update({ group: event.target.value })}>
+                    <option value="">All categories</option>
+                    {(options?.groups ?? []).map(group => <option key={group.value} value={group.value}>{group.label}</option>)}
+                  </PortalSelect>
+                </label>
+                {!filters.student && (
+                  <label className="form-label">
+                    Programme
+                    <PortalSelect className="form-control form-control-sm mt-1" value={filters.programme} onChange={event => update({ programme: event.target.value })}>
+                      <option value="">All programmes</option>
+                      {(options?.programmes ?? []).map(programme => <option key={programme} value={programme}>{titleCase(programme)}</option>)}
+                    </PortalSelect>
+                  </label>
+                )}
+                <label className="form-label">
+                  Semester
+                  <PortalSelect className="form-control form-control-sm mt-1" value={filters.semester} onChange={event => update({ semester: event.target.value })}>
+                    <option value="">All semesters</option>
+                    {(options?.semesters ?? []).map(semester => <option key={semester.id} value={String(semester.id)}>{semester.label}</option>)}
+                    <option value="none">Not linked to a semester</option>
+                  </PortalSelect>
+                </label>
                 {!filters.student && (
                   <label className="form-label">
                     Intake
                     <PortalSelect className="form-control form-control-sm mt-1" value={filters.intake} onChange={event => update({ intake: event.target.value })}>
                       <option value="">All intakes</option>
-                      {(options?.intakes ?? []).map(intake => <option key={intake} value={intake}>{intake}</option>)}
+                      {(options?.intakes ?? []).map(intake => <option key={intake} value={intake}>{displaySemester(intake)}</option>)}
                     </PortalSelect>
                   </label>
                 )}
@@ -397,12 +386,17 @@ export const FileRepository: React.FC = () => {
                     </PortalSelect>
                   </label>
                 )}
-              </>
+              </div>
             )}
-          </WorkspaceFilterCard>
+          </ListToolbar>
 
           {applied.length > 0 && (
             <ul aria-label="Filters in use" className="flex flex-wrap items-center gap-2">
+              <li>
+                <button type="button" onClick={clearFilters} className="cursor-pointer rounded-full px-2 py-1 text-[12px] font-bold text-slate-600 underline decoration-slate-300 underline-offset-4 hover:text-brand-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">
+                  Clear filters
+                </button>
+              </li>
               {applied.map(item => (
                 <li key={item.key}>
                   <button
@@ -426,7 +420,7 @@ export const FileRepository: React.FC = () => {
           ) : !rows.length ? (
             <EmptyState
               title={applied.length || filters.q ? 'No files match these filters.' : 'No files yet.'}
-              description={applied.length || filters.q ? 'Remove a filter above, or clear them all.' : 'Files you upload, or that are shared with you, appear here.'}
+              description={applied.length || filters.q ? '' : 'Files you upload, or that are shared with you, appear here.'}
             />
           ) : (
             <>
@@ -458,7 +452,7 @@ export const FileRepository: React.FC = () => {
                             <div className="min-w-0 flex-1 space-y-1.5">
                               <div>
                                 <Link to={routeForDocument(document.id)} state={{ from }} className="block truncate text-[14px] font-bold text-brand-navy hover:underline">{document.title}</Link>
-                                <p className="truncate text-[12px] font-normal text-slate-500">{document.type.label}</p>
+                                {document.type.label !== document.title && <p className="truncate text-[12px] font-normal text-slate-500">{document.type.label}</p>}
                               </div>
                               {document.archived && <ArchivedBadge />}
                               <AutoTagChips tags={document.autoTags.filter(tag => ROW_TAGS.includes(tag.kind))} onPick={tag => update(tag.filter)} />

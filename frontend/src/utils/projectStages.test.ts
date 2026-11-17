@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { StageRow } from '../services/registrySemestersApi';
 import { APP_ROUTES, routeForNotificationTarget } from '../constants/routes';
-import { answerText, changeSummary, confirmText, correctionLine, firstChip, marksLine, questionText, rowNote, rowsFor, STAGE_LABEL, stageChips, stageChoices, touchesMarks } from './projectStages';
+import { changeSummary, confirmText, correctionLine, firstChip, marksLine, questionText, rowNote, rowsFor, STAGE_LABEL, stageCard, stageChips, stageChoices, touchesMarks } from './projectStages';
 import { validCourseCode } from './registrySemesters';
 import { correctionLabel } from '../context/stageCorrections';
 
@@ -61,9 +61,9 @@ assert.equal(rowNote(asked), 'Correction requested: "Clicked the wrong one"');
 assert.equal(rowNote(row({ correctionRequested: true, noSupervisor: true })), 'Correction requested');
 assert.deepEqual(stageChoices([asked]).map(choice => choice.value), ['P1', 'P2', 'NONE', 'KEEP']);
 assert.deepEqual(stageChoices([asked, row({})]).map(choice => choice.value), ['P1', 'P2', 'NONE']);
-assert.equal(correctionLine(null), 'Only your programme coordinator can change this.');
-assert.equal(correctionLine('REQUESTED'), 'Correction requested. Your programme coordinator will review it.');
-assert.equal(correctionLine('KEPT'), 'Your programme coordinator reviewed this and kept your answer.');
+assert.equal(correctionLine(null), 'Only your programme coordinator can change this record.');
+assert.equal(correctionLine('REQUESTED'), 'Your programme coordinator will review your correction request.');
+assert.equal(correctionLine('KEPT'), 'Your programme coordinator reviewed your request and kept this record.');
 assert.equal(
   routeForNotificationTarget({ targetModule: 'REGISTRY', recordType: 'PROJECT_STAGE', recordId: 'M1' }),
   APP_ROUTES.registryProjectStages,
@@ -75,9 +75,34 @@ assert.equal(
   'Have you registered for WQD7025 Data Science Research Project in MAYA for Semester I 2026/2027?',
 );
 assert.equal(questionText('', '', ''), 'Have you registered for your Research Project course in MAYA for this semester?');
-assert.equal(answerText('YES', 'WQE7023', 'Research Project'), 'Registered: WQE7023 Research Project');
-assert.equal(answerText('YES', '', ''), 'Registered for the Research Project');
-assert.equal(answerText('NO', 'WQE7023', ''), 'Not registered for the Research Project this semester');
+const unanswered = { semester: 'Semester I 2026/2027', code: 'WQE7023', name: 'Research Project', answer: null, canChange: true, correction: null } as const;
+assert.deepEqual(stageCard(unanswered), {
+  asking: true,
+  value: 'Not confirmed',
+  badge: 'Action required',
+  badgeTone: 'warning',
+  detail: 'Have you registered for WQE7023 Research Project in MAYA for Semester I 2026/2027?',
+  note: '',
+});
+assert.deepEqual(stageCard({ ...unanswered, answer: 'YES', canChange: false }), {
+  asking: false,
+  value: 'Registered',
+  badge: 'Semester I 2026/2027',
+  badgeTone: 'success',
+  detail: 'WQE7023 Research Project',
+  note: 'Only your programme coordinator can change this record.',
+});
+assert.deepEqual(stageCard({ ...unanswered, answer: 'NO', canChange: false, correction: 'REQUESTED' }), {
+  asking: false,
+  value: 'Not registered',
+  badge: 'Correction requested',
+  badgeTone: 'warning',
+  detail: 'WQE7023 Research Project',
+  note: 'Your programme coordinator will review your correction request.',
+});
+assert.equal(stageCard({ ...unanswered, code: '', name: '', semester: '', answer: 'YES', canChange: false }).detail, 'Research Project');
+assert.equal(stageCard({ ...unanswered, semester: '', answer: 'NO', canChange: false }).badge, 'this semester');
+assert.equal(stageCard({ ...unanswered, canChange: false }).value, 'Not registered');
 assert.equal(confirmText('YES', 'WQD7025', ''), 'You have registered for WQD7025 in MAYA.');
 assert.equal(confirmText('NO', 'WQD7025', ''), 'You have not registered for the Research Project this semester.');
 
@@ -94,7 +119,9 @@ const page = readFileSync(resolve('src/components/ProjectStages.tsx'), 'utf8');
 assert.match(app, /currentUser\.role === 'Office Staff\/Admin' \|\| currentUser\.role === 'Programme Coordinator' \? <ProjectStages \/>/);
 assert.match(app, /showProjectStages=\{currentUser\.role === 'Programme Coordinator'\}/);
 assert.match(registry, /\{showProjectStages && \(\s*<PortalButton onClick=\{\(\) => navigate\(APP_ROUTES\.registryProjectStages\)\}/);
-assert.match(dashboard, /<ProjectStageQuestion \/>/);
+assert.match(dashboard, /const \[stage, setStage\] = useProjectStageQuestion\(\);/);
+assert.ok(dashboard.indexOf('{stageAsking && stageCardNode}') < dashboard.indexOf('<DashboardTimeline'), 'an unanswered question sits above the timeline');
+assert.ok(dashboard.indexOf('{!stageAsking && stageCardNode}') > dashboard.indexOf('<DashboardTimeline'), 'a confirmed record sits with the appointment cards');
 assert.match(api, /\/project-stages\/change\//);
 assert.match(api, /\/project-stages\/mine\//);
 assert.ok(!api.includes('confirmProjectStages'), 'the old confirm call is still there');

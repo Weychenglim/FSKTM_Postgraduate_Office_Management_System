@@ -4,11 +4,11 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Upload } from 'lucide-react';
+import { AlertTriangle, Upload } from 'lucide-react';
 import type { DocumentDetail, DocumentSharingOptions, StaffAudience } from '../types';
 import { addDocumentVersion, archiveDocument, getDocumentSharing, updateDocument, updateDocumentSharing } from '../services/filesApi';
 import { ApiError, fieldErrors } from '../services/apiClient';
-import { formatFileSize } from '../utils/documentDisplay';
+import { archiveWarnings, formatFileSize } from '../utils/documentDisplay';
 import { acceptAttribute, kindForName } from '../utils/documentUpload';
 import { STAFF_AUDIENCES } from '../utils/documentSharing';
 import { PortalButton } from './PortalPrimitives';
@@ -267,6 +267,7 @@ export const ArchiveDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
   const [reason, setReason] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const warnings = archiveWarnings(document.submissions);
 
   useEffect(() => {
     if (isOpen) {
@@ -303,6 +304,14 @@ export const ArchiveDialog: React.FC<DialogProps> = ({ document, isOpen, onClose
         <PortalButton variant="danger" isLoading={busy} disabled={!reason.trim()} onClick={() => void send()}>Archive</PortalButton>
       </>}
     >
+      {warnings.length > 0 && (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4.5 w-4.5 shrink-0" aria-hidden="true" />
+          <div className="space-y-1 text-[13px] font-semibold">
+            {warnings.map(line => <p key={line}>{line}</p>)}
+          </div>
+        </div>
+      )}
       <p className="text-[13px] text-slate-600">Only the PG office and the programme coordinator will see it. You can restore it.</p>
       <label className="block space-y-1.5">
         <span className="sr-only">Reason</span>

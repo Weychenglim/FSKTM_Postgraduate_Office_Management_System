@@ -9,11 +9,11 @@
 // reason. Approval issues the reference number; either way the student is told.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronRight, Clock, Download, Eye, MessageSquareText, Printer, Send, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, Eye, FileText, MessageSquareText, Printer, Send, XCircle } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
-import { AppointmentIcon } from './AppointmentPrimitives';
-import { PortalSelect } from './PortalSelect';
-import { WORKSPACE_PAGE_SIZE, WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader, workspacePageSize } from './RequestWorkspacePrimitives';
+import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { ListChips, ListSearch, ListToolbar, ListToolbarRow, type ListChipOption } from './ListToolbar';
+import { WORKSPACE_PAGE_SIZE, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
 import { RecordPage } from './RecordPage';
 import { LoadingState, ErrorState } from './StateViews';
 import { LetterPages } from './LetterPages';
@@ -33,7 +33,8 @@ import { RECIPIENT_PURPOSE_LABELS, chosenDetailLabels, recipientAddressLines } f
 
 type QueueFilter = GeneratedLetterStatus | 'All';
 
-const QUEUE_FILTERS: readonly QueueFilter[] = ['Pending', 'Issued', 'Rejected', 'Withdrawn', 'All'];
+const QUEUE_FILTERS: readonly QueueFilter[] = ['Pending', 'Issued', 'Rejected', 'Withdrawn', 'Revoked', 'All'];
+const ALWAYS_SHOWN: readonly QueueFilter[] = ['Pending', 'Issued', 'Rejected', 'All'];
 const FILTER_LABEL: Record<QueueFilter, string> = {
   Pending: 'Pending',
   Issued: 'Approved',
@@ -89,12 +90,6 @@ export const OfficeLetterRequests: React.FC<OfficeLetterRequestsProps> = ({
 };
 
 // ---------------- The queue ----------------
-
-const SUMMARY: ReadonlyArray<{ status: GeneratedLetterStatus; title: string; description: string; icon: typeof Clock; tone: 'warning' | 'success' | 'danger' }> = [
-  { status: 'Pending', title: 'Waiting for a decision', description: 'To check and decide.', icon: Clock, tone: 'warning' },
-  { status: 'Issued', title: 'Approved', description: 'Ready for the student.', icon: CheckCircle2, tone: 'success' },
-  { status: 'Rejected', title: 'Not approved', description: 'Turned down.', icon: XCircle, tone: 'danger' },
-];
 
 const LetterRequestQueue: React.FC<{
   counts: LetterRequestCounts | null;
@@ -156,67 +151,42 @@ const LetterRequestQueue: React.FC<{
     setPage(1);
   };
   const columns = ['Student', 'Letter', 'For', 'Requested', 'Status', 'Action'];
+  const chips: ListChipOption<QueueFilter>[] = QUEUE_FILTERS
+    .filter((option) => ALWAYS_SHOWN.includes(option) || option === filter || (counts?.[option as GeneratedLetterStatus] ?? 0) > 0)
+    .map((option) => ({ value: option, label: FILTER_LABEL[option], count: option === 'All' ? total : counts?.[option] ?? null }));
+  const letterOptions: SelectMenuOption<string>[] = [
+    { value: '', label: 'All letters', triggerLabel: 'All' },
+    ...templates.map((template) => ({ value: template.id, label: template.name })),
+  ];
 
   return (
-    <div id="letter-requests-queue" className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-3">
-        {SUMMARY.map((card) => {
-          const selected = filter === card.status;
-          return (
-            <button
-              key={card.status}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => choose(selected ? 'All' : card.status)}
-              className={`group space-y-3 rounded-2xl border bg-white p-5 text-left shadow-sm transition cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${selected ? 'border-brand-navy bg-slate-50/70' : 'border-slate-200 hover:border-slate-300'}`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <AppointmentIcon icon={card.icon} tone={card.tone === 'warning' ? 'warning' : card.tone === 'success' ? 'success' : 'danger'} />
-                <ChevronRight aria-hidden="true" className="h-4 w-4 text-slate-400 group-hover:text-slate-600" />
-              </div>
-              <h2 className="card-value text-slate-800">{card.title}</h2>
-              <p className="flex items-baseline gap-1.5"><span className="card-metric">{counts ? counts[card.status] : '-'}</span><span className="card-caption">requests</span></p>
-              <p className="card-description">{card.description}</p>
-            </button>
-          );
-        })}
-      </div>
-
-      <section aria-label="Letter requests" className="app-card appointment-workspace-card">
-        <WorkspaceSectionHeader
-          title={filter === 'All' ? 'All requests' : filter === 'Pending' ? 'Waiting for a decision' : `${FILTER_LABEL[filter]} requests`}
-          description={filter === 'Pending' ? 'Newest first. Open one to check it and approve or reject it.' : 'Open one to see the letter or the reason given.'}
-        />
-        <WorkspaceFilterCard
-          fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4"
-          onReset={() => {
-            setSearch('');
-            setLetter('');
-            choose('Pending');
-          }}
-        >
-          <label className="form-label xl:col-span-2">
-            Find a request
-            <input type="search" className="form-control form-control-sm mt-1" value={search} placeholder="Student name, matric number, letter or reference" onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
-          </label>
-          <label className="form-label">
-            Letter
-            <PortalSelect className="form-control form-control-sm mt-1" value={letter} onChange={(event) => { setLetter(event.target.value); setPage(1); }}>
-              <option value="">All letters</option>
-              {templates.map((template) => (
-                <option key={template.id} value={template.id}>{template.name}</option>
-              ))}
-            </PortalSelect>
-          </label>
-          <label className="form-label">
-            Status
-            <PortalSelect className="form-control form-control-sm mt-1" value={filter} onChange={(event) => choose(event.target.value as QueueFilter)}>
-              {QUEUE_FILTERS.map((option) => (
-                <option key={option} value={option}>{option === 'All' ? `All statuses${total !== null ? ` (${total})` : ''}` : `${FILTER_LABEL[option]}${counts ? ` (${counts[option]})` : ''}`}</option>
-              ))}
-            </PortalSelect>
-          </label>
-        </WorkspaceFilterCard>
+    <div id="letter-requests-queue">
+      <section aria-label="Letter requests" className="app-card readable-list space-y-4 p-4 sm:p-5">
+        <ListToolbar>
+          <ListChips label="Show requests by status" options={chips} value={filter} onChange={choose} />
+          <ListToolbarRow>
+            <ListSearch
+              label="Search requests"
+              placeholder="Search student, matric number, letter or reference"
+              value={search}
+              onChange={(value) => {
+                setSearch(value);
+                setPage(1);
+              }}
+            />
+            <SelectMenu<string>
+              variant="filter"
+              prefix="Letter"
+              aria-label="Filter by letter"
+              value={letter}
+              options={letterOptions}
+              onChange={(value) => {
+                setLetter(value);
+                setPage(1);
+              }}
+            />
+          </ListToolbarRow>
+        </ListToolbar>
 
         {loading && rows.length === 0 ? (
           <LoadingState message="Loading letter requests…" />
@@ -224,7 +194,7 @@ const LetterRequestQueue: React.FC<{
           <ErrorState message={error} onRetry={load} />
         ) : shown.length === 0 ? (
           <p className="rounded-xl bg-slate-50 px-4 py-6 card-description">
-            {search || letter ? 'No requests match these filters.' : filter === 'Pending' ? 'No requests are waiting. New requests from students appear here.' : 'Nothing here yet.'}
+            {search || letter ? 'No requests match this search.' : filter === 'Pending' ? 'No requests are waiting.' : 'No requests with this status.'}
           </p>
         ) : (
           <>
@@ -500,6 +470,8 @@ const LetterRequestReview: React.FC<{
               downloading={output.isBusy(request, 'pdf')}
               onPrint={() => void output.printLetter(request)}
               onDownload={() => void output.downloadPdf(request)}
+              downloadingWord={output.isBusy(request, 'word')}
+              onDownloadWord={() => void output.downloadWord(request)}
             />
           </div>
 
@@ -727,7 +699,9 @@ const DecisionSummary: React.FC<{
   downloading: boolean;
   onPrint: () => void;
   onDownload: () => void;
-}> = ({ request, printing, downloading, onPrint, onDownload }) => {
+  downloadingWord: boolean;
+  onDownloadWord: () => void;
+}> = ({ request, printing, downloading, onPrint, onDownload, downloadingWord, onDownloadWord }) => {
   const automatic = isAppointmentLetter(request.purpose);
   const verb = automatic && OUTCOME_VERB[request.status] === 'Approved' ? 'Issued' : OUTCOME_VERB[request.status] ?? request.status;
   const decidedOn = request.status === 'Withdrawn' ? request.withdrawnAt : request.decidedAt;
@@ -775,6 +749,7 @@ const DecisionSummary: React.FC<{
         <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
           <PortalButton variant="secondary" size="sm" icon={Printer} isLoading={printing} onClick={onPrint}>Print</PortalButton>
           <PortalButton variant="secondary" size="sm" icon={Download} isLoading={downloading} onClick={onDownload}>Download PDF</PortalButton>
+          <PortalButton variant="secondary" size="sm" icon={FileText} isLoading={downloadingWord} onClick={onDownloadWord}>Download Word</PortalButton>
         </div>
       )}
     </section>

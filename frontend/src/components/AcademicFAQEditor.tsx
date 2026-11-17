@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
-import { AlertTriangle, BarChart3, BookOpen, CheckCircle2, Download, FileText, FlaskConical, MessageCircleQuestion, Plus, Search, Settings2, Sparkles } from 'lucide-react';
+import { BookOpen, Download, FileText, FlaskConical, MessageCircleQuestion, Plus, Settings2, Sparkles } from 'lucide-react';
 import type {
   FaqCategorySummary,
   FaqChatbotSettings,
@@ -32,15 +32,15 @@ import {
 import { APP_ROUTES, routeForFaqEntry } from '../constants/routes';
 import { entryHint, groupLine, percent } from '../utils/faqOffice';
 import { historyTime, shortDocumentDate } from '../utils/documentDisplay';
-import { PageHeader, PortalButton, PortalToast, SegmentedControl } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { useListState } from './ListState';
 import { OfficeToolViews } from './OfficeToolPrimitives';
 import { AppointmentSection } from './AppointmentPrimitives';
 import { ToggleSwitch } from './ToggleSwitch';
-import { WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader } from './RequestWorkspacePrimitives';
-import { SummaryCardButton } from './SummaryCardButton';
+import { ListChips, ListSearch, ListToolbar, ListToolbarRow } from './ListToolbar';
+import { WorkspacePagination, WorkspaceSectionHeader } from './RequestWorkspacePrimitives';
 import { ContactBox } from './FaqChatParts';
 import { FaqText } from './FaqText';
 import { FaqEntryPage } from './FaqEntryPage';
@@ -56,21 +56,17 @@ const TAB_ROUTES: Record<Tab, string> = {
 };
 const VIEWS: readonly FaqStatus[] = ['PUBLISHED', 'NEEDS_CHECKING', 'DRAFT', 'ARCHIVED'];
 const VIEW_LABEL: Record<FaqStatus, string> = { PUBLISHED: 'Live', NEEDS_CHECKING: 'To check', DRAFT: 'Drafts', ARCHIVED: 'Archived' };
-const VIEW_HEADING: Record<FaqStatus, { title: string; description: string; empty: string }> = {
-  PUBLISHED: { title: 'Live answers', description: 'What students get now.', empty: 'No live answers yet.' },
-  NEEDS_CHECKING: {
-    title: 'Imported answers to check',
-    description: "Students can't see them until published.",
-    empty: 'Nothing left to check.',
-  },
-  DRAFT: { title: 'Drafts', description: "Students can't see them until published.", empty: 'No drafts.' },
-  ARCHIVED: { title: 'Archived', description: "Students can't see them.", empty: 'Nothing archived.' },
+const VIEW_HEADING: Record<FaqStatus, { title: string; empty: string }> = {
+  PUBLISHED: { title: 'Live answers', empty: 'No live answers yet.' },
+  NEEDS_CHECKING: { title: 'Imported answers to check', empty: 'Nothing left to check.' },
+  DRAFT: { title: 'Drafts', empty: 'No drafts.' },
+  ARCHIVED: { title: 'Archived', empty: 'Nothing archived.' },
 };
 const PAGE_SIZE = 25;
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
-const AnswersTab: React.FC<{ view: FaqStatus; onView: (view: FaqStatus) => void; counts: Record<FaqStatus, number> | null }> = ({ view, onView, counts }) => {
+const AnswersTab: React.FC<{ view: FaqStatus; onView: (view: FaqStatus) => void; counts: Record<FaqStatus, number> | null; stats: FaqQuestionStats | null }> = ({ view, onView, counts, stats }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [search, setSearch] = useListState('FaqEntries', 'search', '');
@@ -112,7 +108,7 @@ const AnswersTab: React.FC<{ view: FaqStatus; onView: (view: FaqStatus) => void;
   const pageCount = data ? Math.max(1, Math.ceil(data.count / data.pageSize)) : 1;
   const filtered = Boolean(search.trim() || category);
   const heading = VIEW_HEADING[view];
-  const categoryOptions: SelectMenuOption<string>[] = [{ value: '', label: 'All topics' }, ...categories.map(item => ({ value: item.id, label: item.name }))];
+  const categoryOptions: SelectMenuOption<string>[] = [{ value: '', label: 'All topics', triggerLabel: 'All' }, ...categories.map(item => ({ value: item.id, label: item.name }))];
 
   const download = async () => {
     try {
@@ -131,69 +127,55 @@ const AnswersTab: React.FC<{ view: FaqStatus; onView: (view: FaqStatus) => void;
         : String(entry.askedThisMonth);
 
   return (
-    <section aria-label="Answers" className="app-card appointment-workspace-card">
-      <SegmentedControl<FaqStatus>
-        className="w-fit flex-wrap"
-        options={VIEWS}
-        value={view}
-        onChange={value => {
-          onView(value);
-          setPage(1);
-        }}
-        labels={Object.fromEntries(VIEWS.map(value => [value, counts ? `${VIEW_LABEL[value]} ${counts[value]}` : VIEW_LABEL[value]]))}
-      />
-      <WorkspaceSectionHeader
-        title={heading.title}
-        description={heading.description}
-        actions={view === 'NEEDS_CHECKING' && rows.length > 0 ? <PortalButton size="sm" icon={Download} onClick={() => void download()}>Download the review list</PortalButton> : undefined}
-      />
-      <WorkspaceFilterCard
-        fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-3"
-        onReset={() => {
-          setSearch('');
-          setCategory('');
-          setPage(1);
-        }}
-      >
-        <label className="form-label sm:col-span-2">
-          Find an answer
-          <span className="relative mt-1 block">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400"><Search className="h-3.5 w-3.5" aria-hidden="true" /></span>
-            <input
-              type="search"
-              value={search}
-              onChange={event => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              placeholder="Question, answer or another way of asking"
-              className="form-control form-control-sm pl-9"
-            />
-          </span>
-        </label>
-        <div className="form-label">
-          Topic
-          <div className="mt-1">
-            <SelectMenu<string>
-              size="sm"
-              aria-label="Topic"
-              value={category}
-              options={categoryOptions}
-              onChange={value => {
-                setCategory(value);
-                setPage(1);
-              }}
-            />
-          </div>
+    <section aria-label="Answers" className="app-card readable-list space-y-4 p-4 sm:p-5">
+      <ListToolbar>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <ListChips<FaqStatus>
+            label="Show answers by status"
+            options={VIEWS.map(value => ({ value, label: VIEW_LABEL[value], count: counts ? counts[value] : null }))}
+            value={view}
+            onChange={value => {
+              onView(value);
+              setPage(1);
+            }}
+          />
+          {stats && (
+            <p className="text-[13px] text-slate-600">
+              This month: {stats.thisMonth} question{stats.thisMonth === 1 ? '' : 's'}, {percent(stats.answeredPercent)} answered, {percent(stats.helpfulPercent)} marked helpful
+            </p>
+          )}
         </div>
-      </WorkspaceFilterCard>
+        <ListToolbarRow>
+          <ListSearch
+            label="Search answers"
+            placeholder="Search question, answer or another way of asking"
+            value={search}
+            onChange={value => {
+              setSearch(value);
+              setPage(1);
+            }}
+          />
+          <SelectMenu<string>
+            variant="filter"
+            prefix="Topic"
+            aria-label="Filter by topic"
+            value={category}
+            options={categoryOptions}
+            onChange={value => {
+              setCategory(value);
+              setPage(1);
+            }}
+          />
+          {view === 'NEEDS_CHECKING' && rows.length > 0 && <PortalButton icon={Download} onClick={() => void download()}>Download the review list</PortalButton>}
+        </ListToolbarRow>
+      </ListToolbar>
 
       {loading && !data ? (
         <LoadingState message="Loading answers..." />
       ) : error ? (
         <ErrorState message={error} onRetry={load} />
       ) : rows.length === 0 ? (
-        <EmptyState title={filtered ? 'No answers match.' : heading.empty} description={filtered ? 'Change the search or the topic above.' : 'Use Add FAQ to write a new question and answer.'} />
+        <EmptyState title={filtered ? 'No answers match this search.' : heading.empty} />
       ) : (
         <>
           <table aria-label={heading.title} className="data-table block table-fixed lg:table">
@@ -555,10 +537,6 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new' | 'test'
   if (view === 'entry' || view === 'new') return <FaqEntryPage key={entryId ?? 'new'} entryId={view === 'new' ? null : entryId ?? null} />;
   if (view === 'test') return <FaqTestChat />;
 
-  const showAnswers = (next: FaqStatus) => {
-    setAnswerView(next);
-    if (view !== 'entries') navigate(APP_ROUTES.faq);
-  };
   const waiting = stats?.waiting ?? 0;
 
   return (
@@ -579,46 +557,6 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new' | 'test'
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCardButton
-          title="Live answers"
-          value={counts?.PUBLISHED ?? '-'}
-          caption="answers"
-          description="Shown to students now."
-          icon={CheckCircle2}
-          tone="success"
-          selected={view === 'entries' && answerView === 'PUBLISHED'}
-          onClick={() => showAnswers('PUBLISHED')}
-        />
-        <SummaryCardButton
-          title="To check"
-          value={counts?.NEEDS_CHECKING ?? '-'}
-          caption="imported"
-          description="Not shown to students until checked."
-          icon={AlertTriangle}
-          tone="warning"
-          selected={view === 'entries' && answerView === 'NEEDS_CHECKING'}
-          onClick={() => showAnswers('NEEDS_CHECKING')}
-        />
-        <SummaryCardButton
-          title="Student questions"
-          value={stats ? waiting : '-'}
-          caption="waiting"
-          description="Questions the chatbot couldn't answer."
-          icon={MessageCircleQuestion}
-          tone="info"
-          selected={view === 'questions'}
-          onClick={() => navigate(APP_ROUTES.faqQuestions)}
-        />
-        <SummaryCardButton
-          title="Answered this month"
-          value={stats ? percent(stats.answeredPercent) : '-'}
-          description={stats ? `${stats.thisMonth} question${stats.thisMonth === 1 ? '' : 's'} asked · ${percent(stats.helpfulPercent)} marked helpful` : 'Loading...'}
-          icon={BarChart3}
-          tone="neutral"
-        />
-      </div>
-
       <OfficeToolViews<Tab>
         label="FAQ Chatbot views"
         appearance="workspace"
@@ -632,7 +570,7 @@ export const AcademicFAQEditor: React.FC<{ view?: Tab | 'entry' | 'new' | 'test'
         ]}
       />
 
-      {view === 'entries' && <AnswersTab view={answerView} onView={setAnswerView} counts={counts} />}
+      {view === 'entries' && <AnswersTab view={answerView} onView={setAnswerView} counts={counts} stats={stats} />}
       {view === 'questions' && <QuestionsTab onChanged={refresh} />}
       {view === 'documents' && <FaqDocumentsTab />}
       {view === 'settings' && <SettingsTab />}

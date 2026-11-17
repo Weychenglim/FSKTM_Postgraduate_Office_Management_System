@@ -14,6 +14,7 @@ urlpatterns = [
     path("requests/<int:pk>/approve/", views.approve_request, name="letter-request-approve"),
     path("requests/<int:pk>/reject/", views.reject_request, name="letter-request-reject"),
     path("requests/<int:pk>/pdf/", views.letter_pdf, name="letter-request-pdf"),
+    path("requests/<int:pk>/word/", views.letter_word, name="letter-request-word"),
     path(
         "requests/<int:pk>/resend-notification/",
         views.resend_notification,

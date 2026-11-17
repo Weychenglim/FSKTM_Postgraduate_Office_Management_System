@@ -8,6 +8,9 @@ both must keep working while the flag is set).
 from django.urls import reverse
 from rest_framework.exceptions import PermissionDenied
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken
+
+from .session_tokens import sign_in_ended
 
 
 class PasswordChangeRequired(PermissionDenied):
@@ -29,6 +32,8 @@ class TechnicalAccountForbidden(PermissionDenied):
 class PasswordPolicyJWTAuthentication(JWTAuthentication):
     def authenticate(self, request):
         result = super().authenticate(request)
+        if result is not None and sign_in_ended(result[1]):
+            raise InvalidToken({"detail": "Your session has ended. Please sign in again.", "code": "session_ended"})
         if result is not None and result[0].is_technical_admin:
             raise TechnicalAccountForbidden()
         if result is not None and result[0].must_change_password:

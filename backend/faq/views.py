@@ -93,7 +93,7 @@ def _entries(params):
     category = (params.get("category") or "").strip()
     if category:
         entries = entries.filter(category_id=category if category.isdigit() else 0)
-    return entries
+    return entries.order_by("category__position", "position", "pk")
 
 
 @api_view(["GET", "POST"])
@@ -331,7 +331,7 @@ def documents_view(request):
         except FaqRefused as exc:
             return refused(exc)
         return Response(document_dict(document), status=status.HTTP_201_CREATED)
-    documents = FaqDocument.objects.annotate(passage_total=Count("passages"))
+    documents = FaqDocument.objects.annotate(passage_total=Count("passages")).order_by("-uploaded_at", "-pk")
     return Response([document_dict(document, document.passage_total) for document in documents])
 
 

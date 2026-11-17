@@ -14,7 +14,8 @@ import { routeForStudentProgress, sidebarItemForPath } from '../constants/routes
 import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { ActiveSemesterContext } from './ActiveSemesterContext';
 import { StudentAppointmentStatusCards } from './StudentAppointmentStatusCards';
-import { ProjectStageQuestion } from './ProjectStageQuestion';
+import { ProjectStageQuestion, useProjectStageQuestion } from './ProjectStageQuestion';
+import { stageCard } from '../utils/projectStages';
 
 interface StudentDashboardProps {
   studentName: string;
@@ -32,6 +33,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   onNavigateToRoute,
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [stage, setStage] = useProjectStageQuestion();
+  const stageAsking = stage ? stageCard(stage).asking : false;
+  const stageCardNode = stage ? <ProjectStageQuestion question={stage} onChange={setStage} /> : null;
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
@@ -73,13 +77,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       )}
 
-      <ProjectStageQuestion />
+      {stageAsking && stageCardNode}
 
       <DashboardTimeline
         showManageTimeline={false}
         onTimelineUpdate={triggerToast}
         visibleRoles={['STUDENT']}
       />
+
+      {!stageAsking && stageCardNode}
 
       <StudentAppointmentStatusCards onNavigateToTab={onNavigateToTab} />
 

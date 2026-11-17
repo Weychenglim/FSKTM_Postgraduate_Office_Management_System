@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import type { DemoUser, PortalMaintenance } from '../types';
 import { MaintenanceBanner, MaintenanceScreen, SignInMaintenanceNotice } from './MaintenanceNotices';
 import { SettingsView } from './SettingsView';
+import { OFFICE_CONTACT } from '../constants/office';
 
 const inHours = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
 const planned: PortalMaintenance = { status: 'planned', startsAt: inHours(2), expectedEnd: inHours(3), message: 'Moving to a new server.' };
@@ -26,7 +27,7 @@ const signedIn = renderToStaticMarkup(<MaintenanceScreen maintenance={on} onSign
 assert.match(signedIn, /The portal is under maintenance/);
 assert.match(signedIn, /Moving to a new server\./);
 assert.match(signedIn, /Expected back by/);
-assert.match(signedIn, /pg\.fsktm@um\.edu\.my/);
+assert.ok(signedIn.includes(OFFICE_CONTACT.email) && signedIn.includes(OFFICE_CONTACT.phone), 'the maintenance page gives the one office contact');
 assert.match(signedIn, /You stay signed in/);
 assert.match(signedIn, /Sign out/);
 

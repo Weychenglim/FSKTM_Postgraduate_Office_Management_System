@@ -6,7 +6,7 @@
 // What the office edits on a letter type, and the words used for it, shared by
 // the letter type list, the editor's steps and the student form builder.
 
-import type { LetterCustomField, LetterPurpose, LetterQuestion, LetterQuestionKind, LetterTemplate, LetterTemplateStatus } from '../types';
+import type { LetterAudience, LetterCustomField, LetterPurpose, LetterQuestion, LetterQuestionKind, LetterTemplate, LetterTemplateStatus } from '../types';
 import { fieldNameFromLabel, placeholderPurposeHint } from './letterDocument';
 
 export const LETTER_TYPES = ['Academic Certification', 'Visa & Immigration', 'General Notifications', 'Financial Clearance'];
@@ -48,6 +48,18 @@ export const PURPOSE_CHIP: Record<LetterPurpose, string> = {
   SUPERVISOR_APPOINTMENT: 'Sent after supervisor approval',
   PANEL_APPOINTMENT: 'Sent after panel approval',
   CO_SUPERVISOR_APPOINTMENT: 'Sent after supporting supervisor approval',
+};
+
+export const AUDIENCE_OPTIONS: Array<{ value: LetterAudience; label: string }> = [
+  { value: 'CURRENT', label: 'Current students' },
+  { value: 'FINISHED', label: 'Students who have finished their studies' },
+  { value: 'INTERNATIONAL', label: 'International students' },
+];
+
+export const AUDIENCE_NOTE: Record<LetterAudience, string> = {
+  CURRENT: '',
+  FINISHED: 'For students who have finished',
+  INTERNATIONAL: 'For international students',
 };
 
 export const STATUS_HINT: Record<LetterTemplateStatus, string> = {
@@ -118,6 +130,7 @@ export interface EditorValues {
   customFields: LetterCustomField[];
   status: LetterTemplateStatus;
   purpose: LetterPurpose;
+  audience: LetterAudience;
   questions: LetterQuestion[];
   /** Typed as text so the box can be empty; blank means no end date. */
   validMonths: string;
@@ -140,6 +153,7 @@ export const BLANK_TEMPLATE: EditorValues = {
   customFields: [],
   status: 'Draft',
   purpose: 'REQUEST',
+  audience: 'CURRENT',
   questions: [],
   validMonths: '',
   readyInDays: '',
@@ -159,6 +173,7 @@ export const valuesOf = (template: LetterTemplate): EditorValues => ({
   customFields: template.customFields ?? [],
   status: template.status,
   purpose: template.purpose ?? 'REQUEST',
+  audience: template.audience ?? 'CURRENT',
   questions: template.formQuestions ?? [],
   validMonths: template.validMonths ? String(template.validMonths) : '',
   readyInDays: template.readyInDays ? String(template.readyInDays) : '',
@@ -170,13 +185,13 @@ export const valuesOf = (template: LetterTemplate): EditorValues => ({
 
 export const sameValues = (a: EditorValues, b: EditorValues) => JSON.stringify(a) === JSON.stringify(b);
 
-export const QUESTION_KINDS: ReadonlyArray<{ kind: LetterQuestionKind; label: string; description: string }> = [
-  { kind: 'recipient', label: 'Who is the letter for?', description: 'Purpose, then the bank, agency or company, then its address' },
-  { kind: 'extras', label: 'Additional information', description: 'Tick boxes for semesters left and the current semester' },
-  { kind: 'text', label: 'Short text', description: 'A name, a number or a few words' },
-  { kind: 'date', label: 'Date', description: 'A travel or appointment date' },
-  { kind: 'choice', label: 'Choose from a list', description: 'One entry from a list in Lists' },
-  { kind: 'yesno', label: 'Yes or no', description: 'A tick box' },
+export const QUESTION_KINDS: ReadonlyArray<{ kind: LetterQuestionKind; label: string; description: string; readyMade: boolean }> = [
+  { kind: 'recipient', label: 'Who is the letter for?', description: 'Student picks a bank, embassy or company', readyMade: true },
+  { kind: 'extras', label: 'Optional study details', description: 'Student can add semesters left or current semester', readyMade: true },
+  { kind: 'text', label: 'Short answer', description: 'e.g. Passport number', readyMade: false },
+  { kind: 'date', label: 'Date', description: 'e.g. Travel date', readyMade: false },
+  { kind: 'choice', label: 'Choose one option', description: 'e.g. Which campus', readyMade: false },
+  { kind: 'yesno', label: 'Yes or no', description: 'e.g. Travelling with family?', readyMade: false },
 ];
 
 export const questionKindLabel = (kind: LetterQuestionKind) => QUESTION_KINDS.find((item) => item.kind === kind)?.label ?? kind;
@@ -188,7 +203,16 @@ export const isCustomQuestion = (question: LetterQuestion) => !['recipient', 'ex
 export function newQuestion(kind: LetterQuestionKind, label: string, taken: readonly string[]): LetterQuestion {
   if (kind === 'recipient') return { kind, purposes: [], askAddress: true };
   if (kind === 'extras') return { kind };
-  return { kind, name: fieldNameFromLabel(label, taken), label, hint: '', required: kind !== 'yesno' };
+  const question: LetterQuestion = { kind, name: fieldNameFromLabel(label, taken), label, hint: '', required: kind !== 'yesno' };
+  if (kind === 'choice') question.options = ['', ''];
+  return question;
+}
+
+/** Why a "Choose one option" question can't be saved yet, or null. */
+export function choiceProblem(question: LetterQuestion): string | null {
+  if (question.kind !== 'choice' || question.listId) return null;
+  const filled = new Set((question.options ?? []).map((option) => option.trim().toLowerCase()).filter(Boolean));
+  return filled.size < 2 ? `Give "${question.label}" at least two options.` : null;
 }
 
 /** The tag names the letter's own questions use. */

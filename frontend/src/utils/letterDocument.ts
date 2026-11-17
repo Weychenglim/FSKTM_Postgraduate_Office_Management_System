@@ -17,6 +17,7 @@
  * are shared by both, and by the PDF copy on the server.
  */
 
+import { OFFICE_CONTACT_LINE } from '../constants/office';
 import type { GeneratedLetter, LetterPurpose } from '../types';
 
 /** Static faculty letterhead details, shared by the preview and the printout. */
@@ -27,13 +28,13 @@ export const LETTERHEAD = {
   addressLines: [
     'Academic Affairs Office, Level 4',
     '50603 Kuala Lumpur, Malaysia',
-    '+603-7967 6300  |  pg.fsktm@um.edu.my',
+    OFFICE_CONTACT_LINE,
   ],
   malayFaculty: 'Fakulti Sains Komputer & Teknologi Maklumat',
   malayAddressLines: [
     'Pejabat Hal Ehwal Akademik, Aras 4',
     '50603 Kuala Lumpur, Malaysia',
-    '+603-7967 6300  |  pg.fsktm@um.edu.my',
+    OFFICE_CONTACT_LINE,
   ],
   recipient: 'TO WHOM IT MAY CONCERN',
   disclaimer:
@@ -107,6 +108,7 @@ export const LETTER_PLACEHOLDERS: ReadonlyArray<{ tag: string; label: string }> 
   // Visa / immigration + programme fields. Filled from the student's registry
   // record (StudentRegistry) when available, else a blank fill-in line.
   { tag: '{{PASSPORT_NUMBER}}', label: 'Passport No.' },
+  { tag: '{{IC_OR_PASSPORT}}', label: 'IC / Passport No.' },
   { tag: '{{COUNTRY}}', label: 'Country' },
   { tag: '{{PROGRAMME_MODE}}', label: 'Programme Mode' },
   { tag: '{{FIELD_OF_RESEARCH}}', label: 'Field of Research' },

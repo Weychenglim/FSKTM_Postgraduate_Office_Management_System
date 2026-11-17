@@ -18,6 +18,8 @@ export const APP_ROUTES = {
   dashboardLecturerCapacity: '/dashboard/lecturer-capacity',
   dashboardMyAvailability: '/dashboard/my-availability',
   registry: '/registry',
+  registryStudents: '/registry/students',
+  registryRegister: '/registry/register',
   registryStaff: '/registry/staff',
   registryStaffNew: '/registry/staff/new',
   registryProgrammes: '/registry/programmes',
@@ -107,6 +109,9 @@ export const routeForSidebarItem = (item: SidebarItemId | string): string =>
 
 export const routeForFaqEntry = (entryId: string): string =>
   `${APP_ROUTES.faqEntries}/${encodeURIComponent(entryId)}`;
+
+export const routeForStudentRecord = (matric: string): string =>
+  `${APP_ROUTES.registryStudents}/${encodeURIComponent(matric)}`;
 
 export const routeForStaffAccount = (accountId: string): string =>
   `${APP_ROUTES.registryStaff}/${encodeURIComponent(accountId)}`;
@@ -292,6 +297,9 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
     if (target.recordType === 'APPOINTMENT_LETTERS_MISSING') {
       return APP_ROUTES.lettersIssued;
     }
+    if (target.recordType === 'LETTER_REQUESTS') {
+      return APP_ROUTES.lettersRequests;
+    }
     return APP_ROUTES.lettersMine;
   }
 
@@ -304,6 +312,10 @@ export const routeForNotificationTarget = (target: WorkflowNotificationTarget): 
 
   if (target.targetModule === 'REGISTRY') {
     return target.recordType === 'PROJECT_STAGE' ? APP_ROUTES.registryProjectStages : APP_ROUTES.registry;
+  }
+
+  if (target.targetModule === 'FAQ') {
+    return target.recordType === 'FAQ_QUESTIONS' ? APP_ROUTES.faqQuestions : APP_ROUTES.faq;
   }
 
   if (target.targetModule === 'DASHBOARD') {

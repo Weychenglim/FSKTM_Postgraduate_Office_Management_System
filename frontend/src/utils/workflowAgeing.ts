@@ -2,6 +2,7 @@ import {
   APP_ROUTES,
   routeForDashboardTimeline,
   routeForMarkRecord,
+  routeForNotificationTarget,
   routeForPanelRecommendation,
   routeForPanelRecord,
   routeForSupervisorApplication,
@@ -141,6 +142,10 @@ export const resolveDashboardTaskRoute = (task: DashboardTask): string => {
     return task.recordType === 'MARK_RECORD' && task.recordId
       ? routeForMarkRecord(task.recordId)
       : APP_ROUTES.marks;
+  }
+
+  if (task.targetModule === 'LETTERS' || task.targetModule === 'FILES' || task.targetModule === 'REGISTRY' || task.targetModule === 'FAQ') {
+    return routeForNotificationTarget({ targetModule: task.targetModule, recordType: task.recordType ?? undefined });
   }
 
   return task.target || APP_ROUTES.dashboard;

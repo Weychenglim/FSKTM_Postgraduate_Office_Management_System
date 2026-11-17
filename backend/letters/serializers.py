@@ -7,7 +7,7 @@ validates input.
 """
 from rest_framework import serializers
 
-from .models import LetterPurpose, LetterTemplate
+from .models import LetterAudience, LetterPurpose, LetterTemplate
 from .placeholders import clean_custom_fields
 
 
@@ -17,6 +17,7 @@ class LetterTemplateSerializer(serializers.Serializer):
     purpose = serializers.ChoiceField(choices=LetterPurpose.choices, required=False)
     status = serializers.ChoiceField(choices=LetterTemplate.Status.choices, required=False)
     description = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    audience = serializers.ChoiceField(choices=LetterAudience.choices, required=False)
     content = serializers.CharField(required=False, allow_blank=True)
     contentMs = serializers.CharField(required=False, allow_blank=True)
     asksRecipient = serializers.BooleanField(required=False)

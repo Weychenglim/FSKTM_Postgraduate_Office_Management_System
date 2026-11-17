@@ -30,6 +30,7 @@ const GAP = 6;
 const MARGIN = 8;
 const PANEL_WIDTH = 304;
 const PANEL_HEIGHT = 380;
+const WEEK_COLUMNS = { gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' };
 
 type AriaProps = {
   'aria-label'?: string;
@@ -264,12 +265,12 @@ export const DateField: React.FC<DateFieldProps> = ({
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-0.5 pb-1">
+          <div style={WEEK_COLUMNS} className="grid gap-0.5 pb-1">
             {WEEKDAYS.map(day => (
               <span key={day} aria-hidden="true" className="py-1 text-center text-[10.5px] font-bold uppercase tracking-wide text-slate-400">{day}</span>
             ))}
           </div>
-          <div role="group" aria-label={monthTitle(focused)} onKeyDown={onGridKey} className="grid grid-cols-7 gap-0.5">
+          <div role="group" aria-label={monthTitle(focused)} onKeyDown={onGridKey} style={WEEK_COLUMNS} className="grid gap-0.5">
             {monthGrid(focused).map(cell => {
               const selected = cell.iso === chosen;
               const allowed = inRange(cell.iso, min, max);

@@ -3,7 +3,6 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LetterFormFields, answersFor, missingAnswers } from '../components/LetterFormFields';
 import { daysLeft, isCurrentRequest, requestSteps } from '../components/IssuedLetters';
-import { askedFor } from '../components/StudentLetterGeneration';
 import { formSummary } from '../components/LetterTypesList';
 import { APP_ROUTES, isKnownAppPath, sidebarItemForPath } from '../constants/routes';
 import { SIDEBAR_ITEMS } from '../constants/navigation';
@@ -65,7 +64,7 @@ const html = renderToStaticMarkup(
     onAnswer={() => undefined}
   />,
 );
-for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'State', 'Country', 'Additional Information', 'Travel date', 'Which embassy?', 'Travelling with family?', 'Application Date']) {
+for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'State', 'Country', 'Optional study details', 'Travel date', 'Which embassy?', 'Travelling with family?', 'Application Date']) {
   assert.ok(html.includes(label), `the form shows ${label}`);
 }
 assert.ok(html.indexOf('Purpose') < html.indexOf('Travel date') && html.indexOf('Travel date') < html.indexOf('Application Date'), 'rows follow the question order');
@@ -113,10 +112,9 @@ assert.match(wordingProblems({ ...BLANK_TEMPLATE, content: 'Valid until {{VALID_
 
 // how a letter type and its form are described
 const template = { id: '1', name: 'Visa Letter', type: 'Visa', status: 'Active', lastModified: '', modifiedBy: '', description: '', purpose: 'REQUEST', formQuestions: questions } as unknown as LetterTemplate;
-assert.equal(formSummary(template), 'Who it is for, Additional information, 3 questions');
-assert.equal(askedFor(template), 'who it is for, travel date, which embassy and travelling with family');
-assert.equal(formSummary({ ...template, purpose: 'PANEL_APPOINTMENT' }), 'Sent automatically');
-assert.equal(formSummary({ ...template, formQuestions: [] }), 'A note only');
+assert.equal(formSummary(template), 'Who the letter is for, optional study details, 3 more questions');
+assert.equal(formSummary({ ...template, purpose: 'PANEL_APPOINTMENT' }), 'None');
+assert.equal(formSummary({ ...template, formQuestions: [] }), 'None');
 assert.ok(sameValues(valuesOf(template), valuesOf({ ...template })));
 
 // a request's progress, from sending it to the letter being ready
