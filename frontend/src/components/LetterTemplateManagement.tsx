@@ -6,7 +6,6 @@
 // Letter Generation for office staff: Requests (deciding what students asked
 // for), Issued letters (the register), Letter types (their forms, wording and
 // settings) and Lists (who letters can be for, and other lists questions use).
-// Programme coordinators only manage letter types.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { FileCheck2, FileText, Inbox, ListChecks, Plus } from 'lucide-react';
@@ -21,13 +20,6 @@ import type { LetterPlaceholder, LetterRequestCounts, LetterTemplate } from '../
 import { getLetterPlaceholders, getLetterRequestCounts, getLetterTemplates } from '../services';
 
 export type OfficeLetterView = 'requests' | 'issued' | 'templates' | 'lists';
-
-const PAGE_SUBTITLE: Record<OfficeLetterView, string> = {
-  requests: 'Letters students asked for. Check each one, fill in what the portal does not hold, then approve or reject it.',
-  issued: 'Every letter issued, with its reference number. Open one to see it exactly as it was issued.',
-  templates: 'The letters students can ask for and the ones sent after an appointment: their forms, wording and settings.',
-  lists: 'Who a letter can be for, and the lists a letter\'s questions offer. Students choose from them when they ask.',
-};
 
 interface LetterTemplateManagementProps {
   /** Office staff also get requests, the register of issued letters and the lists. */
@@ -132,7 +124,6 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
         <>
           <PageHeader
             title="Letter Generation"
-            subtitle={PAGE_SUBTITLE[activeView]}
             actions={
               activeView === 'templates' ? (
                 <PortalButton variant="primary" icon={Plus} onClick={() => setEditing('new')}>New letter type</PortalButton>

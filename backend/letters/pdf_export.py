@@ -14,6 +14,8 @@ import io
 import re
 import secrets
 from pathlib import Path
+
+from django.conf import settings
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -41,16 +43,17 @@ from .confirmation import malay_date
 LOGO = Path(__file__).resolve().parent / "assets" / "um-logo.png"
 
 FACULTY = "Faculty of Computer Science & Information Technology"
+CONTACT_LINE = f"{settings.OFFICE_PHONE}  |  {settings.OFFICE_EMAIL}"
 ADDRESS_LINES = (
     "Academic Affairs Office, Level 4",
     "50603 Kuala Lumpur, Malaysia",
-    "+603-7967 6300  |  pg.fsktm@um.edu.my",
+    CONTACT_LINE,
 )
 MALAY_FACULTY = "Fakulti Sains Komputer & Teknologi Maklumat"
 MALAY_ADDRESS_LINES = (
     "Pejabat Hal Ehwal Akademik, Aras 4",
     "50603 Kuala Lumpur, Malaysia",
-    "+603-7967 6300  |  pg.fsktm@um.edu.my",
+    CONTACT_LINE,
 )
 DISCLAIMER = (
     "This letter is issued upon the student's request for official purposes only. "

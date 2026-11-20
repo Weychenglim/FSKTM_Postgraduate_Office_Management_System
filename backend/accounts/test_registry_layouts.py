@@ -223,7 +223,7 @@ class ImportLayoutTests(APITestCase):
         self.assertEqual((too_long["status"], too_long["issue"]), ("Invalid Field", "intake is longer than 32 characters"))
         student = Student.objects.get(matric_no="WQD260050")
         self.assertEqual(student.intake_semester, "2026/2027 Semester I")
-        self.assertEqual(StudentRegistry.objects.get(student=student).current_semester, "Semester I 2026/2027")
+        self.assertEqual(StudentRegistry.objects.get(student=student).current_semester, "2026/2027 Semester I")
 
     def test_rows_after_title_rows_still_count_towards_the_limit(self):
         rows = [[f"WQD27000{index}", f"Student {index}", DS, f"s{index}.layout@example.test"] for index in range(4)]

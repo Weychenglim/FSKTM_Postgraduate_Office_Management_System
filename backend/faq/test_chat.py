@@ -278,3 +278,30 @@ class RealModelTests(ChatBase):
         result = find("Macam mana nak daftar subjek setiap semester?")
         self.assertEqual(result.mode, "hybrid")
         self.assertEqual(result.top.item.entry_id, self.register.pk)
+
+
+class CloseCallTests(ChatBase):
+    def test_two_entries_that_fit_equally_are_offered_as_choices(self):
+        other = self.entry("When do I register courses?", "Registration week is in the academic calendar.")
+        result = find("register courses")
+        self.assertEqual(result.band, POSSIBLE)
+        self.assertTrue(result.close_call)
+        reply = self.ask("register courses").data
+        self.assertEqual(reply["outcome"], "CHOICES")
+        self.assertEqual({link["id"] for link in reply["choices"][:2]}, {str(self.register.pk), str(other.pk)})
+
+    def test_one_clear_entry_is_still_answered(self):
+        self.assertEqual(find("How much is the tuition fee?").band, STRONG)
+
+
+class FollowUpWithoutAiTests(ChatBase):
+    def test_a_follow_up_is_read_with_the_question_before_it(self):
+        first = self.ask("How do I apply for a PTPTN loan?").data
+        self.assertEqual(self.ask("what if it is rejected").data["outcome"], "NO_MATCH")
+        follow = self.ask("what if it is rejected", questionId=first["questionId"], token=first["token"]).data
+        self.assertEqual((follow["outcome"], follow["answer"]["id"]), ("ANSWERED", str(self.loan.pk)))
+
+    def test_a_question_that_stands_alone_is_searched_alone(self):
+        first = self.ask("How do I apply for a PTPTN loan?").data
+        alone = self.ask("where is the cafeteria", questionId=first["questionId"], token=first["token"]).data
+        self.assertEqual(alone["outcome"], "NO_MATCH")

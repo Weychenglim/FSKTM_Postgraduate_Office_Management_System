@@ -92,7 +92,7 @@ assert.match(form, /Letter Details Application Form/);
 assert.match(form, /Required information/);
 assert.match(form, /'Letter details', 'Check and send'/, 'two steps, ending with a check');
 assert.match(form, /getLetterForm\(template\.id\)/, 'the questions come from the letter type');
-for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'Address Line 2', 'Postcode', 'City', 'State', 'Country', 'Application Date', 'Additional Information']) {
+for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'Address Line 2', 'Postcode', 'City', 'State', 'Country', 'Application Date', 'Optional study details']) {
   assert.ok(fields.includes(`'${label}'`) || fields.includes(`"${label}"`), `the form has ${label}`);
 }
 assert.match(form, /requestLetter\(\s*template\.id,\s*note\.trim\(\),\s*recipientQuestion \? details : undefined,/);
@@ -108,7 +108,7 @@ const builder = readFileSync(resolve('src/components/LetterQuestionsEditor.tsx')
 assert.match(editor, /`\{\{RECIPIENT\}\}\\n\\n\$\{text/, 'adding "Who is the letter for?" puts Recipient at the top of the letter');
 assert.match(editor, /Valid for \(months\)/);
 assert.match(editor, /<LetterQuestionsEditor\b/);
-assert.match(builder, /Questions students answer/);
+assert.match(builder, /id="letter-questions-heading" className="section-label">Questions</);
 assert.match(builder, /What the student sees/);
 assert.match(builder, /<LetterFormFields\b[\s\S]*?preview/, 'the preview is the real form');
 

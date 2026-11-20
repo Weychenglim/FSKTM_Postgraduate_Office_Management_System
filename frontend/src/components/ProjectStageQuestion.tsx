@@ -4,11 +4,12 @@
  */
 
 import React, { useId, useState } from 'react';
+import { BookOpenCheck, ChevronRight } from 'lucide-react';
 import type { ProjectStageQuestion as Question, StudentProject } from '../services/registrySemestersApi';
 import { answerMyProjectStage, requestProjectStageCorrection } from '../services/registrySemestersApi';
-import { answerText, confirmText, correctionLine, questionText } from '../utils/projectStages';
+import { confirmText, stageCard } from '../utils/projectStages';
 import { DialogShell } from './DocumentDialogs';
-import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
+import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -26,6 +27,7 @@ export const ProjectStageQuestion: React.FC<{
 
   if (!question) return null;
   const asking = question.answer === null && question.canChange;
+  const view = stageCard(question);
 
   const reply = async () => {
     if (!confirming) return;
@@ -56,23 +58,43 @@ export const ProjectStageQuestion: React.FC<{
   };
 
   return (
-    <section aria-label="Research Project Registration" className="app-card flex flex-wrap items-center justify-between gap-4 p-5 sm:p-6">
-      <div className="min-w-0 flex-[1_1_18rem]">
-        <p className="card-label">Research Project Registration</p>
-        <p className="mt-1 text-[14.5px] font-bold text-slate-900 [overflow-wrap:anywhere]">
-          {asking ? questionText(question.code, question.name, question.semester) : answerText(question.answer ?? 'NO', question.code, question.name)}
-        </p>
-        {!asking && <p className="mt-1 text-[12.5px] font-medium text-slate-500">{correctionLine(question.correction)}</p>}
-        {problem && !correcting && <p role="alert" className="mt-1 text-[12.5px] font-semibold text-rose-700">{problem}</p>}
-      </div>
-      {asking ? (
-        <div className="flex flex-wrap gap-2">
-          <PortalButton variant="primary" disabled={sending} onClick={() => setConfirming('YES')}>Yes, I have registered</PortalButton>
-          <PortalButton disabled={sending} onClick={() => setConfirming('NO')}>No, not this semester</PortalButton>
+    <section
+      aria-label="Research Project Registration"
+      className={`rounded-2xl border bg-white p-5 shadow-3xs ${view.asking ? 'border-amber-300' : 'border-[#e2e8f0]'}`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <span className="card-label block">Research Project Registration</span>
+          <span className="card-metric mt-3 block">{view.value}</span>
         </div>
-      ) : question.correction === null && (
-        <PortalButton size="sm" onClick={() => { setProblem(null); setCorrecting(true); }}>Request a correction</PortalButton>
-      )}
+        <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-150 bg-slate-50 text-slate-500">
+          <BookOpenCheck className="h-4.5 w-4.5" />
+        </div>
+      </div>
+      <div className="space-y-3 pt-4">
+        <StatusBadge tone={view.badgeTone} className="text-[9px]">{view.badge}</StatusBadge>
+        <p className={`[overflow-wrap:anywhere] ${view.asking ? 'text-[13.5px] font-semibold leading-relaxed text-slate-800' : 'card-description'}`}>{view.detail}</p>
+        {problem && !correcting && <p role="alert" className="text-[12.5px] font-semibold text-rose-700">{problem}</p>}
+        {view.asking ? (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <PortalButton variant="primary" disabled={sending} onClick={() => setConfirming('YES')}>Yes, I have registered</PortalButton>
+            <PortalButton disabled={sending} onClick={() => setConfirming('NO')}>No, not this semester</PortalButton>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+            <p className="card-description">{view.note}</p>
+            {question.correction === null && (
+              <button
+                type="button"
+                onClick={() => { setProblem(null); setCorrecting(true); }}
+                className="inline-flex cursor-pointer items-center gap-1 rounded text-[10px] font-black uppercase tracking-wider text-blue-600 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+                Request a correction<ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       <PortalConfirmModal
         isOpen={confirming !== null}
         tone="info"
@@ -94,7 +116,7 @@ export const ProjectStageQuestion: React.FC<{
           <PortalButton variant="primary" isLoading={sending} onClick={() => void sendCorrection()}>Send request</PortalButton>
         </>}
       >
-        <p className="text-[13.5px] text-slate-600">Your programme coordinator will check your MAYA registration and update your answer if needed. You can send one request each semester.</p>
+        <p className="text-[13.5px] text-slate-600">Your programme coordinator will check your MAYA registration and update this record if needed. You can send one request each semester.</p>
         <div className="space-y-1.5">
           <label htmlFor={`${titleId}-note`} className="block text-[13px] font-bold text-slate-700">Reason (optional)</label>
           <textarea id={`${titleId}-note`} className="form-control min-h-20 px-3.5 py-3 text-[14px]" maxLength={300} value={note} disabled={sending} onChange={event => setNote(event.target.value)} />

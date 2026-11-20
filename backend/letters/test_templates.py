@@ -227,7 +227,7 @@ class TemplateWordingVisibilityTests(APITestCase):
         return listed, detail
 
     def test_students_and_lecturers_get_name_and_description_only(self):
-        for role in (User.Role.STUDENT, User.Role.LECTURER):
+        for role in (User.Role.STUDENT, User.Role.LECTURER, User.Role.COORDINATOR):
             with self.subTest(role=role):
                 for data in self._views(role):
                     self.assertEqual(data["name"], "Visa Support")
@@ -236,7 +236,7 @@ class TemplateWordingVisibilityTests(APITestCase):
                     self.assertNotIn("customFields", data)
 
     def test_staff_get_the_wording_and_fields(self):
-        for role in (User.Role.OFFICE_ADMIN, User.Role.COORDINATOR):
+        for role in (User.Role.OFFICE_ADMIN,):
             with self.subTest(role=role):
                 for data in self._views(role):
                     self.assertIn("{{ATTENDANCE}}", data["content"])

@@ -210,4 +210,4 @@ class LetterTemplateReviewTests(APITestCase):
         late_utc = datetime.datetime(2026, 1, 1, 20, 30, tzinfo=datetime.timezone.utc)
         LetterTemplate.objects.filter(pk=template.pk).update(updated_at=late_utc)
         template.refresh_from_db()
-        self.assertEqual(template.to_public_dict()["lastModified"], "Jan 02, 2026")
+        self.assertEqual(template.to_public_dict()["lastModified"], "02 Jan 2026")

@@ -137,7 +137,7 @@ class DeadlineReminderTests(TestCase):
         )
         self.draft_timeline = SemesterTimeline.objects.create(
             semester="Semester 1", session="2026/2027", academic_semester=self.semester,
-            is_active=True, uploaded_by=self.office,
+            is_active=False, uploaded_by=self.office, is_published=True, published_at=self.now,
         )
         self.timeline = SemesterTimeline.objects.create(
             semester="Semester 1", session="2026/2027", academic_semester=self.semester,
@@ -171,6 +171,20 @@ class DeadlineReminderTests(TestCase):
 
         self.assertEqual(send_deadline_reminders(days=3, now=self.now), (0, 0))
         self.assertEqual(len(mail.outbox), 1)
+
+    def test_students_who_have_left_get_no_reminders(self):
+        self.entry(1, "Proposal submission", 2, ["STUDENT"])
+        left = {}
+        for index, status in enumerate(("Graduated", "Withdrawn", "Terminated", "Deceased", "Deferred")):
+            user = make_user(f"left{index}.rem@example.test")
+            Student.objects.create(user=user, matric_no=f"REM-G{index}", status=status)
+            left[status] = user
+        Student.objects.create(user=self.student, matric_no="REM-A1")
+        send_deadline_reminders(days=3, now=self.now)
+        self.assertEqual(self.reminders(self.student), ["Deadline in 2 days: Proposal submission"])
+        for status in ("Graduated", "Withdrawn", "Terminated", "Deceased"):
+            self.assertEqual(self.reminders(left[status]), [], status)
+        self.assertEqual(len(self.reminders(left["Deferred"])), 1)
 
     def test_a_moved_deadline_is_reminded_again(self):
         entry = self.entry(1, "Proposal submission", 2, ["STUDENT"])

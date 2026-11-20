@@ -119,6 +119,22 @@ class SchedulingTests(APITestCase):
         self.client.force_authenticate(latecomer)
         self.assertEqual(self.client.get(f"/api/announcements/{notice.pk}/").status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_an_expired_announcement_leaves_the_feed_and_the_unread_count(self):
+        response = self.post(self.office, expiresAt=later(hours=1))
+        notice = Announcement.objects.get(pk=response.data["id"])
+        self.client.force_authenticate(self.ds_sem1)
+        self.assertIn(str(notice.pk), {row["announcementId"] for row in self.client.get("/api/notifications/").data})
+        Announcement.objects.filter(pk=notice.pk).update(expires_at=timezone.now() - timedelta(minutes=1))
+        feed = self.client.get("/api/notifications/").data
+        self.assertNotIn(str(notice.pk), {row["announcementId"] for row in feed})
+        unread = self.client.get("/api/notifications/?unread=true").data
+        self.assertNotIn(str(notice.pk), {row["announcementId"] for row in unread})
+
+    def test_a_start_after_the_expiry_is_refused(self):
+        response = self.post(self.office, publishAt=later(hours=3), expiresAt=later(hours=2))
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("expiresAt", response.data)
+
     def test_a_window_that_passed_before_release_expires_undelivered(self):
         notice = self.created(self.office, publishAt=later(hours=1), expiresAt=later(hours=2))
         Announcement.objects.filter(pk=notice.pk).update(
@@ -227,7 +243,7 @@ class SchedulingTests(APITestCase):
         options = self.client.get("/api/announcements/audience-options/").data
         self.assertEqual(options["scope"], "office")
         self.assertEqual(options["programmes"], APPROVED_PROGRAMMES)
-        self.assertEqual(options["intakes"], [SEM1, SEM2])
+        self.assertEqual(options["intakes"], ["2025/2026 Semester I", "2025/2026 Semester II"])
         self.client.force_authenticate(self.ds_sem1)
         self.assertEqual(
             self.client.get("/api/announcements/audience-options/").status_code, status.HTTP_403_FORBIDDEN

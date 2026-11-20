@@ -98,6 +98,10 @@ DEMO_LEGACY_EMAIL_MAP = os.getenv("DEMO_LEGACY_EMAIL_MAP", "")
 # Where the React app is served. Used to build password-reset links.
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+# The PG office's one contact, printed on every letter.
+OFFICE_PHONE = os.getenv("OFFICE_PHONE", "+603-7967 6316")
+OFFICE_EMAIL = os.getenv("OFFICE_EMAIL", "tdit_fsktm@um.edu.my")
+
 AUTH_USER_MODEL = "accounts.User"
 
 INSTALLED_APPS = [
@@ -172,6 +176,8 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+    {"NAME": "accounts.password_rules.PersonalDetailsValidator"},
+    {"NAME": "accounts.password_rules.LettersAndNumbersValidator"},
 ]
 
 LANGUAGE_CODE = "en-us"
@@ -284,7 +290,7 @@ FAQ_AI_MODELS = [
     ).split(",")
     if model.strip()
 ]
-FAQ_AI_TIMEOUT_SECONDS = float(os.getenv("FAQ_AI_TIMEOUT_SECONDS", "20"))
+FAQ_AI_TIMEOUT_SECONDS = float(os.getenv("FAQ_AI_TIMEOUT_SECONDS", "10"))
 FAQ_AI_DAILY_LIMIT = int(os.getenv("FAQ_AI_DAILY_LIMIT", "45"))
 FAQ_AI_STUDENT_DAILY_LIMIT = int(os.getenv("FAQ_AI_STUDENT_DAILY_LIMIT", "10"))
 FAQ_AI_PAUSE_SECONDS = int(os.getenv("FAQ_AI_PAUSE_SECONDS", "600"))

@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { Search, UserPlus } from 'lucide-react';
+import { UserPlus } from 'lucide-react';
 import type { StaffAccountList, StaffRoleFilter, StaffStatusFilter } from '../types';
 import { getStaffAccounts } from '../services/staffAccountsApi';
 import { APP_ROUTES, routeForStaffAccount } from '../constants/routes';
@@ -13,6 +13,7 @@ import { ROLE_LABEL, STATUS_LABEL, initials, roleLine } from '../utils/staffAcco
 import { historyTime } from '../utils/documentDisplay';
 import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { ListSearch, ListToolbar, ListToolbarRow } from './ListToolbar';
 import { ErrorState, LoadingState } from './StateViews';
 import { useListState } from './ListState';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
@@ -101,110 +102,104 @@ const StaffAccountList: React.FC = () => {
       />
       <RegistryModuleTabs active="staff_lecturers" />
 
-      <div className="grid grid-cols-1 items-end gap-4 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-3xs md:grid-cols-12">
-        <label className="block md:col-span-6">
-          <span className="form-label block">Search</span>
-          <span className="relative block">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
-              <Search className="h-3.5 w-3.5" aria-hidden="true" />
-            </span>
-            <input
-              type="search"
+      <section aria-label="Staff accounts" className="app-card readable-list space-y-4 p-4 sm:p-5">
+        <ListToolbar>
+          <ListToolbarRow>
+            <ListSearch
+              label="Search staff accounts"
+              placeholder="Search name, email, Staff ID or department"
               value={search}
-              onChange={event => { setSearch(event.target.value); setPage(1); }}
-              placeholder="Name, email, Staff ID or department"
-              className="form-control form-control-sm pl-9"
+              onChange={value => {
+                setSearch(value);
+                setPage(1);
+              }}
             />
-          </span>
-        </label>
-        <div className="md:col-span-3">
-          <span className="form-label block">Role</span>
-          <SelectMenu<StaffRoleFilter> size="sm" aria-label="Role" value={role} options={ROLE_OPTIONS} onChange={value => { setRole(value); setPage(1); }} />
-        </div>
-        <div className="md:col-span-3">
-          <span className="form-label block">Status</span>
-          <SelectMenu<StaffStatusFilter> size="sm" aria-label="Status" value={status} options={STATUS_OPTIONS} onChange={value => { setStatus(value); setPage(1); }} />
-        </div>
-      </div>
+            <SelectMenu<StaffRoleFilter> variant="filter" prefix="Role" aria-label="Filter by role" value={role} options={ROLE_OPTIONS} onChange={value => { setRole(value); setPage(1); }} />
+            <SelectMenu<StaffStatusFilter> variant="filter" prefix="Status" aria-label="Filter by status" value={status} options={STATUS_OPTIONS} onChange={value => { setStatus(value); setPage(1); }} />
+          </ListToolbarRow>
+        </ListToolbar>
 
-      <section aria-label="Staff accounts" className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-3xs">
-        <div className="relative overflow-x-auto">
-          <table className="data-table min-w-[720px] text-xs">
-            <thead>
-              <tr className="data-thead bg-[#f8fafc]">
-                <th className="data-th min-w-[15rem]">Name</th>
-                <th className="data-th">Role</th>
-                <th className="data-th">Status</th>
-                <th className="data-th">Last signed in</th>
-                <th className="data-th text-right"><span className="sr-only">Open</span></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading && !data ? (
-                <tr><td colSpan={5} className="p-0"><LoadingState message="Loading staff accounts..." /></td></tr>
-              ) : error ? (
-                <tr><td colSpan={5} className="p-0"><ErrorState message={error} onRetry={load} /></td></tr>
-              ) : rows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-[13px] font-semibold text-slate-500">
-                    {filtered ? 'No accounts match these filters.' : 'No staff accounts yet. Add the first one.'}
-                  </td>
+        {loading && !data ? (
+          <LoadingState message="Loading staff accounts..." />
+        ) : error ? (
+          <ErrorState message={error} onRetry={load} />
+        ) : rows.length === 0 ? (
+          <p className="rounded-xl bg-slate-50 px-4 py-6 card-description">
+            {filtered ? 'No accounts match this search.' : 'No staff accounts yet.'}
+          </p>
+        ) : (
+          <>
+            <table aria-label="Staff accounts" className="data-table block table-fixed lg:table">
+              <colgroup className="hidden lg:table-column-group">
+                {[36, 26, 13, 15, 10].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
+              </colgroup>
+              <thead className="hidden lg:table-header-group">
+                <tr className="data-thead bg-slate-50">
+                  <th scope="col" className="data-th">Name</th>
+                  <th scope="col" className="data-th">Role</th>
+                  <th scope="col" className="data-th">Status</th>
+                  <th scope="col" className="data-th">Last signed in</th>
+                  <th scope="col" className="data-th"><span className="sr-only">Open</span></th>
                 </tr>
-              ) : (
-                rows.map(account => (
-                  <tr key={account.id} className="transition hover:bg-slate-50/50">
-                    <td className="data-td">
+              </thead>
+              <tbody className="block space-y-3 lg:table-row-group lg:space-y-0">
+                {rows.map(account => (
+                  <tr key={account.id} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 py-2 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-0">
+                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
                       <span className="flex items-center gap-3">
-                        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[11px] font-extrabold text-slate-700">
+                        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[12px] font-extrabold text-slate-700">
                           {initials(account.name)}
                         </span>
                         <span className="min-w-0">
-                          <Link to={routeForStaffAccount(account.id)} className="block font-bold text-slate-800 hover:underline">
+                          <Link to={routeForStaffAccount(account.id)} className="block font-bold text-slate-800 hover:underline [overflow-wrap:anywhere]">
                             {account.name}{account.isYou ? ' (you)' : ''}
                           </Link>
-                          <span className="block break-all text-[11px] text-slate-500">{account.email}</span>
+                          <span className="card-caption block break-all">{account.email}</span>
                         </span>
                       </span>
                     </td>
-                    <td className="data-td">
+                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:col-span-1 lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Role</span>
                       <span className="block font-bold text-slate-800">{ROLE_LABEL[account.role]}</span>
-                      <span className="block text-[11px] text-slate-500">{roleLine(account)}</span>
+                      <span className="card-caption block">{roleLine(account)}</span>
                     </td>
-                    <td className="data-td whitespace-nowrap">
+                    <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Status</span>
                       {account.status === 'ACTIVE' ? (
                         <span className="text-slate-600">Active</span>
                       ) : (
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${STATUS_CHIP[account.status]}`}>
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-bold ${STATUS_CHIP[account.status]}`}>
                           {STATUS_LABEL[account.status]}
                         </span>
                       )}
                     </td>
-                    <td className="data-td whitespace-nowrap text-slate-600">
+                    <td className="data-td block min-w-0 px-3 py-2 align-middle text-slate-600 lg:table-cell lg:px-5 lg:py-4">
+                      <span className="card-label mb-1 block lg:hidden">Last signed in</span>
                       {account.lastSignedIn ? historyTime(account.lastSignedIn) : 'Never'}
                     </td>
-                    <td className="data-td text-right">
+                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:col-span-1 lg:table-cell lg:px-5 lg:py-4">
                       <Link to={routeForStaffAccount(account.id)} className={OPEN_LINK} aria-label={`Open ${account.name}`}>
                         Open
                       </Link>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        {data && data.count > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
-            <span className="text-[12px] font-semibold text-slate-500">
-              Showing {first} to {last} of {data.count} account{data.count === 1 ? '' : 's'}
-            </span>
-            {pages > 1 && (
-              <span className="flex gap-2">
-                <PortalButton size="sm" disabled={data.page <= 1 || loading} onClick={() => setPage(data.page - 1)}>Previous</PortalButton>
-                <PortalButton size="sm" disabled={data.page >= pages || loading} onClick={() => setPage(data.page + 1)}>Next</PortalButton>
-              </span>
+                ))}
+              </tbody>
+            </table>
+            {data && data.count > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="card-description">
+                  Showing {first} to {last} of {data.count} account{data.count === 1 ? '' : 's'}
+                </span>
+                {pages > 1 && (
+                  <span className="flex gap-2">
+                    <PortalButton size="sm" disabled={data.page <= 1 || loading} onClick={() => setPage(data.page - 1)}>Previous</PortalButton>
+                    <PortalButton size="sm" disabled={data.page >= pages || loading} onClick={() => setPage(data.page + 1)}>Next</PortalButton>
+                  </span>
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
       </section>
       <PortalToast message={toast} tone="success" onClose={() => setToast(null)} />

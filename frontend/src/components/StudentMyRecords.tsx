@@ -20,6 +20,7 @@ import { getDocuments } from '../services/filesApi';
 import { useNotifications } from '../context/NotificationsContext';
 import { APP_ROUTES, routeForDocument } from '../constants/routes';
 import { formatMalaysiaDate } from '../utils/malaysiaDateTime';
+import { displaySemester } from '../utils/registrySemesters';
 import type { OpenNotificationState } from '../utils/notificationLinks';
 import {
   RECORD_CATEGORIES,
@@ -152,11 +153,11 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
             )}
           />
           <ProfileField label="Programme" value={profile?.programme || currentUser.department} />
-          <ProfileField label="Intake" value={profile?.intakeSemester} />
+          <ProfileField label="Intake" value={displaySemester(profile?.intakeSemester)} />
           <ProfileField label="Research Title" value={profile?.research?.title} />
           <ProfileField label="Supervisor" value={profile?.research?.supervisor} />
         </div>
-        <p className="text-[11px] font-semibold text-slate-400">
+        <p className="text-[12px] font-semibold text-slate-500">
           Only your phone number can be changed here. For anything else, contact the postgraduate office.
         </p>
       </div>

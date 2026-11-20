@@ -38,10 +38,14 @@ function submissionRow(submission: MySubmission, name: string, type: DocumentTyp
     const late = submission.lateBySeconds ? `, ${durationText(submission.lateBySeconds)} late` : ', on time';
     return {
       ...base,
-      line: `Sent ${historyTime(submission.sentAt ?? '')}${late}`,
+      line: `Sent ${historyTime(submission.sentAt ?? '')}${late}${submission.fileArchived ? ' · File archived by the coordinator' : ''}`,
       tone: submission.state === 'LATE' ? 'late' : 'sent',
-      action: submission.canSend ? 'Replace' : null,
+      action: submission.canSend ? (submission.fileArchived ? 'Upload' : 'Replace') : null,
+      ...(submission.fileArchived ? { document: null } : {}),
     };
+  }
+  if (submission.opensAt && new Date(submission.opensAt).getTime() > now && submission.isOpen) {
+    return { ...base, line: `Opens ${historyTime(submission.opensAt)} · Due ${historyTime(submission.dueAt)}`, tone: 'plain', action: null };
   }
   if (!submission.canSend) return { ...base, line: submission.why || 'Closed', tone: 'closed', action: null };
   if (submission.lateIfSentNow) return { ...base, line: `Due ${historyTime(submission.dueAt)} · will be marked late`, tone: 'late', action: 'Upload' };
@@ -68,6 +72,7 @@ export function documentSlots(
     for (const type of group.types) {
       const asked = submissions.filter(item => item.type.code === type.code);
       const own = files.filter(file => file.type.code === type.code);
+      if (type.custom && !asked.length && !own.length) continue;
       if (type.onePerStudent) {
         const current = own[0] ?? null;
         if (current) used.add(current.id);
@@ -94,7 +99,7 @@ export function documentSlots(
         used.add(file.id);
         rows.push(fileRow(file, file.title, type, null));
       }
-      addType = type;
+      if (!type.custom) addType = type;
     }
     return { key: group.group, label: group.label, now: STAGE_GROUP[stage] === group.group, rows, addType };
   });

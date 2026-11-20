@@ -5,10 +5,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { ArrowRight, Check, ChevronDown, GraduationCap, Info, Search } from 'lucide-react';
+import { ChevronDown, GraduationCap, Info, Search } from 'lucide-react';
 import type { MoveState, SemesterOutcome, SemesterStudent } from '../services/registrySemestersApi';
 import { changeStudentSemester, getSemesterMove, moveStudents } from '../services/registrySemestersApi';
-import { APP_ROUTES } from '../constants/routes';
+import { APP_ROUTES, routeForStudentRecord } from '../constants/routes';
 import { filterPeople, findStudents, intakeFilterOptions, matchesIntake, shortProgramme, shortSemester, studentCount } from '../utils/registrySemesters';
 import { PeopleFilters, PersonRow, PersonTickRow, SelectionBar } from './RegistryPersonRow';
 import { PortalButton } from './PortalPrimitives';
@@ -19,9 +19,10 @@ import { ErrorState, LoadingState } from './StateViews';
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 const TILE_TONES = ['bg-blue-50 text-blue-600 border-blue-100', 'bg-amber-50 text-amber-600 border-amber-100', 'bg-emerald-50 text-emerald-600 border-emerald-100', 'bg-purple-50 text-purple-600 border-purple-100'];
 const FIRST_ROWS = 5;
+const FILTER_FROM = 8;
 const isNotRegistered = (row: SemesterStudent) => row.outcome === 'NOT_REGISTERED';
 
-/** Who is on the active semester. Activating a normal semester puts everyone on it, so the office only marks who didn't register. Only some take a Special Semester, so those are ticked. */
+/** Who is on the active semester. Activating a semester puts everyone on it, so the office only marks who didn't register. Students back from leave at a Special Semester are not put on it, so those are ticked. */
 export const UpdateCurrentSemester: React.FC = () => {
   const navigate = useNavigate();
   const [state, setState] = useState<MoveState | null>(null);
@@ -31,11 +32,12 @@ export const UpdateCurrentSemester: React.FC = () => {
   const [open, setOpen] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [query, setQuery] = useState('');
-  const [programme, setProgramme] = useState('All');
   const [intake, setIntake] = useState('All');
+  const [pickProgramme, setPickProgramme] = useState('All');
+  const [pickIntake, setPickIntake] = useState('All');
+  const [pickQuery, setPickQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [done, setDone] = useState<{ moved: number; leftOut: number; semester: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +49,7 @@ export const UpdateCurrentSemester: React.FC = () => {
   }, [reload]);
 
   const waiting = useMemo(() => state?.students ?? [], [state]);
-  const special = Boolean(state?.semester?.isSpecial);
+  const choosing = Boolean(state?.semester?.isSpecial && state.lastMove);
   const onSemester = useMemo(() => state?.onSemester ?? [], [state]);
   const notRegistered = useMemo(() => onSemester.filter(isNotRegistered), [onSemester]);
   const studying = onSemester.length - notRegistered.length;
@@ -61,8 +63,8 @@ export const UpdateCurrentSemester: React.FC = () => {
     return [...groups.entries()].sort(([first], [second]) => first.localeCompare(second));
   }, [inIntake]);
   const results = useMemo(() => findStudents(inIntake, query).filter(row => !isNotRegistered(row)).slice(0, 5), [inIntake, query]);
-  const specialShown = special ? filterPeople(waiting, { programme, intake, query }) : [];
-  const allSpecialTicked = specialShown.length > 0 && specialShown.every(student => added.has(student.matric));
+  const pickShown = choosing ? filterPeople(waiting, { programme: pickProgramme, intake: pickIntake, query: pickQuery }) : [];
+  const allPickTicked = pickShown.length > 0 && pickShown.every(student => added.has(student.matric));
 
   const tick = (matric: string, on: boolean) => setAdded(current => {
     const next = new Set(current);
@@ -73,7 +75,7 @@ export const UpdateCurrentSemester: React.FC = () => {
 
   const tickShown = (on: boolean) => setAdded(current => {
     const next = new Set(current);
-    for (const student of specialShown) {
+    for (const student of pickShown) {
       if (on) next.add(student.matric);
       else next.delete(student.matric);
     }
@@ -95,8 +97,10 @@ export const UpdateCurrentSemester: React.FC = () => {
   };
 
   const updateChosen = async () => {
-    const result = await move([...added]);
-    if (result) setDone(result);
+    if (await move([...added])) {
+      setAdded(new Set());
+      setReload(value => value + 1);
+    }
   };
 
   const updateWaiting = async () => {
@@ -122,7 +126,7 @@ export const UpdateCurrentSemester: React.FC = () => {
       title="Current semester"
       backLabel="Back to Student Registry"
       onBack={() => navigate(APP_ROUTES.registry)}
-      dirty={!done && added.size > 0}
+      dirty={added.size > 0}
       busy={busy}
     >
       {children}
@@ -131,16 +135,6 @@ export const UpdateCurrentSemester: React.FC = () => {
 
   if (error) return page(<ErrorState message={error} onRetry={() => setReload(value => value + 1)} />);
   if (!state) return page(<LoadingState message="Loading the students..." />);
-  if (done) {
-    return page(
-      <section aria-label="Students updated" className="app-card flex flex-col items-center gap-2.5 px-6 py-10 text-center">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><Check className="h-7 w-7" aria-hidden="true" /></span>
-        <h3 className="text-[20px] font-extrabold text-brand-navy">{studentCount(done.moved)} updated to {shortSemester(done.semester)}</h3>
-        {done.leftOut > 0 && <p className="text-[13.5px] text-slate-500">{studentCount(done.leftOut)} left out. Update them later from this page.</p>}
-        <PortalButton className="mt-2" onClick={() => navigate(APP_ROUTES.registry)}>Back to Student Registry</PortalButton>
-      </section>,
-    );
-  }
   if (!state.semester) {
     return page(
       <p className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-[14px] font-semibold text-amber-900">
@@ -160,77 +154,6 @@ export const UpdateCurrentSemester: React.FC = () => {
     </>
   );
 
-  if (special) {
-    if (waiting.length === 0) {
-      return page(
-        <div className="space-y-3">
-          <p className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-[14px] font-semibold text-slate-700">
-            Every Active student is already on {shortSemester(state.semester.label)}.
-          </p>
-          {notes}
-        </div>,
-      );
-    }
-    return page(
-      <div className="space-y-5">
-        <section aria-label="Summary" className="app-card space-y-5 p-5 sm:p-6">
-          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2.5">
-            {state.movingFrom && (
-              <>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2.5">
-                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Now</p>
-                  <p className="text-[14px] font-extrabold text-slate-900">{shortSemester(state.movingFrom)}</p>
-                </div>
-                <ArrowRight className="h-5 w-5 text-slate-400" aria-hidden="true" />
-              </>
-            )}
-            <div className="rounded-2xl bg-brand-navy px-4 py-2.5">
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Updating to</p>
-              <p className="text-[14px] font-extrabold text-white">{shortSemester(state.semester.label)}</p>
-            </div>
-          </div>
-          <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-[44px] font-black leading-none tracking-tight text-brand-navy tabular-nums">{added.size}</span>
-            <span className="text-[17px] font-bold text-slate-900">{added.size === 1 ? 'student' : 'students'}</span>
-          </p>
-        </section>
-
-        <section aria-label="Who is taking the Special Semester" className="app-card">
-          <div className="space-y-3 p-5 sm:p-6">
-            <h3 className="text-[15.5px] font-extrabold text-brand-navy">Who is taking the Special Semester?</h3>
-            <PeopleFilters people={waiting} programme={programme} intake={intake} query={query} onProgramme={setProgramme} onIntake={setIntake} onQuery={setQuery} disabled={busy} />
-          </div>
-          <label className="flex cursor-pointer items-center gap-3 border-y border-slate-200 bg-slate-50 px-5 py-3 text-[13px] font-bold text-brand-navy sm:px-6">
-            <input type="checkbox" className="h-[18px] w-[18px] cursor-pointer" checked={allSpecialTicked} disabled={busy || specialShown.length === 0} onChange={event => tickShown(event.target.checked)} />
-            Select all ({specialShown.length})
-          </label>
-          {specialShown.length ? (
-            <ul aria-label="Students" className="divide-y divide-slate-100">
-              {specialShown.map(student => (
-                <PersonTickRow key={student.matric} person={student} checked={added.has(student.matric)} disabled={busy} onChange={on => tick(student.matric, on)} />
-              ))}
-            </ul>
-          ) : (
-            <p className="px-6 py-10 text-center text-[13px] font-semibold text-slate-400">Nobody here.</p>
-          )}
-        </section>
-
-        {notes}
-
-        {added.size > 0 && (
-          <SelectionBar
-            count={added.size}
-            label={`Update ${studentCount(added.size)}`}
-            busy={busy}
-            problem={problem}
-            onClear={() => setAdded(new Set())}
-            onAction={() => void updateChosen()}
-          />
-        )}
-      </div>,
-    );
-  }
-
   const shown = open ? (programmes.find(([name]) => name === open)?.[1] ?? []) : [];
 
   return page(
@@ -246,13 +169,13 @@ export const UpdateCurrentSemester: React.FC = () => {
           {notRegistered.length > 0 && <span className="text-[14px] font-semibold text-rose-700">{notRegistered.length} not registered</span>}
           {onLeave > 0 && <span className="text-[14px] font-semibold text-slate-500">{onLeave} on leave</span>}
         </p>
-        {waiting.length > 0 && (
+        {waiting.length > 0 && !choosing && (
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13.5px] font-semibold text-amber-900">
             <span>{studentCount(waiting.length)} not on this semester yet.</span>
             <PortalButton variant="primary" size="sm" isLoading={busy} onClick={() => void updateWaiting()}>Update {studentCount(waiting.length)}</PortalButton>
           </div>
         )}
-        {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
+        {problem && added.size === 0 && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
       </section>
 
       {onSemester.length > 0 && (
@@ -350,6 +273,30 @@ export const UpdateCurrentSemester: React.FC = () => {
         </>
       )}
 
+      {choosing && waiting.length > 0 && (
+        <section aria-label="Not on this semester" className="app-card">
+          <div className="space-y-3 p-5 sm:p-6">
+            <h3 className="text-[15.5px] font-extrabold text-brand-navy">Not on this semester</h3>
+            {waiting.length >= FILTER_FROM && (
+              <PeopleFilters people={waiting} programme={pickProgramme} intake={pickIntake} query={pickQuery} onProgramme={setPickProgramme} onIntake={setPickIntake} onQuery={setPickQuery} disabled={busy} />
+            )}
+          </div>
+          <label className="flex cursor-pointer items-center gap-3 border-y border-slate-200 bg-slate-50 px-5 py-3 text-[13px] font-bold text-brand-navy sm:px-6">
+            <input type="checkbox" className="h-[18px] w-[18px] cursor-pointer" checked={allPickTicked} disabled={busy || pickShown.length === 0} onChange={event => tickShown(event.target.checked)} />
+            Select all ({pickShown.length})
+          </label>
+          {pickShown.length ? (
+            <ul aria-label="Students not on this semester" className="divide-y divide-slate-100">
+              {pickShown.map(student => (
+                <PersonTickRow key={student.matric} person={student} checked={added.has(student.matric)} disabled={busy} onChange={on => tick(student.matric, on)} />
+              ))}
+            </ul>
+          ) : (
+            <p className="px-6 py-10 text-center text-[13px] font-semibold text-slate-400">Nobody found.</p>
+          )}
+        </section>
+      )}
+
       {attention.length > 0 && (
         <section aria-label="Needs a decision" className="app-card space-y-3 p-5 sm:p-6">
           <h3 className="text-[15.5px] font-extrabold text-brand-navy">Needs a decision</h3>
@@ -359,7 +306,7 @@ export const UpdateCurrentSemester: React.FC = () => {
                 key={row.matric}
                 person={row}
                 detail={row.warnings.map(warning => <p key={warning.code} className={`mt-0.5 text-[12.5px] font-semibold ${warning.level === 'stop' ? 'text-rose-700' : 'text-amber-800'}`}>{warning.text}</p>)}
-                action={<Link to={`${APP_ROUTES.registry}?student=${encodeURIComponent(row.matric)}`} className="text-[13px] font-bold text-blue-700 hover:text-blue-900">Open record</Link>}
+                action={<Link to={routeForStudentRecord(row.matric)} className="text-[13px] font-bold text-blue-700 hover:text-blue-900">Open record</Link>}
               />
             ))}
           </ul>
@@ -367,6 +314,17 @@ export const UpdateCurrentSemester: React.FC = () => {
       )}
 
       {notes}
+
+      {added.size > 0 && (
+        <SelectionBar
+          count={added.size}
+          label={`Update ${studentCount(added.size)}`}
+          busy={busy}
+          problem={problem}
+          onClear={() => setAdded(new Set())}
+          onAction={() => void updateChosen()}
+        />
+      )}
     </div>,
   );
 };

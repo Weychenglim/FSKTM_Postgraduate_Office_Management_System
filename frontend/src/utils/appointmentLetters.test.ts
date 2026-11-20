@@ -123,7 +123,7 @@ assert.match(editor, /name="letter-template-purpose"/);
 assert.match(editor, /When is this letter used\?/);
 assert.match(editor, /findPlaceholderProblems\(editorContent, names, editorPurpose\)/);
 assert.match(editor, /signatoryName: submitted\.signatoryName\.trim\(\)/);
-assert.match(editor, /formQuestions: request \? submitted\.questions : \[\]/, 'appointment letters save no student form');
+assert.match(editor, /formQuestions: request\s*\? submitted\.questions[\s\S]{0,200}?: \[\]/, 'appointment letters save no student form');
 const register = readFileSync(resolve('src/components/IssuedLetters.tsx'), 'utf8');
 assert.match(register, /<MissingAppointmentLetters /);
 assert.match(register, /Reissue with current details/);

@@ -56,7 +56,8 @@ class SettingQuestionsTests(QuestionTestCase):
         cases = {
             "a tag already built in": [{"kind": "text", "name": "STUDENT_NAME", "label": "Name"}],
             "no label": [{"kind": "text", "name": "NOTE_ONE", "label": " "}],
-            "a choice without its list": [{"kind": "choice", "name": "EMBASSY", "label": "Embassy"}],
+            "a choice without options or a list": [{"kind": "choice", "name": "EMBASSY", "label": "Embassy"}],
+            "a choice with one option": [{"kind": "choice", "name": "EMBASSY", "label": "Embassy", "options": ["Japan", " japan "]}],
             "the same tag twice": [{"kind": "text", "name": "NOTE_ONE", "label": "A"}, {"kind": "date", "name": "NOTE_ONE", "label": "B"}],
             "an unknown kind": [{"kind": "file", "name": "UPLOAD", "label": "Upload"}],
             "an unknown purpose": [{"kind": "recipient", "purposes": ["SHOPPING"]}],
@@ -174,3 +175,46 @@ class AnsweringTests(QuestionTestCase):
         self.assertIn(f"Kepada Kedutaan Jepun", letter.content_ms)
         self.assertIn(f"pada {malay_date(date(2026, 12, 1))}. Keluarga: Tidak.", letter.content_ms)
         self.assertNotIn("{{", letter.content + letter.content_ms)
+
+
+class PassportValueTests(QuestionTestCase):
+    def test_a_passport_is_never_filled_with_an_ic(self):
+        from accounts.models import StudentRegistry
+
+        user = make_student("QST030")
+        StudentRegistry.objects.update_or_create(
+            student=user.student, defaults={"ic_number": "950101-14-7774", "passport_number": "", "nationality": "Malaysian"}
+        )
+        self.client.force_authenticate(self.office)
+        values = self.client.get(f"{TEMPLATES}sample-values/?student=QST030").data["values"]
+        self.assertNotIn("PASSPORT_NUMBER", values)
+        self.assertEqual(values["IC_OR_PASSPORT"], "950101-14-7774")
+
+
+class TypedOptionsTests(QuestionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.campus = [{"kind": "choice", "name": "CAMPUS", "label": "Which campus?", "hint": "", "required": True, "options": [" Main campus ", "City campus", "main campus", ""]}]
+
+    def test_typed_options_are_tidied_and_saved(self):
+        response = self.save(content="At {{CAMPUS}}", formQuestions=self.campus)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        question = response.data["formQuestions"][0]
+        self.assertEqual(question["options"], ["Main campus", "City campus"])
+        self.assertNotIn("listId", question)
+
+    def test_a_student_picks_one_of_the_typed_options(self):
+        self.visa.form_questions = [{"kind": "choice", "name": "CAMPUS", "label": "Which campus?", "hint": "", "required": True, "options": ["Main campus", "City campus"]}]
+        self.visa.content = "At {{CAMPUS}}"
+        self.visa.content_ms = "Di {{CAMPUS}}"
+        self.visa.save()
+        student = make_student("QST040")
+        self.client.force_authenticate(student)
+        form = self.client.get(f"{REQUESTS}form/{self.visa.pk}/").data
+        choice = next(q for q in form["questions"] if q.get("name") == "CAMPUS")
+        self.assertEqual([item["name"] for item in choice["list"]["items"]], ["Main campus", "City campus"])
+        refused = self.ask_visa(student, {"CAMPUS": "Moon campus"})
+        self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST)
+        made = self.ask_visa(student, {"CAMPUS": "city campus"})
+        self.assertEqual(made.status_code, status.HTTP_201_CREATED, made.data)
+        self.assertEqual(made.data["requestDetails"]["answers"]["CAMPUS"]["value"], "City campus")

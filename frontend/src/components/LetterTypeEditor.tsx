@@ -4,7 +4,7 @@
  */
 
 // One letter type, opened from Letter Generation's Letter types tab, in numbered
-// steps: About the letter, Student form (only for letters students ask for),
+// steps: About the letter, Questions for students (only for letters students ask for),
 // Write the letter, and Signature and status. A new letter type is made by going
 // through the steps in order; an existing one can be opened at any step.
 
@@ -17,9 +17,10 @@ import { AlertMessage } from './AlertMessage';
 import { AppointmentSection } from './AppointmentPrimitives';
 import { LetterQuestionsEditor } from './LetterQuestionsEditor';
 import { LetterWordingEditor, wordingProblems } from './LetterWordingEditor';
-import type { ChoiceListSummary, LetterPlaceholder, LetterPurpose, LetterQuestion, LetterRecipientPurpose, LetterTemplate, LetterTemplateStatus } from '../types';
+import type { ChoiceListSummary, LetterAudience, LetterPlaceholder, LetterPurpose, LetterQuestion, LetterRecipientPurpose, LetterTemplate, LetterTemplateStatus } from '../types';
 import { LETTERHEAD, isAppointmentLetter } from '../utils/letterDocument';
 import {
+  AUDIENCE_OPTIONS,
   BLANK_TEMPLATE,
   DEFAULT_REFERENCE_PREFIX,
   LETTER_TYPES,
@@ -32,15 +33,14 @@ import {
   questionNames,
   sameValues,
   valuesOf,
-  type EditorValues,
-} from '../utils/letterEditor';
+  type EditorValues, choiceProblem } from '../utils/letterEditor';
 import { createLetterTemplate, deleteLetterTemplate, fieldErrors, getChoiceList, getChoiceLists, getRecipientOptions, updateLetterTemplate } from '../services';
 
 type EditorStep = 'about' | 'form' | 'letter' | 'finish';
-const STEP_LABELS: Record<EditorStep, string> = { about: 'About the letter', form: 'Student form', letter: 'Write the letter', finish: 'Signature and status' };
+const STEP_LABELS: Record<EditorStep, string> = { about: 'About the letter', form: 'Questions for students', letter: 'Write the letter', finish: 'Signature and status' };
 const STEP_INTROS: Record<EditorStep, string> = {
   about: 'When the letter is used and what it is called.',
-  form: 'What students fill in when they ask for this letter. Their answers can go on the letter.',
+  form: 'Choose what students must tell the office when they ask for this letter.',
   letter: 'What the letter says. Details in [square brackets] are filled in for each student.',
   finish: 'Who signs it, how it is numbered, and whether it is in use.',
 };
@@ -184,7 +184,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [shownStep]);
 
-  // The recipients list and the office's other lists, for the Student form step.
+  // The recipients list and the office's other lists, for the Questions for students step.
   useEffect(() => {
     if (shownStep !== 'form' || purposes) return;
     getRecipientOptions().then((options) => setPurposes(options.purposes)).catch(() => setPurposes([]));
@@ -241,6 +241,10 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
         found.readyInDays = `Use a whole number of working days from 1 to ${MAX_READY_DAYS}, or leave it blank.`;
       }
     }
+    if (value === 'form') {
+      const problem = draft.questions.map(choiceProblem).find(Boolean);
+      if (problem) found.formQuestions = problem;
+    }
     if (value === 'letter') {
       if (!editorContent.trim()) found.content = 'Write the letter in English. The Malay page is optional.';
       else Object.assign(found, wordingProblems(draft));
@@ -288,7 +292,10 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
       customFields: editorFields,
       status: submitted.status,
       purpose: submitted.purpose,
-      formQuestions: request ? submitted.questions : [],
+      audience: request ? submitted.audience : 'CURRENT',
+      formQuestions: request
+        ? submitted.questions.map((question) => (question.options ? { ...question, options: question.options.map((option) => option.trim()).filter(Boolean) } : question))
+        : [],
       validMonths: request && months ? Number(months) : null,
       readyInDays: request && days ? Number(days) : null,
       signatoryName: submitted.signatoryName.trim(),
@@ -461,6 +468,11 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
                   />
                 </Field>
               </div>
+              {request && (
+                <Field label="Who can request it" htmlFor="letter-template-audience">
+                  <SelectMenu<LetterAudience> id="letter-template-audience" value={draft.audience} options={AUDIENCE_OPTIONS} onChange={(audience) => set({ audience })} />
+                </Field>
+              )}
               {request && (
                 <Field label="Usually ready in (working days)" htmlFor="letter-template-ready-days" error={problems.readyInDays}>
                   <input

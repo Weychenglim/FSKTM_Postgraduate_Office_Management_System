@@ -101,6 +101,9 @@ assert.equal(typeForName('Turnitin Report', timeline)?.code, 'turnitin-report');
 assert.equal(typeForName('  turnitin   report ', timeline)?.code, 'turnitin-report', 'Case and spaces do not matter');
 assert.equal(typeForName('Ethics approval', timeline)?.code, 'supporting-document', 'Anything else is a supporting document');
 assert.equal(typeForName('', timeline), null);
+const addedType = type({ code: 'ethics-form', label: 'Ethics form', group: 'SUPPORTING', onePerStudent: false, custom: true });
+assert.equal(typeForName('ethics form', [addedType, ...timeline])?.code, 'ethics-form', 'A type a coordinator added is found by its name');
+assert.equal(typeForName('Medical letter', [addedType, ...timeline])?.code, 'supporting-document', 'Anything else stays a supporting document');
 const staffOnly = [type({ code: 'staff-document', label: 'Staff Document', kind: 'STAFF', group: 'STAFF' })];
 assert.equal(typeForName('Meeting minutes', staffOnly)?.code, 'staff-document');
 assert.equal(typeForName('Meeting minutes', timeline.slice(0, 3)), null, 'No general type to fall back on');
@@ -129,6 +132,7 @@ assert.deepEqual(codes(staffTypeChoices(types, { isOffice: true, role: 'Office S
 // Automatic tags and the suggested type
 assert.equal(tagText({ kind: 'programme', label: 'MASTER OF DATA SCIENCE (COURSEWORK)', filter: {} }), 'Master of Data Science (Coursework)');
 assert.equal(tagText({ kind: 'semester', label: 'Semester 1 2025/2026', filter: {} }), 'Semester 1 2025/2026');
+assert.equal(tagText({ kind: 'intake', label: 'Intake 2025/2026 Semester 1', filter: {} }), 'Intake Semester I 2025/2026');
 const choices = [
   type({ code: 'p1-research-report', label: 'P1 Research Report' }),
   type({ code: 'final-research-report', label: 'Final Research Report' }),

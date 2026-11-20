@@ -55,3 +55,15 @@ export const historyTime = (value: string): string => {
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) ? HISTORY_TIME.format(parsed) : '';
 };
+
+type SubmissionLink = { title: string; dueAt: string; open: boolean; student: string };
+
+/** ", due 20 Nov 2026, 23:59", with "(closed)" once the submission takes no more files. */
+export const submissionDueLine = (link: Pick<SubmissionLink, 'dueAt' | 'open'>): string =>
+  `, due ${historyTime(link.dueAt)}${link.open ? '' : ' (closed)'}`;
+
+/** What archiving does to each submission the file was sent for, one line each. */
+export const archiveWarnings = (links: SubmissionLink[] | undefined): string[] =>
+  (links ?? []).map(link => (link.open
+    ? `This file was sent for "${link.title}", due ${historyTime(link.dueAt)}. ${link.student} keeps the sent time and can send a new file before the due date.`
+    : `This file was sent for "${link.title}", which is closed. ${link.student} keeps the sent time.`));

@@ -9,6 +9,7 @@ import { getProjectStages } from '../services/registrySemestersApi';
 import { changeSummary, STAGE_LABEL, STAGE_TONE } from '../utils/projectStages';
 import { shortSemester } from '../utils/registrySemesters';
 import { PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { ProjectStageChangeDialog } from './ProjectStageChangeDialog';
 import { StageNote } from './ProjectStages';
 
@@ -73,7 +74,7 @@ export const StudentProjectStageCard: React.FC<{ matric: string }> = ({ matric }
         onClose={() => setChanging(false)}
         onSaved={saved}
       />
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </section>
   );
 };

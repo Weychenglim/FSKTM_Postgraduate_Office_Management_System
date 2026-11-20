@@ -55,7 +55,7 @@ export function wordingProblems(draft: EditorValues): { content?: string; conten
   const both = `${editorContent}\n${editorContentMs}`;
   const english = [
     describePlaceholderProblems(findPlaceholderProblems(editorContent, names, editorPurpose)),
-    request && both.includes('{{RECIPIENT}}') && !recipientQuestion ? 'This letter shows who it is for. Add "Who is the letter for?" in the Student form step.' : '',
+    request && both.includes('{{RECIPIENT}}') && !recipientQuestion ? 'This letter shows who it is for. Add "Who is the letter for?" in the Questions for students step.' : '',
     recipientQuestion && !editorContent.includes('{{RECIPIENT}}') ? 'Students say who this letter is for, but the letter does not show it. Add Recipient from Insert detail.' : '',
     request && both.includes('{{VALID_UNTIL}}') && !draft.validMonths.trim() ? 'This letter shows a valid-until date. Say how many months it stays valid in the Signature and status step.' : '',
   ].filter(Boolean).join(' ');

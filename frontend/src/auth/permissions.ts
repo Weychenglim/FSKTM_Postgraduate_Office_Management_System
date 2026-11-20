@@ -37,15 +37,15 @@ const LECTURER_MODULES: SidebarItemId[] = [
   SIDEBAR_ITEMS.SETTINGS,
 ];
 
-// Every module except the FAQ Chatbot, which is for students.
-const COORDINATOR_MODULES = Object.values(SIDEBAR_ITEMS).filter((item) => item !== SIDEBAR_ITEMS.FAQ_CHATBOT);
-
 /**
- * Modules each role may open. Coordinators cannot access Marks Entry or the student FAQ Chatbot.
+ * Modules each role may open. Coordinators cannot access Marks Entry, the
+ * student FAQ Chatbot or Letter Generation (letter types are the office's, UC21).
  */
 export const ROLE_ALLOWED_MODULES: Record<UserRole, SidebarItemId[] | 'ALL'> = {
   'Office Staff/Admin': 'ALL',
-  'Programme Coordinator': Object.values(SIDEBAR_ITEMS).filter(module => module !== SIDEBAR_ITEMS.MARKS_ENTRY && module !== SIDEBAR_ITEMS.FAQ_CHATBOT),
+  'Programme Coordinator': Object.values(SIDEBAR_ITEMS).filter(
+    module => module !== SIDEBAR_ITEMS.MARKS_ENTRY && module !== SIDEBAR_ITEMS.FAQ_CHATBOT && module !== SIDEBAR_ITEMS.LETTER_GENERATION,
+  ),
   Lecturer: LECTURER_MODULES,
   Student: STUDENT_MODULES,
 };

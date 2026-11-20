@@ -157,7 +157,7 @@ export function updateDocumentSharing(id: number, sharing: DocumentSharingChange
 }
 
 export function archiveDocument(id: number, reason: string): Promise<DocumentDetail> {
-  return request<DocumentDetail>(`${BASE}/${id}/archive/`, { method: 'POST', body: JSON.stringify({ reason }) });
+  return request<DocumentDetail>(`${BASE}/${id}/archive/`, { method: 'POST', body: JSON.stringify({ reason, confirmed: true }) });
 }
 
 export function restoreDocument(id: number): Promise<DocumentDetail> {

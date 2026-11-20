@@ -13,6 +13,7 @@ import {
   saveStudentExtension,
 } from '../services/registrySemestersApi';
 import {
+  displaySemester,
   intakeNotice,
   type SemesterNotice,
   maximumNotice,
@@ -133,7 +134,7 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
         </div>
         <div className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3">
           <p className="card-label">Maximum</p>
-          <p className="mt-0.5 text-[13.5px] font-extrabold text-brand-navy">{progress.maximumSemester.replace(' Session', '') || '-'}</p>
+          <p className="mt-0.5 text-[13.5px] font-extrabold text-brand-navy">{displaySemester(progress.maximumSemester) || '-'}</p>
           {progress.extensionSemesters > 0 && (
             <p className="mt-0.5 text-[11.5px] font-medium text-slate-500" title={progress.extensionReason}>
               Includes an extension of {semesterCount(progress.extensionSemesters)}
@@ -154,7 +155,7 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
         <ul className="divide-y divide-slate-100">
           {progress.rows.map(row => (
             <li key={row.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2.5">
-              <span className="text-[13px] font-semibold text-slate-800">{row.label.replace(' Session', '')}</span>
+              <span className="text-[13px] font-semibold text-slate-800">{displaySemester(row.label)}</span>
               <span className="flex items-center gap-3">
                 <StatusBadge tone={OUTCOME_TONE[row.outcome]}>{row.outcomeLabel}</StatusBadge>
                 {!readOnly && (
@@ -175,7 +176,7 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
       )}
 
       <DialogShell
-        title={dialog?.kind === 'add' ? 'Add a semester' : dialog?.kind === 'change' ? dialog.row.label.replace(' Session', '') : 'Extension past the maximum'}
+        title={dialog?.kind === 'add' ? 'Add a semester' : dialog?.kind === 'change' ? displaySemester(dialog.row.label) : 'Extension past the maximum'}
         titleId={titleId}
         isOpen={dialog !== null}
         busy={busy}

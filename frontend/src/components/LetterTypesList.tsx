@@ -3,32 +3,42 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-// The Letter types tab: every letter the office keeps, with when it is used,
-// what its student form asks and its status. Opening one shows its editor.
+// The Letter types tab: every letter the office keeps, with how it is issued,
+// what students are asked, its status and when it was last updated.
 
 import React, { useMemo, useState } from 'react';
 import { FileText } from 'lucide-react';
 import { PortalButton, StatusBadge } from './PortalPrimitives';
-import { WorkspaceFilterCard, WorkspacePagination, WorkspaceSectionHeader } from './RequestWorkspacePrimitives';
-import { PortalSelect } from './PortalSelect';
+import { WorkspacePagination } from './RequestWorkspacePrimitives';
+import { SelectMenu, type SelectMenuOption } from './SelectMenu';
+import { ListChips, ListSearch, ListToolbar, ListToolbarRow, type ListChipOption } from './ListToolbar';
 import { LoadingState, ErrorState, EmptyState } from './StateViews';
 import type { LetterPurpose, LetterTemplate } from '../types';
-import { PURPOSE_CHIP, STATUS_TONE, isCustomQuestion } from '../utils/letterEditor';
+import { AUDIENCE_NOTE, PURPOSE_CHIP, STATUS_TONE, isCustomQuestion } from '../utils/letterEditor';
 
-type StatusFilter = 'current' | 'Active' | 'Draft' | 'Archived' | 'all';
+type StatusFilter = 'current' | 'Archived';
 const PAGE_SIZE = 10;
+const PURPOSE_OPTIONS: SelectMenuOption<LetterPurpose | ''>[] = [
+  { value: '', label: 'All letter types', triggerLabel: 'All' },
+  { value: 'REQUEST', label: PURPOSE_CHIP.REQUEST },
+  { value: 'SUPERVISOR_APPOINTMENT', label: PURPOSE_CHIP.SUPERVISOR_APPOINTMENT },
+  { value: 'PANEL_APPOINTMENT', label: PURPOSE_CHIP.PANEL_APPOINTMENT },
+  { value: 'CO_SUPERVISOR_APPOINTMENT', label: PURPOSE_CHIP.CO_SUPERVISOR_APPOINTMENT },
+];
 
-/** What a letter's student form asks, in a few words. */
+/** What students are asked when they request this letter, in a few words. */
 export function formSummary(template: LetterTemplate): string {
-  if ((template.purpose ?? 'REQUEST') !== 'REQUEST') return 'Sent automatically';
+  if ((template.purpose ?? 'REQUEST') !== 'REQUEST') return 'None';
   const questions = template.formQuestions ?? [];
   const parts = [
-    questions.some((question) => question.kind === 'recipient') ? 'Who it is for' : '',
-    questions.some((question) => question.kind === 'extras') ? 'Additional information' : '',
+    questions.some((question) => question.kind === 'recipient') ? 'Who the letter is for' : '',
+    questions.some((question) => question.kind === 'extras') ? 'optional study details' : '',
   ].filter(Boolean);
   const own = questions.filter(isCustomQuestion).length;
-  if (own) parts.push(`${own} question${own === 1 ? '' : 's'}`);
-  return parts.length ? parts.join(', ') : 'A note only';
+  if (own) parts.push(`${own} more question${own === 1 ? '' : 's'}`);
+  if (!parts.length) return 'None';
+  const text = parts.join(', ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 export const LetterTypesList: React.FC<{
@@ -49,50 +59,56 @@ export const LetterTypesList: React.FC<{
     return templates.filter(
       (template) =>
         (!purpose || (template.purpose ?? 'REQUEST') === purpose) &&
-        (status === 'all' || (status === 'current' ? template.status !== 'Archived' : template.status === status)) &&
+        (template.status === 'Archived') === (status === 'Archived') &&
         (!query || [template.name, template.type, template.description].some((text) => text.toLowerCase().includes(query))),
     );
   }, [templates, search, purpose, status]);
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const shown = rows.slice((Math.min(page, pageCount) - 1) * PAGE_SIZE, Math.min(page, pageCount) * PAGE_SIZE);
 
+  const archived = templates.filter((template) => template.status === 'Archived').length;
+  const chips: ListChipOption<StatusFilter>[] = [
+    { value: 'current', label: 'Current', count: templates.length - archived },
+    { value: 'Archived', label: 'Archived', count: archived },
+  ];
+
   return (
-    <section aria-label="Letter types" className="app-card appointment-workspace-card">
-      <WorkspaceSectionHeader title="Letter types" />
-      <WorkspaceFilterCard
-        fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-4"
-        onReset={() => {
-          setSearch('');
-          setPurpose('');
-          setStatus('current');
-          setPage(1);
-        }}
-      >
-        <label className="form-label xl:col-span-2">
-          Find a letter type
-          <input type="search" className="form-control form-control-sm mt-1" value={search} placeholder="Name, type or description" onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
-        </label>
-        <label className="form-label">
-          Used
-          <PortalSelect className="form-control form-control-sm mt-1" value={purpose} onChange={(event) => { setPurpose(event.target.value as LetterPurpose | ''); setPage(1); }}>
-            <option value="">Whenever</option>
-            <option value="REQUEST">{PURPOSE_CHIP.REQUEST}</option>
-            <option value="SUPERVISOR_APPOINTMENT">{PURPOSE_CHIP.SUPERVISOR_APPOINTMENT}</option>
-            <option value="PANEL_APPOINTMENT">{PURPOSE_CHIP.PANEL_APPOINTMENT}</option>
-            <option value="CO_SUPERVISOR_APPOINTMENT">{PURPOSE_CHIP.CO_SUPERVISOR_APPOINTMENT}</option>
-          </PortalSelect>
-        </label>
-        <label className="form-label">
-          Status
-          <PortalSelect className="form-control form-control-sm mt-1" value={status} onChange={(event) => { setStatus(event.target.value as StatusFilter); setPage(1); }}>
-            <option value="current">Active and draft</option>
-            <option value="Active">Active</option>
-            <option value="Draft">Draft</option>
-            <option value="Archived">Archived</option>
-            <option value="all">All statuses</option>
-          </PortalSelect>
-        </label>
-      </WorkspaceFilterCard>
+    <section aria-label="Letter types" className="app-card readable-list space-y-4 p-4 sm:p-5">
+      <ListToolbar>
+        {(archived > 0 || status === 'Archived') && (
+          <ListChips
+            label="Show current or archived letter types"
+            options={chips}
+            value={status}
+            onChange={(value) => {
+              setStatus(value);
+              setPage(1);
+            }}
+          />
+        )}
+        <ListToolbarRow>
+          <ListSearch
+            label="Search letter types"
+            placeholder="Search name, category or description"
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+          />
+          <SelectMenu<LetterPurpose | ''>
+            variant="filter"
+            prefix="Issued"
+            aria-label="Filter by how the letter is issued"
+            value={purpose}
+            options={PURPOSE_OPTIONS}
+            onChange={(value) => {
+              setPurpose(value);
+              setPage(1);
+            }}
+          />
+        </ListToolbarRow>
+      </ListToolbar>
 
       {loading ? (
         <LoadingState message="Loading letter types…" />
@@ -102,21 +118,22 @@ export const LetterTypesList: React.FC<{
         templates.length === 0 ? (
           <EmptyState icon={FileText} title="No letter types yet" description="Make the first one, for example a confirmation letter." actionLabel="New letter type" onAction={onCreate} />
         ) : (
-          <p className="rounded-xl bg-slate-50 px-4 py-6 card-description">No letter types match these filters.</p>
+          <p className="rounded-xl bg-slate-50 px-4 py-6 card-description">No letter types match this search.</p>
         )
       ) : (
         <>
           <table aria-label="Letter types" className="data-table block table-fixed lg:table">
             <colgroup className="hidden lg:table-column-group">
-              {[32, 18, 20, 12, 18].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
+              {[30, 20, 18, 11, 12, 9].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
             </colgroup>
             <thead className="hidden lg:table-header-group">
               <tr className="data-thead bg-slate-50">
                 <th scope="col" className="data-th">Letter type</th>
-                <th scope="col" className="data-th">Used</th>
-                <th scope="col" className="data-th">Student form</th>
+                <th scope="col" className="data-th">How it is issued</th>
+                <th scope="col" className="data-th">Questions for students</th>
                 <th scope="col" className="data-th">Status</th>
-                <th scope="col" className="data-th">Action</th>
+                <th scope="col" className="data-th">Last updated</th>
+                <th scope="col" className="data-th"><span className="sr-only">Action</span></th>
               </tr>
             </thead>
             <tbody className="block space-y-3 lg:table-row-group lg:space-y-0">
@@ -127,20 +144,26 @@ export const LetterTypesList: React.FC<{
                     {template.description && <p className="card-caption mt-1 line-clamp-2">{template.description}</p>}
                   </td>
                   <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
-                    <span className="card-label mb-1 block lg:hidden">Used</span>
+                    <span className="card-label mb-1 block lg:hidden">How it is issued</span>
                     {PURPOSE_CHIP[template.purpose ?? 'REQUEST']}
+                    {(template.purpose ?? 'REQUEST') === 'REQUEST' && AUDIENCE_NOTE[template.audience ?? 'CURRENT'] && (
+                      <p className="card-caption mt-1">{AUDIENCE_NOTE[template.audience ?? 'CURRENT']}</p>
+                    )}
                   </td>
                   <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
-                    <span className="card-label mb-1 block lg:hidden">Student form</span>
+                    <span className="card-label mb-1 block lg:hidden">Questions for students</span>
                     {formSummary(template)}
                   </td>
                   <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
                     <span className="card-label mb-1 block lg:hidden">Status</span>
                     <StatusBadge tone={STATUS_TONE[template.status]} dot>{template.status}</StatusBadge>
                   </td>
-                  <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
+                  <td className="data-td block min-w-0 px-3 py-2 align-middle whitespace-nowrap lg:table-cell lg:px-5 lg:py-4">
+                    <span className="card-label mb-1 block lg:hidden">Last updated</span>
+                    {template.lastModified || 'Not recorded'}
+                  </td>
+                  <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4 lg:text-right">
                     <PortalButton size="sm" className="whitespace-nowrap" aria-label={`Edit ${template.name}`} onClick={() => onOpen(template)}>Edit</PortalButton>
-                    <p className="card-caption mt-1.5">Changed {template.lastModified}</p>
                   </td>
                 </tr>
               ))}

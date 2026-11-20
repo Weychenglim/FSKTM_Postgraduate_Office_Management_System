@@ -170,3 +170,15 @@ class ManagingListsTests(ListTestCase):
         self.assertIn("Visa Letter", refused.data["detail"])
         listed = {row["name"]: row for row in self.as_office().get(LISTS).data}
         self.assertEqual(listed["Embassies"]["usedBy"], ["Visa Letter"])
+
+
+class ListOrderTests(ListTestCase):
+    def test_the_list_shows_entries_in_their_saved_order(self):
+        names = ["Zeta Berhad", "Alpha Berhad", "Mid Berhad"]
+        items = [self.add_item(self.transport, name=name, **ADDRESS) for name in names]
+        for position, item in enumerate(reversed(items)):
+            ChoiceItem.objects.filter(pk=item.pk).update(order=position)
+        response = self.as_office().get(f"{LISTS}{self.recipients.pk}/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        shown = [row["name"] for row in response.data["items"] if row["name"] in names]
+        self.assertEqual(shown, list(reversed(names)))

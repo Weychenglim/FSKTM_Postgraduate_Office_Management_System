@@ -9,7 +9,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { FileText, FolderOpen, Loader2, Mail, Plus, Upload } from 'lucide-react';
+import { ChevronDown, FileText, FolderOpen, Loader2, Mail, Plus, Upload } from 'lucide-react';
 import type { DocumentOptions, DocumentTypeOption, GeneratedLetter, PortalDocument } from '../types';
 import { addDocumentVersion, deleteDocument, downloadDocument, getDocumentOptions, getDocuments, uploadDocument } from '../services/filesApi';
 import { fieldErrors } from '../services/apiClient';
@@ -23,6 +23,7 @@ import { acceptAttribute, acceptedKinds, fileProblem, titleFromFileName } from '
 import { durationText } from '../utils/submissions';
 import { isAppointmentLetter } from '../utils/letterDocument';
 import { PageHeader, PortalButton, PortalConfirmModal, PortalToast } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { OfficeToolViews } from './OfficeToolPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { OverflowMenu, type MenuAction } from './DocumentParts';
@@ -61,6 +62,7 @@ export const StudentFileSubmission: React.FC = () => {
   const [reload, setReload] = useState(0);
   const [sending, setSending] = useState<string | null>(null);
   const [dropOn, setDropOn] = useState<string | null>(null);
+  const [notesFor, setNotesFor] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<PortalDocument | null>(null);
   const [busy, setBusy] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
@@ -202,12 +204,15 @@ export const StudentFileSubmission: React.FC = () => {
           ...(document.permissions.canDelete && !slot.submission ? [{ label: 'Delete', danger: true, onSelect: () => setDeleting(document) }] : []),
         ]
       : [];
+    const notes = slot.submission?.instructions ?? '';
+    const notesOpen = notesFor === slot.key;
     return (
       <li
         key={slot.key}
-        className={`flex min-h-18 items-center gap-3.5 px-4 py-3.5 transition-colors sm:px-5 ${dropOn === slot.key ? 'bg-indigo-50 ring-2 ring-inset ring-brand-navy' : ''}`}
+        className={`px-4 py-3.5 transition-colors sm:px-5 ${dropOn === slot.key ? 'bg-indigo-50 ring-2 ring-inset ring-brand-navy' : ''}`}
         {...dropZone(slot.key, target)}
       >
+        <div className="flex min-h-11 items-center gap-3.5">
         <span aria-hidden="true" className="hidden h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 sm:flex">
           <FileText className="h-5 w-5" />
         </span>
@@ -218,6 +223,18 @@ export const StudentFileSubmission: React.FC = () => {
             <p className="truncate text-[14.5px] font-bold text-brand-navy">{slot.name}</p>
           )}
           <p className={`mt-0.5 text-[12.5px] ${TONE[slot.tone]}`}>{slot.line}</p>
+          {notes && (
+            <button
+              type="button"
+              aria-expanded={notesOpen}
+              aria-controls={`notes-${slot.key}`}
+              onClick={() => setNotesFor(notesOpen ? null : slot.key)}
+              className="mt-1 inline-flex items-center gap-1 text-[12.5px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+            >
+              Instructions
+              <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${notesOpen ? 'rotate-180' : ''}`} />
+            </button>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {target && (
@@ -235,6 +252,12 @@ export const StudentFileSubmission: React.FC = () => {
           )}
           {menu.length ? <OverflowMenu label={`More for ${slot.name}`} actions={menu} /> : <span aria-hidden="true" className="h-10 w-10" />}
         </div>
+        </div>
+        {notes && notesOpen && (
+          <p id={`notes-${slot.key}`} className="mt-3 whitespace-pre-line rounded-xl bg-slate-50 px-4 py-3 text-[13px] leading-relaxed text-slate-700 [overflow-wrap:anywhere] sm:ml-[3.625rem]">
+            {notes}
+          </p>
+        )}
       </li>
     );
   };
@@ -352,7 +375,7 @@ export const StudentFileSubmission: React.FC = () => {
         onConfirm={() => void remove()}
         onCancel={() => setDeleting(null)}
       />
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </div>
   );
 };

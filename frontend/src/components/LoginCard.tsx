@@ -4,6 +4,7 @@ import { PortalModal, useModalTitle } from './PortalModal';
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { OFFICE_CONTACT } from '../constants/office';
 import React, { useState } from 'react';
 import {
   Lock,
@@ -225,9 +226,9 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
                   </p>
                   <div className="mt-4 bg-slate-50 p-3 rounded-lg border border-slate-100 text-left w-full card-description">
                     <span className="card-label text-slate-400 block">Office Email:</span>
-                    <span className="card-value text-slate-800 block mb-1.5">postgrad.fsktm@edu.my</span>
+                    <span className="card-value text-slate-800 block mb-1.5">{OFFICE_CONTACT.email}</span>
                     <span className="card-label text-slate-400 block">Support Line:</span>
-                    <span className="card-value text-slate-800 block">+603-7967 6316</span>
+                    <span className="card-value text-slate-800 block">{OFFICE_CONTACT.phone}</span>
                   </div>
                 </div>
               )}

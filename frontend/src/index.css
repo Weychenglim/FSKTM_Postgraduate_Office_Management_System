@@ -220,3 +220,14 @@
   .appointment-workspace-card [data-workspace-filter-card] > :first-child { gap: 1rem; }
   .appointment-workspace-card [data-workspace-filter-card] > :last-child { margin-top: 1.25rem; padding-top: 1rem; }
 }
+
+/* Lists in Registry, Letters, File Management, FAQ and Announcements: larger, plainer
+   table text. Scoped so the other modules keep the shared table style. */
+.readable-list .data-th { font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; color: #475569; }
+.readable-list .data-td,
+.readable-list .data-td-strong { font-size: 13px; }
+.readable-list .card-caption { font-size: 12px; }
+@media (min-width: 64rem) {
+  .readable-list .data-td,
+  .readable-list .data-td-strong { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+}

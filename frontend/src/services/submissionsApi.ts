@@ -29,6 +29,9 @@ export interface SubmissionSummary {
   stage: SubmissionStage;
   semester: string;
   isCurrent: boolean;
+  instructions: string;
+  opensAt: string | null;
+  notOpenYet: boolean;
   dueAt: string;
   afterDue: AfterDue;
   lateUntil: string | null;
@@ -49,6 +52,7 @@ export interface SubmissionStudent {
   firstSentAt: string | null;
   lateBySeconds: number | null;
   documentId: number | null;
+  fileArchived: boolean;
   extension: { dueAt: string; reason: string; by: string } | null;
 }
 
@@ -69,8 +73,11 @@ export interface SubmissionDetail extends SubmissionSummary {
 export interface SubmissionInput {
   title: string;
   type: string;
+  newType?: string;
   programmes: string[];
   stage: SubmissionStage;
+  instructions: string;
+  opensAt: string | null;
   dueAt: string;
   afterDue: AfterDue;
   lateUntil: string | null;
@@ -82,6 +89,8 @@ export interface MySubmission {
   title: string;
   type: SubmissionType;
   semester: string;
+  instructions: string;
+  opensAt: string | null;
   dueAt: string;
   originalDueAt: string;
   extended: boolean;
@@ -95,6 +104,7 @@ export interface MySubmission {
   sentAt: string | null;
   lateBySeconds: number | null;
   documentId: number | null;
+  fileArchived: boolean;
 }
 
 const filesChanged = <T>(result: T): T => {

@@ -8,10 +8,13 @@
 
 import type { DocumentAutoTag, DocumentTypeOption } from '../types';
 import { titleCase } from './programmeLabel';
+import { displaySemester } from './registrySemesters';
 
-/** How a tag reads on a chip: programme names come in capitals from the registry. */
+/** How a tag reads on a chip: programme names come in capitals from the registry, and intakes as they were typed. */
 export function tagText(tag: DocumentAutoTag): string {
-  return tag.kind === 'programme' ? titleCase(tag.label) : tag.label;
+  if (tag.kind === 'programme') return titleCase(tag.label);
+  if (tag.kind === 'intake') return `Intake ${displaySemester(tag.label.replace(/^Intake\s+/, ''))}`;
+  return tag.label;
 }
 
 // Words that say what kind of paper it is rather than which one.

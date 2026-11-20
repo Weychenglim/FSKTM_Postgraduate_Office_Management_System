@@ -29,7 +29,11 @@ export type DashboardTaskTargetModule =
   | 'DASHBOARD'
   | 'SUPERVISOR_APPOINTMENTS'
   | 'PANEL_APPOINTMENTS'
-  | 'MARKS';
+  | 'MARKS'
+  | 'LETTERS'
+  | 'FILES'
+  | 'REGISTRY'
+  | 'FAQ';
 
 export interface DashboardTaskTargetMetadata {
   targetModule?: DashboardTaskTargetModule | null;

@@ -88,7 +88,7 @@ def _leave_studies(student, actor, target, reason, exit_reason=""):
 
 def _reinstate(student, actor, reason):
     if student.status not in (Student.Status.TERMINATED, Student.Status.DECEASED):
-        raise ParticipantLifecycleConflict("Only a terminated student can be reinstated.", {})
+        raise ParticipantLifecycleConflict("Only a student recorded as terminated or passed away can be reinstated.", {})
     if student.status == Student.Status.DECEASED and not student.user.is_active:
         student.user.is_active = True
         student.user.save(update_fields=["is_active"])

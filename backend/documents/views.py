@@ -596,6 +596,13 @@ def _version_of(request, document):
     return document.versions.filter(number=number if str(number).isdigit() else 0).first()
 
 
+def _stored(version):
+    try:
+        return bool(version.file.name) and version.file.storage.exists(version.file.name)
+    except (OSError, ValueError):
+        return False
+
+
 def _read(version):
     try:
         with version.file.open("rb") as handle:
@@ -701,15 +708,22 @@ def download_zip_view(request):
         return Response({"detail": "Some selected files are not available."}, status=status.HTTP_404_NOT_FOUND)
     if sum(document.current_version.size for document in documents) > MAX_ZIP_BYTES:
         return Response({"ids": ["These files add up to more than 100 MB. Choose fewer files."]}, status=status.HTTP_400_BAD_REQUEST)
+    documents.sort(key=lambda item: ids.index(item.pk))
+    if not all(_stored(document.current_version) for document in documents):
+        return Response(FILE_MISSING, status=status.HTTP_404_NOT_FOUND)
     spool = tempfile.SpooledTemporaryFile(max_size=16 * 1024 * 1024)
     used = set()
+    missing = False
     with zipfile.ZipFile(spool, "w", zipfile.ZIP_DEFLATED) as archive:
-        for document in sorted(documents, key=lambda item: ids.index(item.pk)):
+        for document in documents:
             content = _read(document.current_version)
             if content is None:
-                spool.close()
-                return Response(FILE_MISSING, status=status.HTTP_404_NOT_FOUND)
+                missing = True
+                break
             archive.writestr(_zip_name(document, document.current_version, used), content)
+    if missing:
+        spool.close()
+        return Response(FILE_MISSING, status=status.HTTP_404_NOT_FOUND)
     for document in documents:
         record_event(
             document, DocumentEvent.Action.DOWNLOADED, request.user,
@@ -880,6 +894,13 @@ def archive_view(request, pk):
         return Response({"reason": ["Say why it is archived."]}, status=status.HTTP_400_BAD_REQUEST)
     if len(reason) > 500:
         return Response({"reason": ["Keep the reason to 500 characters."]}, status=status.HTTP_400_BAD_REQUEST)
+    if request.data.get("confirmed") is not True:
+        links = submissions.links_for(document, scope)
+        if links:
+            return Response(
+                {"detail": "This file was sent for a submission. Confirm to archive it.", "code": "sent_for_submission", "submissions": links},
+                status=status.HTTP_409_CONFLICT,
+            )
     archive_document(document, actor=request.user, reason=reason)
     document = _visible_or_none(request, scope, document.pk)
     return Response(detail_dict(document, request.user, scope))

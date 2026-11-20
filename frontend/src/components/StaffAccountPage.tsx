@@ -25,6 +25,7 @@ import {
 } from '../utils/staffAccounts';
 import { historyTime } from '../utils/documentDisplay';
 import { PortalButton, PortalToast } from './PortalPrimitives';
+import { toastDuration } from '../utils/toastDuration';
 import { RecordPage } from './RecordPage';
 import { ErrorState, LoadingState } from './StateViews';
 import { OverflowMenu, type MenuAction } from './DocumentParts';
@@ -360,7 +361,7 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
           <ActivationLinkDialog name={account.name} link={link} onClose={() => setLink(null)} />
         </>
       )}
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </RecordPage>
   );
 };

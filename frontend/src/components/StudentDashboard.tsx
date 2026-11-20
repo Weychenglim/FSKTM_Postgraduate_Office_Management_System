@@ -16,6 +16,7 @@ import { ActiveSemesterContext } from './ActiveSemesterContext';
 import { StudentAppointmentStatusCards } from './StudentAppointmentStatusCards';
 import { ProjectStageQuestion } from './ProjectStageQuestion';
 import { getMyProjectStage, type StudentProject, type StudentProjectStatus } from '../services/registrySemestersApi';
+import { stageCard } from '../utils/projectStages';
 
 const projectStatusLabel: Record<StudentProjectStatus['state'], string> = {
   ON_PROJECT: 'In progress',
@@ -63,6 +64,9 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     setProjectLoadFailed(false);
     setProjectAttempt(attempt => attempt + 1);
   };
+  const question = project?.question ?? null;
+  const stageAsking = question ? stageCard(question).asking : false;
+  const stageCardNode = <ProjectStageQuestion question={question} onUpdate={setProject} />;
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
@@ -116,13 +120,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       )}
 
-      <ProjectStageQuestion question={project?.question ?? null} onUpdate={setProject} />
       {projectLoadFailed && (
         <div className="app-card flex flex-wrap items-center justify-between gap-3 p-4">
           <p role="alert" className="text-sm text-slate-700">Research project status could not be loaded.</p>
           <PortalButton size="sm" onClick={retryProject}>Retry</PortalButton>
         </div>
       )}
+      {stageAsking && stageCardNode}
 
       <DashboardTimeline
         showManageTimeline={false}
@@ -130,6 +134,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         visibleRoles={['STUDENT']}
         studentProject={projectStatus}
       />
+
+      {question && !stageAsking && stageCardNode}
 
       <StudentAppointmentStatusCards onNavigateToTab={onNavigateToTab} />
 

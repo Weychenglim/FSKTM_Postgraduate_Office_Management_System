@@ -47,10 +47,12 @@ assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.MARKS_ENTRY)
 assert.equal(allowedModulesFor('Programme Coordinator', [SIDEBAR_ITEMS.DASHBOARD, SIDEBAR_ITEMS.MARKS_ENTRY]).includes(SIDEBAR_ITEMS.MARKS_ENTRY), false);
 assert.equal(canAccessModule('Office Staff/Admin', SIDEBAR_ITEMS.MARKS_ENTRY), true);
 assert.equal(canAccessModule('Lecturer', SIDEBAR_ITEMS.MARKS_ENTRY), true);
-for (const module of Object.values(SIDEBAR_ITEMS)) {
-  const expected = module !== SIDEBAR_ITEMS.MARKS_ENTRY && module !== SIDEBAR_ITEMS.FAQ_CHATBOT;
-  assert.equal(canAccessModule('Programme Coordinator', module), expected, module);
+const notForCoordinators: string[] = [SIDEBAR_ITEMS.MARKS_ENTRY, SIDEBAR_ITEMS.FAQ_CHATBOT, SIDEBAR_ITEMS.LETTER_GENERATION];
+for (const module of Object.values(SIDEBAR_ITEMS).filter(module => !notForCoordinators.includes(module))) {
+  assert.equal(canAccessModule('Programme Coordinator', module), true);
 }
+assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.LETTER_GENERATION), false);
+assert.equal(canAccessModule('Office Staff/Admin', SIDEBAR_ITEMS.LETTER_GENERATION), true);
 assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.FAQ_CHATBOT), false);
 assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.REGISTRY), true);
 assert.equal(canAccessModule('Programme Coordinator', SIDEBAR_ITEMS.SETTINGS), true);

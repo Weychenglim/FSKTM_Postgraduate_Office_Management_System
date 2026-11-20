@@ -17,6 +17,9 @@ TOKEN_AGE = 60 * 60 * 24 * 7
 RELATED_SHARE = 0.8
 
 
+BAND_ORDER = {NONE: 0, POSSIBLE: 1, STRONG: 2}
+
+
 class ChatRefused(Exception):
     def __init__(self, message, status=400):
         super().__init__(message)
@@ -103,12 +106,15 @@ def reply_for(text):
             outcome=Outcome.CHOICES,
             choices=[_link(c.item) for c in result.candidates[:MAX_CHOICES] if c is top or c.confidence >= floor],
         )
-    else:
+    if result.band != STRONG:
+        # A reference document can answer what the FAQ only loosely matches,
+        # when its passage fits the question better than any entry (UC29 AF).
         match = find_passage(text)
         result.passage = match
-        if match is not None and match.confidence >= settings.FAQ_DOCUMENT_MATCH:
-            reply.update(outcome=Outcome.DOCUMENT, passage=passage_card(match))
-        else:
+        loose = top.confidence if top and result.band == POSSIBLE else 0.0
+        if match is not None and match.confidence >= settings.FAQ_DOCUMENT_MATCH and match.confidence > loose:
+            reply.update(outcome=Outcome.DOCUMENT, passage=passage_card(match), related=reply["choices"], choices=[])
+        elif result.band == NONE:
             reply["contactText"] = FaqSettings.load().contact_text
     return reply, result
 
@@ -144,6 +150,13 @@ def ask(text, *, typed=True, question_id=None, token=None, student=None):
         raise ChatRefused("Type a question.")
     reply, result = reply_for(text)
     earlier = conversation(question_id, token)
+    if earlier and ai.FOLLOW_UP.search(text):
+        # A follow-up such as "what if I take fewer?" or "how long does it take?"
+        # is read with the question before it, so it works without the AI too
+        # (UC28 AF 8a-8b). A question that stands alone is searched alone.
+        joined_reply, joined = reply_for(f"{earlier[-1].text} {text}")
+        if BAND_ORDER[joined.band] >= BAND_ORDER[result.band]:
+            reply, result = joined_reply, joined
     attempt = ai.attempt(text, result, earlier, student=student)
     used_ai = attempt is not None and attempt.status == FaqQuestion.AiStatus.USED
     if used_ai:

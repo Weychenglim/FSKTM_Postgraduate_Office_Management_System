@@ -22,7 +22,7 @@ from .fake_ai import NOT_COVERED, FakeAiClient, reply
 from .management.commands.evaluate_faq_ai import CAUGHT, MISSED, NOT_RUN, RIGHT, SEARCH_ONLY, WRONG, judge
 from .models import FaqEntry, FaqQuestion, FaqSettings
 from .questions import waiting_groups
-from .search import NONE, clear_index, find
+from .search import NONE, STRONG, Candidate, Result, clear_index, find
 from .test_chat import ChatBase
 
 Status = FaqEntry.Status
@@ -120,6 +120,19 @@ class WhenTheAiIsUsedTests(AiChatBase):
         FakeAiClient.reset(reply("Daftar dalam MAYA."))
         self.ask("daftar kursus jenis baru")
         self.assertLessEqual(self.sent().count("<entry number="), 4)
+
+    def test_the_reply_is_asked_for_in_english_even_for_a_malay_question(self):
+        FakeAiClient.reset(reply("Register in MAYA."))
+        self.ask(TYPED)
+        self.assertIn("Reply in English, even when the question is in Malay.", FakeAiClient.calls[0]["messages"][0]["content"])
+
+    @override_settings(FAQ_AI_TIMEOUT_SECONDS=10)
+    def test_no_model_is_given_more_than_ten_seconds(self):
+        FakeAiClient.reset(ai.AiCallFailed(ai.TIMED_OUT), reply("Register in MAYA."))
+        self.ask("daftar kursus semester")
+        first, second = (call["timeout"] for call in FakeAiClient.calls)
+        self.assertAlmostEqual(first, 7, delta=0.5)
+        self.assertLessEqual(second, 10)
 
     def test_only_free_models_are_called(self):
         with self.settings(FAQ_AI_MODELS=["paid/model", "second/model:free"]):
@@ -296,6 +309,67 @@ class LimitTests(AiChatBase):
         self.assertEqual(self.ask(TYPED).data["ai"]["text"], "Register at the counter.")
 
 
+
+class FutureAnswersTests(AiChatBase):
+    """Answers the office adds, edits or archives later reach the AI at once, with no restart."""
+
+    POSTER = "Print it at the FSKTM print room, Level 2, Block A."
+
+    def setUp(self):
+        super().setUp()
+        self.office = self.user("chat.office", User.Role.OFFICE_ADMIN)
+        FakeAiClient.reset(reply("Daftar dalam MAYA."))
+        self.ask(TYPED)
+
+    def as_office(self, method, url, body=None):
+        self.client.force_authenticate(self.office)
+        response = getattr(self.client, method)(url, body or {}, format="json")
+        self.client.force_authenticate(self.student)
+        return response
+
+    def add_poster_answer(self):
+        response = self.as_office("post", "/api/faq/entries/", {
+            "question": "Where can I print my research poster?",
+            "answer": self.POSTER,
+            "category": str(self.registration.pk),
+            "publish": True,
+        })
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        return response.data["id"]
+
+    def test_a_new_answer_from_the_office_is_used_at_once(self):
+        added = self.add_poster_answer()
+        FakeAiClient.reset(reply(self.POSTER))
+        response = self.ask("where to print a research poster")
+        self.assertEqual(response.data["ai"]["text"], self.POSTER)
+        self.assertEqual(response.data["ai"]["sources"][0]["id"], str(added))
+        self.assertIn(self.POSTER, self.sent())
+
+    def test_an_edited_answer_is_sent_as_it_now_reads(self):
+        added = self.add_poster_answer()
+        changed = "Print it at the library print counter, Level 1."
+        self.assertEqual(self.as_office("patch", f"/api/faq/entries/{added}/", {"answer": changed}).status_code, status.HTTP_200_OK)
+        FakeAiClient.reset(reply(changed))
+        response = self.ask("where to print a research poster")
+        self.assertEqual(response.data["ai"]["text"], changed)
+        self.assertNotIn("FSKTM print room", self.sent())
+
+    def test_a_new_way_of_asking_finds_the_answer(self):
+        added = self.add_poster_answer()
+        self.as_office("patch", f"/api/faq/entries/{added}/", {"altQuestions": ["Kat mana nak cetak poster?"]})
+        FakeAiClient.reset(reply(self.POSTER))
+        response = self.ask("kat mana boleh cetak poster saya")
+        self.assertEqual(response.data["ai"]["sources"][0]["id"], str(added))
+
+    def test_an_archived_answer_is_no_longer_sent(self):
+        added = self.add_poster_answer()
+        self.assertEqual(self.as_office("post", f"/api/faq/entries/{added}/archive/").status_code, status.HTTP_200_OK)
+        FakeAiClient.reset(reply(self.POSTER))
+        response = self.ask("where to print a research poster")
+        self.assertIsNone(response.data["ai"])
+        self.assertFalse(any(self.POSTER in message["content"] for call in FakeAiClient.calls for message in call["messages"]))
+
+
 class FollowUpTests(AiChatBase):
     def follow(self, question, previous):
         return self.ask(question, questionId=previous.data["questionId"], token=previous.data["token"])
@@ -332,6 +406,15 @@ class FollowUpTests(AiChatBase):
         self.follow("kalau daftar kursus empat", three)
         roles = [message["role"] for message in FakeAiClient.calls[3]["messages"]]
         self.assertEqual(roles.count("assistant"), 2)
+
+    def test_a_follow_up_leaves_out_answers_far_from_the_best_match(self):
+        def result(*scores):
+            return Result(STRONG, [Candidate(mock.Mock(entry_id=pk), 0.0, score, None) for pk, score in scores], "keywords", possible=0.42)
+
+        joined = result((1, 0.83), (2, 0.59), (3, 0.43))
+        alone = result((4, 0.82), (1, 0.25), (5, 0.46))
+        self.assertEqual([item.entry_id for item in ai.closest_entries([joined, alone], ai.FOLLOW_UP_SHARE)], [1, 4])
+        self.assertEqual([item.entry_id for item in ai.closest_entries([joined, alone])], [1, 2, 3, 4])
 
     def test_a_forged_token_is_ignored(self):
         FakeAiClient.reset(NOT_COVERED, NOT_COVERED)

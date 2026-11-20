@@ -68,12 +68,22 @@ assert.equal(query.get('priority'), 'Urgent');
 assert.deepEqual(query.getAll('programmes'), ['A', 'B']);
 assert.deepEqual(query.getAll('intakes'), ['Semester 1 2025/2026']);
 
-// the composer offers a publish time but no expiry, and saving clears an old one
+// the composer offers a publish time and an expiry (UC30)
 const composer = readFileSync(resolve('src/components/AnnouncementManagement.tsx'), 'utf8');
 assert.match(composer, /id="announcement-publish-at"/);
-assert.doesNotMatch(composer, /id="announcement-expires-at"/);
-assert.equal(composer.match(/expiresAt: null/g)?.length, 2, 'saving and publishing a draft both clear the expiry');
+assert.match(composer, /id="announcement-expires-at"/);
+assert.doesNotMatch(composer, /expiresAt: null/, 'saving keeps the expiry the office set');
 assert.match(composer, /getAnnouncementRecipientCount\(/);
 assert.match(composer, /getAnnouncementAudienceOptions\(\)/);
 
 console.log('Announcement schedule tests passed.');
+
+{
+  const { scheduleProblem } = await import('./announcementSchedule');
+  const now = new Date('2026-11-15T04:00:00Z');
+  assert.equal(scheduleProblem(null, null, true, now), null);
+  assert.equal(scheduleProblem('2026-11-20T01:00:00Z', '2026-11-20T00:00:00Z', false, now), 'The expiry time must be after the publish time.');
+  assert.equal(scheduleProblem(null, '2026-11-14T00:00:00Z', true, now), 'The expiry time has already passed.');
+  assert.equal(scheduleProblem(null, '2026-11-14T00:00:00Z', false, now), null);
+  assert.equal(scheduleProblem('2026-11-16T00:00:00Z', '2026-11-30T00:00:00Z', true, now), null);
+}
