@@ -28,16 +28,24 @@ test('Marks overview navigation, truthful states and responsive page hierarchy',
   });
   try {
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-    const pages = (process.env.MARKS_PAGES || 'overview-empty,overview-active,overview-error,monitoring,periods-empty,periods,periods-published,periods-archived,periods-archived-only,periods-context,periods-new,rubrics-empty,rubrics-create,rubrics,rubrics-locked,assignment-empty,assignment-closed,assignment,records,records-empty,records-error,records-legacy,records-paged,records-monitoring-empty,lecturer,lecturer-empty,lecturer-error,lecturer-mixed,lecturer-panel-only,lecturer-backup-only,history,history-empty,history-retained,history-error,entry,entry-readonly,entry-draft-only,submitted,office-detail,completion').split(',');
+    const pages = (process.env.MARKS_PAGES || 'overview-empty,overview-active,overview-error,monitoring,periods-empty,periods,periods-published,periods-archived,periods-archived-only,periods-context,periods-new,rubrics-empty,rubrics-create,rubrics,rubrics-locked,assignment-empty,assignment-closed,assignment,records,records-empty,records-error,records-legacy,records-paged,records-monitoring-empty,lecturer,lecturer-empty,lecturer-error,lecturer-mixed,lecturer-panel-only,history,history-empty,history-retained,history-error,entry,entry-readonly,entry-draft-only,submitted,office-detail,office-overdue-draft,office-extra-time-draft,completion').split(',');
+    if (!process.env.MARKS_PAGES) pages.splice(pages.indexOf('assignment') + 1, 0, 'assignment-scheduled', 'assignment-no-tasks');
+    const failures = [];
     for (const page of pages) for (const width of [1440, 390, 320]) {
       const screenshot = process.env.MARKS_SCREENSHOTS === '0' ? [] : [`--screenshot=${join(output, `${page}-${width}.png`)}`];
       const { stdout } = await promisify(execFile)('C:/Program Files/Google/Chrome/Application/chrome.exe', ['--headless=new', '--disable-gpu', '--disable-background-networking', '--disable-component-update', '--no-first-run', '--no-default-browser-check', `--user-data-dir=${join(directory, `${page}-${width}`)}`, `--window-size=${Math.max(550, width + 40)},1950`, '--force-device-scale-factor=1', '--dump-dom', '--virtual-time-budget=10000', ...screenshot, `http://127.0.0.1:${server.address().port}/?page=${page}&width=${width}`], { windowsHide: true, timeout: 35000, maxBuffer: 3 * 1024 * 1024 });
       const encoded = stdout.match(/<pre id="checks"[^>]*>([\s\S]*?)<\/pre>/)?.[1];
       assert.ok(encoded && encoded !== 'RUNNING', `${page} did not finish`);
       const result = JSON.parse(encoded.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&'));
-      assert.equal(result.width, width); assert.equal(result.error, undefined, JSON.stringify(result));
-      console.log(`PASS ${page} ${width}px: ${result.checks.length} checks`);
+      assert.equal(result.width, width);
+      if (result.error) {
+        failures.push(`${page} ${width}px: ${result.error}`);
+        console.log(`FAIL ${failures.at(-1)}`);
+      } else {
+        console.log(`PASS ${page} ${width}px: ${result.checks.length} checks`);
+      }
     }
+    assert.deepEqual(failures, [], 'Marks visual regressions');
   } finally {
     server.close();
     const resolved = await realpath(directory), within = relative(await realpath(tmpdir()), resolved);

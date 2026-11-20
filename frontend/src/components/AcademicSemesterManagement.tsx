@@ -354,7 +354,7 @@ const AcademicSemesterManagementContent: React.FC<AcademicSemesterManagementProp
               id="semester-session" aria-invalid={!!formFeedback?.fields.academicSession} aria-describedby={formFeedback?.fields.academicSession?'semester-session-error':undefined}
               value={form.academicSession}
               disabled={saving||Boolean(selected && selected.lifecycleStatus !== 'DRAFT')}
-              onChange={(event) => {setForm({ ...form, academicSession: event.target.value });setFormFeedback(value=>clearFeedbackFields(value,['academicSession']));}}
+              onChange={(event) => {setForm({ ...form, academicSession: event.target.value });setFormFeedback(value=>clearFeedbackFields(value,['academicSession','term']));}}
               placeholder="2026/2027"
               className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 font-sans not-italic normal-case tracking-normal text-xs font-bold"
             />
@@ -401,7 +401,7 @@ const AcademicSemesterManagementContent: React.FC<AcademicSemesterManagementProp
           </label>
           {(!selected || selected.lifecycleStatus === 'DRAFT') ? (
             <div className="md:col-span-2">
-              <div className="mb-4"><FormFeedback id="semester-save-feedback" feedback={formFeedback} fields={SEMESTER_FIELDS}/></div>
+              <div className="mb-4"><FormFeedback id="semester-save-feedback" feedback={formFeedback?.message === 'Correct the highlighted fields, then save again.' ? {...formFeedback, message:'Check the highlighted fields before saving.'} : formFeedback} fields={SEMESTER_FIELDS} showFieldSummary={false}/></div>
               <PortalButton type="submit" icon={Save} variant="primary" disabled={saving || savedRefreshFailure || (!!selected && !dirty)}>
                 {selected ? 'Save changes' : 'Create draft'}
               </PortalButton>

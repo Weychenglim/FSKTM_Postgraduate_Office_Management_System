@@ -15,7 +15,7 @@ from accounts.participant_lifecycle import transition_student
 from academics.models import AcademicSemester
 from academics.services import activate_semester
 from academics.test_capacity_helpers import publish_test_capacity_plan
-from appointments import co_supervision, research_amendments
+from appointments import co_supervision
 from appointments.models import CoSupervisorAppointment, SupervisorAppointment
 from marks.closure_preview import semester_closure_preview
 from marks.models import EvaluationTask, MarkEntry, MarkScore
@@ -122,26 +122,6 @@ class ReportingAcceptanceTests(ReportingAcceptanceFixture, APITestCase):
         public = self.get(self.student_user, self.dossier_url()).data
         self.assertNotIn('PRIVATE supporting closure', str(public))
         self.assertEqual(list(MarkEntry.objects.values()), before)
-
-    def test_transfer_changes_programme_scope_atomically_and_retains_team_marks_and_own_decisions(self):
-        before = self.preserved()
-        target = self.foreign_student.programme
-        row = research_amendments.submit(actor=self.office, data={
-            'kind': 'TRANSFER', 'studentId': self.student.pk, 'destinationProgramme': target, 'reason': 'A05 programme transfer',
-        })
-        research_amendments.decide(request_id=row.pk, actor=self.coordinator, decision='APPROVE', retain_team=True, expected_status='PENDING_SOURCE_COORDINATOR')
-        research_amendments.decide(request_id=row.pk, actor=self.other_coordinator, decision='APPROVE', retain_team=True, expected_status='PENDING_DESTINATION_COORDINATOR')
-        self.student.refresh_from_db(); self.profile.refresh_from_db()
-        self.assertEqual(self.student.programme, target)
-        self.assertEqual(self.profile.programme, target)
-        self.get(self.coordinator, self.dossier_url(), expected=404)
-        self.get(self.other_coordinator, self.dossier_url())
-        for section in ('supervisor', 'panel'):
-            self.assertEqual(self.report(self.coordinator)[section]['total'], 0)
-        historical = self.report(self.coordinator)['researchAmendments']['records']
-        self.assertIn(str(row.pk), [item['recordId'] for item in historical])
-        self.assertNotIn('Marks', self.workbook(self.coordinator).sheetnames)
-        self.assert_preserved(before)
 
     def test_delegation_revocation_removes_current_report_export_and_dossier_scope(self):
         before = self.preserved()

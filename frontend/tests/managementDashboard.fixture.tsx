@@ -30,14 +30,19 @@ async function mount(component:React.ReactNode){
   window.fetch=async(input,init)=>{
     check(!init?.method||init.method==='GET','This mounted fixture permits reads only');
     const url=new URL(String(input),location.origin);requests.push(url.pathname+url.search);
-    const page=(rows:unknown[])=>rows.slice(Number(url.searchParams.get('offset')||0),Number(url.searchParams.get('offset')||0)+Number(url.searchParams.get('limit')||100));
+    const page=(all:unknown[])=>{
+      const offset=Number(url.searchParams.get('offset')||0),limit=Number(url.searchParams.get('limit')||100);
+      const rows=all.slice(offset,offset+limit);
+      return Response.json(url.searchParams.get('pageResult')==='true'?{rows,total:all.length,offset,limit}:rows);
+    };
     if(url.pathname==='/api/academics/semesters/')return Response.json([target,prior]);
-    if(url.pathname.endsWith('/audits/')&&!url.pathname.includes('capacity'))return Response.json([{id:1,action:'ACTIVATED',reason:'Synthetic activation',actor:'Office',createdAt:'2026-10-01T00:00:00Z'}]);
+    if(url.pathname.endsWith('/audits/')&&!url.pathname.includes('capacity'))return Response.json([{id:1,action:'ACTIVATED',reason:'Synthetic activation',actor:'Office',createdAt:'2026-10-01T00:00:00Z',beforeValues:{},afterValues:{}}]);
     if(url.pathname==='/api/appointments/supervisor/workload/')return Response.json(workloads);
-    if(url.pathname==='/api/academics/semesters/9/capacity-plans/')return Response.json(page(plans));
+    if(url.pathname==='/api/academics/semesters/9/capacity-plans/')return page(plans);
+    if(url.pathname==='/api/academics/semesters/9/capacity-workspace/')return Response.json({lecturers:[{...entry,supervisorLimit:3,activeStudentCount:2,primaryStudentCount:2,supportingStudentCount:0,panelStudentCount:1}],baseline:{activeStudents:4,eligibleLecturers:1,studentsPerLecturer:4}});
     if(url.pathname==='/api/academics/semesters/3/capacity-plans/')return Response.json([{...plans[4],id:77,semesterId:3,semesterCode:prior.code,semesterLabel:prior.label,version:1}]);
-    if(url.pathname.endsWith('/availability/'))return Response.json(page(windows));
-    if(url.pathname.endsWith('/capacity-audits/'))return Response.json(page(audits));
+    if(url.pathname.endsWith('/availability/'))return page(url.searchParams.get('status')==='CURRENT'?[]:windows);
+    if(url.pathname.endsWith('/capacity-audits/'))return page(audits);
     throw new Error(`Unexpected API: ${url.pathname}`);
   };
   root=createRoot(container);root.render(component);
@@ -49,7 +54,7 @@ await scenario('semester browse and active detail keep participant navigation on
   let participants=0;
   await mount(<AcademicSemesterManagement onBack={()=>{}} onManageParticipants={()=>{participants++;}}/>);
   check(!container.querySelector('form'),'Browse opened a create form');
-  await click('Open');await until(()=>text().includes('Lifecycle actions'));
+  await click('Open');await until(()=>button('Extend end date'));
   check(!container.querySelector('form'),'Active semester rendered a disabled editing form');
   check(!button('Manage participants')&&participants===0,'Participant shortcut remains in semester details');
   await click('History');await until(()=>text().includes('Synthetic activation'));
@@ -66,33 +71,42 @@ await scenario('semester draft inputs survive guarded return cancellation',async
 });
 await scenario('Supervisor summary filtering pagination and record return agree with capacity state',async()=>{
   await mount(<SupervisorWorkloadMonitoring onBack={()=>{}}/>);
-  const summary=()=>container.querySelector('[aria-label="Workload distribution"]')!.textContent!;
-  check(summary().includes('Not configured: 36')&&summary().includes('Full: 1'),`Incorrect summary: ${summary()}`);
-  select(selectWith('FULL'),'FULL');await until(()=>summary().includes('1 matching of 37'));
+  const metric=(name:string)=>container.querySelector(`[aria-label="Supervisor workload summary"] [aria-label="${name}"] .card-metric`)?.textContent;
+  check(metric('Lecturers')==='37'&&metric('At or over capacity')==='1','Incorrect workload summary');
+  select(selectWith('FULL'),'FULL');await until(()=>metric('Lecturers')==='1');
   check(!text().includes('Full Load: 37'),'Legacy availability leaked into summary');
   await click('View');await until(()=>text().includes('Supervisor workload details'));
-  await click('Back to Supervisor Workload Monitoring');await until(()=>summary().includes('1 matching of 37'));
+  await click('Back to Supervisor Workload Monitoring');await until(()=>metric('Lecturers')==='1');
   await click('Clear filters');select(selectWith('25'),'25');await until(()=>text().includes('Page 1 of 2'));
   await click('Next');await until(()=>text().includes('Page 2 of 2'));
   check(text().includes('Synthetic supervisor 36'),'Second page lost last lecturer');
 });
-await scenario('capacity Published authority stays distinct from selected limits and all bounded history reads complete',async()=>{
+await scenario('capacity Published authority stays distinct from selected limits and paginated history retains totals',async()=>{
   await mount(<LecturerCapacityManagement onBack={()=>{}}/>);
-  check(text().includes('Published operational policyv109'),'Published policy followed selected Draft');
-  check(text().includes('Selected version limit: 9')&&text().includes('Published policy limit: 3'),'Version limits were confused with operational policy');
-  for(const endpoint of ['capacity-plans','availability','capacity-audits'])check(requests.some(url=>url.includes(`/${endpoint}/`)&&url.includes('offset=100')),`${endpoint} stopped at 100`);
-  await click('Version / audit history');await until(()=>text().includes('Capacity versions'));
-  check(text().includes('113 versions')&&text().includes('137 audit events'),'History totals incomplete');
-  check(!text().includes('Audit reason 136'),'History was rendered without bounds');
-  await click('Availability');await until(()=>text().includes('Historical reason 0'));
+  await until(()=>text().includes('Version 109'));
+  const policy=()=>container.querySelector('[aria-label="Semester capacity policy"]')?.textContent;
+  check(policy()?.includes('Published limitsVersion 109Published'),'Published policy followed selected Draft');
+  const roster=()=>container.querySelector('table[aria-label="Lecturer capacity roster"]');
+  check(roster()?.textContent?.includes('Published limits')&&roster()?.textContent?.includes('Supervision:3'),'Published roster lost the operational limit');
+  check(requests.some(url=>url.includes('/capacity-plans/')&&url.includes('offset=100')),'Working versions stopped at 100');
+  await click('Capacity versions');await until(()=>container.querySelector('table[aria-label="Capacity versions"]'));
+  check(text().includes('113 versions'),'Version history totals incomplete');
+  await click('Edit draft');await until(()=>text().includes('Editing draft v113'));
+  check(roster()?.textContent?.includes('Draft limits')&&roster()?.textContent?.includes('Supervision:9'),'Draft roster did not show the selected version limit');
+  await click('Back to Lecturer capacity');await click('Capacity versions');await click('View activity log');await until(()=>text().includes('Audit reason 0'));
+  check(text().includes('137 activities')&&!text().includes('Audit reason 136'),'Activity history totals or page bounds incorrect');
+  await click('Next');await until(()=>text().includes('Audit reason 10'));
+  await click('Back to Lecturer capacity');await click('View availability');
+  select(selectWith('ENDED'),'ENDED');await until(()=>text().includes('Historical lecturer 0'));
   check(text().includes('Ended'),'Elapsed availability was called Scheduled');
-  await click('Cancel restriction');await until(()=>text().includes('Cancellation reason'));
-  check(button('Cancel Restriction').disabled,'Historical cancellation lost reason and acknowledgement guards');
+  check(text().includes('117 restrictions'),'Availability history totals incomplete');
+  check(!button('Cancel restriction'),'Office availability exposed a lecturer-only mutation');
 });
 await scenario('copy flow previews the single strict prior Published source before any write',async()=>{
   await mount(<LecturerCapacityManagement onBack={()=>{}}/>);
-  await click('Copy eligible previous semester');await until(()=>text().includes('Create draft from this source'));
-  check(text().includes('Synthetic prior semester')&&text().includes('Copy into Synthetic active semester'),'Copy lacks source/target identity');
+  await click('Capacity versions');await click('Start new draft');
+  select(selectWith('previous'),'previous');await until(()=>text().includes('Copies Synthetic prior semester, Version 1'));
+  check(text().includes('Synthetic active semester')&&button('Create draft')&&!button('Create draft').disabled,'Copy lacks source/target identity or cannot proceed');
   check(requests.some(url=>url.startsWith('/api/academics/semesters/3/capacity-plans/')),'Eligible source was not read');
 });
 root?.unmount();document.getElementById('test-results')!.textContent=JSON.stringify(results);

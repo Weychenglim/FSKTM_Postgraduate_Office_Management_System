@@ -81,10 +81,12 @@ test('Supervisor published capacity summary includes accepted reservations',()=>
  const html=render(<CapacityRoleSummary entry={{supervisorLimit:5,supervisor:{...capacity,role:'SUPERVISOR'}} as any} role="SUPERVISOR"/>);
  assert.match(html,/4 active \+ 1 reserved/);
 });
-test('Supervisor aggregate keeps active appointment metric separate from reservation count',()=>{
+test('Supervisor aggregate excludes reservations from active appointments and counts full capacity',()=>{
  const html=render(<WorkloadMonitoringSummary kind="supervisor" records={[{currentStudents:4,reservedLoad:1,capacityState:'FULL',semesterCode:'S1',capacityPlanVersion:1} as any]}/>);
- assert.match(html,/1 reserved place awaiting Coordinator approval/);
- assert.doesNotMatch(html,/Pending requests do not reserve capacity/);
+ const active=html.split('<article aria-label="Active appointments"')[1]?.split('</article>')[0];
+ const full=html.split('<article aria-label="At or over capacity"')[1]?.split('</article>')[0];
+ assert.match(active,/card-metric">4</);
+ assert.match(full,/card-metric">1</);
 });
 test('Supervisor selection explains that submission does not reserve capacity',()=>{
  const html=render(<SupervisorAppointmentApplicationPage onBack={()=>{}} onSuccess={()=>{}}/>);

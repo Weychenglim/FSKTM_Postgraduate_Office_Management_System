@@ -32,6 +32,8 @@ from .models import (
     OfficeStaff,
     Panel,
     ParticipantLifecycleAudit,
+    ProjectRegistration,
+    StudentSemester,
     Student,
     Supervisor,
     User,
@@ -146,6 +148,9 @@ class ParticipantLifecycleTests(APITestCase):
         return user
 
     def _open_task(self, evaluator=None, role=EvaluationTask.EvaluatorRole.SUPERVISOR):
+        StudentSemester.objects.get_or_create(student=self.student,
+            session=self.semester.academic_session, term=self.semester.term)
+        ProjectRegistration.objects.get_or_create(student=self.student, academic_semester=self.semester, defaults={'stage': 'P1'})
         rubric = Rubric.objects.create(
             name="Lifecycle Rubric",
             code=f"lifecycle-rubric-{Rubric.objects.count() + 1}",
@@ -153,6 +158,7 @@ class ParticipantLifecycleTests(APITestCase):
             target_mark="10.00",
         )
         period = EvaluationPeriod.objects.create(
+            assessment='P1',
             name=f"Lifecycle Evaluation {EvaluationPeriod.objects.count() + 1}",
             semester=self.semester.label,
             academic_semester=self.semester,
@@ -216,9 +222,17 @@ class ParticipantLifecycleTests(APITestCase):
             detail.data["assignment"]["pauseReason"], "Lifecycle transition reason"
         )
 
-        active = self._transition_student("ACTIVE", "Student returned to study")
+        row = self.student.semesters.get(
+            session=self.semester.academic_session, term=self.semester.term)
+        self.assertEqual(row.outcome, StudentSemester.Outcome.LEAVE)
+        active = self.client.patch(
+            f"/api/registry/students/{self.student.matric_no}/semesters/{row.pk}/",
+            {"outcome": StudentSemester.Outcome.STUDIED}, format="json",
+        )
 
         self.assertEqual(active.status_code, status.HTTP_200_OK)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.status, Student.Status.ACTIVE)
         task.refresh_from_db()
         self.assertEqual(task.lifecycle_status, EvaluationTask.Lifecycle.ACTIVE)
         self.assertEqual(task.lifecycle_audits.count(), 2)

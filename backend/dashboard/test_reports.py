@@ -12,6 +12,8 @@ from accounts.models import (
     Lecturer,
     OfficeStaff,
     Panel,
+    ProjectRegistration,
+    StudentSemester,
     Student,
     Supervisor,
 )
@@ -153,6 +155,7 @@ class WorkflowReportTests(APITestCase):
 
         rubric = Rubric.objects.create(name="Report Rubric", code="report-rubric")
         self.period = EvaluationPeriod.objects.create(
+            assessment='P1',
             academic_semester=self.academic_semester,
             name="Report Period",
             semester="Semester 1 2026/2027",
@@ -187,6 +190,8 @@ class WorkflowReportTests(APITestCase):
             target_roles=["LECTURER"],
             display_order=1,
         )
+        from .calendar_publication import publication_state, publish_calendar
+        publish_calendar(self.academic_semester, self.office, publication_state(timeline, self.office)['reviewToken'])
         publish_test_capacity_plan(self.academic_semester, self.office)
 
     def _user(self, email, name, role):
@@ -213,6 +218,10 @@ class WorkflowReportTests(APITestCase):
             matric_no=matric_no,
             programme=programme,
         )
+        StudentSemester.objects.get_or_create(student=student,
+            session=self.academic_semester.academic_session, term=self.academic_semester.term)
+        ProjectRegistration.objects.create(student=student, academic_semester=self.academic_semester,
+            stage='P1', confirmed_by=self.office)
         profile = StudentResearchProfile.objects.create(
             student=user,
             matric_no=matric_no,

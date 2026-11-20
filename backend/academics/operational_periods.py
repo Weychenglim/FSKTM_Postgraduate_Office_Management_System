@@ -234,7 +234,8 @@ def exception_payload(exception, *, history=True):
     if status == 'ACTIVE' and (not eligible or exception.period.lifecycle_status != 'PUBLISHED' or not exception.period.academic_semester.is_active):
         status = 'INELIGIBLE'
     result = dict(id=exception.pk, periodId=exception.period_id, studentId=exception.student_id,
-        studentName=exception.student.full_name, participantId=exception.participant_id,
+        studentName=exception.student.full_name, matricNo=student.matric_no if student else '',
+        programme=student.programme if student else '', grantedBy={'id':exception.created_by_id,'name':exception.created_by.full_name}, participantId=exception.participant_id,
         participantName=exception.participant.full_name, deadline=_iso(exception.deadline),reason=exception.reason,
         status=status, createdAt=_iso(exception.created_at), revokedAt=_iso(exception.revoked_at),
         revocationReason=exception.revocation_reason, revision=exception.revision, canRevoke=exception.revoked_at is None and not superseded)

@@ -16,7 +16,6 @@ from appointments.models import SupervisorApplication, SupervisorAppointment
 from . import test_completion_windows as fixtures
 from .models import EvaluationPeriod, EvaluationTask
 from .services import (
-    create_backup_evaluation_task,
     ensure_period_tasks,
     ensure_replacement_evaluation_tasks,
 )
@@ -33,7 +32,7 @@ class CapacityHandoverLockingTests(APITransactionTestCase):
     period = fixtures.CompletionWindowTests.period
     publish = fixtures.CompletionWindowTests.publish
 
-    def _race_handover(self, *, backup=False, legacy_period_lock=False):
+    def _race_handover(self, *, legacy_period_lock=False):
         student_locked, period_locked = Event(), Event()
         original_fetch = QuerySet._fetch_all
         original_lock = QuerySet.select_for_update
@@ -88,12 +87,6 @@ class CapacityHandoverLockingTests(APITransactionTestCase):
         def create_tasks():
             if not student_locked.wait(10):
                 raise AssertionError("Handover did not acquire its Student lock")
-            if backup:
-                return create_backup_evaluation_task(
-                    period=self.period_obj, profile=self.student_profile,
-                    evaluator=self.panel, actor=self.office,
-                    reason="Concurrent backup regression", original_task=self.task,
-                )
             return ensure_period_tasks(self.period_obj, actor=self.office)
 
         def run(operation):
@@ -134,20 +127,9 @@ class CapacityHandoverLockingTests(APITransactionTestCase):
             evaluator=self.backup, evaluator_role="SUPERVISOR", lifecycle_status="ACTIVE",
         )
         self.assertTrue(self.task.handover_audits.filter(replacement_task=replacement_task).exists())
-        if backup:
-            self.assertTrue(EvaluationTask.objects.filter(
-                period=self.period_obj, profile=self.student_profile,
-                evaluator=self.panel, evaluator_role="BACKUP",
-            ).exists())
 
     def test_period_generation_allows_inflight_replacement_task_commit(self):
         self._race_handover()
 
-    def test_backup_creation_allows_inflight_replacement_task_commit(self):
-        self._race_handover(backup=True)
-
     def test_legacy_generation_lock_reproduces_the_conflict(self):
         self._race_handover(legacy_period_lock=True)
-
-    def test_legacy_backup_lock_reproduces_the_conflict(self):
-        self._race_handover(backup=True, legacy_period_lock=True)

@@ -96,8 +96,8 @@ export function LecturerDashboardSummaryCards({ summary, loading, error, onRetry
       badge={`${summary.pendingPanelReviews} pending ${summary.pendingPanelReviews === 1 ? 'review' : 'reviews'}`}
       badgeTone={summary.pendingPanelReviews > 0 ? 'warning' : 'success'} icon={Award}
       actionLabel="View panels" onClick={() => navigate(APP_ROUTES.panelAppointments, 'Panel Appointments')} />
-    <LecturerSummaryCard title="Assigned Marks Tasks" value={String(summary.assignedMarkTasks ?? ((summary.supervisorMarkTasks ?? 0) + (summary.panelMarkTasks ?? 0) + (summary.backupMarkTasks ?? 0)))}
-      subtext={`${summary.supervisorMarkTasks ?? 0} supervisor, ${summary.panelMarkTasks ?? 0} panel, ${summary.backupMarkTasks ?? 0} backup task(s).`}
+    <LecturerSummaryCard title="Assigned Marks Tasks" value={String(summary.assignedMarkTasks ?? ((summary.supervisorMarkTasks ?? 0) + (summary.panelMarkTasks ?? 0)))}
+      subtext={`${summary.supervisorMarkTasks ?? 0} supervisor, ${summary.panelMarkTasks ?? 0} panel.`}
       badge={`${summary.incompleteMarkEntries} incomplete`} badgeTone={summary.incompleteMarkEntries > 0 ? 'warning' : 'success'}
       icon={CheckSquare} actionLabel="Open marks" onClick={() => navigate(APP_ROUTES.marks, 'Marks Entry')} />
   </section>;

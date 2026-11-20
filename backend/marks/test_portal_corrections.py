@@ -73,6 +73,38 @@ class MarksPortalCorrectionTests(APITestCase):
         self.assertEqual(self.entry.total_mark, Decimal('80'))
         self.assertEqual(MarkCorrectionAudit.objects.get().after_values['comments'], 'Comment-only correction')
 
+    def test_feedback_only_correction_is_audited_and_can_be_cleared(self):
+        score = self.entry.scores.get(component=self.problem)
+        other_feedback = self.entry.scores.get(component=self.method).feedback
+        key = str(self.problem.pk)
+        updated = 'Corrected feedback\nSecond line'
+        payload = self.payload(scores=[], feedback=[{'componentId': self.problem.pk, 'feedback': updated}])
+        response = self.client.post(self.url+'correct/', payload, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        detail = self.detail()
+        component = next(item for item in detail['rubric']['components'] if item['id'] == self.problem.pk)
+        self.assertEqual((component['feedback'], detail['entry']['totalMark']), (updated, '80.00'))
+        self.assertEqual(detail['entry']['status'], 'SUBMITTED')
+        audit = detail['correctionHistory'][0]
+        self.assertEqual(audit['beforeValues']['feedback'][key], score.feedback)
+        self.assertEqual(audit['afterValues']['feedback'][key], updated)
+        self.assertEqual(self.entry.scores.get(component=self.method).feedback, other_feedback)
+        self.assertEqual(self.client.post(self.url+'correct/', payload, format='json').status_code, 409)
+        self.assertEqual(self.client.post(self.url+'correct/', self.payload(scores=[], feedback=payload['feedback']), format='json').status_code, 400)
+        clear = self.payload(scores=[], feedback=[{'componentId': self.problem.pk, 'feedback': ''}])
+        self.assertEqual(self.client.post(self.url+'correct/', clear, format='json').status_code, 200)
+        score.refresh_from_db()
+        self.assertEqual(score.feedback, '')
+
+    def test_feedback_rejects_unknown_duplicate_and_unexpected_fields(self):
+        before = self.snapshot()
+        feedback = {'componentId': self.problem.pk, 'feedback': 'New feedback'}
+        for items in [[{**feedback, 'componentId': 999999}], [feedback, feedback], [{**feedback, 'status': 'DRAFT'}]]:
+            with self.subTest(items=items):
+                response = self.client.post(self.url+'correct/', self.payload(feedback=items), format='json')
+                self.assertEqual(response.status_code, 400, response.data)
+                self.assertEqual(self.snapshot(), before)
+
     def test_missing_reason_version_and_no_change_are_validation_errors(self):
         before = self.snapshot()
         for payload in [self.payload(reason='  '), self.payload(expectedVersion=''),
@@ -189,7 +221,8 @@ class MarksPortalCorrectionTests(APITestCase):
         self.assertEqual(self.snapshot(), before)
 
     def test_audit_failure_rolls_back_marks(self):
-        payload = self.payload(comments='Must roll back'); before = self.snapshot()
+        payload = self.payload(comments='Must roll back', feedback=[{'componentId': self.problem.pk, 'feedback': 'Must also roll back'}])
+        before = self.snapshot()
         with patch('marks.services.MarkCorrectionAudit.objects.create', side_effect=RuntimeError('Synthetic audit outage')):
             with self.assertRaisesRegex(RuntimeError, 'Synthetic audit outage'):
                 self.client.post(self.url+'correct/', payload, format='json')

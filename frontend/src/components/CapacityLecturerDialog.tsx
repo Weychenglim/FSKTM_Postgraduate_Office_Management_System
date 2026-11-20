@@ -27,7 +27,7 @@ export function CapacityLecturerDialog({ title, lecturerName, staffNo, dirty = f
     <PortalModal isOpen onClose={requestClose} busy={busy} labelledBy={titleId} className="max-w-xl overscroll-contain p-0">
       <div ref={content} data-office-dashboard data-capacity-lecturer-dialog className="text-sm text-slate-700">
         <header className="flex items-start justify-between gap-4 border-b border-slate-200 p-5 sm:p-6">
-          <div className="min-w-0"><h2 id={titleId} className="section-heading">{title}</h2><p className="mt-2 font-semibold text-brand-navy break-words">{lecturerName}</p><p className="mt-1 text-slate-600">{staffNo}</p></div>
+          <div className="min-w-0"><h2 id={titleId} className="section-heading">{title}</h2><p className="mt-2 font-semibold text-brand-navy break-words">{lecturerName}</p><p className="mt-1 text-slate-600">Staff no. {staffNo}</p></div>
           <button type="button" className="icon-button h-9 w-9 shrink-0 disabled:opacity-50" aria-label="Close lecturer dialog" disabled={busy} onClick={requestClose}><X className="h-4 w-4" aria-hidden="true" /></button>
         </header>
         <div className="space-y-5 p-5 sm:p-6">{children}</div>

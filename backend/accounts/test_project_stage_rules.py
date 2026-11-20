@@ -299,14 +299,22 @@ class StudentQuestionTests(StageBase):
         return self.client.post(self.MINE, {"answer": answer}, format="json")
 
     def test_a_first_semester_student_is_not_asked(self):
-        self.assertIsNone(self.ask(self.student("SQ1", S2_26, intake="2026/2027 Semester II")))
+        student = self.student("SQ1", S2_26, intake="2026/2027 Semester II")
+        self.assertIsNone(self.ask(student))
+        self.assertEqual(self.client.get(self.MINE).data["projectStatus"], {
+            "semesterId": self.portal.pk, "state": NOT_STARTED, "stage": None,
+        })
 
     def test_the_question_names_the_course_and_the_answer_is_saved_once_with_history(self):
         student = self.student("SQ2", S1_26, S2_26)
         question = self.ask(student)
         self.assertEqual((question["code"], question["name"], question["answer"], question["canChange"]), ("WQD7025", "Data Science Research Project", None, True))
-        saved = self.reply(student, "YES").data["question"]
+        response = self.reply(student, "YES")
+        saved = response.data["question"]
         self.assertEqual((saved["answer"], saved["canChange"]), ("YES", False))
+        self.assertEqual(response.data["projectStatus"], {
+            "semesterId": self.portal.pk, "state": ON_PROJECT, "stage": "P1",
+        })
         self.assertEqual(self.answer(student).stage, "P1")
         refused = self.reply(student, "NO")
         self.assertEqual(refused.status_code, 409)
@@ -344,6 +352,9 @@ class StudentQuestionTests(StageBase):
         on_rp2 = self.student("SQ5", S1_26, S2_26)
         self.said(on_rp2, self.s1_26, "P1")
         self.assertIsNone(self.ask(on_rp2))
+        self.assertEqual(self.client.get(self.MINE).data["projectStatus"], {
+            "semesterId": self.portal.pk, "state": ON_PROJECT, "stage": "P2",
+        })
         set_by_staff = self.student("SQ6", S1_26, S2_26)
         self.said(set_by_staff, self.portal, "NONE", source=ProjectRegistration.Source.COORDINATOR)
         self.assertIsNone(self.ask(set_by_staff))

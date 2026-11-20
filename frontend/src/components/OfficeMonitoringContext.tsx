@@ -30,7 +30,6 @@ const descriptions: Record<OfficeMonitoringView, string> = {
   'supervisor-pending': 'Primary and supporting requests awaiting Supervisor review.',
   'panel-pending': 'Panel recommendations awaiting Coordinator approval.',
   incomplete: 'Active evaluation tasks with no submitted marks.',
-  backup: 'Active evaluation tasks assigned to Backup evaluators, including submitted marks.',
   'panel-capacity': 'Panel lecturers whose configured capacity is full or exceeded.',
 };
 export function OfficeMonitoringNotice() {

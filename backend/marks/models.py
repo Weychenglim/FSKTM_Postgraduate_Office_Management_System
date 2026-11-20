@@ -245,7 +245,6 @@ class EvaluationTask(models.Model):
     class EvaluatorRole(models.TextChoices):
         SUPERVISOR = "SUPERVISOR", "Supervisor"
         PANEL = "PANEL", "Panel"
-        BACKUP = "BACKUP", "Backup / Manual Override"
 
     profile = models.ForeignKey(
         "appointments.StudentResearchProfile",
@@ -308,7 +307,11 @@ class EvaluationTask(models.Model):
                 fields=["profile", "evaluator", "period", "evaluator_role"],
                 condition=Q(lifecycle_status="ACTIVE"),
                 name="unique_evaluation_task_assignment",
-            )
+            ),
+            models.CheckConstraint(
+                condition=Q(evaluator_role__in=["SUPERVISOR", "PANEL"]),
+                name="evaluation_task_official_role",
+            ),
         ]
 
     def __str__(self):
@@ -384,41 +387,13 @@ class TaskCompletionWindowAudit(models.Model):
         raise ValidationError("Completion window events are immutable.")
 
 
-class EvaluationTaskOverrideAudit(models.Model):
-    task = models.ForeignKey(
-        EvaluationTask,
-        on_delete=models.PROTECT,
-        related_name="override_audits",
-    )
-    actor = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="evaluation_task_override_audits",
-    )
-    original_evaluator = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="evaluation_task_overrides_replaced",
-        null=True,
-        blank=True,
-    )
-    new_evaluator = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.PROTECT,
-        related_name="evaluation_task_overrides_received",
-    )
-    reason = models.TextField()
-    created_at = models.DateTimeField(default=timezone.now)
-
-    class Meta:
-        ordering = ["-created_at", "-id"]
-
-
 class EvaluationTaskLifecycleAudit(models.Model):
     class Action(models.TextChoices):
         PAUSED = "PAUSED", "Paused"
         RESUMED = "RESUMED", "Resumed"
         RETIRED = "RETIRED", "Retired"
+        STAGE_REVIEW = "STAGE_REVIEW", "Registration stage review"
+        STAGE_RESOLVED = "STAGE_RESOLVED", "Registration stage review resolved"
 
     task = models.ForeignKey(
         EvaluationTask,

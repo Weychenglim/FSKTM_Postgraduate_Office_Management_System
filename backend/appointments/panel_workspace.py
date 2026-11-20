@@ -15,6 +15,7 @@ from academics.services import current_effective_semester
 from accounts.models import Lecturer, Student, User
 from . import coordinator_workspace as browse
 from .ageing import elapsed_calendar_days
+from .attention_project_stages import filter_attention_stages, project_stage_filter, stage_coverage_page
 from .models import (AppointmentWorkflowEvent, PanelAppointment, PanelRecommendation,
                      ResearchAmendment, StudentResearchProfile, SupervisorAppointment)
 
@@ -59,6 +60,7 @@ def options(params):
         for key in ('programme', 'semester'):
             if opts[key]:
                 raise ValidationError({key: 'Panel workload uses the current capacity semester and all active and reserved appointments.'})
+    opts['projectStage'] = project_stage_filter(params, category)
     return category, opts
 
 
@@ -104,6 +106,10 @@ def students_page(opts):
         rows = rows.filter(semester=opts['semester'])
     if opts['status']:
         rows = rows.filter(reason=opts['status'])
+    semester = current_effective_semester()
+    stages = None
+    if opts['projectStage']:
+        rows, stages = filter_attention_stages(rows, semester, 'student_id', opts['projectStage'])
     order = ('student__full_name', 'student__student__matric_no', 'pk')
     if opts['sort'] == 'no_request':
         rows = rows.annotate(pendingOrder=Case(When(recommendationId__isnull=True, then=Value(0)),
@@ -118,7 +124,8 @@ def students_page(opts):
         row['id'] = row.pop('rowId')
         row['programme'] = row.pop('studentProgramme')
         return row
-    return browse.envelope(rows, opts, available, serializer=compact)
+    data = browse.envelope(rows, opts, available, serializer=compact)
+    return stage_coverage_page(data, semester, stages)
 
 
 def waiting_recommendations():

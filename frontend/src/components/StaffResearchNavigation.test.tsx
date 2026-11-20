@@ -13,7 +13,7 @@ const route='/supervisor-appointments/research-changes';
 const render=(role:'Programme Coordinator'|'Office Staff/Admin',view:'list'|'detail'='list')=>renderToStaticMarkup(
   <MemoryRouter initialEntries={[route+'?type=RESEARCH&status=PENDING_COORDINATOR']}><StaffResearchWorkspace role={role} routeView={view}/></MemoryRouter>);
 const coordinator=render('Programme Coordinator');
-assert.equal(currentLinkText(coordinator), 'Programme transfers');
+assert.equal(currentLinkText(coordinator), '');
 assert.match(coordinator, /Loading programme transfers/);
 assert.doesNotMatch(coordinator, /Title change|Abstract change|Research changes/);
 assert.match(render('Office Staff/Admin'), /Research records|Research profiles/);

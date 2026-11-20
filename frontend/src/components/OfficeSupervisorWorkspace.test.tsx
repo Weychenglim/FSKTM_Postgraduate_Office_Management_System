@@ -37,7 +37,7 @@ console.log('Office shared structure, all-stage paged monitoring and lifecycle r
 
 const profileTools=renderToStaticMarkup(<ResearchAmendmentRouteContent role="Office Staff/Admin" routeView="profile" options={{students:[],programmes:['Programme B'],profile:{studentId:7,title:'Title',abstract:'Abstract',programme:'Programme A',revision:1},canSubmitResearch:false,canCorrect:true,canTransfer:true}} rows={[]} revisions={[]} busy={false} onAction={noop} onNavigateToNew={noop} requestForm={null}/>);
 assert.match(profileTools,/Correct research text/);
-assert.match(profileTools,/Request programme transfer/);
+assert.doesNotMatch(profileTools,/Request programme transfer/);
 
 const {officeResearchCreationParams}=await import('./LecturerResearchWorkspace');
 const creation=officeResearchCreationParams(new URLSearchParams('profileStudent=7&q=kept&page=2'),7);

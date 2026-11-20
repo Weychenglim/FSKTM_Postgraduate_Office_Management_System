@@ -345,14 +345,25 @@ export interface ProjectStageQuestion {
   correction: 'REQUESTED' | 'KEPT' | 'DONE' | null;
 }
 
+export interface StudentProjectStatus {
+  semesterId: number;
+  state: 'ON_PROJECT' | 'NOT_STARTED' | 'COMPLETED' | 'NOT_STUDYING' | 'NOT_CONFIRMED';
+  stage: 'P1' | 'P2' | null;
+}
+
+export interface StudentProject {
+  question: ProjectStageQuestion | null;
+  projectStatus: StudentProjectStatus | null;
+}
+
 export const requestProjectStageCorrection = (note: string) =>
-  request<{ question: ProjectStageQuestion | null }>(`${BASE}/project-stages/mine/correction/`, json('POST', { note })).then(data => data.question);
+  request<StudentProject>(`${BASE}/project-stages/mine/correction/`, json('POST', { note }));
 
 export const getMyProjectStage = () =>
-  request<{ question: ProjectStageQuestion | null }>(`${BASE}/project-stages/mine/`).then(data => data.question);
+  request<StudentProject>(`${BASE}/project-stages/mine/`);
 
 export const answerMyProjectStage = (answer: 'YES' | 'NO') =>
-  request<{ question: ProjectStageQuestion | null }>(`${BASE}/project-stages/mine/`, json('POST', { answer })).then(data => data.question);
+  request<StudentProject>(`${BASE}/project-stages/mine/`, json('POST', { answer }));
 
 export interface RetentionPage {
   years: number;

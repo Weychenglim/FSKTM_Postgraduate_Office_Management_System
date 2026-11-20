@@ -160,7 +160,7 @@ def enforcement(request):
 def exceptions(request,pk):
     period = get_object_or_404(period_query(),pk=pk)
     if request.method=='GET':
-        return Response({'exceptions':[service.exception_payload(e) for e in period.exceptions.select_related('student','participant','period__academic_semester')]})
+        return Response({'exceptions':[service.exception_payload(e) for e in period.exceptions.select_related('student','participant','created_by','period__academic_semester')]})
     data = validated(ExceptionWrite,request.data)
     exception = service.grant_exception(actor=request.user,period=period,
         student=get_object_or_404(Student.objects.select_related('user'),pk=data['studentId']),

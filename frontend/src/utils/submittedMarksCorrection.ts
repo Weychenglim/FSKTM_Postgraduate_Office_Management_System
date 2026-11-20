@@ -1,6 +1,6 @@
 type CorrectionOriginal = {
   comments: string;
-  components: Array<{id: string | number; name: string; maxMarks: string | number; marksAwarded: string | null}>;
+  components: Array<{id: string | number; name: string; maxMarks: string | number; marksAwarded: string | null; feedback?: string}>;
 };
 
 export function validateSubmittedMarksCorrection(
@@ -8,6 +8,7 @@ export function validateSubmittedMarksCorrection(
   values: Record<string, string>,
   comments: string,
   reason: string,
+  feedback: Record<string, string> = {},
 ): string | null {
   if (!reason.trim()) return 'Enter a correction reason.';
   let changed = comments !== original.comments;
@@ -18,6 +19,7 @@ export function validateSubmittedMarksCorrection(
       return `${component.name} must be between 0 and ${component.maxMarks}, with at most two decimal places.`;
     }
     changed ||= Number(value) !== Number(component.marksAwarded);
+    changed ||= (feedback[component.id] ?? component.feedback ?? '') !== (component.feedback ?? '');
   }
-  return changed ? null : 'Change a score or the overall comments before saving a correction.';
+  return changed ? null : 'Change a score, component feedback or the overall comments before saving a correction.';
 }

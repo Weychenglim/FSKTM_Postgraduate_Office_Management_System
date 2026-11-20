@@ -13,6 +13,7 @@ from accounts.authorization import office_actor, coordinator_scope_q
 from accounts.models import Student, User
 from . import capacity_reassessment, co_supervision
 from .ageing import elapsed_calendar_days
+from .attention_project_stages import filter_attention_stages, project_stage_filter, stage_coverage_page
 from .models import (AppointmentWorkflowEvent, CoSupervisorAppointment, CoSupervisorNomination,
                      StudentResearchProfile, SupervisorApplication, SupervisorAppointment)
 from .request_visibility import routine_supervisor_requests
@@ -279,6 +280,11 @@ def team_selection(actor, params):
         rows = filter_team_relationship(primary if kind == "primary" else supporting, opts, kind, relation)
         students = students.annotate(**{f"{kind}Filtered": Exists(rows)})
     students = students.filter(Q(primaryFiltered=True) | Q(supportingFiltered=True))
+    opts["project_semester"] = current_effective_semester()
+    stage = project_stage_filter(params, "current_roster")
+    opts["project_stages"] = None
+    if stage:
+        students, opts["project_stages"] = filter_attention_stages(students, opts["project_semester"], "pk", stage)
     return opts, view, students, direct_students
 
 
@@ -300,7 +306,8 @@ def teams_page(actor, params):
             return {"id": student.pk, "matricNo": student.matric_no, "studentName": student.user.full_name,
                     "programme": student.programme, "primarySupervisor": {"id": student.primaryId, "name": student.primaryName}
                     if student.primaryId else None, "relationship": relationship}
-        return envelope(students, opts, facets, serializer=compact)
+        data = envelope(students, opts, facets, serializer=compact)
+        return stage_coverage_page(data, opts["project_semester"], opts["project_stages"])
     def count(model):
         rows = model.objects.filter(status="ACTIVE", student__in=students, supervisor_id=OuterRef("pk"))
         rows = filter_team_relationship(rows, opts, "primary" if model is SupervisorAppointment else "supporting",
@@ -313,9 +320,11 @@ def teams_page(actor, params):
         supportingCount=Coalesce(count(CoSupervisorAppointment), 0)).filter(Q(primaryCount__gt=0) | Q(supportingCount__gt=0))
     ordering = ("full_name", "pk") if opts["sort"] == "name" else (f"-{opts['sort']}Count", "full_name", "pk")
     supervisors = supervisors.select_related("lecturer").order_by(*ordering)
-    return envelope(supervisors, opts, facets, serializer=lambda supervisor: {"id": supervisor.pk, "name": supervisor.full_name,
+    data = envelope(supervisors, opts, facets, serializer=lambda supervisor: {"id": supervisor.pk, "name": supervisor.full_name,
         "staffNo": getattr(getattr(supervisor, "lecturer", None), "staff_no", ""),
         "primaryCount": supervisor.primaryCount, "supportingCount": supervisor.supportingCount})
+    data["projectSemester"] = opts["project_semester"].label if opts["project_semester"] else None
+    return data
 
 
 def carryover_bases(actor):

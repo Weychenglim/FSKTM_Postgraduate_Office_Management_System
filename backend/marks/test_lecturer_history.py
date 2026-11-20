@@ -36,7 +36,7 @@ class LecturerSubmissionHistoryTests(APITestCase):
     def test_retained_submissions_include_all_roles_and_assignment_lifecycles(self):
         self.submitted(self.task)
         paused = self.task_for("SUPERVISOR", "PAUSED")
-        retired = self.task_for("BACKUP", "RETIRED")
+        retired = self.task_for("PANEL", "RETIRED")
         self.submitted(paused)
         self.submitted(retired)
         self.period.lifecycle_status = "ARCHIVED"
@@ -45,7 +45,7 @@ class LecturerSubmissionHistoryTests(APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual({row["id"] for row in response.data}, {self.task.pk, paused.pk, retired.pk})
-        self.assertEqual({row["evaluatorRole"] for row in response.data}, {"SUPERVISOR", "PANEL", "BACKUP"})
+        self.assertEqual({row["evaluatorRole"] for row in response.data}, {"SUPERVISOR", "PANEL"})
         by_id = {row["id"]: row for row in response.data}
         self.assertEqual(by_id[retired.pk]["taskLifecycleStatus"], "RETIRED")
         for row in response.data:
@@ -63,7 +63,7 @@ class LecturerSubmissionHistoryTests(APITestCase):
         older = self.submitted(self.task, datetime(2025, 12, 30, tzinfo=dt_timezone.utc))
         newer_task = self.task_for("SUPERVISOR", "RETIRED")
         newer = self.submitted(newer_task)
-        draft = self.task_for("BACKUP")
+        draft = self.task_for("PANEL", "PAUSED")
         MarkEntry.objects.create(task=draft, status="DRAFT", submitted_at=newer.submitted_at)
         self.task_for("SUPERVISOR")  # Not started.
         other = self.task_for("PANEL", evaluator=self.other_lecturer)

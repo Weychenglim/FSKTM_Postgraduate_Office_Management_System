@@ -1,4 +1,4 @@
-import { MarksHeading } from './MarksPrimitives';
+import { MarksHeading, MarksTaskDetails } from './MarksPrimitives';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -41,7 +41,7 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
     ? calculatedTotal.toFixed(2)
     : Number(task.totalMark).toFixed(2);
 
-  const role = task.evaluatorRoleLabel || (task.evaluatorRole === 'SUPERVISOR' ? 'Supervisor' : task.evaluatorRole === 'BACKUP' ? 'Backup evaluator' : 'Panel member');
+  const role = task.evaluatorRoleLabel || (task.evaluatorRole === 'SUPERVISOR' ? 'Supervisor' : 'Panel member');
   const activity = [
     ...(task.assignedAt ? [{ label: 'Assigned', date: task.assignedAt }] : []),
     ...(task.submittedAt ? [{ label: 'Submitted', date: task.submittedAt }] : []),
@@ -59,21 +59,7 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
     >
       <div className="marks-workspace space-y-7 text-left">
         <PortalCard padding="lg" className="rounded-lg">
-          <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
-            <div>
-              <dt className="text-sm font-semibold text-slate-700">Student</dt>
-              <dd className="mt-2 text-[13px] font-normal leading-6 text-slate-700">{task.studentName}</dd>
-              <dd className="mt-1 text-[13px] font-normal text-slate-500">{task.studentId}</dd>
-            </div>
-            <div>
-              <dt className="text-sm font-semibold text-slate-700">Semester</dt>
-              <dd className="mt-2 text-[13px] font-normal leading-6 text-slate-700">{task.semester || 'Not recorded'}</dd>
-            </div>
-            <div className="sm:col-span-2">
-              <dt className="text-sm font-semibold text-slate-700">Research title</dt>
-              <dd className="mt-2 break-words text-[13px] font-normal leading-6 text-slate-700">{task.researchTitle || 'Not recorded'}</dd>
-            </div>
-          </dl>
+          <MarksTaskDetails task={task}/>
         </PortalCard>
 
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -152,7 +138,8 @@ export const SubmittedMarkDetail: React.FC<SubmittedMarkDetailProps> = ({
               </dl>
               <details className="mt-5 border-t border-slate-100 pt-4">
                 <summary className="cursor-pointer text-sm font-semibold text-slate-600">Dates and activity</summary>
-                <div className="mt-5">                  <p className="mb-4 text-[13px] font-normal text-slate-500">Malaysia time (UTC+08:00)</p>
+                <div className="mt-5">
+                  <p className="mb-4 text-[13px] font-normal text-slate-500">Malaysia time (UTC+08:00)</p>
                   {task.opensAt || task.closesAt ? <>
                     <h3 className="text-sm font-semibold text-slate-700">Entry schedule</h3>
                     <dl className="mt-3 grid grid-cols-2 gap-4 rounded-lg bg-slate-50 p-3">

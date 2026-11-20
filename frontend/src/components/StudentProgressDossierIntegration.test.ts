@@ -41,14 +41,14 @@ assert.match(reports, /View student record/);
 assert.match(supervisor, /View student record/);
 assert.match(panel, /onOpenStudent=\{onNavigateToDossier\}/);
 assert.doesNotMatch(fs.readFileSync(new URL('./PanelBrowse.tsx', import.meta.url),'utf8'), /View student record/, 'Panel tables keep one record action; student navigation lives inside details');
-assert.match(marks, /View student record/);
+assert.match(marks, /onViewRecordDetail\(rec.id\).*View marks/, 'The Marks table opens the mark record through its row action');
 assert.match(coordinatorSupervisor, /View student record/);
 assert.match(lecturerSupervisor, /View student record/);
 assert.match(lecturerPanel, /onOpenStudent=\{onNavigateToDossier\}/);
 assert.doesNotMatch(lecturerMarks, /View student record/, 'Lecturer marking lists keep only the marking action');
 
 assert.match(dossier, /Student Progress Dossier/);
-assert.match(dossier, /Overview/);
+assert.doesNotMatch(dossier, /OVERVIEW:|Attention and next milestones/);
 assert.match(dossier, /Supervisor/);
 assert.match(dossier, /Panel/);
 assert.match(dossier, /Marks/);

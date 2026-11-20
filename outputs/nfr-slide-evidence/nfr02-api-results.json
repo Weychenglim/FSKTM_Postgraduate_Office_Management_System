@@ -1,0 +1,17 @@
+{
+  "endpoint": "GET /api/marks/assignment-options/",
+  "office": {
+    "status": 200,
+    "response_keys": [
+      "lecturers",
+      "students",
+      "tasks"
+    ]
+  },
+  "lecturer": {
+    "status": 403,
+    "response": {
+      "error": "Only Office Staff/Admin can view assignment options."
+    }
+  }
+}

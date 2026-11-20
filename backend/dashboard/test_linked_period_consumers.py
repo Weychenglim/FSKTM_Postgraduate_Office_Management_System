@@ -4,8 +4,11 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from accounts.models import ProjectRegistration, Student
+from accounts.test_registry_semesters import semesters_for
 from dashboard import test_timeline_extensions as fixtures
 from dashboard.actions import _timeline_actions
+from dashboard.models import SemesterTimelineEntry
 from dashboard.reports import _timeline_rows
 from marks.models import EvaluationPeriod, Rubric
 
@@ -32,6 +35,34 @@ class LinkedPeriodConsumerTests(APITestCase):
     def test_student_dashboard_never_exposes_marks_linked_timeline_rows(self):
         self.linked_marks_event()
         self.assertEqual(_timeline_actions(self.student,timezone.now()),[])
+
+    def test_student_actions_match_registry_stage_while_calendar_shows_both(self):
+        student = Student.objects.get(pk=self.student.pk)
+        semesters_for(student, self.academic_semester.label)
+        final = SemesterTimelineEntry.objects.create(
+            timeline=self.entry.timeline, level="P2", step=2, title="Final presentation",
+            deadline_start=self.entry.deadline_start, deadline_end=self.entry.deadline_end,
+            target_roles=["STUDENT"],
+        )
+        self.publish_calendar()
+        self.client.force_authenticate(self.student)
+
+        def action_names():
+            response = self.client.get("/api/dashboard/tasks/")
+            self.assertEqual(response.status_code, 200)
+            return [row["name"] for row in response.data["tasks"] if row["recordType"] == "TIMELINE_ENTRY"]
+
+        self.assertEqual(action_names(), [])
+        registration = ProjectRegistration.objects.create(
+            student=student, academic_semester=self.academic_semester,
+            stage="P1", status="CONFIRMED", source=ProjectRegistration.Source.COORDINATOR,
+        )
+        self.assertEqual(action_names(), [self.entry.title])
+        registration.stage = "P2"
+        registration.save(update_fields=["stage"])
+        self.assertEqual(action_names(), [final.title])
+        calendar = self.client.get("/api/dashboard/timeline/active/").data
+        self.assertEqual([group["level"] for group in calendar["levels"]], ["P1", "P2"])
 
     def test_staff_dashboard_and_report_read_owning_period_dates(self):
         period=self.linked_marks_event()

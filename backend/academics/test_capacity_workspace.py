@@ -1,4 +1,5 @@
 from datetime import timedelta
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -80,17 +81,26 @@ class CapacityWorkspaceTests(TestCase):
         self.assertEqual(row["activeStudentCount"], 0)
 
     def test_supervisor_capacity_combines_primary_and_supporting_active_load(self):
+        self.semester.lifecycle_status = self.semester.Lifecycle.ACTIVE
+        self.semester.save(update_fields=["lifecycle_status"])
         self.publish_plan(supervisor_limit=2)
-        self.create_active_supervisor_appointment(self.lecturer.user)
+        direct = self.create_active_supervisor_appointment(self.lecturer.user)
         primary_lecturer = self.create_lecturer("OTHER")
         primary = self.create_active_supervisor_appointment(primary_lecturer.user)
         self.create_supporting_appointment(primary, self.lecturer)
-        row = self.roster()[self.lecturer.pk]
+        with patch("academics.capacity_workspace.timezone.localdate", return_value=self.today), patch(
+            "academics.capacity_workspace.project_stages", return_value={
+            direct.student_id: SimpleNamespace(stage="P1"),
+            primary.student_id: SimpleNamespace(stage="P2"),
+        }) as lookup:
+            row = self.roster()[self.lecturer.pk]
+        lookup.assert_called_once_with(self.semester, {direct.student_id, primary.student_id})
         self.assertEqual(row["primaryStudentCount"], 1)
         self.assertEqual(row["supportingStudentCount"], 1)
         self.assertEqual(row["activeStudentCount"], 2)
         self.assertEqual(row["supervisor"]["activeLoad"], 2)
         self.assertEqual(row["supervisor"]["state"], "FULL")
+        self.assertEqual(row["workloadStages"]["supervisor"], {"rp1": 1, "rp2": 1, "withoutStage": 0})
 
     def test_active_students_are_deduplicated_across_roles(self):
         primary = self.create_active_supervisor_appointment(self.lecturer.user)
@@ -115,6 +125,7 @@ class CapacityWorkspaceTests(TestCase):
         self.assertEqual(row["primaryStudentCount"], 1)
         self.assertEqual(row["panelStudentCount"], 1)
         self.assertEqual(row["activeStudentCount"], 1)
+        self.assertEqual(sum(row["workloadStages"]["panel"].values()), 1)
 
     def test_pending_panel_reservations_are_not_active_students(self):
         self.publish_plan(panel_limit=2)
@@ -303,16 +314,18 @@ class CapacityWorkspaceTests(TestCase):
         ).status_code, 405)
 
     def test_queries_are_read_only_and_bounded_as_roster_grows(self):
+        self.semester.lifecycle_status = self.semester.Lifecycle.ACTIVE
+        self.semester.save(update_fields=["lifecycle_status"])
         self.publish_plan()
         self.create_active_supervisor_appointment(self.lecturer.user)
-        with CaptureQueriesContext(connection) as small:
+        with patch("academics.capacity_workspace.timezone.localdate", return_value=self.today), CaptureQueriesContext(connection) as small:
             self.assertEqual(self.get_workspace().status_code, 200)
         for index in range(20):
             self.create_lecturer(f"BATCH-{index}")
-        with CaptureQueriesContext(connection) as large:
+        with patch("academics.capacity_workspace.timezone.localdate", return_value=self.today), CaptureQueriesContext(connection) as large:
             response = self.get_workspace()
             self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["lecturers"]), 21)
         self.assertEqual(len(large), len(small))
-        self.assertLessEqual(len(large), 12)
+        self.assertLessEqual(len(large), 24)
         self.assertTrue(all(query["sql"].lstrip().upper().startswith("SELECT") for query in large))

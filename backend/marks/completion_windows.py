@@ -3,10 +3,11 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.utils import timezone
 from accounts.eligibility import profile_student_is_workflow_eligible, user_is_assignable_lecturer
-from accounts.models import User
+from accounts.models import Student, User
 from accounts.authorization import office_actor as is_office_actor
 from academics.models import AcademicSemester
 from .models import EvaluationPeriod, EvaluationTask, MarkEntry, TaskCompletionWindow, TaskCompletionWindowAudit
+from .stage_eligibility import profile_stage_eligibility
 
 
 def office_actor(actor):
@@ -16,15 +17,18 @@ def office_actor(actor):
 
 def task_eligible(task, now=None):
     from .services import _task_appointment_is_active
+    from .stage_corrections import stage_review_pending
     now = now or timezone.now()
     period = task.period
     return bool(task.lifecycle_status == 'ACTIVE'
         and not _submitted(task)
+        and not stage_review_pending(task)
         and period.lifecycle_status in ('PUBLISHED', 'CLOSED')
         and (not period.opens_at or period.opens_at <= now)
         and period.academic_semester_id
         and period.academic_semester.lifecycle_status in ('ACTIVE', 'CLOSED')
         and profile_student_is_workflow_eligible(task.profile)
+        and profile_stage_eligibility(period, task.profile).eligible
         and (not task.profile.student_id or task.profile.student.is_active)
         and user_is_assignable_lecturer(task.evaluator)
         and _task_appointment_is_active(task))
@@ -70,10 +74,12 @@ def task_due_at(task, now=None):
     return task.period.closes_at
 
 
-def window_payload(window, now=None):
+def window_payload(window, now=None, *, submitted=None):
     now = now or timezone.now()
     state = window.end_kind or ('EXPIRED' if window.deadline <= now else 'ACTIVE')
-    if not window.end_kind and MarkEntry.objects.filter(task_id=window.task_id, status='SUBMITTED').exists():
+    if not window.end_kind and submitted is None:
+        submitted = MarkEntry.objects.filter(task_id=window.task_id, status='SUBMITTED').exists()
+    if not window.end_kind and submitted:
         state = 'COMPLETED'
     return {'id':window.pk, 'taskId':window.task_id, 'deadline':window.deadline,
         'status':state, 'reason':window.reason,
@@ -84,6 +90,7 @@ def window_payload(window, now=None):
 
 
 def task_access(task, now=None):
+    from .stage_corrections import stage_review_pending
     now = now or timezone.now()
     eligible = task_eligible(task, now)
     window = task_window_active(task, now) if eligible else None
@@ -94,8 +101,10 @@ def task_access(task, now=None):
     # exceptions require the stronger current-appointment eligibility above.
     ordinary_eligible = (
         task.lifecycle_status == 'ACTIVE' and not _submitted(task)
+        and not stage_review_pending(task)
         and task.evaluator.is_active and task.evaluator.role == User.Role.LECTURER
         and profile_student_is_workflow_eligible(task.profile)
+        and profile_stage_eligibility(task.period, task.profile).eligible
         and (not task.profile.student_id or task.profile.student.is_active)
     )
     allowed = bool(window) or (ordinary_eligible and normal_open)
@@ -114,7 +123,15 @@ def lock_tasks(task_ids):
     # Allow an already-running handover's replacement FK insert to finish while
     # we wait on its original task. Period writes still serialize on this lock.
     list(EvaluationPeriod.objects.select_for_update(no_key=True).filter(pk__in=period_ids).order_by('pk'))
-    return list(EvaluationTask.objects.select_for_update(of=('self',)).filter(pk__in=task_ids).select_related('period__academic_semester','profile__student','evaluator').order_by('pk'))
+    # Registry confirmation/correction holds Student first. Serialize eligibility
+    # reads with it before locking tasks or writing marks/completion windows.
+    student_ids = dict(EvaluationTask.objects.filter(pk__in=task_ids).values_list('pk', 'profile__student_id'))
+    list(Student.objects.select_for_update().filter(pk__in=student_ids.values()).order_by('pk'))
+    tasks = list(EvaluationTask.objects.select_for_update(of=('self',)).filter(pk__in=task_ids).select_related('period__academic_semester','profile__student','evaluator').order_by('pk'))
+    if any(task.profile.student_id != student_ids.get(task.pk) for task in tasks):
+        from .services import MarksStateConflict
+        raise MarksStateConflict('A research profile was linked while this request was running. Reload and retry.')
+    return tasks
 
 
 def _end(window, actor, kind, reason):

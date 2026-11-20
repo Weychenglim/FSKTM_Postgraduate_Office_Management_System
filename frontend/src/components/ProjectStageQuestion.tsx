@@ -3,44 +3,30 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useId, useState } from 'react';
 import { BookOpenCheck, ChevronRight } from 'lucide-react';
-import type { ProjectStageQuestion as Question } from '../services/registrySemestersApi';
-import { answerMyProjectStage, getMyProjectStage, requestProjectStageCorrection } from '../services/registrySemestersApi';
+import type { ProjectStageQuestion as Question, StudentProject } from '../services/registrySemestersApi';
+import { answerMyProjectStage, requestProjectStageCorrection } from '../services/registrySemestersApi';
 import { confirmText, stageCard } from '../utils/projectStages';
 import { DialogShell } from './DocumentDialogs';
 import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
-/** The student's Research Project registration for this semester; null when there is nothing to show. */
-export function useProjectStageQuestion(): [Question | null, (question: Question | null) => void] {
-  const [question, setQuestion] = useState<Question | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getMyProjectStage()
-      .then(found => { if (!cancelled) setQuestion(found); })
-      .catch(() => { if (!cancelled) setQuestion(null); });
-    return () => { cancelled = true; };
-  }, []);
-
-  return [question, setQuestion];
-}
-
-interface ProjectStageQuestionProps {
-  question: Question;
-  onChange: (question: Question | null) => void;
-}
-
-/** Asks a student once a semester whether they registered their Research Project in MAYA, then shows the record. */
-export const ProjectStageQuestion: React.FC<ProjectStageQuestionProps> = ({ question, onChange }) => {
+/** Asks a student once a semester whether they registered their Research Project in MAYA. Hidden when there is nothing to ask. */
+export const ProjectStageQuestion: React.FC<{
+  question: Question | null;
+  onUpdate: (project: StudentProject) => void;
+}> = ({ question, onUpdate }) => {
   const titleId = useId();
   const [confirming, setConfirming] = useState<'YES' | 'NO' | null>(null);
   const [correcting, setCorrecting] = useState(false);
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+
+  if (!question) return null;
+  const asking = question.answer === null && question.canChange;
   const view = stageCard(question);
 
   const reply = async () => {
@@ -48,7 +34,7 @@ export const ProjectStageQuestion: React.FC<ProjectStageQuestionProps> = ({ ques
     setSending(true);
     setProblem(null);
     try {
-      onChange(await answerMyProjectStage(confirming));
+      onUpdate(await answerMyProjectStage(confirming));
     } catch (err) {
       setProblem(errorText(err, 'Your answer could not be saved. Please try again.'));
     } finally {
@@ -61,7 +47,7 @@ export const ProjectStageQuestion: React.FC<ProjectStageQuestionProps> = ({ ques
     setSending(true);
     setProblem(null);
     try {
-      onChange(await requestProjectStageCorrection(note));
+      onUpdate(await requestProjectStageCorrection(note));
       setCorrecting(false);
       setNote('');
     } catch (err) {

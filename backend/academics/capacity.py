@@ -88,6 +88,16 @@ def capacity_workload_counts(user_ids):
     }
 
 
+def capacity_plan_workloads(semester, user_ids):
+    """Plan inputs include forecast releases alongside live commitments."""
+    from appointments.rp_rollover import expected_rp2_releases
+
+    user_ids = set(user_ids)
+    workloads = capacity_workload_counts(user_ids)
+    supervisor, panel = expected_rp2_releases(semester, user_ids)
+    return {**workloads, "supervisorRp2Releases": supervisor, "panelRp2Releases": panel}
+
+
 def _workloads(*, user, role, exclude_panel_recommendation_id=None, exclude_supervisor_application_id=None):
     from appointments.models import (
         PanelAppointment,

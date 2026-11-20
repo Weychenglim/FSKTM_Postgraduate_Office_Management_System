@@ -1,10 +1,12 @@
 import type {CapacityRole,LecturerCapacityEntry,SemesterCapacityPlan} from '../types';
 import type {CapacityPlanningBaseline,CapacityWorkspaceLecturer} from '../services/capacityWorkspaceApi';
 
-/** Capacity is role-specific appointment load, including existing reservations. */
+/** The draft minimum includes reservations and deducts forecast RP2 releases. */
 export function committedCapacityLoad(row:Pick<LecturerCapacityEntry,'supervisor'|'panel'>,role:CapacityRole):number|null {
   const resolution=role==='SUPERVISOR'?row.supervisor:row.panel;
-  return resolution ? resolution.activeLoad + resolution.reservedLoad : null;
+  return resolution
+    ? resolution.activeLoad - Math.min(resolution.activeLoad, resolution.expectedRp2Releases ?? 0) + resolution.reservedLoad
+    : null;
 }
 
 /** Draft values and current published resolutions remain separate, including missing rows. */

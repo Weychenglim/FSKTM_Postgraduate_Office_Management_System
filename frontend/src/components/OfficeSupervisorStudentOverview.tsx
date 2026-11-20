@@ -15,6 +15,7 @@ export function OfficeSupervisorStudentOverviewContent({ workspace, identity, on
   const request = workspace.primaryApplication?.studentId === identity ? workspace.primaryApplication : null;
   const pending = request && ['SUBMITTED_TO_SUPERVISOR', 'PENDING_COORDINATOR'].includes(request.status) ? request : null;
   return <AppointmentAttentionOverview module="Supervisor" studentName={team.studentName} studentId={team.matricNo} programme={team.programme}
+    projectStage={team.projectStage} projectSemester={team.projectSemester}
     active={!!team.primaryAppointmentId} supervisor={team.primarySupervisor?.name} research={team.research} onOpenStudent={onOpenStudent}
     onOpenAppointment={team.primaryAppointmentId && onOpenAppointment ? () => onOpenAppointment(team.matricNo) : undefined}
     pendingRequest={pending ? { status: pending.status, candidate: pending.proposedSupervisor, onOpen: onOpenRequest ? () => onOpenRequest(pending.id) : undefined } : undefined} />;

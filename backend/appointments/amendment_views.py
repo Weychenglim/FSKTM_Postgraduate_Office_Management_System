@@ -102,7 +102,7 @@ def options(request):
         'profile': {**service.snapshot(selected), 'studentId': selected.student_id, 'revision': selected.revision} if selected else None,
         'canSubmitResearch': eligible and not pending and primary and request.user.role == User.Role.STUDENT,
         'canCorrect': eligible and not pending and service.office(request.user),
-        'canTransfer': eligible and not pending and service.office(request.user),
+        'canTransfer': False,
     })
 
 

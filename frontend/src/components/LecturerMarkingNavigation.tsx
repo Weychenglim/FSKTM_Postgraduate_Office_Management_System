@@ -1,16 +1,16 @@
 import React from 'react';
-import { ContactRound, ShieldCheck, UsersRound } from 'lucide-react';
+import { ContactRound, UsersRound } from 'lucide-react';
 import type { EvaluationTask, EvaluationTaskRole } from '../types/marks';
-import { markingRole, markingWorkspaces, tasksForMarkingRole } from '../utils/lecturerMarking';
+import { markingWorkspaces, tasksForMarkingRole } from '../utils/lecturerMarking';
 
 export function LecturerMarkingNavigation({ tasks, role, onChange, controls, history = false, countsKnown = true }: {
   tasks: EvaluationTask[]; role: EvaluationTaskRole; onChange: (role: EvaluationTaskRole) => void;
   controls: string; history?: boolean; countsKnown?: boolean;
 }) {
-  const roles: EvaluationTaskRole[] = ['SUPERVISOR', 'PANEL', ...(role === 'BACKUP' || tasks.some(task => markingRole(task) === 'BACKUP') ? ['BACKUP' as const] : [])];
+  const roles: EvaluationTaskRole[] = ['SUPERVISOR', 'PANEL'];
   return <nav aria-label="Marking responsibility" className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
     {roles.map(value => {
-      const Icon = value === 'SUPERVISOR' ? UsersRound : value === 'PANEL' ? ContactRound : ShieldCheck;
+      const Icon = value === 'SUPERVISOR' ? UsersRound : ContactRound;
       const count = tasksForMarkingRole(tasks, value).filter(task => history ? task.status === 'SUBMITTED' : task.status !== 'SUBMITTED').length;
       return <button type="button" key={value} aria-current={role === value ? 'page' : undefined}
         aria-controls={controls} onClick={() => onChange(value)}

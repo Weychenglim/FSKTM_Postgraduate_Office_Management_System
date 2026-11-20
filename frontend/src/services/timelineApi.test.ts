@@ -19,6 +19,7 @@ try {
   assert.equal(calls[0].body?.get('mode'), 'ADD');
   assert.equal(await (calls[0].body?.get('file') as File).text(), await file.text());
   assert.equal(calls[0].body?.get('previewToken'), null);
+  assert.ok(preview.previewToken);
   await uploadTimelineFile(file, 42, preview.previewToken, true);
   assert.equal(calls.length, 2);
   assert.equal(calls[1].url, '/api/dashboard/timeline/upload/');
@@ -28,6 +29,9 @@ try {
   assert.equal(await (calls[1].body?.get('file') as File).text(), await file.text());
   await downloadTimelineTemplate(42);
   assert.equal(calls[2].url, '/api/dashboard/timeline/template/?semesterId=42');
+  await previewTimelineFile(file, 42, 'REPLACE', { token: 'link-review-token', choices: { 2: 'keep', 3: 'keep-dates:1' } });
+  assert.equal(calls[3].body?.get('linkReviewToken'), 'link-review-token');
+  assert.deepEqual(JSON.parse(String(calls[3].body?.get('linkChoices'))), { 2: 'keep', 3: 'keep-dates:1' });
   const legacy = timelineEntryToLegacy({ id: 1, level: 'P1', step: 1, title: 'Ended event', detail: '', action: '', deadlineStart: '2026-01-01', deadlineEnd: '2026-01-02', weekLabel: '', targetRoles: ['LECTURER'], status: 'Ended', displayOrder: 1, operationalPeriodId: 9, marksPeriodId: null });
   assert.equal(legacy.status, 'Ended');
   assert.equal(legacy.operationalPeriodId, 9);

@@ -55,6 +55,8 @@ export interface SupervisoryTeam {
   studentName: string;
   programme: string;
   studentStatus: string;
+  projectStage?: string | null;
+  projectSemester?: string | null;
   primarySupervisor: TeamPerson | null;
   primaryAppointmentId: number | null;
   primaryAppointmentDetails?: {email: string; department: string; appointmentDate: string; semester: string} | null;
@@ -79,6 +81,7 @@ export interface CoSupervisorCandidate extends TeamPerson {
   unavailableUntil?: string | null;
 }
 export interface SupervisoryWorkspace {
+  projectSemester?: string | null;
   teams: SupervisoryTeam[];
   nominations: CoSupervisorNomination[];
   appointments: CoSupervisorAppointment[];

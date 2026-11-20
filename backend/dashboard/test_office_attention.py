@@ -59,6 +59,23 @@ class OfficeAttentionProjectionTests(SimpleTestCase):
         self.assertIn('1 Panel', group['detail'])
         self.assertEqual(next(r for r in data['results'] if r['id']=='panel_3')['responsibility'], 'review')
 
+    def test_routine_requests_wait_five_days_before_entering_office_attention(self):
+        rows = [
+            task(1, waitingDays=0, programme='New requests only'),
+            task(2, waitingDays=4, recordType='RESEARCH_AMENDMENT', targetModule='SUPERVISOR_APPOINTMENTS'),
+            task(3, waitingDays=5, recordType='SUPERVISOR_APPLICATION', targetModule='SUPERVISOR_APPOINTMENTS'),
+            task(4, waitingDays=6, recordType='CO_SUPERVISOR_NOMINATION', targetModule='SUPERVISOR_APPOINTMENTS'),
+            task(5, waitingDays=0, waitingOn='FACULTY_PROCESSING'),
+            task(6, waitingDays=0, deadlineState='DUE_TODAY'),
+            task(7, waitingDays=0, status='critical'),
+        ]
+        data = self.project(rows)
+        self.assertEqual({r['recordId'] for r in data['results']}, {'3', '4', '5', '6', '7'})
+        self.assertEqual(data['total'], 5)
+        self.assertEqual(sum(group['count'] for group in data['summary']), 5)
+        self.assertNotIn('New requests only', data['programmes'])
+        self.assertEqual(self.project(rows, q='Student 01')['total'], 0)
+
     def test_invalid_filters_fail_closed_and_page_sizes_are_bounded(self):
         from rest_framework.exceptions import ValidationError
         for params in [{'category':'unknown'}, {'responsibility':'unknown'}, {'page':'oops'}, {'size':'10000'}]:

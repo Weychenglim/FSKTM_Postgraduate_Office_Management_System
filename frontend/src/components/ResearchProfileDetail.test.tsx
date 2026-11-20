@@ -7,7 +7,7 @@ import type {ResearchAmendmentOptions, ResearchRevision} from '../services/resea
 
 const noop=()=>{};
 const profile={studentId:7,revision:2,title:'Current approved title',abstract:'First paragraph.\n\nSecond paragraph.',programme:'Computing'};
-const options:ResearchAmendmentOptions={profile,students:[{id:7,name:'Student Seven',matricNo:'PG-007',programme:'Computing'}],programmes:['Computing','Cybersecurity'],canSubmitResearch:false,canCorrect:true,canTransfer:true};
+const options:ResearchAmendmentOptions={profile,students:[{id:7,name:'Student Seven',matricNo:'PG-007',programme:'Computing'}],programmes:['Computing','Cybersecurity'],canSubmitResearch:false,canCorrect:true,canTransfer:false};
 const revision:ResearchRevision={id:2,studentId:7,revision:2,kind:'RESEARCH',before:{...profile,title:'Earlier title'},after:profile,actorName:'Dr Reviewer',createdAt:'2026-10-20T08:00:00Z',reason:'Approved clarification',requestId:9};
 const render=(role:'Student'|'Lecturer'|'Programme Coordinator'|'Office Staff/Admin'='Office Staff/Admin',overrides:Partial<React.ComponentProps<typeof ResearchAmendmentRouteContent>>={})=>renderToStaticMarkup(<ResearchAmendmentRouteContent role={role} routeView="profile" options={options} rows={[]} revisions={[revision]} busy={false} onAction={noop} onNavigateToNew={noop} requestForm={null} {...overrides}/>);
 
@@ -40,9 +40,9 @@ test('History summaries stay visible and preserve individually expandable immuta
   assert.equal(initial.revision,0);
 });
 
-test('Office creation opens the explicitly selected permitted action',()=>{
-  const html=renderToStaticMarkup(<ResearchAmendmentForm options={options} initialKind="TRANSFER" busy={false} onSave={noop}/>);
-  assert.match(html,/value="TRANSFER" selected/);
-  assert.match(html,/Destination programme/);
-  assert.doesNotMatch(html,/I confirm this corrects typography/);
+test('Office corrections keep their attestation and omit transfer creation',()=>{
+  const html=renderToStaticMarkup(<ResearchAmendmentForm options={options} initialKind="CORRECTION" busy={false} onSave={noop}/>);
+  assert.match(html,/value="CORRECTION" selected/);
+  assert.match(html,/I confirm this corrects typography/);
+  assert.doesNotMatch(html,/Destination programme|Request programme transfer/);
 });

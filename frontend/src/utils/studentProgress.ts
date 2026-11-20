@@ -26,7 +26,7 @@ export const visibleProgressTabs = (
   sections: StudentProgressDossier['visibleSections'],
   visibility: StudentProgressVisibility = 'INTERNAL',
 ): StudentProgressTab[] => visibility === 'INTERNAL'
-  ? ['OVERVIEW', ...sections]
+  ? sections
   : sections.filter((section) => section !== 'MARKS');
 
 export const hasProgressSection = (

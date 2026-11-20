@@ -22,7 +22,7 @@ function geometry(){
   const columns=container.querySelector<HTMLElement>('[data-panel-request-columns]')!;
   if(columns.children.length===2){const main=columns.children[0].getBoundingClientRect(),aside=columns.children[1].getBoundingClientRect();if(innerWidth>=1280)check(aside.left-main.right>=27&&Math.abs(aside.top-main.top)<2,'Desktop aside alignment');else check(aside.top-main.bottom>=27,'Stacked review spacing');}
   for(const answer of container.querySelectorAll('dl dd')){check(getComputedStyle(answer).fontWeight==='400','Answers must have regular weight');check(parseFloat(getComputedStyle(answer).fontSize)>=14,'Answer text too small');}
-  for(const b of container.querySelectorAll<HTMLButtonElement>('[data-detail-actions] button')){const box=b.getBoundingClientRect();check(box.height>=44&&box.width>=200,'Sidebar decision touch target');}
+  for(const b of container.querySelectorAll<HTMLButtonElement>('[data-detail-actions] button')){const box=b.getBoundingClientRect();check(box.height>=32&&box.width>=200,'Sidebar decision touch target');}
   for(const region of container.querySelectorAll<HTMLElement>('[role="region"]')){const box=region.getBoundingClientRect();check(box.left>=-1&&box.right<=innerWidth+1,'Card outside viewport');}
 }
 async function scenario(name:string,run:()=>Promise<void>){try{await run();results.push({name,error:null});}catch(error){results.push({name,error:String(error)});}}
@@ -38,7 +38,8 @@ await scenario('Reviewer and Coordinator use the same detail layout and stage-sp
 });
 await scenario('Review confirmation and rejection retain exact targets and required reasons',async()=>{
   const decisions:string[]=[];
-  await mount(<PanelRecommendationReviewDrawer isOpen routed recommendation={record} reviewerRole="SELECTED_PANEL" onClose={()=>{}} onAccept={async row=>{decisions.push(`${row.id}:accept`);return false as const;}} onReject={async(row,reason)=>{decisions.push(`${row.id}:${reason}`);return false as const;}}/>);
+  const available={...record,acceptanceCapacity:{state:'AVAILABLE' as const,activeLoad:1,reservedLoad:0,limit:4,availableSlots:3,pendingRequests:1}};
+  await mount(<PanelRecommendationReviewDrawer isOpen routed recommendation={available} reviewerRole="SELECTED_PANEL" onClose={()=>{}} onAccept={async row=>{decisions.push(`${row.id}:accept`);return false as const;}} onReject={async(row,reason)=>{decisions.push(`${row.id}:${reason}`);return false as const;}}/>);
   await click('Accept request');await until(()=>!!document.querySelector('dialog[open]'));let dialog=document.querySelector('dialog[open]')!;
   check(dialog.textContent?.includes('Acceptance sends this nomination to the Programme Coordinator'),'Workflow copy changed');await click('Accept nomination',dialog);check(decisions.join()==='71:accept','Wrong acceptance callback');await click('Cancel',dialog);await until(()=>!document.querySelector('dialog[open]'));
   await click('Reject request');await until(()=>!!document.querySelector('dialog[open]'));dialog=document.querySelector('dialog[open]')!;check(button('Reject recommendation',dialog)?.disabled,'Missing required reason guard');

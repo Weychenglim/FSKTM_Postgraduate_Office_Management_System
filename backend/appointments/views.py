@@ -36,6 +36,7 @@ from academics.capacity import (
 from academics.services import current_effective_semester
 
 from .ageing import panel_waiting_metadata, supervisor_waiting_metadata
+from .attention_project_stages import current_stage_fields, panel_appointment_stages
 from .role_integrity import (
     AppointmentRoleConflict,
     assert_no_primary_role,
@@ -608,8 +609,14 @@ def panel_records_view(request):
         .exclude(pk__in=appointment_recommendation_ids)
     )
 
+    semester = current_effective_semester()
+    stages = panel_appointment_stages(appointments, semester)
     workflow_records = [
-        (appointment.updated_at, panel_record_from_appointment(appointment))
+        (appointment.updated_at, {
+            **panel_record_from_appointment(appointment),
+            "projectStage": stages.get(appointment.pk),
+            "projectSemester": semester.label if semester and appointment.status == "ACTIVE" else None,
+        })
         for appointment in appointments
     ] + [
         (recommendation.updated_at, panel_record_from_recommendation(recommendation))
@@ -817,12 +824,12 @@ def student_panel_appointment_view(request):
         serializer = StudentPanelAppointmentSerializer(
             pending_student_panel_payload_from_user(request.user)
         )
-        return Response(serializer.data)
-
-    serializer = StudentPanelAppointmentSerializer(
-        student_panel_appointment_payload(profile)
-    )
-    return Response(serializer.data)
+    else:
+        serializer = StudentPanelAppointmentSerializer(
+            student_panel_appointment_payload(profile)
+        )
+    student_id = getattr(getattr(request.user, "student", None), "pk", None)
+    return Response({**serializer.data, **current_stage_fields(student_id)})
 
 
 @api_view(["GET", "POST"])
@@ -887,7 +894,11 @@ def panel_recommendation_detail_view(request, pk):
             "You do not have permission to view this recommendation.",
             status.HTTP_403_FORBIDDEN,
         )
-    return Response(PanelRecommendationSerializer(recommendation, context={"request": request}).data)
+    payload = PanelRecommendationSerializer(recommendation, context={"request": request}).data
+    appointment = getattr(recommendation, "panel_appointment", None)
+    if appointment and appointment.status == PanelAppointment.Status.ACTIVE:
+        payload.update(current_stage_fields(recommendation.profile.student_id))
+    return Response(payload)
 
 
 @api_view(["GET"])
@@ -948,6 +959,7 @@ def coordinator_workspace_view(request):
     recommendations = (
         PanelRecommendation.objects.filter(coordinator_panel_scope_q(request.user, include_legacy=True))
         .select_related(
+            "panel_appointment__profile",
             "profile",
             "supervisor",
             "recommended_member",
@@ -964,13 +976,22 @@ def coordinator_workspace_view(request):
         for recommendation in recommendations
         if recommendation.pk in decision_ids
     ]
+    appointments = [row.panel_appointment for row in recommendations if hasattr(row, "panel_appointment")]
+    semester = current_effective_semester()
+    stages = panel_appointment_stages(appointments, semester)
+    records = PanelRecommendationSerializer(recommendations, many=True, context={"request": request}).data
+    for record in records:
+        lifecycle = record.get("appointmentLifecycle")
+        if lifecycle and lifecycle["status"] == "ACTIVE":
+            record["projectStage"] = stages.get(lifecycle["appointmentId"])
+            record["projectSemester"] = semester.label if semester else None
     return Response(
         {
             "programme": programme,
             "programmes": programmes,
             "pendingCount": len(queue),
             "queue": PanelRecommendationSerializer(queue, many=True, context={"request": request}).data,
-            "records": PanelRecommendationSerializer(recommendations, many=True, context={"request": request}).data,
+            "records": records,
         }
     )
 
@@ -1442,7 +1463,14 @@ def assignments_view(request):
     appointments = PanelAppointment.objects.filter(
         panel_member=request.user
     ).select_related("profile", "profile__student", "supervisor", "panel_member", "recommendation", "recommendation__replaces_appointment__panel_member").prefetch_related("recommendation__workflow_events__actor", "lifecycle_events__actor")
-    return Response(PanelAssignmentSerializer(appointments, many=True).data)
+    semester = current_effective_semester()
+    stages = panel_appointment_stages(appointments, semester)
+    records = PanelAssignmentSerializer(appointments, many=True).data
+    for appointment, record in zip(appointments, records):
+        if appointment.status == "ACTIVE":
+            record["projectStage"] = stages.get(appointment.pk)
+            record["projectSemester"] = semester.label if semester else None
+    return Response(records)
 
 
 def supervisor_programme_access(user, application, *, lock=False):
@@ -2437,7 +2465,10 @@ def panel_appointment_detail_view(request, pk):
         return error_response("Panel appointment was not found.", status.HTTP_404_NOT_FOUND)
     if request.user.role == User.Role.STUDENT or not can_view_panel_recommendation(request.user, appointment.recommendation):
         return error_response("You do not have permission to view this appointment.", status.HTTP_403_FORBIDDEN)
-    return Response(PanelAssignmentSerializer(appointment, context={"include_academic_team": True}).data)
+    payload = PanelAssignmentSerializer(appointment, context={"include_academic_team": True}).data
+    if appointment.status == PanelAppointment.Status.ACTIVE:
+        payload.update(current_stage_fields(appointment.profile.student_id))
+    return Response(payload)
 
 
 @api_view(["GET"])
@@ -2451,6 +2482,8 @@ def panel_record_detail_view(request, record_id):
     if kind == "appointment":
         row = PanelAppointment.objects.select_related("profile", "supervisor", "panel_member", "recommendation").filter(pk=identity).first()
         payload = panel_record_from_appointment(row) if row else None
+        if row and row.status == PanelAppointment.Status.ACTIVE:
+            payload.update(current_stage_fields(row.profile.student_id))
     elif kind == "recommendation":
         row = get_recommendation_or_404(identity)
         if row:
@@ -2466,6 +2499,7 @@ def panel_record_detail_view(request, record_id):
             current = row.panel_appointments.filter(status=PanelAppointment.Status.ACTIVE).first()
             pending = row.panel_recommendations.filter(status__in=PanelRecommendation.PENDING_STATUSES).order_by("-submitted_at", "-pk").first()
             payload = panel_record_from_appointment(current) if current else panel_record_from_recommendation(pending) if pending else panel_record_from_profile(row)
+            payload.update(current_stage_fields(row.student_id))
         else:
             payload = None
     else:

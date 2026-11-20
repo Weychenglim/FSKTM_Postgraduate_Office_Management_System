@@ -11,10 +11,10 @@ export function RequestSummaryField({ label, value, name = false }: RequestSumma
   return <div className="min-w-0"><dt className={text.label}>{label}</dt><dd className={`${name ? text.name : text.body} mt-2 whitespace-pre-wrap [overflow-wrap:anywhere]`}>{value?.trim() || 'Not recorded'}</dd></div>;
 }
 
-export function RequestSummaryCard({ studentName, studentId, programme, semester, participants, contextAction, children, title = 'Request summary', showSemester = true }: {
+export function RequestSummaryCard({ studentName, studentId, programme, semester, participants, contextAction, academicField, children, title = 'Request summary', showSemester = true }: {
   title?: string; showSemester?: boolean;
   studentName?: string; studentId?: string; programme?: string; semester?: string;
-  participants: RequestSummaryFact[]; contextAction?: React.ReactNode; children?: React.ReactNode;
+  participants: RequestSummaryFact[]; contextAction?: React.ReactNode; academicField?: React.ReactNode; children?: React.ReactNode;
 }) {
   return <div data-request-summary><PortalCard padding="lg">
     <RequestSection title={title} icon={ClipboardList} headingClassName={text.heading} actions={contextAction}>
@@ -22,6 +22,7 @@ export function RequestSummaryCard({ studentName, studentId, programme, semester
         <RequestSummaryField label="Student" value={studentName} name />
         <RequestSummaryField label="Matric number" value={studentId} />
         <RequestSummaryField label="Programme" value={programme} />
+        {academicField}
         {showSemester ? <RequestSummaryField label="Semester" value={semester} /> : null}
       </dl>
       {participants.length ? <dl className="grid gap-x-8 gap-y-5 border-t border-slate-200 pt-5 sm:grid-cols-2">{participants.map(fact => <RequestSummaryField key={fact.label} {...fact} name />)}</dl> : null}

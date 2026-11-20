@@ -9,6 +9,7 @@ import type {OperationalPeriod} from '../src/types/operationalPeriods';
 import type {SemesterTimelineEntry} from '../src/types/timeline';
 
 const results:{name:string;error?:string}[]=[];
+let extensionRows:any[]=[];
 const check=(value:unknown,message:string)=>{if(!value)throw new Error(message);};
 const visible=(node:Element)=>!node.closest('[hidden]');
 const text=()=>[...document.querySelectorAll('h1,h2,h3,p,button,label,td,a')].filter(visible).map(node=>node.textContent).join(' ');
@@ -24,7 +25,7 @@ const scenario=async(name:string,work:()=>Promise<void>)=>{try{await work();resu
 const semester={id:9,label:'Semester I 2026/2027',code:'2026-S1',startsOn:'2026-09-01',endsOn:'2027-02-28',lifecycleStatus:'ACTIVE',effectiveStatus:'ACTIVE',isActive:true};
 const semesters=[semester,{...semester,id:8,label:'Semester II 2025/2026',code:'2025-S2',lifecycleStatus:'CLOSED',effectiveStatus:'CLOSED',isActive:false},{...semester,id:10,label:'Semester II 2026/2027',code:'2026-S2',lifecycleStatus:'DRAFT',effectiveStatus:'DRAFT',isActive:false}];
 const base:OperationalPeriod={id:1,semesterId:9,activity:'SUPERVISOR_APPLICATION',name:'Main Supervisor intake',programmeScope:'SELECTED',programmes:[PROGRAMME_OPTIONS[0]],opensAt:'2026-10-01T00:00:00Z',closesAt:'2026-10-20T09:00:00Z',lifecycleStatus:'PUBLISHED',effectiveStatus:'ENDED',revision:1,history:[]};
-const marksBase={id:4,name:'Semester evaluation',semesterId:9,semesterCode:'2026-S1',semester:semester.label,rubricId:1,rubricName:'Standard rubric',programmeScope:'ALL',programmes:[],evaluatorRoles:['SUPERVISOR','PANEL'],opensAt:'2026-10-01T00:00:00Z',closesAt:'2026-10-20T09:00:00Z',isOpen:true,lifecycleStatus:'PUBLISHED',effectiveStatus:'OPEN',taskTotals:{total:2,submitted:0,draft:0,pending:2},auditEvents:[]};
+const marksBase={id:4,assessment:'P1',name:'Semester evaluation',semesterId:9,semesterCode:'2026-S1',semester:semester.label,rubricId:1,rubricName:'Standard rubric',programmeScope:'ALL',programmes:[],evaluatorRoles:['SUPERVISOR','PANEL'],opensAt:'2026-10-01T00:00:00Z',closesAt:'2026-10-20T09:00:00Z',isOpen:true,lifecycleStatus:'PUBLISHED',effectiveStatus:'OPEN',taskTotals:{total:2,submitted:0,draft:0,pending:2},auditEvents:[]};
 const entry:SemesterTimelineEntry={id:12,level:'P1',step:1,title:'Existing calendar event',detail:'A semester milestone',action:'Student',deadlineStart:'2026-10-01',deadlineEnd:'2026-10-20',targetRoles:['STUDENT'],status:'Upcoming',displayOrder:1,weekLabel:''};
 let periods:OperationalPeriod[]=[],enforcement={SUPERVISOR_APPLICATION:false,PANEL_RECOMMENDATION:false},entries:SemesterTimelineEntry[]=[],hasTimeline=true,calendarFailure=false,failAfterWrite=false,writes:{path:string;body:any;method:string}[]=[],root:Root|null=null,router:ReturnType<typeof createMemoryRouter>|null=null;
 let marksPeriods:any[]=[],periodFailure=false,failPeriodAfterWrite=false,holdMarksDetail=false,releaseMarksDetail:(()=>void)|null=null,holdMarksWrite=false,releaseMarksWrite:(()=>void)|null=null,failCreationLink=false,holdWindowWrite=false,releaseWindowWrite:(()=>void)|null=null;
@@ -32,6 +33,7 @@ window.fetch=async(inputValue,init)=>{
  const url=new URL(String(inputValue),location.origin),path=url.pathname;
  if(init?.method&&init.method!=='GET'){
   const body=JSON.parse(String(init.body||'{}'));writes.push({path,body,method:init.method});
+  if(path==='/api/marks/completion-windows/')return Response.json({windows:[]},{status:201});
   if(path.endsWith('/operational-periods/enforcement/')){enforcement={...enforcement,[body.activity]:body.enabled};return Response.json({enforcement});}
   if(path==='/api/academics/operational-periods/'){if(holdWindowWrite)await new Promise<void>(resolve=>{releaseWindowWrite=resolve;});if(failCreationLink&&body.timelineEntryId){entries=entries.map(entry=>entry.id===body.timelineEntryId?{...entry,operationalPeriodId:99}:entry);return Response.json({error:'Selected event is already linked'},{status:409});}const saved={...base,...body,id:3,lifecycleStatus:'DRAFT',effectiveStatus:'DRAFT'};periods.push(saved);if(body.timelineEntryId)entries=entries.map(entry=>entry.id===body.timelineEntryId?{...entry,operationalPeriodId:saved.id}:entry);return Response.json(saved,{status:201});}
   const periodEdit=path.match(/^\/api\/academics\/operational-periods\/(\d+)\/$/);if(periodEdit&&init.method==='PATCH'){periods=periods.map(period=>period.id===Number(periodEdit[1])?{...period,...body,revision:period.revision+1}:period);return Response.json(periods.find(period=>period.id===Number(periodEdit[1])));}
@@ -45,19 +47,28 @@ window.fetch=async(inputValue,init)=>{
  if(path==='/api/academics/operational-periods/')return periodFailure?Response.json({error:'Synthetic period read failed'},{status:503}):Response.json({periods:periods.filter(row=>row.semesterId===Number(url.searchParams.get('semesterId'))),enforcement});
  if(path.includes('/exception-candidates/'))return Response.json({candidates:[{studentId:11,participantId:12,studentName:'Eligible Student',participantName:'Eligible Lecturer'}]});
  if(path.includes('/exceptions/'))return Response.json({exceptions:[]});
+ if(/^\/api\/marks\/periods\/\d+\/completion-windows\/$/.test(path))return Response.json({windows:extensionRows});
  if(path==='/api/dashboard/timeline/active/')return calendarFailure?Response.json({error:'Synthetic calendar unavailable'},{status:503}):Response.json({available:hasTimeline,semesterId:9,levels:[{level:'P1',entries}]});
  if(path==='/api/marks/periods/')return Response.json(marksPeriods);
  const match=path.match(/^\/api\/marks\/periods\/(\d+)\/$/);if(match){if(holdMarksDetail)await new Promise<void>(resolve=>{releaseMarksDetail=resolve;});return Response.json(marksPeriods.find(row=>row.id===Number(match[1])));}
- if(path==='/api/marks/evaluation-tasks/')return Response.json([{taskId:44,periodId:6,studentName:'Synthetic Student',panelMember:'Synthetic Lecturer',status:'PENDING',canGrantCompletionWindow:true,evaluatorRole:'PANEL'}]);
+ if(path==='/api/marks/evaluation-tasks/')return Response.json([
+  {taskId:44,periodId:6,studentId:'S044',studentName:'Synthetic Student',panelMember:'Synthetic Lecturer',status:'PENDING',canGrantCompletionWindow:true,evaluatorRole:'PANEL',periodEffectiveStatus:'CLOSED',canSubmit:writes.some(write=>write.path==='/api/marks/completion-windows/')},
+  {taskId:45,periodId:6,studentId:'S045',studentName:'Another Student',panelMember:'Another Lecturer',status:'PENDING',canGrantCompletionWindow:true,evaluatorRole:'PANEL',periodEffectiveStatus:'CLOSED',canSubmit:false},
+ ]);
  if(path==='/api/marks/programme-options/')return Response.json(PROGRAMME_OPTIONS);
  if(path==='/api/marks/rubrics/')return Response.json([{id:1,name:'Standard rubric',isActive:true,isReady:true,components:[]}]);
  throw new Error(`Unexpected read ${path}`);
 };
 function MarksContext(){const location=useLocation();return <MarkEntryPeriodConfig contextSearch={location.search} onBack={()=>{}} onManageSemesters={()=>{}}/>;}
-const mount=async(path='/dashboard/periods?semester=9',options:{empty?:boolean;missing?:boolean;closed?:boolean;draft?:boolean;draftMarks?:boolean;many?:boolean;linked?:boolean;linkedMarks?:boolean;enforced?:boolean}={})=>{
+const mount=async(path='/dashboard/periods?semester=9',options:{empty?:boolean;missing?:boolean;closed?:boolean;draft?:boolean;draftMarks?:boolean;many?:boolean;linked?:boolean;linkedMarks?:boolean;enforced?:boolean;appointment?:Pick<OperationalPeriod,'activity'|'effectiveStatus'>;marksExpired?:boolean}={})=>{
  root?.unmount();router?.dispose();document.getElementById('root')!.innerHTML='';
  periods=options.empty?[]:[{...base,...(options.draft?{lifecycleStatus:'DRAFT' as const,effectiveStatus:'DRAFT'}:{})},...(options.closed?[{...base,id:8,semesterId:8,lifecycleStatus:'CLOSED' as const,effectiveStatus:'CLOSED'}]:[])];enforcement={SUPERVISOR_APPLICATION:!!options.enforced,PANEL_RECOMMENDATION:false};entries=options.many?Array.from({length:80},(_,index)=>({...entry,id:12+index,title:`Semester event ${index+1}`})):[{...entry,...(options.linked?{operationalPeriodId:1}:options.linkedMarks?{marksPeriodId:4}:{})}];hasTimeline=!options.missing;calendarFailure=false;failAfterWrite=false;periodFailure=false;failPeriodAfterWrite=false;holdMarksDetail=false;releaseMarksDetail=null;holdMarksWrite=false;releaseMarksWrite=null;failCreationLink=false;holdWindowWrite=false;releaseWindowWrite=null;writes=[];
+ if(options.appointment){
+  periods[0]={...base,...options.appointment};
+  enforcement[options.appointment.activity]=!!options.enforced;
+ }
  marksPeriods=[{...marksBase,...(options.draftMarks?{lifecycleStatus:'DRAFT',effectiveStatus:'DRAFT'}:{})},{...marksBase,id:5,name:'Other semester evaluation',semesterId:10},...(options.closed?[{...marksBase,id:6,name:'Closed semester evaluation',semesterId:8,lifecycleStatus:'CLOSED',effectiveStatus:'CLOSED'}]:[])];
+ if(options.marksExpired) marksPeriods[0]={...marksBase,effectiveStatus:'CLOSED',isOpen:false};
  root=createRoot(document.getElementById('root')!);router=createMemoryRouter([{path:'/dashboard/periods',element:<OfficeDashboardLayout enabled><OfficePeriodsManagement onBack={()=>{}} onManageSemesters={()=>{}}/></OfficeDashboardLayout>},{path:'/marks/config',element:<MarksContext/>}],{initialEntries:[path]});root.render(<RouterProvider router={router}/>);await until(()=>document.querySelector('h1'));await until(()=>!text().includes('Loading submission windows')&&!text().includes('Loading academic semesters')&&!text().includes('Loading evaluation periods'));
 };
 const preview=new URL(parent.location.href).searchParams.get('preview');
@@ -65,7 +76,7 @@ if(!preview){
 await scenario('overview replaces tabs and explains actual submission rules',async()=>{
  await mount();await until(()=>document.querySelector('[aria-label="Submission activity overview"]'));
  check(!document.querySelector('[role="tablist"]'),'Button tabs remain');check(document.querySelectorAll('[aria-label="Submission activity overview"] tbody tr').length===3,'Need all three activities');
- check([...document.querySelectorAll('[aria-label="Supervisor applications windows"] th')].map(node=>node.textContent).join('|')==='Window|Programmes|Opens|Closes|Submission access|Action','Window and programme hierarchy unclear');check(document.querySelector('.period-rules')!.querySelectorAll('p').length===1,'Rules repeat hints');check(!document.querySelector('[id="operational-period-1"]')?.textContent?.includes('Timeline:'),'Timeline summary crowds window name');check(!document.querySelector('.office-tool-context'),'Semester selection is still a card');check(text().includes('Dates are unrestricted'),'Disabled rules unclear');check(text().includes('approval or rejection after'),'Pending decisions not explained');
+ check([...document.querySelectorAll('[aria-label="Supervisor applications windows"] th')].map(node=>node.textContent).join('|')==='Window|Programmes|Opens|Closes|Status|Action','Window and programme hierarchy unclear');check(document.querySelector('.period-rules')!.querySelectorAll('p').length===1,'Rules repeat hints');check(!document.querySelector('[id="operational-period-1"]')?.textContent?.includes('Timeline:'),'Timeline summary crowds window name');check(!document.querySelector('.office-tool-context'),'Semester selection is still a card');check(text().includes('Dates are unrestricted'),'Disabled rules unclear');check(text().includes('approval or rejection after'),'Pending decisions not explained');
  await click('View Marks evaluations');await until(()=>document.querySelector('#period-panel-MARKS'));
  check(!buttons().some(node=>node.textContent?.trim()==='Add submission window'),'Appointment action leaked into Marks');
  check(document.querySelector<HTMLAnchorElement>('a[href="/marks/config?semester=9"]'),'Marks loses selected semester');check(document.documentElement.scrollWidth<=innerWidth+1,'Page overflows');
@@ -88,6 +99,26 @@ await scenario('window management keeps dates timeline and audited history toget
  await mount();await click('Manage window');await until(()=>document.querySelector('[data-record-page]'));check(text().includes('Main Supervisor intake'),'Window identity lost');check(text().includes('Dates are not enforced'),'Published mistaken for enforced');
  document.querySelector<HTMLDetailsElement>('[data-record-page] details')!.open=true;await until(()=>document.querySelector('[aria-label="Window history"]'));check(!text().includes('No personal extra time granted.'),'Empty extra time hint remains');
  await click('Back to periods & deadlines');await until(()=>!document.querySelector('[data-record-page]'));check(!document.querySelector('[aria-label="Window history"]'),'Record history leaked into overview');
+});
+await scenario('Supervisor and Panel distinguish early closure from formal closure after the deadline',async()=>{
+ for(const activity of ['SUPERVISOR_APPLICATION','PANEL_RECOMMENDATION'] as const){
+  for(const effectiveStatus of ['OPEN','ENDED'] as const){
+   await mount('/dashboard/periods?semester=9',{appointment:{activity,effectiveStatus}});
+   if(activity==='PANEL_RECOMMENDATION')await click('View Panel recommendations');
+   await until(()=>document.getElementById('operational-period-1'));
+   await click('Manage window');
+   const label=effectiveStatus==='ENDED'?'Close period':'Close submissions early';
+   await until(()=>document.querySelector('[data-record-page]'));
+   check(buttons().some(node=>node.textContent?.trim()===label),`${activity} ${effectiveStatus} missing ${label}`);
+   check(!buttons().some(node=>node.textContent?.trim()===(effectiveStatus==='ENDED'?'Close submissions early':'Close period')),'Wrong close action also shown');
+   check(document.querySelector('[aria-label="Submission schedule status"]')?.textContent===(effectiveStatus==='ENDED'?'Deadline passed':'Open'),'Schedule status is unclear');
+   check(buttons().some(node=>node.textContent?.trim()==='Extend deadline'),'Deadline extension missing');
+   await click(label);
+   const dialog=document.querySelector('dialog[open]');
+   check(dialog?.querySelector('h2')?.textContent?.trim()===label,'Closure dialog label differs from the action');
+   check(dialog?.textContent?.includes('Date restrictions are off'),'Closure implies unrestricted submissions will stop');
+  }
+ }
 });
 await scenario('missing timeline offers setup while period access remains available',async()=>{
  await mount('/dashboard/periods?semester=9',{missing:true});await click('Manage window');await until(()=>text().includes('No semester timeline exists yet'));
@@ -112,7 +143,7 @@ await scenario('period anchors still reveal the owning activity',async()=>{
  await mount('/dashboard/periods?semester=9&manage=window#marks-period-4');await until(()=>document.querySelector('[data-record-page]'));check(buttons().some(node=>node.textContent?.trim()==='Back to periods & deadlines'),'Linked Marks window not opened');
 });
 await scenario('closed semester keeps appointment edits disabled and Marks recovery available',async()=>{
- await mount('/dashboard/periods?semester=8',{closed:true});check(buttons().find(node=>node.textContent?.trim()==='Add submission window')?.disabled,'Closed semester editable');await click('Manage window');await until(()=>document.querySelector('[data-record-page]'));check(buttons().find(node=>node.textContent?.trim()==='Archive window')?.disabled,'Closed archive enabled');check(!buttons().some(node=>node.textContent?.trim()==='Create linked event'),'Closed calendar editable');await click('Back to periods & deadlines');await until(()=>!document.querySelector('[data-record-page]'));await click('View Marks evaluations');await click('Manage window');await click('Extend deadline');await until(()=>document.querySelector('dialog[open]'));check(text().includes('Selected cases / tasks'),'Closed Marks has no selected-task recovery');check(text().includes('Synthetic Student'),'Eligible unfinished task missing');const everyone=[...document.querySelectorAll<HTMLOptionElement>('dialog option')].find(node=>node.value==='everyone');check(everyone?.disabled,'Closed semester permits blanket extension');
+ await mount('/dashboard/periods?semester=8',{closed:true});check(buttons().find(node=>node.textContent?.trim()==='Add submission window')?.disabled,'Closed semester editable');await click('Manage window');await until(()=>document.querySelector('[data-record-page]'));check(buttons().find(node=>node.textContent?.trim()==='Archive window')?.disabled,'Closed archive enabled');check(!buttons().some(node=>node.textContent?.trim()==='Create linked event'),'Closed calendar editable');await click('Back to periods & deadlines');await until(()=>!document.querySelector('[data-record-page]'));await click('View Marks evaluations');await click('Manage window');await click('Grant individual extra time');await until(()=>document.querySelector('dialog[open]'));check(text().includes('Selected cases / tasks'),'Closed Marks has no selected-task recovery');check(text().includes('Synthetic Student'),'Eligible unfinished task missing');const everyone=[...document.querySelectorAll<HTMLOptionElement>('dialog option')].find(node=>node.value==='everyone');check(everyone?.disabled,'Closed semester permits blanket extension');
 });
 await scenario('Marks destination selects exact period and locks semester context',async()=>{
  await mount('/marks/config?semester=9&period=4');await until(()=>text().includes('Period configuration'));
@@ -131,19 +162,19 @@ await scenario('managed window blocks stale actions and offers visible reload af
 });
 await scenario('Marks semester-only context opens details and returns to its scoped list',async()=>{
  await mount('/marks/config?semester=9');check(!document.querySelector('form'),'Browsing unexpectedly opens editor');
- buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>text().includes('Period configuration'));
+ await click('Manage period');await until(()=>text().includes('Period configuration'));
  check(document.querySelector<HTMLInputElement>('input[required]')?.value==='Semester evaluation','Selection lost fields');
  await click('Back to period list');await until(()=>document.querySelector('[aria-label="Configured evaluation periods"]'));
  check(!document.querySelector('form')&&!text().includes('Other semester evaluation'),'Returning leaked editor or another semester');
- buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>text().includes('Period configuration'));
+ await click('Manage period');await until(()=>text().includes('Period configuration'));
  check(document.querySelector<HTMLInputElement>('input[required]')?.value==='Semester evaluation','Reopening lost identity');
 });
 await scenario('late Marks selection cannot overwrite a newly selected semester context',async()=>{
- await mount('/marks/config?semester=9');holdMarksDetail=true;buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>releaseMarksDetail!==null);await router!.navigate('/marks/config?semester=10');await until(()=>[...document.querySelectorAll('p.card-value')].some(node=>node.textContent==='Semester II 2026/2027'));await until(()=>!text().includes('Loading evaluation periods'));
+ await mount('/marks/config?semester=9');holdMarksDetail=true;await click('Manage period');await until(()=>releaseMarksDetail!==null);await router!.navigate('/marks/config?semester=10');await until(()=>[...document.querySelectorAll('p.card-value')].some(node=>node.textContent==='Semester II 2026/2027'));await until(()=>!text().includes('Loading evaluation periods'));
  holdMarksDetail=false;releaseMarksDetail!();await new Promise(resolve=>setTimeout(resolve,40));check(!text().includes('Period configuration'),`Old detail replaced new context: ${text().slice(-1800)}`);check(!document.querySelector('form'),'Old period editor leaked');
 });
 await scenario('late Marks save cannot insert an old record into a new semester context',async()=>{
- await mount('/marks/config?semester=9',{draftMarks:true});buttons().find(node=>node.textContent?.includes('Semester evaluation'))!.click();await until(()=>text().includes('Period configuration'));
+ await mount('/marks/config?semester=9',{draftMarks:true});await click('Manage period');await until(()=>text().includes('Period configuration'));
  input(document.querySelector<HTMLInputElement>('input[required]')!,'Updated prior semester');await new Promise(resolve=>setTimeout(resolve,20));holdMarksWrite=true;await click('Save changes');await until(()=>releaseMarksWrite!==null);
  void router!.navigate('/marks/config?semester=10');await until(()=>text().includes('Saving changes'));check(router!.state.location.search==='?semester=9','Pending save allowed context replacement');
  holdMarksWrite=false;releaseMarksWrite!();await until(()=>[...document.querySelectorAll('p.card-value')].some(node=>node.textContent==='Semester II 2026/2027'));await until(()=>!text().includes('Loading evaluation periods'));check(!text().includes('Updated prior semester'),'Old save inserted into new list');check(!document.querySelector('form'),'Old save reopened editor');
@@ -183,7 +214,7 @@ await scenario('event search and results share one bounded popup with keyboard d
  await mount('/dashboard/periods?semester=9',{empty:true,many:true});await click('Add submission window');await until(()=>document.querySelector('dialog[open]'));
  check(!document.querySelector('[data-submission-window-body] input[type="search"]'),'Disconnected search field remains');document.getElementById('submission-window-calendar-event')!.click();await until(()=>document.querySelector('input[role="combobox"]'));
  let search=document.querySelector<HTMLInputElement>('input[role="combobox"]')!;check(search.closest('[role="dialog"]')?.querySelector('[role="listbox"]'),'Search and results are separate');check(document.activeElement===search,'Popup search did not receive focus');input(search,'Semester event 79');await new Promise(resolve=>setTimeout(resolve,20));await choose('submission-window-calendar-event','Semester event 79');
- check(!document.querySelector('input[role="combobox"]'),'Popup did not close after selection');check(!(document.getElementById('submission-opens-date') as HTMLInputElement).value,'Selection silently filled dates');document.getElementById('submission-window-calendar-event')!.click();await until(()=>document.querySelector('input[role="combobox"]'));search=document.querySelector<HTMLInputElement>('input[role="combobox"]')!;input(search,'Semester event 80');await new Promise(resolve=>setTimeout(resolve,20));search.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));await until(()=>!document.querySelector('input[role="combobox"]'));check(document.getElementById('submission-window-calendar-event')?.textContent?.includes('Semester event 80'),'Enter did not choose the matching event');document.getElementById('submission-window-calendar-event')!.click();await until(()=>document.querySelector('input[role="combobox"]'));search=document.querySelector<HTMLInputElement>('input[role="combobox"]')!;input(search,'no match exists');await until(()=>text().includes('No events match'));search.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await until(()=>!document.querySelector('input[role="combobox"]'));check(document.querySelector('dialog[open]'),'Escape closed the form');check(document.getElementById('submission-window-calendar-event')?.textContent?.includes('Semester event 80'),'Search lost selection');
+ check(!document.querySelector('input[role="combobox"]'),'Popup did not close after selection');check(!(document.getElementById('submission-opens-date') as HTMLInputElement).value,'Selection silently filled dates');document.getElementById('submission-window-calendar-event')!.click();await until(()=>document.querySelector('input[role="combobox"]'));search=document.querySelector<HTMLInputElement>('input[role="combobox"]')!;input(search,'Semester event 80');await new Promise(resolve=>setTimeout(resolve,20));search.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}));await until(()=>!document.querySelector('input[role="combobox"]'));check(document.getElementById('submission-window-calendar-event')?.textContent?.includes('Semester event 80'),'Enter did not choose the matching event');document.getElementById('submission-window-calendar-event')!.click();await until(()=>document.querySelector('input[role="combobox"]'));search=document.querySelector<HTMLInputElement>('input[role="combobox"]')!;input(search,'no match exists');await until(()=>text().includes('No options match your search'));search.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));await until(()=>!document.querySelector('input[role="combobox"]'));check(document.querySelector('dialog[open]'),'Escape closed the form');check(document.getElementById('submission-window-calendar-event')?.textContent?.includes('Semester event 80'),'Search lost selection');
  document.getElementById('submission-window-calendar-event')!.click();await until(()=>document.querySelector('[role="listbox"]'));const list=document.querySelector<HTMLElement>('[role="listbox"]')!;check(list.getBoundingClientRect().height<=289,'Event list grew without bound');check(list.scrollHeight>list.clientHeight,'Long event list is not scrollable');search=document.querySelector<HTMLInputElement>('input[role="combobox"]')!;for(let i=0;i<20;i++){search.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,2));}for(let i=0;i<16;i++){search.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowUp',bubbles:true,cancelable:true}));await new Promise(resolve=>setTimeout(resolve,2));}const active=document.getElementById(search.getAttribute('aria-activedescendant')!)!.getBoundingClientRect(),bounds=list.getBoundingClientRect();check(active.top>=bounds.top-1&&active.bottom<=bounds.bottom+1,'Keyboard active result scrolled out of view');search.dispatchEvent(new KeyboardEvent('keydown',{key:'Tab',bubbles:true,cancelable:true}));await until(()=>!document.querySelector('input[role="combobox"]'));check(document.getElementById('submission-window-calendar-event')?.textContent?.includes('Semester event 80'),'Tab silently changed selection');check(document.activeElement?.textContent==='Use these dates','Tab did not continue from event field');
 });
 await scenario('event days fill only the real schedule and confirm before replacing entered dates',async()=>{
@@ -200,7 +231,7 @@ await scenario('linked draft editing explains timeline impact and keeps restrict
  await mount('/dashboard/periods?semester=9',{draft:true,linked:true});await click('Manage window');await until(()=>text().includes('Publish this draft before its dates can control submissions.'));await click('Edit draft');await until(()=>document.querySelector('dialog[open]'));check(text().includes('calendar event: Existing calendar event'),'Linked edit target missing');check(text().includes('Saving these dates also updates'),'Linked edit impact missing');
 });
 await scenario('extension confirms common timeline changes and personal extra time separately',async()=>{
- await mount('/dashboard/periods?semester=9',{linked:true,enforced:true});await click('Manage window');await click('Extend deadline');await until(()=>document.querySelector('dialog[open]'));const date=document.querySelector<HTMLInputElement>('dialog input[type="datetime-local"]')!;const future=new Date(Date.now()+86400000).toISOString().slice(0,16);input(date,future);await until(()=>text().includes('reopen submissions'));check(text().includes('Saving will also update the displayed event dates'),'Common extension hides timeline effect');const combo=document.querySelector<HTMLButtonElement>('dialog button[role="combobox"]')!;combo.click();await until(()=>document.querySelector('[role="listbox"]'));const selected=[...document.querySelectorAll<HTMLElement>('[role="option"]')].find(node=>node.textContent?.includes('Selected cases'))!;selected.click();await until(()=>text().includes('general deadline and linked timeline remain unchanged'));check(!document.querySelector('[aria-label="Extension impact"]')?.textContent?.includes('reopen submissions'),'Personal extra time claims to reopen common window');
+ await mount('/dashboard/periods?semester=9',{linked:true,enforced:true});await click('Manage window');await click('Extend deadline');await until(()=>document.querySelector('dialog[open]'));const date=document.querySelector<HTMLInputElement>('dialog input[type="datetime-local"]')!;const future=new Date(Date.now()+86400000).toISOString().slice(0,16);input(date,future);await until(()=>text().includes('reopen submissions'));check(text().includes('These displayed dates will update too.'),'Common extension hides timeline effect');const combo=document.querySelector<HTMLButtonElement>('dialog button[role="combobox"]')!;combo.click();await until(()=>document.querySelector('[role="listbox"]'));const selected=[...document.querySelectorAll<HTMLElement>('[role="option"]')].find(node=>node.textContent?.includes('Selected cases'))!;selected.click();await until(()=>text().includes('general deadline and linked timeline remain unchanged'));check(!document.querySelector('[aria-label="Extension impact"]')?.textContent?.includes('reopen submissions'),'Personal extra time claims to reopen common window');
 });
 await scenario('overview enforcement reason protects route navigation and preserves Keep editing',async()=>{
  await mount('/dashboard/periods?semester=9',{enforced:true});await click('Turn off date restrictions');await until(()=>document.querySelector('dialog[open] textarea'));const field=document.querySelector<HTMLTextAreaElement>('dialog[open] textarea')!;input(field,'Keep my rationale');await new Promise(resolve=>setTimeout(resolve,20));await router!.navigate('/marks/config?semester=9');await until(()=>text().includes('Discard unsaved changes?'));check(field.value==='Keep my rationale','Route prompt lost reason');await click('Stay on this page');check(router!.state.location.pathname==='/dashboard/periods','Keep editing allowed navigation');check(field.value==='Keep my rationale','Keep editing discarded reason');
@@ -212,6 +243,42 @@ await scenario('pending window save continues requested route after commit',asyn
 window.parent.postMessage({type:'periods-workspace-results',results},location.origin);
 } else {
  await mount();
+ if(preview==='extension-register'){
+  await scenario('Managed Marks period opens extension page and returns with filters preserved',async()=>{
+   extensionRows=[{id:91,taskId:44,studentId:'S001',studentName:'Extension Student',programme:'Programme A',evaluatorName:'Test Evaluator',evaluatorRole:'Supervisor',deadline:'2026-11-22T09:00:00Z',status:'ACTIVE',reason:'Faculty approval',grantedBy:{id:1,name:'Office'},createdAt:'2026-11-09T01:00:00Z',revokedAt:null,revocationReason:'',supersedesId:null,canRevoke:true,submissionStatus:'DRAFT'}];
+   await click('View Marks evaluations');await click('Manage window');await until(()=>document.querySelector('[aria-label="Extensions"]')?.textContent?.includes('1 active grant'));
+   await click('View individual extra time');await until(()=>document.querySelector('[data-record-page] h1')?.textContent==='Extension details');
+   check(!text().includes('Submission schedule'),'Period content competes with extension details');
+   input(document.querySelector<HTMLInputElement>('input[type="search"]')!,'S001');await new Promise(resolve=>setTimeout(resolve,30));
+   await click('Back to period');await until(()=>document.querySelector('[data-record-page] h1')?.textContent===marksBase.name);
+   await click('View individual extra time');await until(()=>document.querySelector('[data-record-page] h1')?.textContent==='Extension details');
+   check(document.querySelector<HTMLInputElement>('input[type="search"]')!.value==='S001','Returning lost extension filters');
+   check(writes.length===0,'Navigation mutated records');
+   check(document.documentElement.scrollWidth<=innerWidth+1,'Managed page overflows');
+  });
+  await scenario('Late-submission shortcut can grant time only to the selected task',async()=>{
+   await mount('/dashboard/periods?semester=8&manage=window&task=999#marks-period-6',{closed:true});
+   await until(()=>text().includes('no longer available for a late submission decision'));
+   check(!document.querySelector('dialog[open]')&&writes.length===0,'Stale task fell back to a different grant');
+   await mount('/dashboard/periods?semester=8&manage=window&task=44#marks-period-6',{closed:true});
+   await until(()=>document.querySelector('dialog[open]'));
+   const form=document.querySelector('dialog[open]')!;
+   check(form.textContent?.includes('Synthetic Student')&&form.textContent?.includes('Synthetic Lecturer'),'Exact student and evaluator missing');
+   check(!form.textContent?.includes('Another Student')&&!form.textContent?.includes('Everyone in period scope'),'Shortcut can affect another task');
+   check(writes.length===0,'Opening the shortcut wrote data');
+   input(form.querySelector<HTMLInputElement>('input[type="datetime-local"]')!,'2026-12-01T15:30');
+   input(form.querySelector<HTMLTextAreaElement>('textarea')!,'Approved late submission');
+   await until(()=>buttons().some(button=>button.textContent?.trim()==='Grant extra time'&&!button.disabled));
+   await click('Grant extra time');
+   await until(()=>!document.querySelector('dialog[open]'));
+   check(writes.length===1&&writes[0].path==='/api/marks/completion-windows/','Shortcut did not use the individual grant endpoint');
+   check(JSON.stringify(writes[0].body.taskIds)==='[44]','Grant affected another task');
+   check(writes[0].body.deadline==='2026-12-01T07:30:00.000Z','Deadline did not use Malaysia time');
+   await until(()=>text().includes('The evaluator can now submit this task.'));
+   check(!document.querySelector('dialog[open]'),'Refresh reopened the grant dialog');
+  });
+  window.parent.postMessage({type:'periods-workspace-results',results},location.origin);
+ }
  if(preview==='restriction-review') {
   await scenario('shared window is readable once and discard uses a nested modal',async()=>{
    const prior={scope:base.programmeScope,programmes:base.programmes};base.programmeScope='ALL';base.programmes=[];
@@ -296,16 +363,21 @@ window.parent.postMessage({type:'periods-workspace-results',results},location.or
   window.parent.postMessage({type:'periods-workspace-results',results},location.origin);
  }
  if(preview==='window-layout') {
-  await scenario('window dates and status/action columns remain distinct',async()=>{
-   for(const label of ['Supervisor applications windows','Marks evaluation windows']) {
+  await scenario('all three expired windows share a status across list and detail without crowding actions',async()=>{
+   for(const label of ['Supervisor applications windows','Panel recommendations windows','Marks evaluation windows']) {
+    const panel=label==='Panel recommendations windows';
+    await mount('/dashboard/periods?semester=9',{marksExpired:true,...(panel?{appointment:{activity:'PANEL_RECOMMENDATION',effectiveStatus:'ENDED'},enforced:true}:{})});
+    if(panel)await click('View Panel recommendations');
     if(label==='Marks evaluation windows')await click('View Marks evaluations');
     const table=document.querySelector<HTMLTableElement>(`table[aria-label="${label}"]`)!;
     check(table,'Window table missing');
     const row=table.querySelector('tbody tr')!;
     const cells=row.querySelectorAll('td');
     check(cells.length===6,'Six columns required');
-    check(cells[4].children.length===2&&!cells[4].querySelector('p'),'Status must be one badge without a second line');
-    check(cells[4].lastElementChild?.textContent?.trim()===(label==='Supervisor applications windows'?'Dates unrestricted':'OPEN'),'Window status should describe its schedule');
+    const badge=cells[4].querySelector('.rounded-full')!;
+    check(badge?.textContent==='Deadline passed','Expired window status should describe its schedule');
+    check(cells[4].querySelectorAll('.rounded-full').length===1,'Status should have one badge');
+    if(label!=='Marks evaluation windows')check(cells[4].textContent?.includes(panel?'Extra time if approved':'Dates unrestricted'),'Appointment access is missing');
     for(const index of [2,3]) {
      check(cells[index].querySelectorAll('time > span').length===2,'Date/time line structure inconsistent');
      check(cells[index].textContent?.includes('MYT'),'Timezone missing');
@@ -314,10 +386,14 @@ window.parent.postMessage({type:'periods-workspace-results',results},location.or
      const status=cells[4].getBoundingClientRect(),action=cells[5].getBoundingClientRect();
      check(status.width>=85&&action.width>=120,'Status/action columns collapsed');
      check(status.right<=action.left+1,'Status overlaps action');
-     const badge=cells[4].querySelector('span')!.getBoundingClientRect();
-     check(badge.right<=action.left,'Status badge overlaps action');
+     check(badge.getBoundingClientRect().right<=action.left,'Status badge overlaps action');
     }
     check(document.documentElement.scrollWidth<=innerWidth+1,'Whole page overflows');
+    await click('Manage window');await until(()=>document.querySelector('[data-record-page]'));
+    const detailBadge=document.querySelector('[aria-label="Submission schedule status"] > span');
+    check(detailBadge?.textContent===badge.textContent&&detailBadge?.className===badge.className,'List and detail badges differ');
+    if(label!=='Marks evaluation windows')check(text().includes(panel?'require approved extra time':'Eligible users can still submit'),'Appointment access is unclear');
+    check(document.documentElement.scrollWidth<=innerWidth+1,'Detail page overflows');
    }
   });
   window.parent.postMessage({type:'periods-workspace-results',results},location.origin);

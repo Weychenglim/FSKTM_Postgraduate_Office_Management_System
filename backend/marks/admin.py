@@ -5,7 +5,6 @@ from .models import (
     EvaluationTask,
     EvaluationTaskHandoverAudit,
     EvaluationTaskLifecycleAudit,
-    EvaluationTaskOverrideAudit,
     MarkCorrectionAudit,
     MarkEntry,
     MarkScore,
@@ -200,31 +199,6 @@ class EvaluationTaskLifecycleAuditAdmin(ReadOnlyMarksAdmin):
         return False
 
     def has_delete_permission(self, request, obj=None):
-        return False
-
-
-@admin.register(EvaluationTaskOverrideAudit)
-class EvaluationTaskOverrideAuditAdmin(ReadOnlyMarksAdmin):
-    list_display = ("task", "actor", "original_evaluator", "new_evaluator", "created_at")
-    search_fields = (
-        "task__profile__matric_no",
-        "actor__full_name",
-        "new_evaluator__full_name",
-        "reason",
-    )
-    readonly_fields = (
-        "task",
-        "actor",
-        "original_evaluator",
-        "new_evaluator",
-        "reason",
-        "created_at",
-    )
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
         return False
 
 

@@ -28,7 +28,7 @@ class AcademicSemester(models.Model):
         Term.SPECIAL: "SP",
     }
 
-    code = models.CharField(max_length=32, unique=True, editable=False)
+    code = models.CharField(max_length=32, editable=False)
     academic_session = models.CharField(max_length=9)
     term = models.CharField(max_length=16, choices=Term.choices)
     starts_on = models.DateField()
@@ -56,6 +56,7 @@ class AcademicSemester(models.Model):
             models.UniqueConstraint(
                 fields=["academic_session", "term"],
                 name="unique_academic_session_term",
+                condition=~Q(lifecycle_status="ARCHIVED"),
             ),
             models.UniqueConstraint(
                 fields=["lifecycle_status"],
@@ -98,6 +99,8 @@ class AcademicSemester(models.Model):
                 f"{match.group('start')}-{match.group('end')}-"
                 f"{self.TERM_CODES[self.term]}"
             )
+            if self.lifecycle_status != self.Lifecycle.ARCHIVED and AcademicSemester.objects.exclude(pk=self.pk).exclude(lifecycle_status=self.Lifecycle.ARCHIVED).filter(academic_session=self.academic_session, term=self.term).exists():
+                errors['term'] = f'{self.get_term_display()} already exists for the {self.academic_session} session.'
         if self.starts_on and self.ends_on:
             overlap = AcademicSemester.objects.exclude(pk=self.pk).exclude(
                 lifecycle_status=self.Lifecycle.ARCHIVED
@@ -105,8 +108,10 @@ class AcademicSemester(models.Model):
                 starts_on__lte=self.ends_on,
                 ends_on__gte=self.starts_on,
             )
-            if overlap.exists():
-                errors["starts_on"] = "Semester dates overlap another semester."
+            conflicting = overlap.order_by('starts_on', 'pk').first()
+            if conflicting:
+                end = conflicting.ends_on
+                errors["starts_on"] = f'These dates overlap {conflicting.label}, which ends on {end.day} {end:%b %Y}.'
         if errors:
             raise ValidationError(errors)
 

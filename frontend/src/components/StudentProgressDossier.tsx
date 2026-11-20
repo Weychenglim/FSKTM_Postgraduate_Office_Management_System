@@ -4,8 +4,6 @@ import {
   AlertTriangle,
   ArrowUpRight,
   CalendarDays,
-  CheckCircle2,
-  Clock3,
   FileText,
   GraduationCap,
   History,
@@ -33,7 +31,7 @@ import {
   visibleProgressTabs,
 } from '../utils/studentProgress';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
-import { StudentLifecycleSummary } from './StudentLifecycleSummary';
+import { StudentLifecycleHistory, StudentLifecycleSummary } from './StudentLifecycleSummary';
 import {
   PageHeader,
   PortalButton,
@@ -51,7 +49,6 @@ interface StudentProgressDossierProps {
 }
 
 const TAB_LABELS: Record<StudentProgressTab, string> = {
-  OVERVIEW: 'Overview',
   SUPERVISOR: 'Supervisor',
   PANEL: 'Panel',
   MARKS: 'Marks',
@@ -274,7 +271,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
   onNavigateToRoute,
 }) => {
   const [dossier, setDossier] = useState<StudentProgressDossierData | null>(null);
-  const [activeTab, setActiveTab] = useState<StudentProgressTab>('OVERVIEW');
+  const [activeTab, setActiveTab] = useState<StudentProgressTab | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -298,7 +295,7 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
       .then((result) => {
         if (generation !== requestGeneration.current) return;
         setDossier(result);
-        setActiveTab(visibleProgressTabs(result.visibleSections, result.visibility)[0] ?? 'OVERVIEW');
+        setActiveTab(visibleProgressTabs(result.visibleSections, result.visibility)[0] ?? null);
       })
       .catch((reason) => {
         if (generation !== requestGeneration.current) return;
@@ -374,12 +371,6 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
               description={`${dossier.student.studentId} · ${dossier.student.programme}`}
               icon={<span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand-navy text-white"><GraduationCap className="h-6 w-6" /></span>}
             />
-            {internal && <div className="mt-3 flex flex-wrap gap-2 pl-16">
-              <StatusBadge tone={statusTone(dossier.student.status)}>{dossier.student.status}</StatusBadge>
-              <StatusBadge tone={dossier.overview.attentionCount > 0 ? 'warning' : 'success'}>
-                {dossier.overview.attentionCount} attention items
-              </StatusBadge>
-            </div>}
           </div>
           <div className="max-w-xl lg:text-right">
             <p className="card-label">Research topic</p>
@@ -393,10 +384,11 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
             )}
           </div>
         </div>
-        {!internal && <StudentLifecycleSummary lifecycle={dossier.student.lifecycle} internal={false} />}
+        <StudentLifecycleSummary lifecycle={dossier.student.lifecycle} projectStage={dossier.student.projectStage}
+          projectSemester={dossier.student.projectSemester} showStatusChange={!internal} />
       </PortalCard>
 
-      {internal && (office ? <div data-office-preserve><StudentLifecycleSummary lifecycle={dossier.student.lifecycle} internal /></div> : <StudentLifecycleSummary lifecycle={dossier.student.lifecycle} internal />)}
+      {internal && <div data-office-preserve={office || undefined}><StudentLifecycleHistory lifecycle={dossier.student.lifecycle} /></div>}
 
       {internal && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {statusItems.map(({ label, value, icon: Icon }) => (
@@ -434,50 +426,6 @@ export const StudentProgressDossier: React.FC<StudentProgressDossierProps> = ({
       </div>
 
       {tabs.length === 0 && <EmptyState title="No academic records available" description="Your appointment records and semester milestones will appear here when they are recorded." />}
-
-      {internal && activeTab === 'OVERVIEW' && (
-        <section className="space-y-4">
-          <div>
-            <h2 className="section-label">Attention and next milestones</h2>
-            <p className="card-description mt-1">
-              Persisted deadlines and active workflow waits, ordered by priority.
-            </p>
-          </div>
-          {dossier.attention.length === 0 ? (
-            <EmptyState
-              title="No active attention items"
-              description="There are no overdue tasks, waiting approvals, or active milestones."
-              icon={CheckCircle2}
-            />
-          ) : (
-            <div className="divide-y divide-slate-100 border-y border-slate-200">
-              {dossier.attention.map((item, index) => (
-                <div
-                  key={`${item.kind}-${item.recordType}-${item.recordId ?? index}`}
-                  className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-start gap-3">
-                    <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                    <div>
-                      <p className="card-value text-brand-navy">{item.label}</p>
-                      <p className="card-description mt-1">
-                        {item.waitingDays !== null
-                          ? `${item.waitingDays} calendar days`
-                          : item.dueAt
-                          ? `Date: ${dateText(item.dueAt)}`
-                          : formatProgressStatus(item.kind)}
-                      </p>
-                    </div>
-                  </div>
-                  {(internal || item.targetModule !== 'MARKS') && (
-                    <RecordAction target={item} onNavigate={onNavigateToRoute} route={office && item.targetModule === 'MARKS' ? APP_ROUTES.marksTasks : undefined} label={office ? item.targetModule === 'SUPERVISOR_APPOINTMENTS' ? 'Open Supervisor record' : item.targetModule === 'PANEL_APPOINTMENTS' ? 'Open Panel record' : item.targetModule === 'MARKS' ? 'Open evaluation tasks' : 'Open calendar' : undefined} />
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
 
       {activeTab === 'SUPERVISOR' && dossier.supervisor && (
         <section className="space-y-4">

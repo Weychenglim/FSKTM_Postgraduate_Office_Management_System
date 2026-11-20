@@ -1,10 +1,10 @@
 import {assessmentLabel} from '../utils/assessment';
 import React from 'react';
 import type {EvaluationPeriodOption} from '../types';
-import {PortalButton, PortalCard, StatusBadge, getStatusBadgeTone} from './PortalPrimitives';
+import {PortalButton, PortalCard} from './PortalPrimitives';
 import {PortalSelect} from './PortalSelect';
 import {EmptyState} from './StateViews';
-import {formatPeriodStatus} from '../utils/marksProductionManagement';
+import {WindowScheduleStatus} from './WindowScheduleStatus';
 
 type Filters = {search: string; status: string; page: number};
 
@@ -30,7 +30,7 @@ export function MarkEntryPeriodList({periods, filters, busy, onManage, onFilters
         <tbody>{rows.slice((page - 1) * 10, page * 10).map(period => <tr key={period.id}>
           <td className="data-td"><span className="card-value">{period.name}</span><span className="card-description block mt-1">{assessmentLabel(period.assessment)}</span></td>
           <td className="data-td">{period.semester}</td><td className="data-td">{period.rubricName}</td>
-          <td className="data-td"><StatusBadge tone={getStatusBadgeTone(period.effectiveStatus)}>{formatPeriodStatus(period.lifecycleStatus === 'PUBLISHED' ? period.effectiveStatus : period.lifecycleStatus)}</StatusBadge></td>
+          <td className="data-td"><WindowScheduleStatus {...period}/></td>
           <td className="data-td"><div className="flex flex-col items-start gap-2" role="group" aria-label={`Actions for ${period.name}`}>
             <PortalButton className="shrink-0 whitespace-nowrap" disabled={busy} onClick={() => onManage(period)}>Manage period</PortalButton>
           </div></td>

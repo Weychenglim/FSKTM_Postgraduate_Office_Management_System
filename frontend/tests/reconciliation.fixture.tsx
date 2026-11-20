@@ -65,6 +65,7 @@ window.fetch = async (input, init) => {
     if (!issue || previewFailure) { status = 409; body = { error: 'The issue changed after preview.' }; }
     else body = { issue: issuePayload(issue), canAccept: eligible(issue) && !accepted(issue), allowedResolutions: issue.repairability === 'REPAIRABLE'
       ? issue.issueType === 'SEMESTER_UNASSIGNED' ? [{ action: 'ASSIGN_SEMESTER', label: 'Assign verified academic semester', semesterId: issue.suggestion.semesterId }]
+      : issue.issueType === 'MARKS_TASK_INCONSISTENT' ? [{ action: 'RETIRE_MARKS_TASK', label: 'Retire this task' }]
       : [{ action: 'COPY_CAPACITY_PLAN', label: 'Copy verified earlier policy as a draft' }] : [] };
   } else if (url.pathname.endsWith('/audits/')) {
     check(url.searchParams.has('entityType') && url.searchParams.has('entityId'), 'Audit request is not record scoped');
@@ -85,7 +86,7 @@ window.fetch = async (input, init) => {
   } else if (url.pathname.endsWith('/apply/')) {
     check(init?.method === 'POST', 'Apply must POST'); payloads.push(JSON.parse(String(init?.body)));
     if (conflict) { status = 409; body = { error: 'The issue changed after preview.' }; }
-    else { issues = issues.filter(row => row.issueId !== 'MISSING.13'); body = { resolved: true }; }
+    else { const id = decodeURIComponent(url.pathname.split('/').at(-3)!); issues = issues.filter(row => row.issueId !== id); body = { resolved: true }; }
   } else throw Error(`Unexpected API ${url.pathname}`);
   return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 };
@@ -151,7 +152,7 @@ await run('Role evidence, meaningful ownership, lazy history and source route', 
   check(!requests.some(url => url.pathname.endsWith('/audits/')), 'Detail eagerly loaded audits');
   audit().click(); await until(() => text().includes('Office reviewer'));
   check(requests.at(-1)!.searchParams.get('entityId') === '1', 'Wrong record audit');
-  await click('Review capacity limits'); check(route === '/dashboard/lecturer-capacity?semester=1', 'Source loses semester');
+  await click('Review capacity limits'); check(route === '/dashboard/lecturer-capacity?semester=1&lecturer=L001', 'Source loses semester or lecturer');
   await click('Back to Workflow Reconciliation'); await until(() => active('input[type="search"]')[0]);
   check((active<HTMLInputElement>('input[type="search"]')[0]).value === 'L001', 'Back lost filters');
 });
@@ -159,7 +160,59 @@ await run('Unassigned semester shows matching evidence and a usable source actio
   await mount(); await review('SEMESTER.12');
   check(text().includes('no single verified semester match'), 'Missing explanation for withheld repair');
   check(text().includes('Semester I 2024/2025') && text().includes('Semesters matching all available evidence'), 'Hidden assignment evidence');
-  await click('Open source record'); check(route === '/dashboard/timeline', 'Timeline issue has no source destination');
+  await click('Open Timeline'); check(route === '/dashboard/timeline', 'Timeline issue has no source destination');
+});
+await run('Marks registration finding shows evidence and offers its exact record', async () => {
+  await mount();
+  issues.push({
+    ...initialIssues()[0], issueId: 'MARKS-STAGE.52', issueType: 'MARKS_STAGE_REVIEW', module: 'MARKS',
+    severity: 'BLOCKING', recordType: 'EVALUATION_TASK', recordId: '52', studentId: 'S052',
+    title: 'Registration change needs Marks review', summary: 'Review the preserved assessment evidence.',
+    currentState: { lifecycleStatus: 'RETIRED', entryStatus: 'NOT_STARTED', reviewAuditId: 13,
+      stageCorrection: { action: 'RETIRE', studentId: 32, semesterId: 1, registrationRevision: 1, impactFingerprint: 'internal-fingerprint' } },
+    navigation: { targetModule: 'MARKS', recordType: 'MARKS_TASK', recordId: '52' },
+  });
+  await review('MARKS-STAGE.52');
+  check(text().includes('The registration correction retired this evaluation task.') && text().includes('No marks entered'), 'Retired and unstarted evidence should be readable');
+  check(!text().includes('internal-fingerprint') && !text().includes('impactFingerprint'), 'Raw correction metadata should stay out of the evidence');
+  check(text().includes('RP Registration') && text().includes('Programme Coordinator'), 'Missing owner or registration path');
+  check(text().includes('What to share') && text().includes('the semester and confirmed RP stage') && text().includes('MRK-00052'), 'The referral should identify what Office needs to send');
+  check(text().indexOf('Recorded evidence') >= 0 && text().indexOf('Recorded evidence') < text().indexOf('Recommended next step'), 'Evidence should precede the recommended next step');
+  check(!button('Review and confirm repair'), 'Review-only finding offered a repair');
+  await click('Open RP Registration'); check(route === '/registry/project-stages', 'Registration shortcut should open the existing Registry workspace');
+  await click('View Marks record'); check(route === '/marks/records/MRK-00052', 'Marks finding lost its exact task');
+});
+await run('Overdue retirement preserves the choice to grant extra time and requires confirmation', async () => {
+  await mount();
+  issues.push({
+    ...initialIssues()[0], issueId: 'MARKS.53', issueType: 'MARKS_TASK_INCONSISTENT', module: 'MARKS',
+    severity: 'BLOCKING', repairability: 'REPAIRABLE', recordType: 'EVALUATION_TASK', recordId: '53', studentId: 'S053',
+    title: 'Evaluation period ended with an unsubmitted draft', summary: 'The evaluation period ended.',
+    currentState: { closedWithUnfinishedWork: true, canGrantCompletionWindow: true, entryStatus: 'DRAFT', periodId: 5, semesterId: 1, evaluator: 'Dr Evaluator' },
+    suggestion: { action: 'RETIRE_MARKS_TASK' }, navigation: { targetModule: 'MARKS', recordType: 'MARKS_TASK', recordId: '53' },
+  });
+  await review('MARKS.53');
+  check(!active('textarea').length && !button('Review retirement'), 'The retirement form should stay out of the choice panel');
+  const grant = button('Grant individual extra time')!.getBoundingClientRect();
+  const retire = button('Retire this task')!.getBoundingClientRect();
+  check(innerWidth >= 640 ? Math.abs(grant.top - retire.top) < 2 : grant.bottom < retire.top,
+    'Choices should align on desktop and stack on narrow screens');
+  await click('Grant individual extra time');
+  check(route.includes('task=53'), 'Extra time should target this task');
+  await click('Retire this task');
+  const confirmation = document.querySelector('dialog[open]')?.textContent;
+  check(confirmation?.includes('Dr Evaluator') && confirmation.includes('draft') && confirmation.includes('S053'), 'Confirm the impact on the exact task');
+  check(button('Retire this task')?.disabled && payloads.length === 0, 'Retirement should require a reason and acknowledgement');
+  enter('dialog[open] textarea', 'Evaluation no longer required.');
+  await pause();
+  check(button('Retire this task')?.disabled, 'A reason alone should not enable retirement');
+  active<HTMLInputElement>('dialog[open] input[type="checkbox"]')[0].click();
+  await until(() => button('Retire this task') && !button('Retire this task')!.disabled);
+  await click('Retire this task');
+  await until(() => text().includes('Task retired'));
+  check(payloads.length === 1 && payloads[0].resolution.action === 'RETIRE_MARKS_TASK' && payloads[0].reason === 'Evaluation no longer required.', 'Retirement payload is incomplete');
+  await click('Return to issues');
+  await until(() => text().includes('No matching issues'));
 });
 await run('Repair reason, acknowledgement, confirmation and single committed outcome', async () => {
   await mount(); await review('MISSING.13');
@@ -242,10 +295,10 @@ await run('Conflicting repair requires review and layouts fit the viewport', asy
   check(document.documentElement.scrollWidth <= innerWidth + 1, 'List overflows after navigation');
   if (innerWidth < 640) { await review('L001'); check(document.documentElement.scrollWidth <= innerWidth + 1, 'Review comparison overflows'); }
 });
-await run('Acceptance modal keeps source action prominent and preserves a cancelled draft', async () => {
+await run('Acceptance modal keeps source action prominent and confirms draft disposal', async () => {
   await mount(); await review('SEMESTER.12');
   const trigger = button('Accept as intentional')!;
-  const source = button('Open source record')!;
+  const source = button('Open Timeline')!;
   check(trigger && !active('textarea').length, 'Acceptance is not behind a button');
   check(trigger.getBoundingClientRect().top > source.getBoundingClientRect().bottom, 'Exception action competes with source correction');
   if (innerWidth >= 640) check(Math.abs(trigger.parentElement!.getBoundingClientRect().right - trigger.getBoundingClientRect().right) < 2, 'Exception action is not right aligned');
@@ -254,24 +307,29 @@ await run('Acceptance modal keeps source action prominent and preserves a cancel
   check(dialog && dialog.querySelector('textarea') && dialog.textContent?.includes('Semester I 2024/2025'), 'Modal hides the form or affected record');
   check(dialog.scrollWidth <= dialog.clientWidth + 1, 'Acceptance modal overflows');
   enter('textarea', 'Retained acceptance draft.'); await click('Cancel');
-  check(!document.querySelector('dialog[open]') && !active('textarea').length, 'Cancel leaves an inline form');
+  await until(() => button('Keep editing')); await click('Keep editing');
+  check((active<HTMLTextAreaElement>('textarea')[0]).value === 'Retained acceptance draft.', 'Keep editing lost the draft');
+  await click('Cancel'); await click('Discard changes');
+  await until(() => !document.querySelector('dialog[open]'));
   await click('Accept as intentional');
-  check((active<HTMLTextAreaElement>('textarea')[0]).value === 'Retained acceptance draft.', 'Cancel lost the draft');
+  check((active<HTMLTextAreaElement>('textarea')[0]).value === '', 'Discard retained the acceptance draft');
   await click('Cancel'); await click('Back to Workflow Reconciliation');
-  await until(() => button('Discard changes')); await click('Discard changes');
   await until(() => active('input[type="search"]').length);
   check(payloads.length === 0, 'Closing the draft submitted acceptance');
 });
-await run('Acceptance conflicts require fresh evidence and retain the review reason', async () => {
+await run('Acceptance conflicts require consent to replace the entered review with fresh evidence', async () => {
   await mount(); await review('SEMESTER.12'); await click('Accept as intentional'); enter('textarea', 'Verified historical exception.');
   active<HTMLInputElement>('input[type="checkbox"]')[0].click();
   await until(() => !button('Accept as intentional')?.disabled);
   issues.find(row => row.issueId === 'SEMESTER.12')!.fingerprint = 'd'.repeat(64);
   await click('Accept as intentional'); await until(() => text().includes('Record needs review'));
   check(payloads.length === 1, 'Stale acceptance automatically retried'); await click('Review latest record');
-  await until(() => !button('Review latest record'));
+  await until(() => button('Replace and review')); await click('Keep editing');
+  check((active<HTMLTextAreaElement>('textarea')[0]).value === 'Verified historical exception.', 'Cancelling reload lost the reason');
+  await click('Review latest record'); await click('Replace and review');
+  await until(() => !document.querySelector('dialog[open]'));
   await click('Accept as intentional');
-  check((active<HTMLTextAreaElement>('textarea')[0]).value === 'Verified historical exception.', 'Conflict discarded reason');
+  check((active<HTMLTextAreaElement>('textarea')[0]).value === '', 'Replacing evidence retained the stale review reason');
   check(button('Accept as intentional')?.disabled, 'Fresh evidence did not reset acknowledgement');
 });
 await run('Committed acceptance survives refresh failure without a second submit', async () => {

@@ -13,6 +13,7 @@ from academics.services import current_effective_semester
 from accounts.models import Lecturer, Student, User
 from . import coordinator_workspace as browse
 from .ageing import elapsed_calendar_days
+from .attention_project_stages import filter_attention_stages, project_stage_filter, stage_coverage_page
 from .models import (AppointmentWorkflowEvent, CoSupervisorAppointment, CoSupervisorNomination,
                      ResearchAmendment, ResearchAmendmentEvent, SupervisorApplication, SupervisorAppointment)
 
@@ -60,6 +61,7 @@ def options(params):
         for key in ('programme', 'semester'):
             if opts[key]:
                 raise ValidationError({key: 'Lecturer workload uses the current capacity semester and all active supervision.'})
+    opts['projectStage'] = project_stage_filter(params, category)
     return category, opts
 
 
@@ -88,6 +90,10 @@ def students_page(opts):
         rows = rows.filter(intake_semester=opts['semester'])
     if opts['status']:
         rows = rows.filter(reason=opts['status'])
+    semester = current_effective_semester()
+    stages = None
+    if opts['projectStage']:
+        rows, stages = filter_attention_stages(rows, semester, 'pk', opts['projectStage'])
     rows = rows.annotate(studentName=F('user__full_name'), matricNo=F('matric_no'), semester=F('intake_semester'), rowId=F('pk'))
     order = ('user__full_name', 'matric_no', 'pk')
     if opts['sort'] == 'no_request':
@@ -97,7 +103,8 @@ def students_page(opts):
     def compact(row):
         row['id'] = row.pop('rowId')
         return row
-    return browse.envelope(rows, opts, facets, serializer=compact)
+    data = browse.envelope(rows, opts, facets, serializer=compact)
+    return stage_coverage_page(data, semester, stages)
 
 
 def waiting_bases():
@@ -237,7 +244,10 @@ def attention_page(params):
 def attention_summary():
     semester = current_effective_semester()
     workloads, _ = workload_rows(semester)
-    return {'withoutSupervisor': students_without_primary().count(),
+    missing = students_without_primary()
+    rp1, _ = filter_attention_stages(missing, semester, 'pk', 'P1')
+    return {'withoutSupervisor': missing.count(),
+            'withoutSupervisorRp1': rp1.count() if semester else None,
             'waitingRequests': sum(rows.count() for rows in waiting_bases()),
             'workloadConcerns': workloads.exclude(reason='').count(),
             'capacitySemester': {'id': semester.pk, 'label': semester.label} if semester else None}

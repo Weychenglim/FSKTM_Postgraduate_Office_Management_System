@@ -58,7 +58,8 @@ class TimelineTemplateTests(SimpleTestCase):
         for phrase in ["Add events (default)", "does not merge duplicates", "existing, incoming and resulting event counts",
                        "entire calendar draft", "Confirming an import saves a draft", "last published calendar stays visible",
                        "selected audiences", "next dashboard refresh", "does not make it the current dashboard semester",
-                       "does not open or close submission windows", "same position within P1 or P2"]:
+                       "does not open or close submission windows", "Keep existing event", "matching workbook row",
+                       "current window dates", "Manage period"]:
             self.assertIn(phrase, guide)
         for obsolete in ["no separate Publish step", "it does not append", "Saving/importing for the current active semester makes events available"]:
             self.assertNotIn(obsolete, guide)

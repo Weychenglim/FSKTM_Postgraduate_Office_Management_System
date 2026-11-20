@@ -4,7 +4,8 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from accounts.models import Lecturer, OfficeStaff, Student
+from academics.models import AcademicSemester
+from accounts.models import Lecturer, OfficeStaff, ProjectRegistration, Student, StudentSemester
 from appointments.models import StudentResearchProfile
 from marks.models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric
 
@@ -61,9 +62,18 @@ class MarkDeadlineApiTests(APITestCase):
             code="deadline-rubric",
         )
         self.due_at = timezone.now() - timedelta(days=2)
+        semester = AcademicSemester.objects.create(
+            code="DEADLINE-S1", academic_session="2026/2027", term="SEMESTER_I",
+            starts_on=timezone.localdate() - timedelta(days=30),
+            ends_on=timezone.localdate() + timedelta(days=60), created_by=self.office,
+        )
+        StudentSemester.objects.create(student=student, session=semester.academic_session, term=semester.term)
+        ProjectRegistration.objects.create(student=student, academic_semester=semester, stage="P1")
         period = EvaluationPeriod.objects.create(
             name="Deadline Period",
             semester="Semester 1 2026/2027",
+            academic_semester=semester,
+            assessment="P1",
             rubric=rubric,
             is_open=True,
             closes_at=self.due_at,
@@ -93,6 +103,7 @@ class MarkDeadlineApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         task = response.data[0]
+        self.assertEqual(task["assessment"], "P1")
         self.assertEqual(task["deadlineState"], "OVERDUE")
         self.assertLessEqual(task["daysUntilDue"], -2)
         self.assertIsNotNone(task["dueAt"])

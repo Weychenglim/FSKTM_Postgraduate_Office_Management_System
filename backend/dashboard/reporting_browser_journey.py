@@ -49,9 +49,12 @@ class ReportingBrowserJourney(ReportingAcceptanceFixture, LiveServerTestCase):
             self.assertEqual(audit.reason, 'A05 verified browser repair')
             self.assertIsNone(audit.before_values['academicSemesterId'])
             self.assertEqual(audit.after_values['academicSemesterId'], self.semester.pk)
-            self.assertEqual(list(TimelineAuditLog.objects.order_by('id').values_list('action', flat=True)),
-                             ['ADD_ENTRY', 'EDIT_ENTRY', 'DELETE_ENTRY'])
-            self.assertEqual(set(TimelineAuditLog.objects.values_list('actor_id', flat=True)), {self.office.pk})
+            timeline_audits = list(TimelineAuditLog.objects.order_by('pk').values())
+            existing_audits = before[TimelineAuditLog]
+            self.assertEqual(timeline_audits[:len(existing_audits)], existing_audits)
+            new_audits = timeline_audits[len(existing_audits):]
+            self.assertEqual([row['action'] for row in new_audits], ['ADD_ENTRY', 'EDIT_ENTRY', 'DELETE_ENTRY'])
+            self.assertEqual({row['actor_id'] for row in new_audits}, {self.office.pk})
             self.assertFalse(SemesterTimelineEntry.objects.filter(title='A05 edited browser event').exists())
             expected_applications = [dict(row) for row in before[SupervisorApplication]]
             for row in expected_applications:

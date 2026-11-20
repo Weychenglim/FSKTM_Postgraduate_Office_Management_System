@@ -12,7 +12,7 @@ import {OfficeAcademicSemesterSelect} from './OfficeAcademicSemesterSelect';
 import {OperationalPeriodManagement} from './OperationalPeriodManagement';
 import {RecordPageProvider} from './RecordPage';
 
-export function OfficePeriodsManagement({onBack,onManageSemesters}:{onBack:()=>void;onManageSemesters:()=>void}) {
+export function OfficePeriodsManagement({onBack,backLabel='Back to Dashboard',onManageSemesters}:{onBack:()=>void;backLabel?:string;onManageSemesters:()=>void}) {
   const location=useLocation();
   const navigate=useNavigate();
   const [semesters,setSemesters]=useState<AcademicSemester[]>([]);
@@ -25,6 +25,10 @@ export function OfficePeriodsManagement({onBack,onManageSemesters}:{onBack:()=>v
   const semesterGeneration=useRef(0);
   const calendarGeneration=useRef(0);
   const selected=resolvePeriodSemester(semesters,location.search);
+  const params=new URLSearchParams(location.search);
+  const manageLinkedWindow=params.get('manage')==='window';
+  const linkedTask=Number(params.get('task'));
+  const completionTaskId=manageLinkedWindow&&Number.isSafeInteger(linkedTask)&&linkedTask>0?linkedTask:undefined;
   const selectedRef=useRef(selected); selectedRef.current=selected;
   const loadSemesters=useCallback(async()=>{
     const version=++semesterGeneration.current;setLoading(true);setError('');
@@ -52,18 +56,18 @@ export function OfficePeriodsManagement({onBack,onManageSemesters}:{onBack:()=>v
   const selectSemester=(id:string)=>{
     if(interacting)return;
     calendarGeneration.current++;setCalendar(null);setCalendarError('');
-    const params=new URLSearchParams(location.search);params.set('semester',id);
+    const params=new URLSearchParams(location.search);params.set('semester',id);params.delete('task');
     navigate(`${location.pathname}?${params}`);
   };
   return <RecordPageProvider><div className="space-y-6 pb-12">
-    <PageHeader title="Periods & deadlines" subtitle="Manage when applications, recommendations and marks can be submitted. All times are Malaysia time (UTC+08:00)." onBack={onBack} backLabel="Back to Dashboard" backDisabled={interacting}/>
+    <PageHeader title="Periods & deadlines" subtitle="Manage when applications, recommendations and marks can be submitted. All times are Malaysia time (UTC+08:00)." onBack={onBack} backLabel={backLabel} backDisabled={interacting}/>
     {loading?<p role="status">Loading academic semesters…</p>:error?<AlertMessage type="error" title="Couldn’t load academic semesters" message={error} actions={<PortalButton onClick={()=>void loadSemesters()}>Retry semesters</PortalButton>}/>:<>
       <div className="space-y-2"><OfficeAcademicSemesterSelect id="period-academic-semester" label="Academic semester selection" semesters={semesters} selectedId={selected?.id??null} disabled={interacting} onChange={id=>selectSemester(String(id))}/>
       {interacting?<p role="status" className="card-description">Finish or cancel the current action before changing semester.</p>:null}
       {!selected?<AlertMessage type="warning" title="Choose an academic semester" message={semesters.length?'The requested semester is unavailable. Choose a semester to continue.':'No Draft, Active or Closed semesters are available.'}/>:null}</div>
       {selected?<>
         {calendarLoading?<p role="status" className="card-description">Loading calendar events for linking…</p>:calendarError?<AlertMessage type="warning" title="Timeline events unavailable" message={<>{calendarError} Period controls remain available; reload calendar events before linking.</>} actions={<PortalButton disabled={interacting} onClick={()=>void loadCalendar().catch(()=>{})}>Retry calendar events</PortalButton>}/>:null}
-        <OperationalPeriodManagement key={selected.id} semesterId={selected.id} semesterLabel={selected.label} semesterLifecycle={selected.lifecycleStatus} entries={calendar?.semesterId===selected.id?calendar.entries:[]} calendarStatus={calendarLoading?'loading':calendarError?'error':calendar?.available?'ready':'missing'} onTimelineRefresh={loadCalendar} onInteractionChange={setInteracting} manageLinkedWindow={new URLSearchParams(location.search).get('manage')==='window'} periodAnchor={location.hash}/>
+        <OperationalPeriodManagement key={selected.id} semesterId={selected.id} semesterLabel={selected.label} semesterLifecycle={selected.lifecycleStatus} entries={calendar?.semesterId===selected.id?calendar.entries:[]} calendarStatus={calendarLoading?'loading':calendarError?'error':calendar?.available?'ready':'missing'} onTimelineRefresh={loadCalendar} onInteractionChange={setInteracting} manageLinkedWindow={manageLinkedWindow} periodAnchor={location.hash} completionTaskId={completionTaskId} completionReturn={completionTaskId?{backLabel,onBack}:undefined}/>
       </>:null}
     </>}
   </div></RecordPageProvider>;

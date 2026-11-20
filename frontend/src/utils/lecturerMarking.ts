@@ -3,7 +3,6 @@ import type { EvaluationTask, EvaluationTaskRole } from '../types/marks';
 export const markingWorkspaces: Record<EvaluationTaskRole, { label: string; title: string; empty: string; roleLabel: string }> = {
   SUPERVISOR: { label: 'My supervisees', title: 'Supervisee marking tasks', empty: 'No supervisee marking tasks assigned.', roleLabel: 'Supervisor' },
   PANEL: { label: 'My panel students', title: 'Panel marking tasks', empty: 'No panel marking tasks assigned.', roleLabel: 'Panel member' },
-  BACKUP: { label: 'Backup marking', title: 'Backup marking tasks', empty: 'No backup marking tasks assigned.', roleLabel: 'Backup evaluator' },
 };
 
 // Older task payloads predate evaluatorRole and represent panel assignments.
@@ -14,8 +13,8 @@ export function tasksForMarkingRole(tasks: EvaluationTask[], role: EvaluationTas
 }
 
 export function initialMarkingRole(tasks: EvaluationTask[], remembered: EvaluationTaskRole | null): EvaluationTaskRole {
-  if (remembered && (remembered !== 'BACKUP' || tasks.some(task => markingRole(task) === 'BACKUP'))) return remembered;
-  return (['SUPERVISOR', 'PANEL', 'BACKUP'] as const).find(role => tasks.some(task => markingRole(task) === role)) ?? 'SUPERVISOR';
+  if (remembered === 'SUPERVISOR' || remembered === 'PANEL') return remembered;
+  return (['SUPERVISOR', 'PANEL'] as const).find(role => tasks.some(task => markingRole(task) === role)) ?? 'SUPERVISOR';
 }
 
 /** Keep unfinished work first, with the earliest actual deadline first in each group. */

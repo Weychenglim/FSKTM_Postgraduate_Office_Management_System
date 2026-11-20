@@ -15,8 +15,10 @@ from accounts.authorization import office_actor, can_correct_marks
 from academics.services import current_effective_semester
 from appointments.models import StudentResearchProfile
 
-from .completion_windows import task_access, task_due_at, window_payload, grant_completion_windows, revoke_completion_window
+from .completion_windows import task_access, task_due_at, task_window_active, window_payload, grant_completion_windows, revoke_completion_window
 from .deadlines import mark_deadline_metadata
+from .stage_corrections import stage_review_pending, stage_review_resolution
+from .stage_eligibility import stage_monitoring_tasks
 from .targeting import profile_programme, programme_options, recipient_preview
 from .models import (
     EvaluationPeriod,
@@ -47,7 +49,6 @@ from .services import (
     clone_rubric_version,
     close_evaluation_period,
     create_evaluation_period,
-    create_backup_evaluation_task,
     create_rubric,
     create_rubric_component,
     correct_submitted_marks,
@@ -128,25 +129,29 @@ def mark_record_display_status(task, entry):
     return "Not Started"
 
 
+def mark_record_needs_stage_review(task, entry):
+    if not stage_review_pending(task):
+        return False
+    if task.lifecycle_status != EvaluationTask.Lifecycle.RETIRED or (entry and entry.status == MarkEntry.Status.SUBMITTED):
+        return True
+    return stage_review_resolution(task) == 'RELEASE_STAGE_REVIEW'
+
+
 def period_task_totals(period):
     tasks = EvaluationTask.objects.filter(
         period=period,
         lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-    ).select_related("mark_entry", "period").prefetch_related("completion_windows")
-    total = tasks.count()
-    submitted = tasks.filter(mark_entry__status=MarkEntry.Status.SUBMITTED).count()
+    ).select_related("mark_entry", "period__academic_semester", "profile__student__student").prefetch_related(
+        "completion_windows", "lifecycle_audits")
+    tasks = stage_monitoring_tasks(tasks)
+    total = len(tasks)
+    submitted = sum(getattr(task, 'mark_entry', None) is not None
+        and task.mark_entry.status == MarkEntry.Status.SUBMITTED for task in tasks)
     now = timezone.now()
     return {
         "total": total,
-        "supervisor": tasks.filter(
-            evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
-        ).count(),
-        "panel": tasks.filter(
-            evaluator_role=EvaluationTask.EvaluatorRole.PANEL,
-        ).count(),
-        "backup": tasks.filter(
-            evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
-        ).count(),
+        "supervisor": sum(task.evaluator_role == EvaluationTask.EvaluatorRole.SUPERVISOR for task in tasks),
+        "panel": sum(task.evaluator_role == EvaluationTask.EvaluatorRole.PANEL for task in tasks),
         "submitted": submitted,
         "incomplete": total - submitted,
         "overdue": sum(
@@ -398,11 +403,26 @@ def evaluation_periods_view(request):
         "rubric",
         "academic_semester",
     )
+    if request.query_params.get("recordOptions", "").lower() == "true":
+        return Response([
+            {
+                "id": period.pk,
+                "name": period.name,
+                "semester": period.semester,
+                "assessment": period.assessment,
+                "lifecycleStatus": period.lifecycle_status,
+                "effectiveStatus": period.effective_status,
+                "closesAt": period.closes_at.isoformat() if period.closes_at else None,
+            }
+            for period in periods.select_related(None).exclude(lifecycle_status=EvaluationPeriod.Lifecycle.DRAFT)
+            .only("name", "semester", "assessment", "lifecycle_status", "opens_at", "closes_at")
+        ])
     if request.query_params.get("includeArchived", "").lower() != "true":
         periods = periods.exclude(
             lifecycle_status=EvaluationPeriod.Lifecycle.ARCHIVED
         )
-    periods = periods.all()[:100]
+    semester = request.query_params.get('semester', '').strip()
+    periods = periods.filter(semester=semester) if semester else periods[:100]
     return Response([period_payload(period) for period in periods])
 
 
@@ -1002,25 +1022,32 @@ def mark_records_view(request):
             {"error": "Only Office Staff/Admin can monitor mark records."},
             status=status.HTTP_403_FORBIDDEN,
         )
-    tasks = EvaluationTask.objects.select_related(
-        "profile",
+    tasks = list(EvaluationTask.objects.select_related(
+        "profile__student__student",
         "evaluator",
-        "period",
+        "period__academic_semester",
         "mark_entry",
-    ).prefetch_related("mark_entry__scores__component")
+    ).prefetch_related("completion_windows", "lifecycle_audits"))
+    active_tasks = [task for task in tasks if task.lifecycle_status == EvaluationTask.Lifecycle.ACTIVE]
+    monitoring_ids = {task.pk for task in stage_monitoring_tasks(active_tasks)}
     records = []
     for task in tasks:
         try:
             entry = task.mark_entry
         except MarkEntry.DoesNotExist:
             entry = None
-        display_status = mark_record_display_status(task, entry)
+        blocked = task.lifecycle_status == EvaluationTask.Lifecycle.ACTIVE and task.pk not in monitoring_ids
+        display_status = "Review Required" if blocked else mark_record_display_status(task, entry)
         deadline_metadata = mark_deadline_metadata(
             task_due_at(task),
             is_submitted=bool(
                 entry and entry.status == MarkEntry.Status.SUBMITTED
             ),
         )
+        needs_stage_review = blocked or mark_record_needs_stage_review(task, entry)
+        period_status = task.period.effective_status
+        if needs_stage_review and display_status != "Submitted":
+            deadline_metadata.update(deadlineState=None, daysUntilDue=None)
         records.append(
             {
                 "id": f"MRK-{task.pk:05d}",
@@ -1031,11 +1058,16 @@ def mark_records_view(request):
                 ).upper(),
                 "researchTitle": task.profile.proposed_topic,
                 "panelMember": task.evaluator.full_name,
+                "evaluatorId": task.evaluator_id,
                 "evaluatorRole": task.evaluator_role,
                 "evaluatorRoleLabel": task.get_evaluator_role_display(),
                 "periodId": task.period_id,
                 "periodName": task.period.name,
+                "assessment": task.period.assessment,
+                "stageReviewRequired": needs_stage_review,
                 "periodLifecycleStatus": task.period.lifecycle_status,
+                "periodEffectiveStatus": period_status,
+                "hasActiveCompletionWindow": period_status == "CLOSED" and task_window_active(task) is not None,
                 "semester": task.period.semester,
                 "programme": task.profile.programme,
                 "totalMark": (
@@ -1083,7 +1115,7 @@ def mark_record_detail_view(request, record_id):
             "evaluator__lecturer",
             "assigned_by",
             "retired_by",
-            "period",
+            "period__academic_semester",
             "period__rubric",
             "mark_entry",
         )
@@ -1091,11 +1123,9 @@ def mark_record_detail_view(request, record_id):
             "period__rubric__components",
             "mark_entry__scores__component",
             "mark_entry__correction_audits__actor",
-            "override_audits__actor",
-            "override_audits__original_evaluator",
-            "override_audits__new_evaluator",
             "handover_audits__actor",
             "handover_audits__replacement_task",
+            "lifecycle_audits",
         )
         .first()
     )
@@ -1110,11 +1140,14 @@ def mark_record_detail_view(request, record_id):
         if entry
         else {}
     )
+    now = timezone.now()
+    access = task_access(task, now)
     deadline = mark_deadline_metadata(
-        task_due_at(task),
+        access['effectiveDueAt'],
         is_submitted=bool(
             entry and entry.status == MarkEntry.Status.SUBMITTED
         ),
+        now=now,
     )
     lecturer_profile = getattr(task.evaluator, "lecturer", None)
     authorized = may_edit_submitted_marks(request.user)
@@ -1122,13 +1155,19 @@ def mark_record_detail_view(request, record_id):
     return Response(
         {
             "recordId": f"MRK-{task.pk:05d}",
+            "stageReviewRequired": mark_record_needs_stage_review(task, entry) or (
+                task.lifecycle_status == EvaluationTask.Lifecycle.ACTIVE
+                and not stage_monitoring_tasks([task])
+            ),
             "officeActions": {
                 "canCorrect": authorized and submitted,
                 "canReopen": authorized and submitted and task.period.accepts_submissions,
                 "version": submitted_marks_version(entry) if authorized and submitted else None,
             },
-            **task_access(task),
-        "taskId": task.pk,
+            **access,
+            'needsLateSubmissionDecision': (access['periodEffectiveStatus'] == 'CLOSED'
+                                            and access['canGrantCompletionWindow'] and not access['canSubmit']),
+            "taskId": task.pk,
             "student": {
                 "studentId": task.profile.matric_no,
                 "name": task.profile.student_name,
@@ -1169,7 +1208,9 @@ def mark_record_detail_view(request, record_id):
             "period": {
                 "id": task.period_id,
                 "name": task.period.name,
+                "assessment": task.period.assessment,
                 "semester": task.period.semester,
+                "semesterId": task.period.academic_semester_id,
                 "opensAt": (
                     task.period.opens_at.isoformat()
                     if task.period.opens_at
@@ -1230,21 +1271,6 @@ def mark_record_detail_view(request, record_id):
                 ),
                 "isLocked": bool(entry and entry.is_locked),
             },
-            "overrideHistory": [
-                {
-                    "id": audit.pk,
-                    "actorName": audit.actor.full_name,
-                    "originalEvaluator": (
-                        audit.original_evaluator.full_name
-                        if audit.original_evaluator
-                        else None
-                    ),
-                    "newEvaluator": audit.new_evaluator.full_name,
-                    "reason": audit.reason,
-                    "createdAt": audit.created_at.isoformat(),
-                }
-                for audit in task.override_audits.all()
-            ],
             "correctionHistory": [
                 {
                     "id": audit.pk,
@@ -1294,7 +1320,8 @@ def mutate_submitted_mark_record(request, record_id, *, reopen):
         else:
             correct_submitted_marks(entry=entry, actor=request.user, reason=data['reason'],
                 expected_version=data['expectedVersion'], comments=data.get('comments'),
-                score_values={score['componentId']: score['marksAwarded'] for score in data['scores']})
+                score_values={score['componentId']: score['marksAwarded'] for score in data['scores']},
+                feedback_values={item['componentId']: item['feedback'] for item in data['feedback']})
     except MarksStateConflict as exc:
         return state_conflict_response(exc)
     except DjangoValidationError as exc:
@@ -1390,72 +1417,6 @@ def generate_period_tasks_view(request, pk):
     )
 
 
-@api_view(["POST"])
-@permission_classes([IsAuthenticated])
-def manual_override_task_view(request, pk):
-    if not office_only(request.user):
-        return Response(
-            {"error": "Only Office Staff/Admin can assign backup evaluators."},
-            status=status.HTTP_403_FORBIDDEN,
-        )
-    try:
-        period = EvaluationPeriod.objects.get(pk=pk)
-    except EvaluationPeriod.DoesNotExist:
-        return Response(
-            {"error": "Evaluation period was not found."},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-    profile = StudentResearchProfile.objects.filter(
-        matric_no=request.data.get("studentId")
-    ).first()
-    if profile is None:
-        return Response(
-            {"error": "Student research profile was not found."},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-    evaluator = User.objects.filter(pk=request.data.get("evaluatorId")).first()
-    if evaluator is None:
-        return Response(
-            {"error": "Backup evaluator was not found."},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-    original_task = None
-    original_task_id = request.data.get("originalTaskId")
-    if original_task_id:
-        original_task = EvaluationTask.objects.filter(
-            pk=original_task_id,
-            period=period,
-        ).first()
-        if original_task is None:
-            return Response(
-                {"error": "Original evaluation task was not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-    try:
-        task = create_backup_evaluation_task(
-            period=period,
-            profile=profile,
-            evaluator=evaluator,
-            actor=request.user,
-            reason=request.data.get("reason", ""),
-            original_task=original_task,
-        )
-    except MarksStateConflict as exc:
-        return state_conflict_response(exc)
-    except DjangoValidationError as exc:
-        return Response({"error": exc.message}, status=status.HTTP_400_BAD_REQUEST)
-    task = (
-        EvaluationTask.objects.filter(pk=task.pk)
-        .select_related("profile", "period", "period__rubric", "mark_entry")
-        .prefetch_related(
-            "period__rubric__components",
-            "mark_entry__scores__component",
-        )
-        .get()
-    )
-    return Response(EvaluationTaskSerializer(task).data, status=status.HTTP_201_CREATED)
-
-
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def completion_window_history_view(request, pk):
@@ -1465,6 +1426,32 @@ def completion_window_history_view(request, pk):
     if task is None:
         return Response({"error":"Task not found."}, status=404)
     return Response({"windows":[window_payload(w) for w in task.completion_windows.select_related('granted_by')]})
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def period_completion_windows_view(request, pk):
+    """Office register includes historical grants without one request per task."""
+    from .models import TaskCompletionWindow, MarkEntry
+    if not office_only(request.user):
+        return Response({'error': 'Only Office Staff/Admin may view completion history.'}, status=403)
+    if not EvaluationPeriod.objects.filter(pk=pk).exists():
+        return Response({'error': 'Period not found.'}, status=404)
+    windows = TaskCompletionWindow.objects.filter(task__period_id=pk).select_related(
+        'granted_by', 'task__profile', 'task__evaluator', 'task__mark_entry'
+    ).order_by('-created_at', '-pk')
+    rows = []
+    for window in windows:
+        task = window.task
+        try:
+            submission = task.mark_entry.status
+        except MarkEntry.DoesNotExist:
+            submission = 'PENDING'
+        rows.append({**window_payload(window, submitted=submission == 'SUBMITTED'),
+            'studentId': task.profile.matric_no, 'studentName': task.profile.student_name,
+            'programme': task.profile.programme, 'evaluatorName': task.evaluator.full_name,
+            'evaluatorRole': task.get_evaluator_role_display(), 'submissionStatus': submission})
+    return Response({'windows': rows})
 
 
 @api_view(["POST"])

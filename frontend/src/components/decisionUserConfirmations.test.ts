@@ -8,32 +8,29 @@ for (const host of ['MarkEntryDetail','SubmittedMarksActions','MarksCompletionWi
  assert.match(source, /successMessage=/);
  if(host==='SubmittedMarksActions'||host==='MarksCompletionWindows') {
    assert.match(source, /<PortalConfirmModal isOpen=\{(?:discardOpen|!!discardAction)\} title="Discard unsaved changes\?"/);
- } else if(host==='EvaluationTaskAssignment') {
-   assert.match(source, /<PortalConfirmModal isOpen=\{!!generationReview\} title="Generate evaluation tasks\?"/);
+
  } else assert.doesNotMatch(source, /<PortalConfirmModal/);
- if(host!=='MarkEntryDetail') assert.match(source,/completeDecision\(/);
+ if(host!=='MarkEntryDetail' && host!=='EvaluationTaskAssignment') assert.match(source,/completeDecision\(/);
  });
 }
 
 test('Office correction keeps optimistic concurrency and audited delta payload',()=>{
  const source=readFileSync(new URL('./SubmittedMarksActions.tsx',import.meta.url),'utf8');
  assert.match(source,/expectedVersion: actions!\.version!/);
- assert.match(source,/validateSubmittedMarksCorrection\(original, values, comments, reason\)/);
+ assert.match(source,/validateSubmittedMarksCorrection\(original, values, comments, reason, feedback\)/);
  assert.match(source,/const changedScores = components\.filter\(component => Number\(values\[component\.id\]\) !== Number\(component\.marksAwarded\)\)/);
  assert.match(source,/scores: changedScores\s*\.map\(component => \(\{componentId: Number\(component\.id\), marksAwarded: values\[component\.id\]\}\)\)/);
  assert.doesNotMatch(source,/return null;/);
  const submit=source.slice(source.indexOf('const submit ='),source.indexOf('const reviewLatest ='));
  assert.doesNotMatch(submit,/catch\s*\(|setConfirmOpen\(false\)/);
 });
-test('Repair and backup preserve required acknowledgements without another approval stage',()=>{
+test('Repair preserves required acknowledgement and task assignment only supports generation',()=>{
  const repair=readFileSync(new URL('./WorkflowReconciliationCentre.tsx',import.meta.url),'utf8');
- const backup=readFileSync(new URL('./EvaluationTaskAssignment.tsx',import.meta.url),'utf8');
+ const assignment=readFileSync(new URL('./EvaluationTaskAssignment.tsx',import.meta.url),'utf8');
  assert.match(repair,/expectedFingerprint: preview\.issue\.fingerprint/);
  assert.match(repair,/!reason\.trim\(\) \|\| !confirmed/);
- assert.match(backup,/if \(!backupForm\.confirmed\)/);
- assert.match(backup,/originalTaskId: backupForm\.originalTaskId/);
- const submit=backup.slice(backup.indexOf('const handleBackupSubmit'),backup.indexOf('return (',backup.indexOf('const handleBackupSubmit')));
- assert.doesNotMatch(submit,/catch\s*\(|setDrawerOpen\(false\)|showToast\(/);
+ assert.match(assignment,/title="Generate evaluation tasks\?"/);
+ assert.doesNotMatch(assignment,/Assign backup evaluator|createBackupEvaluationTask/);
 });
 
 test('Committed Office decisions require a latest record after refresh failure',()=>{

@@ -7,6 +7,7 @@ export type AttentionUrgency='overdue'|'due'|'blocking'|'normal';
 export interface OfficeAttentionRecord extends DashboardTask {
   category:AttentionCategory; responsibility:AttentionResponsibility; urgency:AttentionUrgency; programme:string;
   semester?:string|null;
+  needsLateSubmissionDecision?:boolean;
 }
 export interface OfficeAttentionSummary {
   id:string; category:AttentionCategory; responsibility:AttentionResponsibility; urgency:AttentionUrgency;

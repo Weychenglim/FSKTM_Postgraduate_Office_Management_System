@@ -39,14 +39,14 @@ await scenario('full request policy blocks acceptance and keeps rejection usable
 });
 await scenario('missing policy fails closed without invented available places',async()=>{
   await mount({...base,acceptanceCapacity:null});
-  check(button('Accept request')!.disabled&&text().includes('Refresh to check availability'),'Missing metadata silently enables acceptance or hides recovery');
+  check(button('Accept request')!.disabled && !button('Reject request')!.disabled && text().includes('Acceptance is unavailable under the current capacity policy'), 'Missing metadata bypasses the capacity policy or hides the explanation');
   await mount({...base,acceptanceCapacity:{...capacity,limit:null,availableSlots:0,state:'NOT_CONFIGURED'}});
-  check(button('Accept request')!.disabled,'Unconfigured capacity accepted');check(text().includes('Availability not configured'),'Missing policy hidden');
+  check(button('Accept request')!.disabled,'Unconfigured capacity accepted');check(text().includes('Acceptance is unavailable under the current capacity policy'),'Missing policy hidden');
 });
 await scenario('temporary unavailability blocks only acceptance',async()=>{
   await mount({...base,acceptanceCapacity:{...capacity,state:'TEMPORARILY_UNAVAILABLE'}});
   check(button('Accept request')!.disabled&&!button('Reject request')!.disabled,'Restriction bypassed or rejection blocked');
-  check(text().includes('Unavailable for new requests'),'Restriction hidden');
+  check(text().includes('Acceptance is unavailable under the current capacity policy'),'Restriction hidden');
 });
 await scenario('Coordinator can convert own reservation at full capacity',async()=>{
   await mount({...base,status:'PENDING_COORDINATOR',acceptanceCapacity:{...capacity,availableSlots:0,reservedLoad:1,state:'FULL'}},'PROGRAMME_COORDINATOR');
@@ -57,13 +57,13 @@ await scenario('capacity closure is shown as a System outcome without decision b
   await mount({...base,status:'CANCELLED_CAPACITY_FULL',acceptanceCapacity:null,cancellationReason:'Panel capacity is full.',workflow:[{id:1,actorName:'System',actorRole:'SYSTEM',action:'SYSTEM_CLOSE_CAPACITY',previousStatus:'SUBMITTED_TO_PANEL',newStatus:'CANCELLED_CAPACITY_FULL',reason:'Panel capacity is full.',createdAt:'2026-10-29T00:00:00Z'}]});
   check(text().includes('Capacity full')&&text().includes('System'),'Closure misrepresented');check(!button('Accept request')&&!button('Reject request'),'Closed request is actionable');
 });
-await scenario('last-place dialog fits viewport and separates active from reserved',async()=>{
-  await mount();check(text().includes('4 active')&&text().includes('0 reserved'),'Counts conflated');button('Accept request')!.click();await until(()=>document.querySelector('dialog[open]'));
+await scenario('last-place dialog fits viewport while the request keeps capacity counts out of the sidebar',async()=>{
+  await mount();check(!text().includes('4 active') && !text().includes('0 reserved'),'Sidebar shows the retired capacity breakdown');button('Accept request')!.click();await until(()=>document.querySelector('dialog[open]'));
   const bounds=document.querySelector('dialog')!.getBoundingClientRect();check(bounds.left>=0&&bounds.right<=innerWidth+1,'Dialog overflows');check(document.documentElement.scrollWidth<=innerWidth+1,'Page overflows');
 });
 await scenario('workload card highlights the last remaining place',async()=>{
   flushSync(()=>root.unmount());root=createRoot(host);flushSync(()=>root.render(<PanelLecturerSummaryCards workload={{currentStudents:4,workloadCount:4,confirmedAppointments:4,pendingNominations:0,workloadLimit:5,availableSlots:1,capacityState:'AVAILABLE',selectable:true}} reviewCount={2} awaitingCoordinatorCount={0}/>));await tick();
-  check(text().includes('1 place remaining')&&text().includes('4 active appointments'),'Workload alert missing');check(document.documentElement.scrollWidth<=innerWidth+1,'Workload overflows');
+  check(text().includes('1 place remaining')&&text().includes('4 active'),'Workload alert missing');check(document.documentElement.scrollWidth<=innerWidth+1,'Workload overflows');
 });
 await mount();button('Accept request')!.click();await until(()=>document.querySelector('dialog[open]'));
 parent.postMessage({type:'capacity-reservation-results',width:innerWidth,results},location.origin);

@@ -1,6 +1,6 @@
 import React from 'react';
 import {createRoot, type Root} from 'react-dom/client';
-import {MemoryRouter, useLocation} from 'react-router';
+import {MemoryRouter, useLocation, useNavigate} from 'react-router';
 import {LecturerResearchWorkspace} from '../src/components/LecturerResearchWorkspace';
 
 const container = document.getElementById('root')!;
@@ -14,9 +14,12 @@ let root: Root | null = null;
 let calls: URL[] = [];
 let fail = false;
 let currentSearch = '';
+let browserBack: () => void;
 const students = Array.from({length: 137}, (_, index) => ({id: index + 1, name: `Student ${String(index).padStart(3, '0')}`, matricNo: `MAT-${index}`, programme: index % 2 ? 'Computing' : 'Data Science', title: `Research title ${index}`}));
 students[0].title = 'An explainable artificial intelligence framework for evaluating postgraduate research progress across multidisciplinary programmes';
 function Fixture({role}: {role: 'Lecturer' | 'Office Staff/Admin' | 'Programme Coordinator'}) {
+  const navigate = useNavigate();
+  browserBack = () => { void navigate(-1); };
   currentSearch = useLocation().search;
   return <LecturerResearchWorkspace role={role} routeView="profile" hideHeader />;
 }
@@ -83,7 +86,7 @@ await scenario('filter sort and size are applied on the server and survive profi
   check(calls.some(url => url.searchParams.get('selectedOnly') === 'true'), 'Detail still downloads full selector');
   check(container.textContent?.includes('Student 085') && container.textContent?.includes('MAT-85'), 'Selected student identity missing');
   check(!container.querySelector('select option[value="137"]'), 'Full selector must be removed');
-  button('Back to students').click();
+  browserBack();
   await until(() => !!container.querySelector('table'));
   check(container.querySelector('tbody')?.textContent?.includes('Student 085'), 'Return lost directory context');
   check(new URLSearchParams(currentSearch).get('sort') === 'newest', 'Directory changed request history context');
@@ -104,7 +107,7 @@ await scenario('return to students restores directory search and selected identi
   check(container.querySelectorAll('tbody tr').length === 1, 'Saved search not restored');
   container.querySelector<HTMLButtonElement>('tbody button')!.click(); await until(() => container.textContent?.includes('Saved abstract'));
   check(!container.querySelector('label')?.textContent?.includes('Select a student'), 'Profile selector retained');
-  button('Back to students').click(); await until(() => !!container.querySelector('table'));
+  browserBack(); await until(() => !!container.querySelector('table'));
   check(container.querySelector<HTMLInputElement>('input[type="search"]')?.value === 'MAT-136', 'Return lost search');
 });
 await scenario('long research titles fit and desktop table becomes labelled mobile rows', async () => {

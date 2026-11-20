@@ -24,7 +24,7 @@ const periodQueries: string[] = [];
 let activeTaskReads = 0, submissionReads = 0;
 const component = { id: 3, code: 'research', name: 'Research quality', description: 'Clarity, evidence and research approach.', maxMarks: '100', required: true, isActive: true, displayOrder: 1, marksAwarded: '78', feedback: 'Clear research direction.' };
 const rubric = { id: 1, familyCode: 'RES', name: 'Research assessment', description: 'Research evaluation criteria.', version: 1, isActive: true, isReady: true, isLocked: page === 'rubrics-locked', targetMark: '100', componentTotal: '100', components: [component] };
-const totals = { total: 3, submitted: 1, incomplete: 2, overdue: 1, supervisor: 1, panel: 2, backup: 0 };
+const totals = { total: 3, submitted: 1, incomplete: 2, overdue: 1, supervisor: 1, panel: 2 };
 const period = { id: 1, name: 'Research project evaluation', semester: 'Semester I 2026/2027', semesterId: 1, semesterCode: '2026-1', rubricId: 1, rubricName: rubric.name, programmeScope: 'ALL', programmes: [], evaluatorRoles: ['SUPERVISOR', 'PANEL'], opensAt: '2026-10-01T00:00:00+08:00', closesAt: '2026-11-20T23:59:00+08:00', isOpen: true, lifecycleStatus: 'PUBLISHED', effectiveStatus: 'OPEN', taskTotals: totals, auditEvents: [] };
 const archivedPeriod = { ...period, id: 2, name: 'Previous research evaluation', lifecycleStatus: 'ARCHIVED', effectiveStatus: 'ARCHIVED', isOpen: false };
 const semester = { id: 1, code: '2026-1', label: period.semester, lifecycleStatus: 'ACTIVE', effectiveStatus: 'ACTIVE', startsOn: '2026-10-01', endsOn: '2027-03-31', isEffectiveActive: true, isReadOnly: false };
@@ -32,22 +32,28 @@ const task: EvaluationTask = { id: 4, studentId: 'DEMO-001', studentName: 'Ficti
 const submitted = { ...task, id: 5, status: 'SUBMITTED' as const, totalMark: '78', submittedDate: '20 Oct 2026', submittedAt: '2026-10-20T10:00:00Z', periodId: 1, periodName: period.name, rubricName: rubric.name, rubricVersion: 1, taskLifecycleStatus: 'ACTIVE' as const, canEdit: false, canSubmit: false, components: [component], comments: 'Good progress with clear explanations.' };
 const panelTask: EvaluationTask = { ...task, id: 6, evaluatorRole: 'PANEL', studentId: 'PANEL-001', studentName: 'Fictional Panel Student', status: 'DRAFT SAVED', components: [component] };
 const panelSubmitted: EvaluationTask = { ...submitted, id: 7, evaluatorRole: 'PANEL', studentId: 'PANEL-002', studentName: 'Fictional Panel Submission' };
-const backupTask: EvaluationTask = { ...task, id: 8, evaluatorRole: 'BACKUP', studentId: 'BACKUP-001', studentName: 'Fictional Backup Student' };
 const retiredSubmission: EvaluationTask = { ...submitted, id: 20, taskLifecycleStatus: 'RETIRED', periodName: 'Earlier evaluation', submittedAt: '2025-12-31T15:30:00Z', semester: 'Semester II 2025/2026' };
 const latestSubmission: EvaluationTask = { ...submitted, id: 21, taskLifecycleStatus: 'PAUSED', periodName: 'January evaluation', submittedAt: '2026-01-01T16:30:00Z' };
-const historicalBackup: EvaluationTask = { ...submitted, id: 22, evaluatorRole: 'BACKUP', taskLifecycleStatus: 'RETIRED', studentName: 'Fictional Backup Submission' };
-const submissionRows = page === 'history-empty' ? [] : page === 'history-retained' ? [retiredSubmission, latestSubmission, panelSubmitted, historicalBackup] : page === 'lecturer-mixed' ? [submitted, panelSubmitted, historicalBackup] : [submitted];
-const lecturerTasks = page === 'lecturer-empty' ? [] : page === 'lecturer-panel-only' ? [panelTask] : page === 'lecturer-backup-only' ? [backupTask] : page === 'lecturer-mixed' ? [task, submitted, panelTask, panelSubmitted, backupTask] : [task, submitted];
+const submissionRows = page === 'history-empty' ? [] : page === 'history-retained' ? [retiredSubmission, latestSubmission, panelSubmitted] : page === 'lecturer-mixed' ? [submitted, panelSubmitted] : [submitted];
+const lecturerTasks = page === 'lecturer-empty' ? [] : page === 'lecturer-panel-only' ? [panelTask] : page === 'lecturer-mixed' ? [task, submitted, panelTask, panelSubmitted] : [task, submitted];
 const records = ['Submitted', 'Overdue', 'Not Started'].map((status, index) => ({ id: `REC-${index + 1}`, taskId: index + 1, studentId: `DEMO-00${index + 1}`, studentName: `Fictional Student ${index + 1}`, panelMember: 'Fictional Evaluator', programme: index === 2 ? 'Master of Data Science' : 'Master of Computer Science', semester: period.semester, researchTitle: task.researchTitle, totalMark: index === 0 ? '78' : null, status, submittedDate: index === 0 ? '20 Oct 2026' : null, evaluatorRole: 'PANEL', evaluatorRoleLabel: 'Panel', deadlineState: index === 1 ? 'OVERDUE' : 'UPCOMING', taskLifecycleStatus: 'ACTIVE' }));
-const detail = { recordId: 'REC-1', taskId: 4, student: { studentId: task.studentId, name: task.studentName, programme: 'Master of Computer Science', semester: task.semester, researchTitle: task.researchTitle }, evaluator: { userId: 2, name: 'Fictional Evaluator', email: 'fictional@example.invalid', staffId: 'DEMO-STAFF', department: 'Computing', role: 'SUPERVISOR', roleLabel: 'Supervisor' }, assignment: { lifecycleStatus: 'ACTIVE', assignedAt: period.opensAt, assignedBy: 'Office', pausedAt: null, pausedBy: null, pauseReason: null, retiredAt: null, retiredBy: null, retirementReason: null }, period, rubric, entry: { status: 'SUBMITTED', totalMark: '78', comments: submitted.comments, submittedAt: submitted.submittedAt, updatedAt: submitted.submittedAt, isLocked: true }, correctionHistory: [], overrideHistory: [], handoverHistory: [], officeActions: { canCorrect: false, canReopen: false, version: null } };
+const detail = { recordId: 'REC-1', taskId: 4, student: { studentId: task.studentId, name: task.studentName, programme: 'Master of Computer Science', semester: task.semester, researchTitle: task.researchTitle }, evaluator: { userId: 2, name: 'Fictional Evaluator', email: 'fictional@example.invalid', staffId: 'DEMO-STAFF', department: 'Computing', role: 'SUPERVISOR', roleLabel: 'Supervisor' }, assignment: { lifecycleStatus: 'ACTIVE', assignedAt: period.opensAt, assignedBy: 'Office', pausedAt: null, pausedBy: null, pauseReason: null, retiredAt: null, retiredBy: null, retirementReason: null }, period, rubric, entry: { status: 'SUBMITTED', totalMark: '78', comments: submitted.comments, submittedAt: submitted.submittedAt, updatedAt: submitted.submittedAt, isLocked: true }, correctionHistory: [], handoverHistory: [], officeActions: { canCorrect: false, canReopen: false, version: null } };
 const recordRows = records.map((row, index) => ({ ...row, semester: index === 2 ? 'Semester II 2026/2027' : row.semester, panelMember: index === 2 ? 'Fictional Evaluator Two' : row.panelMember }));
 const empty = page === 'overview-empty' || page === 'periods-empty' || page === 'rubrics-empty' || page === 'rubrics-create' || page === 'assignment-empty' || page === 'records-empty';
 const response = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 window.fetch = async (input, options = {}) => {
   const path = new URL(String(input), location.origin).pathname;
   if ((options.method || 'GET') !== 'GET') { writes++; throw Error('Read-only visual fixture attempted a write'); }
-  if (path.endsWith('/dashboard/summary/')) return fail ? response({ detail: 'Summary unavailable.' }, 500) : response({ submittedMarkEntries: empty ? 0 : 1, incompleteMarkEntries: empty ? 0 : 2, supervisorMarkTasks: empty ? 0 : 1, panelMarkTasks: empty ? 0 : 2, backupMarkTasks: 0 });
+  if (path.endsWith('/dashboard/summary/')) return fail ? response({ detail: 'Summary unavailable.' }, 500) : response({ submittedMarkEntries: empty ? 0 : 1, incompleteMarkEntries: empty ? 0 : 2, supervisorMarkTasks: empty ? 0 : 1, panelMarkTasks: empty ? 0 : 2 });
   if (path.endsWith('/marks/periods/')) {
+    if (page === 'assignment-scheduled' || page === 'assignment-no-tasks') return response([
+      { ...period, id: 2, name: 'Scheduled evaluation', effectiveStatus: 'SCHEDULED', isOpen: false,
+        taskTotals: page === 'assignment-scheduled'
+          ? { total: 1, submitted: 1, incomplete: 0, overdue: 0, supervisor: 0, panel: 1 }
+          : { total: 0, submitted: 0, incomplete: 0, overdue: 0, supervisor: 0, panel: 0 } },
+      period,
+    ]);
+    if (page === 'records-task-header') return response([{ ...period, name: 'Test Supervisor 1', assessment: 'P1', effectiveStatus: 'CLOSED' }]);
     if(page === 'overview-error' && fail) return response({detail: 'Periods unavailable.'},500);
     const query = new URL(String(input), location.origin).search;
     periodQueries.push(query);
@@ -56,6 +62,7 @@ window.fetch = async (input, options = {}) => {
   }
   if (path.endsWith('/marks/periods/1/')) return response(period);
   if (path.endsWith('/marks/periods/2/')) return response(archivedPeriod);
+  if (path.endsWith('/recipient-preview/')) return response({ periodId: 1, generatedAt: period.opensAt, recipients: [], totals: { students: 0, supervisor: 0, panel: 0, total: 0, existing: 0, new: 0 }, missingAppointments: { supervisor: 0, panel: 0 } });
   if (path.endsWith('/marks/periods/1/closure-preview/')) {
     const counts = { submitted: 1, notStarted: 2, draft: 0, paused: 0, activeWindows: 0, unfinished: 2 };
     return response({ previewToken: 'fictional-preview', periodId: 1, periods: [{ ...counts, periodId: 1, name: period.name }], totals: counts, requiresAcknowledgement: true });
@@ -64,13 +71,33 @@ window.fetch = async (input, options = {}) => {
   if (path.endsWith('/marks/rubrics/1/')) return response(rubric);
   if (path.endsWith('/marks/programme-options/')) return response(['Master of Computer Science']);
   if (path.endsWith('/academics/semesters/')) return response([semester]);
-  if (path.endsWith('/marks/evaluation-tasks/')) return response(empty ? [] : records.map((row, i) => ({ ...row, periodId: 1, taskId: i + 1, status: i === 0 ? 'SUBMITTED' : 'GENERATED' })));
+  if (path.endsWith('/marks/evaluation-tasks/')) {
+    const rows = records.map((row, i) => ({ ...row, periodId: 1, taskId: i + 1, status: i === 0 ? 'SUBMITTED' : 'GENERATED' }));
+    if (page === 'assignment-scheduled') return response([
+      ...rows,
+      { ...rows[0], id: 'REC-4', taskId: 4, periodId: 2, studentName: 'Scheduled Student' },
+      { ...rows[0], id: 'REC-5', taskId: 5, periodId: null, studentName: 'Unscoped Student' },
+    ]);
+    return response(empty ? [] : rows);
+  }
   if (path.includes('/marks/assignment-options/')) return response({ students: [], lecturers: [], tasks: [] });
   if (path.endsWith('/marks/my-evaluation-tasks/')) { activeTaskReads++; return page === 'lecturer-error' && fail ? response({ detail: 'Assignments unavailable.' }, 500) : response(lecturerTasks); }
   if (path.endsWith('/marks/my-submitted-evaluations/')) { submissionReads++; return page === 'history-error' && fail ? response({ detail: 'Submitted evaluations unavailable.' }, 500) : response(submissionRows); }
-  if (path.endsWith('/marks/records/REC-1/')) return response(detail);
+  if (path.endsWith('/marks/records/REC-1/')) {
+    if (page !== 'office-overdue-draft' && page !== 'office-extra-time-draft') return response(detail);
+    const granted = page === 'office-extra-time-draft';
+    const dueAt = granted ? '2026-12-01T07:30:00.000Z' : period.closesAt;
+    return response({ ...detail, canGrantCompletionWindow: true, needsLateSubmissionDecision: !granted,
+      effectiveDueAt: dueAt, completionWindow: granted ? { status: 'ACTIVE', deadline: dueAt } : null,
+      period: { ...period, effectiveStatus: 'CLOSED', dueAt, deadlineState: granted ? 'UPCOMING' : 'OVERDUE' },
+      entry: { ...detail.entry, status: 'DRAFT', submittedAt: null, isLocked: false },
+    });
+  }
+  if (path.endsWith('/marks/') && page === 'records-task-header') return response(records.slice(0, 2).map((row, index) => ({
+    ...row, periodId: 1, evaluatorId: 20, evaluatorRole: 'SUPERVISOR', stageReviewRequired: index === 1, dueAt: period.closesAt,
+  })));
   if (path.endsWith('/marks/')) return page === 'records-error' && fail ? response({ detail: 'Records unavailable.' }, 500)
-    : response(page === 'records-paged' ? Array.from({ length: 120 }, (_, i) => ({ ...records[i % 3], id: `PAGE-${i + 1}` })) : empty ? [] : recordRows);
+    : response(page === 'records-paged' ? Array.from({ length: 120 }, (_, i) => ({ ...records[i % 3], id: `PAGE-${i + 1}` })) : empty || page === 'records-monitoring-empty' ? [] : recordRows);
   unknown.push(path); throw Error(`Unexpected fixture read: ${path}`);
 };
 
@@ -91,13 +118,13 @@ function Preview() {
   else if (page.startsWith('entry')) content = <MarkEntryDetail task={page === 'entry-readonly' ? { ...task, canEdit: false, canSubmit: false } : page === 'entry-draft-only' ? { ...task, canSubmit: false } : task} onBack={back} onSave={() => {}} onSubmit={() => {}} />;
   else if (page === 'submitted') content = <SubmittedMarkDetail task={submitted} onBack={back} />;
   else if (page === 'completion') content = <MarksCompletionWindows tasks={records.map((row, index) => ({ id: row.id, taskId: index + 1, studentId: row.studentId, studentName: row.studentName, researchTitle: row.researchTitle, semester: row.semester, panelMember: row.panelMember, evaluatorRole: 'PANEL', status: index === 0 ? 'SUBMITTED' : 'NOT_STARTED', canGrantCompletionWindow: index !== 0 }))} onChanged={async () => {}} />;
-  else content = <MarkEntryRecordDetail recordId="REC-1" onBack={back} />;
-  return <main style={{ padding: '24px', maxWidth: 1280, margin: 'auto', background: '#f1f5f9' }}>{content}<output hidden id="route">{route.pathname}{route.search}</output></main>;
+  else content = <MarkEntryRecordDetail recordId="REC-1" onBack={back} onManageDeadline={navigate} />;
+  return <main style={{ padding: '24px', maxWidth: 1280, margin: 'auto', background: '#f1f5f9' }}>{content}<output hidden id="route">{route.pathname}{route.search}</output><output hidden id="route-hash">{route.hash}</output></main>;
 }
 const listMemory = new Map<string, unknown>();
 if (page === 'records-legacy') listMemory.set('MarkEntryRecords:appliedFilters', { search: '', programme: 'All Programmes', semester: 'All Semesters', status: 'Overdue', panelMember: 'All Members' });
 if (page === 'records-legacy') listMemory.set('MarkEntryRecords:currentPage', 99);
-createRoot(document.getElementById('root')!).render(<ListState.Provider value={listMemory}><MemoryRouter initialEntries={[page === 'records-monitoring-empty' ? '/marks/records?monitor=backup' : page === 'history-retained' || page === 'history-error' ? '/marks/history' : '/marks']}><OfficeMonitoringProvider enabled={page === 'records-monitoring-empty'}><Preview /></OfficeMonitoringProvider></MemoryRouter></ListState.Provider>);
+createRoot(document.getElementById('root')!).render(<ListState.Provider value={listMemory}><MemoryRouter initialEntries={[page === 'records-task-header' ? '/marks/records?view=lecturers&lecturer=20' : page === 'records-monitoring-empty' ? '/marks/records?monitor=incomplete' : page === 'history-retained' || page === 'history-error' ? '/marks/history' : '/marks']}><OfficeMonitoringProvider enabled={page === 'records-monitoring-empty'}><Preview /></OfficeMonitoringProvider></MemoryRouter></ListState.Provider>);
 const pause = (ms = 25) => new Promise(resolve => setTimeout(resolve, ms));
 const assert = (value: unknown, label: string) => { if (!value) throw Error(label); checks.push(label); };
 const until = async (test: () => unknown) => { for (let i = 0; i < 180; i++) { if (test()) return; await pause(); } throw Error('Fixture did not settle: ' + document.body.textContent?.slice(-500)); };
@@ -126,23 +153,40 @@ try {
     readiness.querySelector('summary')!.click(); await pause();
     assert(!document.querySelector('#task-actions-wrapper'), 'task controls do not float in a separate strip');
     const activity = document.querySelector<HTMLDetailsElement>('#recent-assignment-activity-panel');
-    assert(activity?.tagName === 'DETAILS' && !activity.open, 'session activity starts collapsed');
-    assert(results.contains(activity), 'session activity shares the task card');
-    const filterPanel = results.querySelector('[data-workspace-filter-card]')!;
-    assert(!!filterPanel, 'task filters reuse the portal workspace filter panel');
-    assert(parseFloat(getComputedStyle(filterPanel).paddingTop) === (innerWidth >= 640 ? 20 : 12), 'task panel matches appointment desktop/mobile padding');
-    assert(parseFloat(getComputedStyle(filterPanel.querySelector('button[aria-label="Evaluator role"]')!).fontSize) === 12, 'task filter values use the shared 12px font');
-    assert(parseFloat(getComputedStyle(filterPanel.querySelector('label')!).fontSize) === 10, 'task filter labels use the shared 10px font');
-    assert(!!filterPanel.querySelector('button[aria-label="Evaluator role"]') && !!filterPanel.querySelector('button[aria-label="Task status"]'), 'task filters have labelled role and status fields');
-    assert(!results.querySelector('[aria-label="Filter by evaluator role"]'), 'task roles do not use a separate pill filter design');
-    const generate = button('Generate missing tasks')!;
+    assert(!activity, 'session activity appears after a task action');
+    const generate = button('Generate evaluation tasks')!;
     assert(!!generate, 'normal generation retains one primary action');
-    if (empty) {
+    if (empty || page === 'assignment-closed') {
       assert(generate.disabled, 'no-period generation stays disabled');
-      assert(!results.querySelector('table'), 'empty assignments avoid an empty wide table');
+      assert(!results.querySelector('table'), 'tasks from closed periods are hidden when no period can be selected');
+      assert(!results.querySelector('[data-workspace-filter-card], [aria-label="Submission counts"]'), 'no-period state omits task filters and counts');
+      assert(results.textContent?.includes('No open or scheduled evaluation periods'), 'task results explain why no period can be selected');
       assert(context!.querySelector('a')?.getAttribute('href') === '/marks/config', 'no-period guidance links to configuration');
+      const historyLink = results.querySelector<HTMLAnchorElement>('a[href="/marks/records"]');
+      assert(historyLink?.textContent?.includes('View Mark Entry Records'), 'historical tasks have a link to Mark Entry Records');
+      historyLink!.click();
+      await until(() => document.querySelector('#route')?.textContent === '/marks/records');
+    } else if (page === 'assignment-scheduled' || page === 'assignment-no-tasks') {
+      const picker = context!.querySelector<HTMLSelectElement>('select[aria-label="Evaluation period"]')!;
+      assert(picker.value === '2', 'the first eligible period is selected by default');
+      assert(!generate.disabled, 'scheduled periods allow generation');
+      if (page === 'assignment-no-tasks') {
+        assert(!results.querySelector('table') && results.textContent?.includes('No tasks for this period yet'), 'a selected period with no tasks has a distinct empty state');
+      } else {
+        assert(results.querySelectorAll('tbody tr').length === 1 && results.textContent?.includes('Scheduled Student'), 'only the scheduled period task appears');
+        assert(results.textContent?.includes('1 task shown'), 'the task count reflects the scheduled period');
+      }
+      picker.value = '1'; picker.dispatchEvent(new Event('change', { bubbles: true })); await pause();
+      assert(results.querySelectorAll('tbody tr').length === 3 && results.textContent?.includes('3 tasks shown'), 'changing periods updates the rows and counts');
     } else {
-      assert(generate.disabled === (page === 'assignment-closed'), 'generation preserves the published/open period gate');
+      const filterPanel = results.querySelector('[data-workspace-filter-card]')!;
+      assert(!!filterPanel, 'task filters reuse the portal workspace filter panel');
+      assert(parseFloat(getComputedStyle(filterPanel).paddingTop) === (innerWidth >= 640 ? 20 : 12), 'task panel matches appointment desktop/mobile padding');
+      assert(parseFloat(getComputedStyle(filterPanel.querySelector('button[aria-label="Evaluator role"]')!).fontSize) === 12, 'task filter values use the shared 12px font');
+      assert(parseFloat(getComputedStyle(filterPanel.querySelector('label')!).fontSize) === 10, 'task filter labels use the shared 10px font');
+      assert(!!filterPanel.querySelector('button[aria-label="Evaluator role"]') && !!filterPanel.querySelector('button[aria-label="Task status"]'), 'task filters have labelled role and status fields');
+      assert(!results.querySelector('[aria-label="Filter by evaluator role"]'), 'task roles do not use a separate pill filter design');
+      assert(!generate.disabled, 'open periods allow generation');
       assert(results.querySelectorAll('tbody tr').length === 3, 'existing task rows remain available');
       const role = results.querySelector<HTMLSelectElement>('select[aria-label="Evaluator role"]')!;
       const status = results.querySelector<HTMLSelectElement>('select[aria-label="Task status"]')!;
@@ -159,13 +203,8 @@ try {
       button('Close')!.click();
       await until(() => !document.querySelector('dialog[open]'));
     }
-    button('Assign backup evaluator')!.click(); await until(() => !!document.querySelector('textarea'));
-    assert(document.body.textContent?.includes('exception assignment'), 'backup entry retains its exception explanation');
-    button('Cancel')!.click(); await until(() => !document.querySelector('textarea'));
-    const deadlines = button('Manage deadlines')!;
-    assert(!results.contains(deadlines) && !context!.contains(deadlines), 'central deadline management is a compact page shortcut');
-    deadlines.click(); await pause();
-    assert(document.querySelector('#route')?.textContent === '/dashboard/periods', 'deadline navigation is preserved');
+    assert(!button('Assign backup evaluator'), 'only appointment-based task assignment is available');
+
   }
   if (page === 'rubrics-empty' || page === 'rubrics-create') {
     const workspace = document.querySelector('#rubric-version-management')!;
@@ -201,7 +240,9 @@ try {
   }
   if (page.startsWith('overview')) {
     await until(() => !!document.querySelector('#summary-cards-grid') && !document.body.textContent?.includes('Loading '));
-    assert(!document.querySelector('[role="tablist"]'), 'overview has no tab navigation');
+    const tabs = [...document.querySelectorAll('[role="tablist"]')];
+    assert(tabs.length === 1 && document.querySelector('#monitoring-card')?.contains(tabs[0]), 'only submission monitoring uses tabs');
+    assert(tabs[0].textContent?.includes('Open & scheduled') && tabs[0].textContent?.includes('Closed'), 'monitoring exposes both period status tabs');
     const checksPanel = document.querySelector('#attention-needed-card')!;
     assert(checksPanel.getAttribute('aria-label') === 'Evaluation checks', 'evaluation checks have a distinct accessible name');
     assert(checksPanel.querySelector('h2')?.textContent === 'Evaluation checks', 'Marks checks are distinguished from dashboard attention');
@@ -294,16 +335,15 @@ try {
     button('Clear filters')!.click(); await pause();
     roleButton('My panel students').click(); await pause();
     assert(root().querySelectorAll('tbody tr').length === 1 && root().querySelector('tbody')?.textContent?.includes('Fictional Panel Submission'), 'history role switching isolates panel submissions');
-    roleButton('Backup marking').click(); await pause();
-    assert(root().querySelector('tbody')?.textContent?.includes('Fictional Backup Submission'), 'historical backup work remains discoverable without a current backup task');
     const view = button('View submission')!;
     if (innerWidth < 640) assert(view.getBoundingClientRect().right <= innerWidth, 'phone history keeps View submission visible without sideways scrolling');
     view.click(); await until(() => !!document.querySelector('[data-record-page]'));
     const detailPage = document.querySelector('[data-record-page]')!;
-    assert(detailPage.textContent?.includes('Fictional Backup Submission') && detailPage.textContent?.includes('Research assessment') && !detailPage.querySelector('input,textarea'), 'retained submission opens with rubric context and no editable fields');
+    assert(detailPage.textContent?.includes('Fictional Panel Submission') && detailPage.textContent?.includes('Research assessment') && !detailPage.querySelector('input,textarea'), 'retained submission opens with rubric context and no editable fields');
     assert(![...detailPage.querySelectorAll('button')].some(node => /Save draft|Submit marks|Reopen/.test(node.textContent || '')), 'history cannot expose academic write actions');
+    const readsBeforeReturn = activeTaskReads;
     button('Back to Marks Entry History')!.click(); await until(() => !document.querySelector('[data-record-page]'));
-    assert(roleButton('Backup marking').getAttribute('aria-current') === 'page' && activeTaskReads === 0, 'detail return preserves the history role without generating tasks');
+    assert(roleButton('My panel students').getAttribute('aria-current') === 'page' && activeTaskReads === readsBeforeReturn, 'returning to history preserves the role without reloading active tasks');
     roleButton('My supervisees').click(); await pause();
   }
   if (page.startsWith('lecturer') || page === 'history' || page === 'history-empty') {
@@ -365,12 +405,10 @@ try {
       assert(document.body.textContent?.includes('as Panel member') && document.querySelector('tbody')?.textContent?.includes('Fictional Panel Submission') && !document.querySelector('tbody')?.textContent?.includes(task.studentName), 'history keeps the chosen marking responsibility');
       button('Back to Marks Entry')!.click(); await until(() => !!document.querySelector('#mark-entry-tasks-list-block > p[role="status"]'));
       assert(roleButton('My panel students').getAttribute('aria-current') === 'page', 'returning preserves the selected responsibility');
-      roleButton('Backup marking').click(); await pause();
-      assert(document.querySelector('tbody')?.textContent?.includes('Fictional Backup Student') && document.querySelectorAll('tbody tr').length === 1, 'backup tasks remain separate and reachable');
       roleButton('My supervisees').click(); await pause();
     }
     if (page.endsWith('-only')) {
-      const selected = page === 'lecturer-panel-only' ? 'My panel students' : 'Backup marking';
+      const selected = 'My panel students';
       assert(roleButton(selected).getAttribute('aria-current') === 'page', 'first load opens an assigned responsibility');
       roleButton('My supervisees').click(); await pause();
       assert(document.body.textContent?.includes('No supervisee marking tasks assigned.') && !document.querySelector('table'), 'empty role remains selected without misleading rows');
@@ -442,7 +480,7 @@ try {
     if (page === 'periods-archived' || page === 'periods-archived-only') { archiveToggle()!.click(); await until(() => !!periodList()?.textContent?.includes(archivedPeriod.name)); }
     window.scrollTo(0, 0);
   }
-  if (['rubrics', 'rubrics-locked', 'history', 'submitted', 'office-detail', 'completion'].includes(page)) {
+  if (['rubrics', 'rubrics-locked', 'history', 'submitted', 'completion'].includes(page)) {
     for (const table of document.querySelectorAll('table')) {
       assert(!!table.querySelector('caption'), 'data tables have an accessible description');
       assert([...table.querySelectorAll('th')].every(node => node.scope === 'col'), 'table headers identify their column scope');
@@ -450,7 +488,39 @@ try {
       assert(!!region?.getAttribute('aria-label') && region.tabIndex === 0, 'wide data tables provide named keyboard-scroll regions');
     }
   }
-  if (page.startsWith('records')) {
+  if (page === 'office-overdue-draft' || page === 'office-extra-time-draft') {
+    const granted = page === 'office-extra-time-draft';
+    const record = document.querySelector('[data-record-page]')!;
+    const headerStatus = record.querySelector('fieldset');
+    assert(headerStatus?.textContent?.trim() === (granted ? 'Draft' : 'Overdue'), 'the header prioritizes an overdue submission and restores Draft during extra time');
+    const deadline = record.querySelector('[role="region"][aria-labelledby="mark-submission-deadline"]');
+    assert(granted ? deadline?.textContent?.includes('Extra time active') : deadline?.textContent?.includes('saved a draft'),
+      'the deadline card explains the extension or saved draft');
+    assert(!deadline?.textContent?.includes('Overdue'), 'the overdue badge appears only in the header');
+    assert(deadline?.textContent?.includes('Submission deadline') && deadline.textContent?.includes('Malaysia time'), 'the effective deadline is shown in Malaysia time');
+    assert(Boolean(deadline?.querySelector('time[datetime]')), 'the deadline exposes a machine-readable timestamp');
+    const grant = button('Grant individual extra time');
+    assert(Boolean(grant) === !granted, 'only the overdue task presents a recovery action');
+    if (grant) {
+      assert(deadline?.contains(grant), 'the recovery action is grouped with the deadline');
+      grant.click();
+      await until(() => document.querySelector('#route')?.textContent === '/dashboard/periods?semester=1&manage=window&task=4');
+      assert(document.querySelector('#route-hash')?.textContent === '#marks-period-1', 'grant opens the exact evaluation period and task');
+    }
+  }
+  if (page === 'office-detail') {
+    assert(!!document.querySelector('table caption'), 'the results table has an accessible description');
+    const assessments = [...document.querySelectorAll('dt')].filter(field => field.textContent === 'Assessment');
+    assert(assessments.length === 1 && !!assessments[0].closest('dl')?.textContent?.includes('Research title'), 'assessment appears once in the student details card');
+  }
+  if (page === 'records-task-header') {
+    const selector = document.querySelector<HTMLButtonElement>('button[aria-label="Mark entry period"]')!;
+    const progress = document.querySelector<HTMLElement>('header strong')!;
+    assert(selector?.textContent?.trim() === 'Test Supervisor 1', 'the period field shows its selected name');
+    assert(parseFloat(getComputedStyle(progress).fontSize) > parseFloat(getComputedStyle(selector).fontSize), 'the submission count has a distinct type hierarchy');
+    assert(document.querySelectorAll('table').length === 1, 'the task page uses one table');
+  }
+  if (page.startsWith('records') && page !== 'records-task-header') {
     const workspace = document.querySelector('#mark-entry-records-dashboard')!;
     assert(!document.querySelector('#records-metrics-grid'), 'records do not duplicate status counts in five cards');
     const surface = document.querySelector('#mark-records-table-container')!;
@@ -462,14 +532,16 @@ try {
     const filterPanel = surface.querySelector('[data-workspace-filter-card]')!;
     assert(!!filterPanel, 'records reuse the same workspace filter panel as other modules');
     assert(parseFloat(getComputedStyle(filterPanel).paddingTop) === (innerWidth >= 640 ? 20 : 12), 'record panel matches appointment desktop/mobile padding');
-    assert(!document.querySelector('#records-more-filters'), 'record fields use one visible grid without a second filter disclosure');
-    assert(filterPanel.querySelectorAll('select').length === 4, 'status and all three secondary filters remain visible');
+    const moreFilters = filterPanel.querySelector<HTMLDetailsElement>('#records-more-filters')!;
+    assert(!!moreFilters && !moreFilters.open, 'secondary filters start collapsed');
+    assert([...filterPanel.querySelectorAll('select')].filter(select => !moreFilters.contains(select)).map(select => select.getAttribute('aria-label')).join() === 'Semester,Evaluation period', 'only semester and evaluation period accompany search');
+    moreFilters.open = true;
     const recordStatus = filterPanel.querySelector<HTMLSelectElement>('select[aria-label="Record status"]')!;
     assert(!!recordStatus, 'records have one labelled status control');
     assert(!button('Apply filters') && !search.form, 'records filter automatically without an Apply button or submission form');
     assert(parseFloat(getComputedStyle(search).fontSize) === 12 && parseFloat(getComputedStyle(filterPanel.querySelector('button[aria-label="Record status"]')!).fontSize) === 12, 'record filter values use the shared 12px font');
     assert(parseFloat(getComputedStyle(search.labels![0]).fontSize) === 10, 'record filter labels use the shared 10px font');
-    if (innerWidth >= 1280) assert(Math.abs(search.getBoundingClientRect().bottom - filterPanel.querySelector('button[aria-label="Record status"]')!.getBoundingClientRect().bottom) < 2, 'desktop search and status controls align along the same baseline');
+    if (innerWidth >= 1280) assert(Math.abs(search.getBoundingClientRect().bottom - filterPanel.querySelector('button[aria-label="Evaluation period"]')!.getBoundingClientRect().bottom) < 2, 'desktop search and period controls align along the same baseline');
     assert(surface.getBoundingClientRect().top < (page === 'records-monitoring-empty' ? 600 : 230), 'records workspace starts close to the heading, allowing its dashboard monitoring notice');
     if (page === 'records-error') {
       assert(!!workspace.querySelector('[role=alert]') && !!button('Retry'), 'record read errors retain retry');
@@ -479,7 +551,7 @@ try {
     } else if (page === 'records-monitoring-empty') {
       assert(!workspace.querySelector('table'), 'empty monitoring scope omits the empty table');
       assert(workspace.textContent?.includes('No records in this monitoring view'), 'empty monitoring scope is distinguished from an empty registry');
-      assert(workspace.textContent?.includes('Counts for this dashboard monitoring view'), 'monitoring count scope is labelled correctly');
+      assert(recordStatus.selectedOptions[0].textContent?.includes('(0)'), 'status count reflects the empty monitoring scope');
       assert(!!button('Clear monitoring view'), 'monitoring scope can still be cleared independently');
     } else if (page === 'records-empty') {
       assert(!workspace.querySelector('table'), 'empty registry omits wide table scaffolding');
@@ -494,11 +566,11 @@ try {
     } else if (page === 'records-paged') {
       assert(surface.querySelectorAll('tbody tr').length === 5, 'records retain five rows per page');
       assert(document.querySelectorAll('#records-pagination-footer button').length <= 7, 'pagination stays bounded for many records');
-      document.querySelector<HTMLButtonElement>('[aria-label="Page 24"]')!.click(); await pause();
-      assert(document.querySelector('[aria-current=page]')?.textContent?.trim() === '24', 'last page remains directly accessible');
+      for (let pageNumber = 1; pageNumber < 24; pageNumber++) { document.querySelector<HTMLButtonElement>('[aria-label="Next page"]')!.click(); await pause(); }
+      assert(document.querySelector('.mark-record-page-count')?.textContent?.trim() === 'Page 24 of 24', 'last page remains accessible');
       assert(document.querySelector<HTMLButtonElement>('[aria-label="Next page"]')!.disabled, 'last page disables next');
       recordStatus.value = 'Overdue'; recordStatus.dispatchEvent(new Event('change', { bubbles: true })); await pause();
-      assert(document.querySelector('[aria-current=page]')?.textContent?.trim() === '1', 'filtering resets pagination');
+      assert(document.querySelector('.mark-record-page-count')?.textContent?.startsWith('Page 1 of '), 'filtering resets pagination');
     } else {
       assert(surface.querySelectorAll('tbody tr').length === 3, 'initial records are visible');
       const statusControl = filterPanel.querySelector<HTMLButtonElement>('button[aria-label="Record status"]')!;
@@ -527,12 +599,10 @@ try {
         button('Clear filters')!.click(); await pause();
       }
 
-      assert(surface.querySelectorAll('thead th').length === 8, 'related record metadata is grouped into eight columns');
+      assert(surface.querySelectorAll('thead th').length === 6, 'related record metadata is grouped into six columns');
       assert(!!surface.querySelector('caption'), 'record table has an accessible caption');
-      document.querySelector<HTMLButtonElement>('[aria-label="View mark record REC-1"]')!.click(); await pause();
+      document.querySelector<HTMLButtonElement>('[aria-label="Open mark record REC-1"]')!.click(); await pause();
       assert(document.querySelector('#route')?.textContent === '/marks/records/REC-1', 'record detail retains its identifier');
-      document.querySelector<HTMLButtonElement>('[aria-label="View student record for Fictional Student 1"]')!.click(); await pause();
-      assert(document.querySelector('#route')?.textContent === '/students/DEMO-001', 'student dossier navigation is preserved');
     }
   }
   const pageTitle = document.querySelector('h1');
@@ -541,7 +611,7 @@ try {
     assert(parseFloat(getComputedStyle(pageTitle).fontWeight) >= 600, 'page title retains heading emphasis');
   }
   assert(writes === 0, 'visual review performs no writes');
-  assert(unknown.length === 0, 'all fixture reads are explicitly mocked');
+  assert(unknown.length === 0, `all fixture reads are explicitly mocked (${unknown.join(', ')})`);
   assert(document.documentElement.scrollWidth <= innerWidth + 1, 'page has no horizontal overflow');
   const clipped = [...document.querySelectorAll<HTMLElement>('h1,h2,h3')].filter(node => node.getBoundingClientRect().width && node.scrollWidth > node.clientWidth + 1).map(node => node.textContent);
   assert(!clipped.length, 'headings remain readable');

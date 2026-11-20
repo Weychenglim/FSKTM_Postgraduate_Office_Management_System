@@ -3,10 +3,7 @@ import { MarksHeading } from './MarksPrimitives';
 import { Link, useSearchParams } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
 import { PortalSelect } from './PortalSelect';
-import { SelectMenu } from './SelectMenu';
 import { DecisionDialog } from './DecisionDialog';
-import { completeDecision } from '../utils/decisionSubmission';
-import { RecordPage } from './RecordPage';
 import { PortalModal } from './PortalModal';
 import { MarksCompletionWindows } from './MarksCompletionWindows';
 import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
@@ -27,27 +24,21 @@ import {
   CheckCircle2,
   ClipboardList,
   ChevronDown,
-  ShieldAlert,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalConfirmModal, PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
 import { LoadingState, ErrorState } from './StateViews';
 import {
   EvaluationPeriodOption,
   EvaluationPreviewStatus,
   EvaluationPreviewTask,
   EvaluationTaskRole,
-  MarksAssignmentLecturerOption,
-  MarksAssignmentSearchResults,
-  MarksAssignmentStudentOption,
 } from '../types';
 import {
-  createBackupEvaluationTask,
   generateEvaluationTasks,
   getEvaluationPeriods,
   getEvaluationPeriod,
   getEvaluationPreviewTasks,
-  searchMarksAssignmentLecturers,
   searchMarksAssignmentStudents,
 } from '../services';
 import {
@@ -69,27 +60,12 @@ interface ActivityItem {
   performedBy: string;
 }
 
-type AssignmentLookupState<T> = MarksAssignmentSearchResults<T> & {
-  loading: boolean;
-  error: string | null;
-};
-
-interface BackupFormState {
-  periodId: string;
-  studentId: string;
-  evaluatorId: string;
-  originalTaskId: string;
-  reason: string;
-  confirmed: boolean;
-}
-
 const ALL_ROLES = 'ALL';
 const ALL_STATUSES = 'ALL';
 
 const roleLabel = (role?: EvaluationTaskRole, fallback?: string): string => {
   if (fallback) return fallback;
   if (role === 'SUPERVISOR') return 'Supervisor';
-  if (role === 'BACKUP') return 'Backup / Manual Override';
   return 'Panel';
 };
 
@@ -116,26 +92,6 @@ const formatDate = (value: string | null): string => {
         month: 'short',
         year: 'numeric',
       });
-};
-
-const taskMatchesPeriod = (task: EvaluationPreviewTask, periodId: string): boolean =>
-  !periodId || !task.periodId || String(task.periodId) === periodId;
-
-const deriveTotals = (
-  tasks: EvaluationPreviewTask[],
-  period?: EvaluationPeriodOption,
-) => {
-  if (period) return period.taskTotals;
-  const submitted = tasks.filter((task) => task.status === 'SUBMITTED').length;
-  return {
-    total: tasks.length,
-    supervisor: tasks.filter((task) => task.evaluatorRole === 'SUPERVISOR').length,
-    panel: tasks.filter((task) => (task.evaluatorRole || 'PANEL') === 'PANEL').length,
-    backup: tasks.filter((task) => task.evaluatorRole === 'BACKUP').length,
-    submitted,
-    incomplete: tasks.length - submitted,
-    overdue: 0,
-  };
 };
 
 export function MarksTaskDeadlineEntryPoint({tasks,onChanged,onManageTimeline,compact=false}: {
@@ -166,12 +122,6 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
   const publish = useDecisionFeedback();
   const [tasks, setTasks] = useState<EvaluationPreviewTask[]>([]);
   const [periods, setPeriods] = useState<EvaluationPeriodOption[]>([]);
-  const [backupStudentLookup, setBackupStudentLookup] = useState<AssignmentLookupState<MarksAssignmentStudentOption>>({ results: [], total: 0, limit: 50, loading: false, error: null });
-  const [backupLecturerLookup, setBackupLecturerLookup] = useState<AssignmentLookupState<MarksAssignmentLecturerOption>>({ results: [], total: 0, limit: 50, loading: false, error: null });
-  const [selectedBackupStudent, setSelectedBackupStudent] = useState<MarksAssignmentStudentOption | null>(null);
-  const [selectedBackupLecturer, setSelectedBackupLecturer] = useState<MarksAssignmentLecturerOption | null>(null);
-  const [backupStudentSearch, setBackupStudentSearch] = useState('');
-  const [backupLecturerSearch, setBackupLecturerSearch] = useState('');
   const [eligibleStudentCount, setEligibleStudentCount] = useState<number | null>(null);
   const [eligibleStudentCountError, setEligibleStudentCountError] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -181,11 +131,7 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
   const [roleFilter, setRoleFilter] = useState<typeof ALL_ROLES | EvaluationTaskRole>(ALL_ROLES);
   const [statusFilter, setStatusFilter] = useState<typeof ALL_STATUSES | EvaluationPreviewStatus>(ALL_STATUSES);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const [confirmBackup, setConfirmBackup] = useState(false);
   const [selectedTask, setSelectedTask] = useState<EvaluationPreviewTask | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [submittingBackup, setSubmittingBackup] = useState(false);
-  const backupCommitted = useRef(false);
   const [generating, setGenerating] = useState(false);
   const generationBusy = useRef(false);
   const [generationReview, setGenerationReview] = useState<EvaluationPeriodOption | null>(null);
@@ -200,16 +146,6 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
   }),[]);
   const fallbackDirty=[...fallbackDrafts.values()].some(draft=>draft.dirty);
   const fallbackBusy=[...fallbackDrafts.values()].some(draft=>draft.busy);
-  const [formError, setFormError] = useState<string | null>(null);
-  const [backupForm, setBackupForm] = useState<BackupFormState>({
-    periodId: '',
-    studentId: '',
-    evaluatorId: '',
-    originalTaskId: '',
-    reason: '',
-    confirmed: false,
-  });
-
   const loadWorkspace = useCallback(async (propagateError = false) => {
     setLoading(true);
     setError(null);
@@ -225,10 +161,6 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
         const available = loadedPeriods.filter(selectablePeriod);
         return available.some(period => String(period.id) === current) ? current : String(available[0]?.id ?? '');
       });
-      setBackupForm((current) => ({
-        ...current,
-        periodId: current.periodId || (loadedPeriods[0] ? String(loadedPeriods[0].id) : ''),
-      }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load evaluation assignment workspace.');
       if (propagateError) throw e;
@@ -242,13 +174,13 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
   }, [loadWorkspace]);
 
   const availablePeriods = periods.filter(selectablePeriod);
-  const backupPeriodOptions = availablePeriods.filter(period => String(period.id) === selectedPeriodId);
-  const periodHasTasks = tasks.some(task => taskMatchesPeriod(task, selectedPeriodId));
-
-  const selectedPeriod = useMemo(
-    () => periods.find((period) => String(period.id) === selectedPeriodId),
-    [periods, selectedPeriodId],
+  const selectedPeriod = availablePeriods.find(period => String(period.id) === selectedPeriodId);
+  const periodTasks = useMemo(
+    () => selectedPeriod ? tasks.filter(task => task.periodId === selectedPeriod.id) : [],
+    [tasks, selectedPeriod],
   );
+  const periodHasTasks = periodTasks.length > 0;
+  const totals = selectedPeriod?.taskTotals;
   useEffect(() => {
     if (!selectedPeriod) {
       setEligibleStudentCount(null);
@@ -269,85 +201,15 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
     return () => controller.abort();
   }, [selectedPeriod]);
 
-  useEffect(() => {
-    if (!drawerOpen || !backupForm.periodId) return;
-    const controller = new AbortController();
-    setBackupStudentLookup(current => ({ ...current, loading: true, error: null }));
-    const timer = window.setTimeout(() => {
-      searchMarksAssignmentStudents(Number(backupForm.periodId), backupStudentSearch, 50, controller.signal)
-        .then(result => setBackupStudentLookup({ ...result, loading: false, error: null }))
-        .catch(error => {
-          if (!controller.signal.aborted) setBackupStudentLookup(current => ({ ...current, loading: false, error: error instanceof Error ? error.message : 'Could not search students.' }));
-        });
-    }, backupStudentSearch ? 250 : 0);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [drawerOpen, backupForm.periodId, backupStudentSearch]);
-
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const controller = new AbortController();
-    setBackupLecturerLookup(current => ({ ...current, loading: true, error: null }));
-    const timer = window.setTimeout(() => {
-      searchMarksAssignmentLecturers(backupLecturerSearch, 50, controller.signal)
-        .then(result => setBackupLecturerLookup({ ...result, loading: false, error: null }))
-        .catch(error => {
-          if (!controller.signal.aborted) setBackupLecturerLookup(current => ({ ...current, loading: false, error: error instanceof Error ? error.message : 'Could not search lecturers.' }));
-        });
-    }, backupLecturerSearch ? 250 : 0);
-    return () => { window.clearTimeout(timer); controller.abort(); };
-  }, [drawerOpen, backupLecturerSearch]);
-
   const selectedPeriodAllowsGeneration = Boolean(
     selectedPeriod && generationReady(selectedPeriod),
   );
 
-  const filteredTasks = useMemo(() => tasks.filter((task) => {
-    const matchesPeriod = taskMatchesPeriod(task, selectedPeriodId);
+  const filteredTasks = useMemo(() => periodTasks.filter((task) => {
     const matchesRole = roleFilter === ALL_ROLES || (task.evaluatorRole || 'PANEL') === roleFilter;
     const matchesStatus = statusFilter === ALL_STATUSES || task.status === statusFilter;
-    return matchesPeriod && matchesRole && matchesStatus;
-  }), [tasks, selectedPeriodId, roleFilter, statusFilter]);
-
-  const totals = useMemo(
-    () => deriveTotals(tasks.filter((task) => taskMatchesPeriod(task, selectedPeriodId)), selectedPeriod),
-    [tasks, selectedPeriod, selectedPeriodId],
-  );
-
-  const originalTaskOptions = useMemo(() => tasks.filter((task) => (
-    (!backupForm.periodId || !task.periodId || String(task.periodId) === backupForm.periodId)
-    && (!backupForm.studentId || task.studentId === backupForm.studentId)
-    && task.evaluatorRole !== 'BACKUP'
-  )), [backupForm.periodId, backupForm.studentId, tasks]);
-  const selectedBackupPeriod = periods.find((period) => String(period.id) === backupForm.periodId);
-
-  const backupStudentChoices = useMemo(() => {
-    const candidates = selectedBackupStudent
-      ? [selectedBackupStudent, ...backupStudentLookup.results.filter(item => item.studentId !== selectedBackupStudent.studentId)]
-      : backupStudentLookup.results;
-    return candidates.map(student => ({
-      value: student.studentId,
-      label: student.studentName,
-      description: `${student.studentId} · ${student.programme || 'Programme not recorded'} · ${student.semester}`,
-    }));
-  }, [backupStudentLookup.results, selectedBackupStudent]);
-  const backupLecturerChoices = useMemo(() => {
-    const candidates = selectedBackupLecturer
-      ? [selectedBackupLecturer, ...backupLecturerLookup.results.filter(item => item.userId !== selectedBackupLecturer.userId)]
-      : backupLecturerLookup.results;
-    return candidates.map(lecturer => ({
-      value: String(lecturer.userId),
-      label: lecturer.fullName,
-      description: [lecturer.staffId, lecturer.email, lecturer.department].filter(Boolean).join(' · '),
-    }));
-  }, [backupLecturerLookup.results, selectedBackupLecturer]);
-  const backupOriginalTaskChoices = useMemo(() => [
-    { value: '', label: 'No specific official task', description: 'Create a general backup assignment' },
-    ...originalTaskOptions.map(task => ({
-      value: String(task.taskId ?? task.id),
-      label: `${roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)} task`,
-      description: `${task.panelMember}${task.taskId ? ` · Task #${task.taskId}` : ''}`,
-    })),
-  ], [originalTaskOptions]);
+    return matchesRole && matchesStatus;
+  }), [periodTasks, roleFilter, statusFilter]);
 
   const installPeriod = (period:EvaluationPeriodOption) => setPeriods(current=>current.map(item=>item.id===period.id?period:item));
   const recoverGeneration = async () => {
@@ -358,7 +220,7 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
     finally {generationBusy.current=false;setGenerating(false);}
   };
   const handleGenerateTasks = async () => {
-    if(generationBusy.current || generationBlocked || generationCommitted || !selectedPeriod || fallbackDirty || fallbackBusy || drawerOpen)return;
+    if(generationBusy.current || generationBlocked || generationCommitted || !selectedPeriod || fallbackDirty || fallbackBusy)return;
     generationBusy.current=true;
     setGenerating(true);
     setGenerationError(null);
@@ -403,78 +265,30 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
     }
   };
 
-  const openBackupDrawer = () => {
-    if(generationBusy.current || generationReview || fallbackBusy)return;
-    backupCommitted.current = false;
-    setFormError(null);
-    setBackupForm({
-      periodId: backupPeriodOptions[0] ? String(backupPeriodOptions[0].id) : '',
-      studentId: '',
-      evaluatorId: '',
-      originalTaskId: '',
-      reason: '',
-      confirmed: false,
-    });
-    setSelectedBackupStudent(null);
-    setSelectedBackupLecturer(null);
-    setBackupStudentSearch('');
-    setBackupLecturerSearch('');
-    setBackupStudentLookup({ results: [], total: 0, limit: 50, loading: true, error: null });
-    setBackupLecturerLookup({ results: [], total: 0, limit: 50, loading: true, error: null });
-    setDrawerOpen(true);
-  };
-
-  const validateBackupForm = (): string | null => {
-    if (!backupForm.periodId) return 'Evaluation period is required.';
-    if (!backupForm.studentId) return 'Student is required.';
-    if (!backupForm.evaluatorId) return 'Backup lecturer is required.';
-    if (!backupForm.reason.trim()) return 'Backup assignment reason is required.';
-    if (!backupForm.confirmed) return 'Confirm that this is an exception assignment before submitting.';
-    return null;
-  };
-
-  const reviewBackup = () => {
-    const validation = validateBackupForm(); setFormError(validation);
-    if (!validation) setConfirmBackup(true);
-  };
-  const handleBackupSubmit = async () => {
-    if (validateBackupForm()) return false;
-    setSubmittingBackup(true);
-    try {
-      return await completeDecision(async () => { const task = await createBackupEvaluationTask(Number(backupForm.periodId), {
-        studentId: backupForm.studentId, evaluatorId: Number(backupForm.evaluatorId),
-        reason: backupForm.reason.trim(),
-        originalTaskId: backupForm.originalTaskId ? Number(backupForm.originalTaskId) : undefined,
-      });
-        backupCommitted.current = true;
-        setActivities(prev => [{id: String(Date.now()), date: 'Today', action: 'Backup evaluator assigned',
-          details: `${task.studentId} assigned as ${task.evaluatorRoleLabel || 'Backup / Manual Override'}`,
-          performedBy: 'Office Staff/Admin'}, ...prev]);
-      }, () => loadWorkspace(true));
-    } finally { setSubmittingBackup(false); }
-  };
-
   return (
     <div id="eval-assignment-workspace" className="marks-workspace space-y-6 relative text-left">
-      {!drawerOpen ? <DraftNavigationGuard dirty={fallbackDirty} busy={generating || fallbackBusy}/> : null}
-      <PortalConfirmModal isOpen={!!generationReview} title="Generate evaluation tasks?" tone="warning"
-        message={generationReview ? <div className="space-y-3"><p>{generationReview.name} · {generationReview.semester}</p><p>Saved scope: {formatPeriodTargeting(generationReview)}. Roles: {generationReview.evaluatorRoles.join(', ')}.</p><p>Rubric: {generationReview.rubricName}. Readiness: {formatPeriodStatus(generationReview.effectiveStatus)}.</p><p>Saved window: {formatDate(generationReview.opensAt)} – {formatDate(generationReview.closesAt)}.</p><p>Currently loaded tasks: {generationReview.taskTotals.total}. This is not an exact missing-task preview. The server determines final created and total counts. Existing assignments and marks are preserved.</p></div> : null}
-        confirmLabel="Generate tasks" isLoading={generating} onConfirm={commitGeneration} onCancel={()=>{if(!generationBusy.current)setGenerationReview(null);}}/>
+      <DraftNavigationGuard dirty={fallbackDirty} busy={generating || fallbackBusy}/>
+      <DecisionDialog isOpen={!!generationReview} kind="confirmation" decisionKey={generationReview?.id}
+        title="Generate evaluation tasks?" context={generationReview ? `${generationReview.name} · ${generationReview.semester}` : undefined}
+        message="Review the saved evaluation settings before continuing." confirmLabel="Generate tasks"
+        successMessage="Evaluation tasks generated." busy={generating}
+        onClose={()=>{if(!generationBusy.current)setGenerationReview(null);}}
+        onConfirm={async()=>{await commitGeneration();return false as const;}}>
+        {generationReview && <div className="space-y-6">
+          <dl className="grid gap-x-8 gap-y-6 rounded-lg border border-slate-200 bg-slate-50 p-5 sm:grid-cols-2">
+            <div className="min-w-0"><dt className="text-xs text-slate-500">Programme and evaluator</dt><dd className="mt-1 break-words text-sm font-medium text-brand-navy">{formatPeriodTargeting(generationReview)}</dd></div>
+            <div className="min-w-0"><dt className="text-xs text-slate-500">Rubric</dt><dd className="mt-1 break-words text-sm font-medium text-brand-navy">{generationReview.rubricName}</dd></div>
+            <div><dt className="text-xs text-slate-500">Evaluation window</dt><dd className="mt-1 text-sm font-medium text-brand-navy">{formatDate(generationReview.opensAt)} – {formatDate(generationReview.closesAt)}</dd></div>
+            <div><dt className="text-xs text-slate-500">Window status</dt><dd className="mt-1 text-sm font-medium text-brand-navy">{formatPeriodStatus(generationReview.effectiveStatus)}</dd></div>
+          </dl>
+          <div className="border-t border-slate-200 pt-5 text-xs leading-relaxed text-slate-700">
+            <p className="font-semibold text-brand-navy">{generationReview.taskTotals.total} existing {generationReview.taskTotals.total === 1 ? 'task' : 'tasks'}</p>
+            <p className="mt-2">Missing tasks will be created. Existing tasks and marks will remain unchanged.</p>
+          </div>
+        </div>}
+      </DecisionDialog>
       {generationCommitted ? <div role="status" className="space-y-2"><p>{generationCommitted} Workspace refresh required.</p><PortalButton disabled={generating} onClick={recoverGeneration}>Reload workspace</PortalButton></div> : null}
       {generationError ? <div role="alert" className="text-red-700"><p>{generationError}</p>{generationBlocked ? <PortalButton disabled={generating} onClick={recoverGeneration}>Review latest workspace</PortalButton> : null}</div> : null}
-      <DecisionDialog isOpen={confirmBackup} kind="confirmation" decisionKey={`${backupForm.studentId}:${backupForm.evaluatorId}`}
-        title="Assign this backup evaluator?" context={<p>{selectedBackupStudent?.studentName} · {backupForm.studentId} · {selectedBackupLecturer?.fullName} · {selectedBackupPeriod?.name}</p>}
-        message={<><p>This creates an exception evaluation task and leaves official Supervisor and Panel appointments unchanged.</p><p>Reason: {backupForm.reason}</p></>}
-        confirmLabel="Assign backup evaluator" successMessage="Backup evaluator task created."
-        busy={submittingBackup} canConfirm={!backupCommitted.current && !validateBackupForm()} onConfirm={handleBackupSubmit}
-        onClose={() => {
-          setConfirmBackup(false);
-          if (backupCommitted.current) {
-            setDrawerOpen(false);
-            setBackupForm(current => ({ ...current, studentId: '', evaluatorId: '', originalTaskId: '', reason: '', confirmed: false }));
-          }
-        }} onReload={() => loadWorkspace(true)} />
-
       <PageHeader
         title="Evaluation Task Assignment"
         subtitle="Create assignments and review evaluation tasks."
@@ -500,12 +314,11 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
               <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end">
                 <div className="min-w-0 flex-1">
                   <label className="sr-only" htmlFor="assignment-period">Select evaluation period</label>
-                  <PortalSelect id="assignment-period" disabled={generating || !!generationReview || fallbackDirty || fallbackBusy} aria-label="Evaluation period" className="form-control form-control-md w-full" value={selectedPeriodId}
+                  <PortalSelect id="assignment-period" disabled={availablePeriods.length === 0 || generating || !!generationReview || fallbackDirty || fallbackBusy} aria-label="Evaluation period" className="form-control form-control-md w-full" value={selectedPeriod ? selectedPeriodId : ''}
                     onChange={event => {
                       setSelectedPeriodId(event.target.value);
-                      setBackupForm(current => ({ ...current, periodId: event.target.value }));
                     }}>
-                    <option value="" disabled hidden={availablePeriods.length > 0}>No open or scheduled periods</option>
+                    <option value="" disabled hidden={!!selectedPeriod}>{availablePeriods.length > 0 ? 'Select an evaluation period' : 'No open or scheduled periods'}</option>
                     {availablePeriods.map(period => <option key={period.id} value={period.id}>{period.name} — {period.evaluatorRoles.map(role => roleLabel(role)).join(" / ")}</option>)}
                   </PortalSelect>
                 </div>
@@ -517,7 +330,7 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
               <details className="border-t border-slate-100 pt-3">
                 <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded text-sm font-semibold text-slate-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden">
                   <span>Period details and readiness</span>
-                  <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium">{[Boolean(selectedPeriodId), selectedPeriodAllowsGeneration, Boolean(selectedPeriod?.rubricName), eligibleStudentCount !== null && eligibleStudentCount > 0].filter(Boolean).length}/4 checks<ChevronDown aria-hidden="true" className="h-4 w-4" /></span>
+                  <span className="inline-flex shrink-0 items-center gap-2 text-xs font-medium">{[Boolean(selectedPeriod), selectedPeriodAllowsGeneration, Boolean(selectedPeriod?.rubricName), eligibleStudentCount !== null && eligibleStudentCount > 0].filter(Boolean).length}/4 checks<ChevronDown aria-hidden="true" className="h-4 w-4" /></span>
                 </summary>
                 <div className="grid min-w-0 gap-5 pt-3 lg:grid-cols-2">
                   {selectedPeriod ? <dl className="min-w-0 space-y-3">
@@ -529,7 +342,7 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
                     <h3 className="text-sm font-semibold text-brand-navy">Readiness checks</h3>
                     <ul className="mt-2 divide-y divide-slate-100">
                       {[
-                        { label: 'Evaluation period selected', passed: Boolean(selectedPeriodId) },
+                        { label: 'Evaluation period selected', passed: Boolean(selectedPeriod) },
                         { label: 'Period published and not ended', passed: selectedPeriodAllowsGeneration },
                         { label: 'Rubric configured', passed: Boolean(selectedPeriod?.rubricName) },
                         { label: 'Eligible students available', passed: eligibleStudentCountError ? false : eligibleStudentCount === null ? null : eligibleStudentCount > 0 },
@@ -552,9 +365,8 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
               <div className="min-w-0">
                 <MarksHeading icon={ClipboardList}>Evaluation tasks</MarksHeading>
               </div>
-              <PortalButton icon={ShieldAlert} disabled={generating || !!generationReview || fallbackBusy || backupPeriodOptions.length === 0} onClick={openBackupDrawer}>Assign backup evaluator</PortalButton>
             </div>
-            {periodHasTasks ? <WorkspaceFilterCard onReset={() => { setRoleFilter(ALL_ROLES); setStatusFilter(ALL_STATUSES); }}
+            {periodHasTasks && totals ? <WorkspaceFilterCard onReset={() => { setRoleFilter(ALL_ROLES); setStatusFilter(ALL_STATUSES); }}
               fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2">
               <label className="form-label min-w-0">Evaluator role
                 <PortalSelect aria-label="Evaluator role" className="form-control form-control-sm mt-1" value={roleFilter}
@@ -562,7 +374,6 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
                   <option value={ALL_ROLES}>All roles ({totals.total})</option>
                   <option value="SUPERVISOR">Supervisor ({totals.supervisor})</option>
                   <option value="PANEL">Panel ({totals.panel})</option>
-                  <option value="BACKUP">Backup ({totals.backup})</option>
                 </PortalSelect>
               </label>
               <label className="form-label min-w-0">Task status
@@ -571,7 +382,7 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
                 </PortalSelect>
               </label>
             </WorkspaceFilterCard> : null}
-            {periodHasTasks ? <div className="flex flex-wrap items-center justify-between gap-3">
+            {periodHasTasks && totals ? <div className="flex flex-wrap items-center justify-between gap-3">
               <dl aria-label="Submission counts" className="flex flex-wrap gap-x-5 gap-y-2">
                 {[
                   ['Submitted', totals.submitted], ['Incomplete', totals.incomplete], ['Overdue', totals.overdue],
@@ -579,9 +390,12 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
               </dl>
               <p role="status" className="card-description">{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'} shown</p>
             </div> : null}
-            {filteredTasks.length === 0 ? <div className="rounded-xl bg-slate-50 px-4 py-6">
-              <h3 className="text-sm font-semibold text-brand-navy">{tasks.some(task => taskMatchesPeriod(task, selectedPeriodId)) ? 'No tasks match these filters' : 'No evaluation tasks yet'}</h3>
-              <p className="card-description mt-2 max-w-prose">{tasks.some(task => taskMatchesPeriod(task, selectedPeriodId)) ? 'Change the role or status, or clear the filters to see all tasks in this period scope.' : !selectedPeriod ? 'Configure and select an evaluation period, then generate its assignments above.' : 'Generate evaluation tasks for this period using the button above.'}</p>
+            {!selectedPeriod ? <div className="rounded-xl bg-slate-50 px-4 py-6">
+              <h3 className="text-sm font-semibold text-brand-navy">{availablePeriods.length > 0 ? 'Select a period to view its tasks' : 'No open or scheduled evaluation periods'}</h3>
+              <Link to={APP_ROUTES.marksRecords} className="card-description inline-flex min-h-11 items-center rounded font-semibold text-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">View Mark Entry Records</Link>
+            </div> : filteredTasks.length === 0 ? <div className="rounded-xl bg-slate-50 px-4 py-6">
+              <h3 className="text-sm font-semibold text-brand-navy">{periodHasTasks ? 'No tasks match these filters' : 'No tasks for this period yet'}</h3>
+              <p className="card-description mt-2 max-w-prose">{periodHasTasks ? 'Change or clear the role and status filters to see tasks for this period.' : 'Generate evaluation tasks for this period using the button above.'}</p>
             </div> : <div role="region" aria-label="Evaluation task results" tabIndex={0} className="overflow-x-auto rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
               <table className="data-table min-w-[760px]">
                 <caption className="sr-only">Evaluation assignments for the current period scope and filters</caption>
@@ -592,7 +406,7 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
                   {filteredTasks.map(task => <tr key={task.taskId ?? task.id} className="hover:bg-slate-50/50">
                     <td className="data-td"><p className="font-semibold text-brand-navy">{task.studentName}</p><p className="card-caption mt-1">{task.studentId}</p></td>
                     <td className="data-td max-w-[240px]"><p className="line-clamp-2" title={task.researchTitle}>{task.researchTitle}</p></td>
-                    <td className="data-td"><p>{task.panelMember}</p><p className={`mt-1 text-xs ${task.evaluatorRole === 'BACKUP' ? 'text-amber-800' : 'text-slate-500'}`}>{roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)}</p></td>
+                    <td className="data-td"><p>{task.panelMember}</p><p className="mt-1 text-xs text-slate-500">{roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)}</p></td>
                     <td className="data-td">{task.semester}</td>
                     <td className="data-td"><StatusBadge className="marks-state whitespace-nowrap" tone={task.status === 'SUBMITTED' ? 'success' : task.status === 'OVERDUE' ? 'danger' : 'neutral'}>{statusLabel(task.status)}</StatusBadge></td>
                     <td className="data-td text-left"><PortalButton onClick={() => setSelectedTask(task)} aria-label={`View task for ${task.studentName}, ${roleLabel(task.evaluatorRole, task.evaluatorRoleLabel)}`}>View</PortalButton></td>
@@ -600,7 +414,7 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
                 </tbody>
               </table>
             </div>}
-            {!onManageTimeline ? <RecordDraft.Provider value={reportFallback}><fieldset disabled={generating || !!generationReview}><MarksTaskDeadlineEntryPoint tasks={tasks} onChanged={async () => {
+            {!onManageTimeline && selectedPeriod ? <RecordDraft.Provider value={reportFallback}><fieldset disabled={generating || !!generationReview}><MarksTaskDeadlineEntryPoint key={selectedPeriod.id} tasks={periodTasks} onChanged={async () => {
               const [taskRows, periodRows] = await Promise.all([getEvaluationPreviewTasks(), getEvaluationPeriods()]);
               setTasks(taskRows); setPeriods(periodRows);
             }} /></fieldset></RecordDraft.Provider> : null}
@@ -623,153 +437,6 @@ const EvaluationTaskAssignmentContent: React.FC<EvaluationTaskAssignmentProps> =
           </PortalCard> : null}
         </>
       )}
-
-      {drawerOpen ? <RecordPage title="Assign Backup Evaluator" subtitle="Create an exception task and record why it is needed." backLabel="Back to Evaluation Task Assignment" onBack={() => setDrawerOpen(false)} pageKey="marks-backup-evaluator" navigationComplete={backupCommitted} dirty={!backupCommitted.current && (!!backupForm.studentId || !!backupForm.evaluatorId || !!backupForm.originalTaskId || !!backupForm.reason.trim() || backupForm.confirmed)} busy={submittingBackup}>{requestBack => <section className="space-y-7 rounded-2xl border border-slate-200 bg-white p-5 sm:p-7">
-
-                <div className="space-y-7">
-                  <div className="space-y-5">
-                    <label htmlFor="backup-assignment-period" className="form-label block space-y-2">
-                      Assignment period
-                      <PortalSelect
-                        id="backup-assignment-period"
-                        className="form-control form-control-md"
-                        value={backupForm.periodId}
-                        onChange={(event) => {
-                          setBackupForm((current) => ({
-                            ...current,
-                            periodId: event.target.value,
-                            studentId: '',
-                            originalTaskId: '',
-                          }));
-                          setSelectedBackupStudent(null);
-                          setBackupStudentSearch('');
-                          setBackupLecturerSearch('');
-                          setBackupStudentLookup({ results: [], total: 0, limit: 50, loading: true, error: null });
-                        }}
-                      >
-                        {backupPeriodOptions.map((period) => (
-                          <option key={period.id} value={period.id}>{period.name} · {period.semester} · {formatPeriodTargeting(period)}</option>
-                        ))}
-                      </PortalSelect>
-                    </label>
-                    <div className="grid min-w-0 gap-5 sm:grid-cols-2">
-                      <div className="min-w-0 space-y-2">
-                        <label htmlFor="backup-student-picker" className="form-label block">Student <span className="text-rose-600" aria-hidden="true">*</span></label>
-                        <SelectMenu
-                          id="backup-student-picker"
-                          aria-label="Student"
-                          value={backupForm.studentId}
-                          options={backupStudentChoices}
-                          searchPlaceholder="Search student name, ID or programme"
-                          searchMode="inline"
-                          searchResultCount={backupStudentLookup.total}
-                          searchResultsLoading={backupStudentLookup.loading}
-                          searchResultsError={backupStudentLookup.error}
-                          onSearchChange={setBackupStudentSearch}
-                          placeholder={backupForm.periodId ? 'Choose a student' : 'Select a period first'}
-                          disabled={!backupForm.periodId || submittingBackup}
-                          onChange={studentId => {
-                            setSelectedBackupStudent(
-                              backupStudentLookup.results.find(student => student.studentId === studentId)
-                                ?? (selectedBackupStudent?.studentId === studentId ? selectedBackupStudent : null),
-                            );
-                            setBackupForm(current => ({ ...current, studentId, originalTaskId: '' }));
-                          }}
-                        />
-                        {backupStudentLookup.error ? <p role="alert" className="text-xs leading-5 text-rose-700">{backupStudentLookup.error}</p> : null}
-                        {!backupStudentLookup.loading && !backupStudentLookup.error && !backupStudentLookup.total && backupForm.periodId ? <p className="card-description">No eligible students are available in this period.</p> : null}
-                      </div>
-
-                      <div className="min-w-0 space-y-2">
-                        <label htmlFor="backup-lecturer-picker" className="form-label block">Backup lecturer <span className="text-rose-600" aria-hidden="true">*</span></label>
-                        <SelectMenu
-                          id="backup-lecturer-picker"
-                          aria-label="Backup lecturer"
-                          value={backupForm.evaluatorId}
-                          options={backupLecturerChoices}
-                          searchPlaceholder="Search lecturer name, staff ID or department"
-                          searchMode="inline"
-                          searchResultCount={backupLecturerLookup.total}
-                          searchResultsLoading={backupLecturerLookup.loading}
-                          searchResultsError={backupLecturerLookup.error}
-                          onSearchChange={setBackupLecturerSearch}
-                          placeholder="Choose a backup lecturer"
-                          disabled={submittingBackup}
-                          onChange={evaluatorId => {
-                            setSelectedBackupLecturer(
-                              backupLecturerLookup.results.find(lecturer => String(lecturer.userId) === evaluatorId)
-                                ?? (String(selectedBackupLecturer?.userId) === evaluatorId ? selectedBackupLecturer : null),
-                            );
-                            setBackupForm(current => ({ ...current, evaluatorId }));
-                          }}
-                        />
-                        {backupLecturerLookup.error ? <p role="alert" className="text-xs leading-5 text-rose-700">{backupLecturerLookup.error}</p> : null}
-                        {!backupLecturerLookup.loading && !backupLecturerLookup.error && !backupLecturerLookup.total ? <p className="card-description">No eligible lecturers are available.</p> : null}
-                      </div>
-                    </div>
-
-                    {backupForm.studentId ? <div className="space-y-2 border-t border-slate-100 pt-5">
-                      <label htmlFor="backup-original-task-picker" className="form-label block">Official task this backup covers <span className="font-normal normal-case tracking-normal text-slate-500">(optional)</span></label>
-                      <p id="backup-original-task-help" className="card-description leading-6">Link this backup to the student’s Supervisor or Panel task. Leave it unlinked for a general backup assignment.</p>
-                      <SelectMenu
-                        id="backup-original-task-picker"
-                        aria-label="Official task this backup covers, optional"
-                        aria-describedby="backup-original-task-help"
-                        value={backupForm.originalTaskId}
-                        options={backupOriginalTaskChoices}
-                        searchPlaceholder="Search official task or evaluator"
-                        searchMode="inline"
-                        maxSearchResults={50}
-                        placeholder="No specific official task"
-                        disabled={submittingBackup}
-                        onChange={originalTaskId => setBackupForm(current => ({ ...current, originalTaskId }))}
-                      />
-                      {!originalTaskOptions.length ? <p className="card-description">No official Supervisor or Panel task is available for this student in the selected period. You can still create a general backup assignment.</p> : null}
-                    </div> : null}
-                  </div>
-
-                  <div className="space-y-5 border-t border-slate-100 pt-6">
-                    <label className="form-label block space-y-2">
-                      Reason for this exception <span className="text-rose-600" aria-hidden="true">*</span>
-                    <textarea
-                      aria-label="Reason for this exception"
-                      className="form-control form-control-md min-h-[120px]"
-                      value={backupForm.reason}
-                      onChange={(event) => setBackupForm((current) => ({
-                        ...current,
-                        reason: event.target.value,
-                      }))}
-                      placeholder="Example: Appointed evaluator is unavailable due to medical leave."
-                    />
-                    </label>
-
-                  <label className="card-description flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-800">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5"
-                      checked={backupForm.confirmed}
-                      onChange={(event) => setBackupForm((current) => ({
-                        ...current,
-                        confirmed: event.target.checked,
-                      }))}
-                    />
-                    <span className="font-bold leading-relaxed">
-                      I confirm this is an exception assignment. It does not change the official supervisor or panel appointment.
-                    </span>
-                  </label>
-                  </div>
-                </div>
-
-                <div className="space-y-4 border-t border-slate-100 pt-5">
-                  {formError ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-800">{formError}</div> : null}
-                  <div className="flex flex-wrap justify-end gap-3">
-                    <PortalButton size="sm" onClick={requestBack}>Cancel</PortalButton>
-                    <PortalButton size="sm" variant="primary" disabled={submittingBackup} isLoading={submittingBackup} onClick={reviewBackup}>
-                      {submittingBackup ? 'Assigning…' : 'Assign backup'}
-                    </PortalButton>
-                  </div>
-                </div>
-              </section>}</RecordPage> : null}
 
       {selectedTask ? <PortalModal isOpen onClose={() => setSelectedTask(null)} labelledBy="evaluation-task-preview-title"><h2 id="evaluation-task-preview-title" className="section-label mb-4">Evaluation task details</h2>
 
