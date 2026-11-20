@@ -6,6 +6,7 @@
 .marks-workspace .form-label:not([data-workspace-filter-card] *) { font-weight: 600; }
 .marks-workspace .card-description { line-height: 1.65; }
 .marks-workspace .data-th { text-transform: none; letter-spacing: normal; font-weight: 600; }
+.marks-workspace #monitoring-card .data-th { font-size: .75rem; }
 .marks-workspace .form-label:not([data-workspace-filter-card] *) { font-size: .75rem; font-weight: 600; line-height: 1.5; text-transform: none; letter-spacing: normal; }
 .marks-workspace .form-label:not([data-workspace-filter-card] *) { color: #475569; }
 .marks-workspace .form-control:not([data-workspace-filter-card] *) { padding: .625rem .75rem; font-size: .875rem; font-weight: 500; line-height: 1.5; }
@@ -66,22 +67,20 @@
   .period-config-history-heading { flex-direction: column; }
 }
 
-/* Stable columns keep student identity separate from the research reading area. */
-.marks-workspace .mark-record-results { width: 100%; min-width: 1140px; table-layout: fixed; }
-.marks-workspace [data-mark-record-table] .data-th { font-size: 14px; padding: 18px 20px; white-space: nowrap; text-align: left; }
-.marks-workspace [data-mark-record-table] .data-td { padding: 24px 20px; font-size: 14px; line-height: 1.6; vertical-align: top; }
- .marks-workspace [data-mark-record-table] th:nth-child(1) { width: 20%; }
-.marks-workspace [data-mark-record-table] th:nth-child(2) { width: 29%; }
-.marks-workspace [data-mark-record-table] th:nth-child(3) { width: 14%; }
-.marks-workspace [data-mark-record-table] th:nth-child(4) { width: 12%; }
-.marks-workspace [data-mark-record-table] th:nth-child(5) { width: 13%; }
-.marks-workspace [data-mark-record-table] th:nth-child(6) { width: 12%; }
-.marks-workspace [data-mark-record-table] :is(th, td):nth-child(5) { text-align: left; }
-.marks-workspace [data-mark-record-table] :is(th, td):last-child { text-align: left; }
+/* Keep row actions and status labels readable in the scrollable results table. */
+.marks-workspace .mark-record-results { width: 100%; min-width: 980px; table-layout: fixed; }
+.marks-workspace [data-mark-record-table] .data-th { font-size: 14px; padding: 16px 18px; white-space: nowrap; text-align: left; }
+.marks-workspace [data-mark-record-table] .data-td { padding: 22px 18px; font-size: 14px; line-height: 1.6; text-align: left; vertical-align: top; }
+.marks-workspace [data-mark-record-table] :is(.data-th, .data-td):first-child { padding-left: 32px; }
+.marks-workspace [data-mark-record-table] th:nth-child(1) { width: 21%; }
+.marks-workspace [data-mark-record-table] th:nth-child(2) { width: 19%; }
+.marks-workspace [data-mark-record-table] th:nth-child(3) { width: 16%; }
+.marks-workspace [data-mark-record-table] th:nth-child(4) { width: 13%; }
+.marks-workspace [data-mark-record-table] th:nth-child(5) { width: 17%; }
+.marks-workspace [data-mark-record-table] th:nth-child(6) { width: 14%; }
 .mark-record-actions { display: flex; align-items: center; justify-content: flex-start; gap: 10px; }
 .mark-record-student { display: block; font-weight: 600; color: #0f172a; overflow-wrap: anywhere; }
 .mark-record-secondary { display: block; margin-top: 4px; color: #64748b; font-size: 12px; }
-.mark-record-research { margin: 0; color: #334155; line-height: 1.65; overflow-wrap: anywhere; }
 .mark-record-score { display: block; margin-bottom: 8px; font-weight: 600; color: #0f172a; }
 
 .mark-record-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; padding: 20px 24px; border-top: 1px solid #e2e8f0; }

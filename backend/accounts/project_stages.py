@@ -254,12 +254,13 @@ def current_semester():
     return current_effective_semester()
 
 
-def question_for(student, portal=...):
+def question_for(student, portal=..., *, answer=None):
     """The dashboard question for a student, or None when they are not asked this semester."""
     portal = current_semester() if portal is ... else portal
     if portal is None or student.status != Student.Status.ACTIVE:
         return None
-    answer = project_stages(portal, [student.pk])[student.pk]
+    if answer is None:
+        answer = project_stages(portal, [student.pk])[student.pk]
     answered = answer.source == STUDENT
     open_question = answer.state == NOT_STARTED and (answered or answer.reason == NOT_ANSWERED)
     said_yes = answer.state == ON_PROJECT and answered
@@ -488,10 +489,10 @@ def change_stages(academic_semester, items, *, choice, reason, actor, checked=Fa
                 if touches_marks(impact):
                     if not single:
                         raise _LeftOut("Has Marks tasks. Change this student on their own.")
-                    if not checked:
+                    if not checked or not token:
                         raise StageConflict("Check what this changes in Marks first.")
-                    if token and token != impact.get("token"):
-                        raise StageConflict("Marks has changed since you checked. Look again.")
+                if single and token and token != impact.get("token"):
+                    raise StageConflict("Marks has changed since you checked. Look again.")
                 _write_change(record, actor, *previous, label, {key: impact.get(key, 0) for key in COUNTS})
                 try:
                     apply_marks(student, academic_semester, before[student.pk].stage, after.stage, token=impact.get("token", ""), actor=actor, reason=label)

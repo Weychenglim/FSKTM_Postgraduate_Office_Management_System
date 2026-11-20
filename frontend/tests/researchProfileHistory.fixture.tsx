@@ -28,7 +28,7 @@ async function mount(role:UserRole='Lecturer',rows=revisions,missing=false,faile
     return Response.json(url.pathname.endsWith('/options/')?{
       students:[{id:studentId,name:longContent?'LongStudentName'.repeat(25):`Student ${studentId}`,matricNo:`PG-00${studentId}`,programme:snapshot.programme}],programmes:['Computing','Cybersecurity'],
       profile:missingProfile?null:{...snapshot,...(longContent?{title:'ResearchTerm'.repeat(80),abstract:'AbstractTerm'.repeat(150)}:{}),studentId,revision:2},
-      canSubmitResearch:actionsEnabled&&role==='Student',canCorrect:actionsEnabled&&role==='Office Staff/Admin',canTransfer:actionsEnabled&&role==='Office Staff/Admin',
+      canSubmitResearch:actionsEnabled&&role==='Student',canCorrect:actionsEnabled&&role==='Office Staff/Admin',canTransfer:false,
     }:{requests:[],revisions:savedRevisions});
   };
   root=createRoot(container);render(role,7,routeView);
@@ -76,8 +76,8 @@ await scenario('Empty, unavailable, failed and list views stay honest',async()=>
   await mount('Lecturer',revisions,false,true);check(!history(),'Failed load has stale history');
   await mount('Student',revisions,false,false,'list');check(!history(),'Request list contains profile history');
 });
-await scenario('Role-specific actions keep correction and transfer intents distinct',async()=>{
-  await mount('Office Staff/Admin');button('Correct research text')!.click();button('Request programme transfer')!.click();check(calls.join(',')==='CORRECTION,TRANSFER','Office action intent lost');
+await scenario('Role-specific actions offer Office correction and student research requests',async()=>{
+  await mount('Office Staff/Admin');check(!button('Request programme transfer'),'Disabled transfer action rendered');button('Correct research text')!.click();check(calls.join(',')==='CORRECTION','Office action intent lost');
   await mount('Student');check(!button('Correct research text')&&!button('Request programme transfer'),'Staff actions leaked to Student');button('Request research change')!.click();check(calls[0]==='RESEARCH','Student amendment intent lost');
   for(const role of ['Lecturer','Programme Coordinator'] as const){await mount(role);check(!button('Correct research text')&&!button('Request programme transfer')&&!button('Request research change'),'Read-only role gained mutation actions');}
   actionsEnabled=false;await mount('Office Staff/Admin');check(!button('Correct research text')&&!button('Request programme transfer'),'Unavailable capabilities still show controls');actionsEnabled=true;

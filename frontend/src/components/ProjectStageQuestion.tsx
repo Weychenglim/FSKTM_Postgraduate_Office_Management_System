@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useId, useState } from 'react';
-import type { ProjectStageQuestion as Question } from '../services/registrySemestersApi';
-import { answerMyProjectStage, getMyProjectStage, requestProjectStageCorrection } from '../services/registrySemestersApi';
+import React, { useId, useState } from 'react';
+import type { ProjectStageQuestion as Question, StudentProject } from '../services/registrySemestersApi';
+import { answerMyProjectStage, requestProjectStageCorrection } from '../services/registrySemestersApi';
 import { answerText, confirmText, correctionLine, questionText } from '../utils/projectStages';
 import { DialogShell } from './DocumentDialogs';
 import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
@@ -13,22 +13,16 @@ import { PortalButton, PortalConfirmModal } from './PortalPrimitives';
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
 /** Asks a student once a semester whether they registered their Research Project in MAYA. Hidden when there is nothing to ask. */
-export const ProjectStageQuestion: React.FC = () => {
+export const ProjectStageQuestion: React.FC<{
+  question: Question | null;
+  onUpdate: (project: StudentProject) => void;
+}> = ({ question, onUpdate }) => {
   const titleId = useId();
-  const [question, setQuestion] = useState<Question | null>(null);
   const [confirming, setConfirming] = useState<'YES' | 'NO' | null>(null);
   const [correcting, setCorrecting] = useState(false);
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    getMyProjectStage()
-      .then(found => { if (!cancelled) setQuestion(found); })
-      .catch(() => { if (!cancelled) setQuestion(null); });
-    return () => { cancelled = true; };
-  }, []);
 
   if (!question) return null;
   const asking = question.answer === null && question.canChange;
@@ -38,7 +32,7 @@ export const ProjectStageQuestion: React.FC = () => {
     setSending(true);
     setProblem(null);
     try {
-      setQuestion(await answerMyProjectStage(confirming));
+      onUpdate(await answerMyProjectStage(confirming));
     } catch (err) {
       setProblem(errorText(err, 'Your answer could not be saved. Please try again.'));
     } finally {
@@ -51,7 +45,7 @@ export const ProjectStageQuestion: React.FC = () => {
     setSending(true);
     setProblem(null);
     try {
-      setQuestion(await requestProjectStageCorrection(note));
+      onUpdate(await requestProjectStageCorrection(note));
       setCorrecting(false);
       setNote('');
     } catch (err) {

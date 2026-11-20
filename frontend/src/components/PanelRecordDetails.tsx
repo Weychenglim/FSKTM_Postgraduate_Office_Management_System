@@ -71,7 +71,7 @@ export function PanelRecommendationDetail({record,actions,administration,context
     </div>
   </div>;
 }
-export function PanelAppointmentRecordCard({record,actions,compact=false,showHistory=true,children,markingAction,sourceAction}:{record:PanelPresentation;actions?:React.ReactNode;compact?:boolean;showHistory?:boolean;children?:React.ReactNode;markingAction?:React.ReactNode;sourceAction?:React.ReactNode}) {
+export function PanelAppointmentRecordCard({record,actions,compact=false,showHistory=true,children,markingAction,sourceAction,appointmentSemester}:{record:PanelPresentation;actions?:React.ReactNode;compact?:boolean;showHistory?:boolean;children?:React.ReactNode;markingAction?:React.ReactNode;sourceAction?:React.ReactNode;appointmentSemester?:string}) {
   const lifecycle=record.appointmentLifecycle;
   if(!lifecycle)return null;
   const active=lifecycle.status==='ACTIVE';
@@ -80,6 +80,7 @@ export function PanelAppointmentRecordCard({record,actions,compact=false,showHis
   if(compact)return <div data-panel-appointment-record><AppointmentRecordSection actions={actions} history={(showHistory&&events.length>0)||children?<>{showHistory&&events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:null}{children}</>:undefined}>
     <dl className="space-y-5"><div className="space-y-2"><dt className={label}>Appointment status</dt><dd><StatusBadge tone={active?'success':'neutral'}>{panelStatusLabel(lifecycle.status)}</StatusBadge></dd></div>
       <PanelDetailFact title="Appointment date" value={formatRequestDisplayDate(panelRecordedDate(approved))}/>
+      {appointmentSemester && <PanelDetailFact title="Appointment semester" value={appointmentSemester}/>}
       {!active?<><PanelDetailFact title="Ended on" value={formatRequestDisplayDate(lifecycle.endedAt)}/>{lifecycle.endOutcome?<PanelDetailFact title="Outcome" value={panelStatusLabel(lifecycle.endOutcome)}/>:null}{lifecycle.endReason?<PanelDetailFact title="Reason" value={lifecycle.endReason}/>:null}{lifecycle.endedBy?<PanelDetailFact title="Recorded by" value={lifecycle.endedBy}/>:null}</>:null}
     </dl>
     {markingAction}

@@ -7,7 +7,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from accounts.models import CoordinatorDelegation, Student, User
+from accounts.models import CoordinatorDelegation, ProjectRegistration, Student, StudentSemester, User
 from . import test_appointment_lifecycle as fixture
 from .models import (CoSupervisorAppointment, CoSupervisorNomination, SupervisorApplication,
                      SupervisorAppointment, PanelRecommendation, CapacityReassessmentEvent)
@@ -98,6 +98,22 @@ class CoordinatorWorkspaceTests(APITestCase):
         supporting_only = self.get("teams", supervisor=self.supervisor.pk, type="supporting")
         self.assertEqual(supporting_only.data["results"][0]["relationship"], "Supporting supervisor")
         self.assertEqual(self.get("teams", view="students", q="Lifecycle-safe").data["total"], 1)
+
+    def test_current_team_stage_filters_scoped_groups_and_student_rows(self):
+        outside = self.application_for(199, programme="Outside")
+        SupervisorAppointment.objects.create(student=outside.student, supervisor=self.supervisor,
+            application=outside, approved_by=self.coordinator)
+        for student, stage in ((self.student, "P2"), (outside.student, "P1")):
+            StudentSemester.objects.get_or_create(student=student,
+                session=self.semester.academic_session, term=self.semester.term)
+            ProjectRegistration.objects.update_or_create(student=student, academic_semester=self.semester, defaults={"stage": stage})
+        self.assertEqual(self.get("teams", projectStage="P1").data["total"], 0)
+        groups = self.get("teams", projectStage="P2").data
+        self.assertEqual(groups["results"][0]["primaryCount"], 1)
+        students = self.get("teams", projectStage="P2", supervisor=self.supervisor.pk).data
+        self.assertEqual(students["results"][0]["projectStage"], "P2")
+        self.assertEqual(students["projectSemester"], self.semester.label)
+        self.assertEqual(self.get("teams", projectStage="unsupported").status_code, 400)
 
     def test_team_detail_is_singleton_and_primary_application_is_authorized(self):
         response = self.get(f"teams/{self.student.matric_no}")

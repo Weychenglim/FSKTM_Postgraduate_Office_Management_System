@@ -16,6 +16,7 @@ from academics.capacity import (
     resolve_lecturer_capacity,
 )
 from academics.services import current_effective_semester
+from .attention_project_stages import attention_stages, current_stage_fields
 from accounts.authorization import coordinator_manages_programme, coordinator_scope_q, programme_coordinators
 from accounts.eligibility import (
     user_is_assignable_lecturer,
@@ -850,6 +851,8 @@ def serialize_team(student, actor, *, include_details=False):
         "applicationId": pending_primary.pk, "status": pending_primary.status,
         "supervisorName": pending_primary.proposed_supervisor.full_name,
     } if pending_primary and pending_primary.replaces_appointment_id else None
+    if include_details:
+        result.update(current_stage_fields(student.pk))
     if include_details and actor.role in {User.Role.OFFICE_ADMIN, User.Role.COORDINATOR, User.Role.LECTURER}:
         application = primary.application if primary else None
         result["approvedApplicationId"] = application.pk if (
@@ -877,8 +880,16 @@ def workspace(actor):
         .filter(Q(student_id__in=ids) | Q(supervisor=actor))
         .distinct()
     )
+    semester = current_effective_semester() if actor.role in {User.Role.LECTURER, User.Role.STUDENT} else None
+    stages = attention_stages(semester, ids)
+    teams = [serialize_team(student, actor) for student in students]
+    if semester:
+        for team in teams:
+            team["projectStage"] = stages.get(team["studentId"])
+            team["projectSemester"] = semester.label
     return {
-        "teams": [serialize_team(student, actor) for student in students],
+        "teams": teams,
+        "projectSemester": semester.label if semester else None,
         "nominations": [serialize_nomination(row, actor) for row in nominations],
         "appointments": [serialize_appointment(row, actor) for row in appointments],
     }

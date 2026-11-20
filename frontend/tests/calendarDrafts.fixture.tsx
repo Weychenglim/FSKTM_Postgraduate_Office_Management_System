@@ -19,6 +19,8 @@ const timeline={available:true,semester:'Semester I',session:'2026/2027',levels:
 let root:Root|undefined,router:ReturnType<typeof createMemoryRouter>|undefined;
 let lastPayload:Record<string,unknown>={};
 let previewSize=1;
+let linkedReview=false;
+let previewWarnings=true;
 let publishStatus=200;
 let writes=0,fail=false,hold=false,readFail=false,previewFail=false,templateFailures=0,templateHold=false,templateReleases:((response:Response)=>void)[]=[],release:(()=>void)|undefined,signouts=0;
 window.fetch=async(input,init={})=>{
@@ -27,20 +29,34 @@ window.fetch=async(input,init={})=>{
  if(path.endsWith('/academics/semesters/'))return Response.json([semester]);
  if(path.endsWith('/timeline/active/'))return readFail&&writes?Response.json({error:'Refresh unavailable.'},{status:500}):Response.json(timeline);
  if(path.endsWith('/timeline/audit-logs/'))return Response.json({logs:[]});
- if(path.endsWith('/upload/preview/'))return previewFail?Response.json({error:'Fixture preview failed.'},{status:500}):Response.json({mode:(init.body as FormData).get('mode'),existingCount:5,resultingCount:(init.body as FormData).get('mode')==='ADD'?5+previewSize:previewSize,importedCount:previewSize,rows:Array.from({length:previewSize},(_,index)=>({...entry,step:index+1,title:`Import event ${index+1}`,marksPeriodId:null})),warnings:['Review replacement'],requiresAcknowledgement:true,previewToken:'reviewed-token'});
+ if(path.endsWith('/upload/preview/')){
+  const body=init.body as FormData, mode=body.get('mode');
+  const rows=Array.from({length:previewSize},(_,index)=>({...entry,step:index+1,position:index+1,title:`Import event ${index+1}`,marksPeriodId:null}));
+  const result={mode,existingCount:5,resultingCount:mode==='ADD'?5+previewSize:previewSize,importedCount:previewSize,rows,warnings:previewWarnings?['Review replacement']:[],requiresAcknowledgement:previewWarnings,previewToken:'reviewed-token'};
+  if(previewFail)return Response.json({error:'Fixture preview failed.'},{status:500});
+  if(!linkedReview)return Response.json(result);
+  if(!body.has('linkChoices'))return Response.json({...result,previewToken:null,resultingCount:null,
+   linkReviewToken:'linked-review-token',availableLinkRows:[1],linkConflicts:[
+    {...entry,entryId:22,title:'Supervisor applications',periodName:'Supervisor intake',operationalPeriodId:19,deadlineEnd:'2026-10-28'},
+    {...entry,entryId:23,title:'Past panel event',periodName:'Panel window',operationalPeriodId:20},
+   ]});
+  check(body.get('linkReviewToken')==='linked-review-token','Link choices lost their review token');
+  check(body.get('linkChoices')===JSON.stringify({22:'keep-dates:1',23:'keep'}),'Incorrect link choices');
+  return Response.json({...result,carriedCount:1,resultingCount:2,rows:[{...rows[0],deadlineEnd:'2026-10-28'},{...entry,position:2,step:2,title:'Past panel event'}]});
+ }
  if(path.endsWith('/timeline/publish/')){writes++;lastPayload=JSON.parse(init.body as string);return Response.json(publishStatus===200?timeline:{error:'Calendar changed. Reload and review.'},{status:publishStatus});}
  if(path.endsWith('/timeline/template/')){check(url.search==='?semesterId=2','Wrong template semester');if(templateHold)return new Promise<Response>(resolve=>templateReleases.push(resolve));if(templateFailures-->0)return Response.json({error:'Template unavailable.'},{status:500});return new Response(new Blob(['fixture workbook']),{headers:{'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}});}
  if(path.endsWith('/timeline/upload/')||path.includes('/timeline/entries/')){
   if(typeof init.body==='string')lastPayload=JSON.parse(init.body);
   writes++;if(hold)await new Promise<void>(r=>release=r);
   if(fail)return Response.json({error:'Fixture mutation failed.'},{status:500});
-  if(path.endsWith('/upload/')){check(init.body instanceof FormData&&init.body.get('previewToken')==='reviewed-token','Signed preview missing');return Response.json({timeline,importedCount:1});}
+  if(path.endsWith('/upload/')){check(init.body instanceof FormData&&init.body.get('previewToken')==='reviewed-token','Signed preview missing');check((init.body as FormData).get('acknowledgeWarnings')==='true','Warning acknowledgement missing from upload');return Response.json({timeline,importedCount:1});}
   return Response.json(entry);
  }
  throw Error('Unexpected HTTP '+path);
 };
 async function mount(nested=false,browser=false){root?.unmount();router?.dispose();sessionStorage.clear();writes=signouts=0;previewSize=1;fail=hold=readFail=previewFail=templateHold=false;templateFailures=0;templateReleases=[];release=undefined;
- publishStatus=200;
+ publishStatus=200;linkedReview=false;previewWarnings=true;
  const calendar=<TimelineManagement onBack={()=>{}} onManageSemesters={()=>{}}/>;
  const content=<SessionExitProvider scopeKey="fixture">{exit=><><button onClick={()=>exit(()=>{signouts++;})}>Sign out</button>{nested?<RecordPage title="Calendar parent" backLabel="Back" onBack={()=>{}}>{calendar}</RecordPage>:calendar}</>}</SessionExitProvider>;
  const routes=[{path:'/',element:content},{path:'/other',element:<p>Destination</p>}];
@@ -49,34 +65,88 @@ async function mount(nested=false,browser=false){root?.unmount();router?.dispose
 }
 async function open(){await click('Add events');await until(()=>document.querySelector(title));}
 async function fill(){await change(title,'Keep calendar draft');const ds=document.querySelectorAll<HTMLInputElement>('form input[type="date"]');for(const [i,n]of [...ds].entries()){Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value')!.set!.call(n,i?'2026-10-22':'2026-10-21');n.dispatchEvent(new Event('input',{bubbles:true}));}await pause();}
-async function file(){await click('Import from Excel');const n=document.querySelector<HTMLInputElement>('input[type=file]')!;const data=new DataTransfer();data.items.add(new File(['fixture'],'calendar.xlsx'));n.files=data.files;n.dispatchEvent(new Event('change',{bubbles:true}));await pause();}
+async function file(){if(button('Change file'))await click('Change file');await click('Import from Excel');const n=document.querySelector<HTMLInputElement>('input[type=file]')!;const data=new DataTransfer();data.items.add(new File(['fixture'],'calendar.xlsx'));n.files=data.files;n.dispatchEvent(new Event('change',{bubbles:true}));await pause();}
 async function preview(){await click('Preview import');await until(()=>button('Import 1 event'));check(button('Import 1 event')!.disabled,'Warnings did not gate import');document.querySelector<HTMLInputElement>('[aria-label="Import preview"] input')!.click();await pause();}
 const unload=()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented;};
 async function scenario(name:string,run:()=>Promise<void>){try{await run();results.push({name});}catch(e){results.push({name,error:String(e)});}}
-async function replacement(){const select=document.querySelector<HTMLSelectElement>('select[aria-label="Import action"]')!;select.value='REPLACE';select.dispatchEvent(new Event('change',{bubbles:true}));await pause();}
-await scenario('Add is default; replacement shows counts and requires fresh acknowledgement per file',async()=>{
+async function replacement(){if(button('Change file'))await click('Change file');const select=document.querySelector<HTMLSelectElement>('select[aria-label="Import action"]')!;select.value='REPLACE';select.dispatchEvent(new Event('change',{bubbles:true}));await pause();}
+await scenario('Add is default; one replacement confirmation covers warnings and resets per file',async()=>{
  await mount();await open();await file();check(document.querySelector<HTMLSelectElement>('select[aria-label="Import action"]')?.value==='ADD','Import default is destructive');await replacement();await click('Preview import');await until(()=>button('Import 1 event'));
- check(document.body.textContent?.includes('Existing: 5 events. Incoming: 1 events. Draft after import: 1 events.'),'Replacement counts missing');
+ check(document.body.textContent?.includes('5 in current draft · 1 after import'),'Replacement counts missing');
  const checks=()=>[...document.querySelectorAll<HTMLInputElement>('[aria-label="Import preview"] input[type=checkbox]')];
- checks()[1].click();await pause();check(button('Import 1 event')!.disabled,'Warnings alone allowed replacement');checks()[0].click();await pause();check(!button('Import 1 event')!.disabled,'Reviewed replacement blocked');
- await file();await click('Preview import');await until(()=>button('Import 1 event'));check(!checks()[0].checked,'New workbook inherited replacement acknowledgement');check(writes===0,'Review mutated calendar');
+ const table=document.querySelector('[aria-label="Events to import"]')!;
+ check(checks().length===1&&button('Import 1 event')!.disabled,'Expected one required confirmation');
+ check(!!(table.compareDocumentPosition(checks()[0])&Node.DOCUMENT_POSITION_FOLLOWING),'Confirmation should appear after the events');
+ check(checks()[0].closest('label')?.textContent?.includes('reviewed the warnings and want to replace'),'Confirmation must cover both actions');
+ checks()[0].click();await pause();check(!button('Import 1 event')!.disabled,'Reviewed replacement blocked');
+ previewWarnings=false;await file();await click('Preview import');await until(()=>button('Import 1 event'));check(checks().length===1&&!checks()[0].checked&&button('Import 1 event')!.disabled,'Replacement still needs confirmation without warnings');
+ await click('Change file');const mode=document.querySelector<HTMLSelectElement>('select[aria-label="Import action"]')!;mode.value='ADD';mode.dispatchEvent(new Event('change',{bubbles:true}));await pause();
+ await click('Preview import');await until(()=>button('Import 1 event'));check(checks().length===0&&!button('Import 1 event')!.disabled,'An add without warnings needs no confirmation');
+ check(writes===0,'Review mutated calendar');
 });
 await scenario('Changing import intent invalidates the preview',async()=>{await mount();await open();await file();await preview();await replacement();check(!document.querySelector('[aria-label="Import preview"]'),'Old add preview survived replacement mode');check(!!button('Preview import'),'Fresh preview unavailable');});
+await scenario('Linked replacement requires a decision for each event and explicit window dates',async()=>{
+ await mount();linkedReview=true;await open();await file();await replacement();await click('Preview import');
+ await until(()=>button('Review replacement'));
+ check(button('Review replacement')!.disabled&&!button('Import 1 event'),'Unresolved links enabled import');
+ check(!button('Browse File')&&!button('Download template')&&!button('Create one event'),'Upload controls remain on linked review');
+ const help=document.querySelector<HTMLElement>('summary[aria-label="Why review linked events?"]')!;
+ const details=help.closest('details')!;
+ check(!details.open&&!document.querySelector('[aria-label="Date comparison"]'),'Optional guidance or comparison is shown before a choice');
+ help.click();await pause();
+ check(details.open&&details.textContent?.includes('keep those links'),'Linked-event help did not open');
+ help.click();await pause();
+ check(!details.open,'Linked-event help did not close');
+ const choose=async(id:number,value:string)=>{const select=document.querySelector<HTMLSelectElement>(`#linked-event-${id}-choice:is(select), select[data-linked-event="${id}"]`)!;check(select,'Missing linked event choice');select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}));await pause();};
+ await choose(23,'1');
+ check(!document.querySelector('[aria-label="Date comparison"]'),'Matching dates displayed a conflict panel');
+ await choose(23,'keep');
+ const trigger=document.querySelector<HTMLButtonElement>('button[aria-label="Calendar event to use for Supervisor applications"]')!;
+ check(trigger.textContent?.trim().match(/^(Choose|Select) an option$/),'Empty field should show a placeholder');
+ trigger.click();
+ await until(()=>document.querySelector('[role="listbox"] [role="option"]'));
+ const options=[...document.querySelectorAll<HTMLElement>('[role="listbox"] [role="option"]')];
+ check(options.length===2&&options.some(option=>option.textContent?.includes('Keep existing event')),'The list should contain only actionable choices');
+ options.find(option=>option.textContent?.includes('Import event 1'))!.click();await pause();
+ check(button('Review replacement')!.disabled,'Different dates lacked confirmation');
+ check(document.querySelector('a[href="/dashboard/periods?semester=2&manage=window#operational-period-19"]'),'Missing direct Manage period link');
+ const comparison=document.querySelector('[aria-label="Date comparison"]');
+ check(comparison?.querySelector('time[datetime="2026-10-28"]')&&comparison.querySelector('time[datetime="2026-10-30"]'),'Date comparison missing');
+ document.querySelector<HTMLInputElement>('#keep-window-dates-22')!.click();await pause();
+ await click('Review replacement');await until(()=>button('Import 1 event'));
+ check(writes===0&&document.body.textContent?.includes('Past panel event'),'Review wrote data or omitted the carried event');
+ check(document.body.textContent?.includes('2 after import'),'Kept event missing from final count');
+ check(!document.querySelector('[aria-label="Linked events to review"]')&&!button('Browse File')&&!button('Download template'),'Previous stages remain on final review');
+ await until(()=>document.querySelector('dialog[open] h2')===document.activeElement);
+ await click('Back');
+ check(document.querySelector<HTMLInputElement>('#keep-window-dates-22')?.checked,'Back lost the date confirmation');
+ check(document.querySelector<HTMLSelectElement>('select[data-linked-event="23"]')?.value==='keep','Back lost the carried event choice');
+ await click('Review replacement');await until(()=>button('Import 1 event'));
+ check(!document.querySelector<HTMLInputElement>('[aria-label="Import preview"] input')?.checked,'Returning to final review retained old import consent');
+});
 await scenario('Published calendar hides publishing until another change exists',async()=>{
  const original={...timeline.publication};
  try {
   Object.assign(timeline.publication,{publishedAt:'2026-11-08T08:00:00Z',hasUnpublishedChanges:false});
   await mount();check(!button('Publish calendar'),'Published calendar still offers publishing');check(document.querySelector('[role=status]')?.textContent==='Published','Published state missing');
   Object.assign(timeline.publication,{hasUnpublishedChanges:true});
-  await mount();check(button('Publish calendar')&&!button('Publish calendar')!.disabled,'New changes cannot be published');check(document.querySelector('[role=status]')?.textContent==='Unpublished','Draft state missing');
+  await mount();check(button('Publish calendar')&&!button('Publish calendar')!.disabled,'New changes cannot be published');check(document.querySelector('[role=status]')?.textContent?.trim().toLowerCase()==='unpublished','Draft state missing');
   check(writes===0,'Viewing publication state mutated data');
  } finally {Object.assign(timeline.publication,original);}
 });
-await scenario('Publish reviews exact semester/counts and cancel is read only',async()=>{await mount();await click('Publish calendar');await until(()=>document.querySelector('dialog[open]'));check(document.querySelector('dialog[open]')?.textContent?.includes('publish all 1 draft events, replacing 5 published events'),'Publication review missing counts');await click('Cancel');check(writes===0,'Cancel published');await click('Publish calendar');await pause();const confirm=document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]')!;confirm.click();confirm.click();await until(()=>writes===1&&!document.querySelector('dialog[open]'));check(lastPayload.semesterId===2&&lastPayload.reviewToken==='publish-review','Wrong publication review submitted');});
+await scenario('Publish reviews exact semester/counts and cancel is read only',async()=>{
+  await mount();await click('Publish calendar');await until(()=>document.querySelector('dialog[open]'));
+  const review = document.querySelector('dialog[open]')?.textContent;
+  check(review?.includes('1 draft event will be published.') && review.includes('5 currently published events will be replaced.'), 'Publication review missing counts');
+  await click('Cancel');check(writes===0,'Cancel published');await click('Publish calendar');await pause();
+  const confirm=document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]')!;
+  confirm.click();confirm.click();await until(()=>writes===1&&!document.querySelector('dialog[open]'));
+  check(lastPayload.semesterId===2&&lastPayload.reviewToken==='publish-review','Wrong publication review submitted');
+});
 await scenario('Stale publication retains review and cannot retry without reload',async()=>{await mount();publishStatus=409;await click('Publish calendar');await until(()=>document.querySelector('dialog[open]'));document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]')!.click();await until(()=>document.querySelector('dialog[open]')?.textContent?.includes('Calendar changed'));check(!document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]') || document.querySelector<HTMLButtonElement>('dialog[open] button[type=submit]')!.disabled,'Stale publish can retry');check(writes===1,'Unexpected publish retry');});
 await scenario('Clean and reverted local exits are quiet',async()=>{await mount();await open();await click('Cancel');check(!document.querySelector('dialog[open]'),'Clean prompted');await open();await change(title,'Temporary');await change(title,'');check(!unload(),'Reverted unload blocked');await click('Cancel');check(!document.querySelector('dialog[open]'),'Reverted prompted');});
 await scenario('Both methods survive switching and local Keep; discard clears both',async()=>{await mount();await open();await fill();await file();await click('Create one event');check(document.querySelector<HTMLInputElement>(title)?.value==='Keep calendar draft','Switch lost create');await click('Cancel');await click('Keep editing');await click('Import from Excel');check(document.body.textContent?.includes('calendar.xlsx'),'Keep lost file');await click('Cancel');await click('Discard changes');await open();check(document.querySelector<HTMLInputElement>(title)?.value==='','Discard resurrected create');await click('Import from Excel');check(!document.body.textContent?.includes('calendar.xlsx'),'Discard resurrected file');});
-await scenario('Import preview has one primary action and paginates long workbooks',async()=>{await mount();await open();await file();previewSize=23;await click('Preview import');await until(()=>button('Import 23 events'));check(!button('Preview import'),'Preview action remains after review');const region=()=>document.querySelector('[aria-label="Events to import"]')!;check(region().querySelectorAll('tbody tr').length===10,'Preview is not limited to ten rows');check(region().textContent?.includes('Research Project 1 (P1)')&&!region().textContent?.includes('Calendar only')&&!region().textContent?.includes('Schedule source'),'Unclear category or schedule labels');await click('Next');check(region().textContent?.includes('Import event 11'),'Second page missing');await click('Next');check(region().querySelectorAll('tbody tr').length===3&&button('Next')!.disabled,'Last page incorrect');await click('Previous');check(region().querySelectorAll('tbody tr').length===10,'Previous page incorrect');await click('Clear Selected File');check(!document.querySelector('[aria-label="Import preview"]')&&button('Preview import')!.disabled,'File clearing retained old preview');check(writes===0,'Review wrote calendar data');});
+await scenario('Import preview has one primary action and paginates long workbooks',async()=>{await mount();await open();await file();previewSize=23;await click('Preview import');await until(()=>button('Import 23 events'));check(!button('Preview import'),'Preview action remains after review');const region=()=>document.querySelector('[aria-label="Events to import"]')!;check(region().querySelectorAll('tbody tr').length===10,'Preview is not limited to ten rows');check(region().textContent?.includes('Research Project 1 (P1)')&&!region().textContent?.includes('Calendar only')&&!region().textContent?.includes('Schedule source'),'Unclear category or schedule labels');await click('Next');check(region().textContent?.includes('Import event 11'),'Second page missing');await click('Next');check(region().querySelectorAll('tbody tr').length===3&&button('Next')!.disabled,'Last page incorrect');await click('Previous');check(region().querySelectorAll('tbody tr').length===10,'Previous page incorrect');await click('Change file');await click('Clear Selected File');check(!document.querySelector('[aria-label="Import preview"]')&&button('Preview import')!.disabled,'File clearing retained old preview');check(writes===0,'Review wrote calendar data');});
 await scenario('Responsible parties are independent of audience and survive create/edit payloads',async()=>{
  await mount();await open();await fill();await change('#timeline-responsible-create','   ');check(button('Create event')!.disabled,'Blank responsibility accepted');await change('#timeline-responsible-create','Office Staff');await click('Create event');await until(()=>writes===1);check(lastPayload.action==='Office Staff'&&JSON.stringify(lastPayload.targetRoles)==='["STUDENT"]','Create conflated responsibility and audience');
  await mount();await click('Entries');await click('Edit event');await until(()=>document.querySelector('#timeline-responsible-edit'));check(document.querySelector<HTMLInputElement>('#timeline-responsible-edit')!.value==='Student / Supervisor','Saved responsibility missing in editor');await change('#timeline-responsible-edit','Office Staff');await click('Save Changes');await until(()=>writes===1);check(lastPayload.action==='Office Staff'&&JSON.stringify(lastPayload.targetRoles)==='["STUDENT"]','Edit lost responsibility or changed audience');

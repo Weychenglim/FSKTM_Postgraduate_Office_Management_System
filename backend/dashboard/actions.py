@@ -4,7 +4,8 @@ from django.db.models import Q
 from django.utils import timezone
 
 from accounts.authorization import coordinator_scope_q
-from accounts.models import Lecturer, Panel, Supervisor
+from accounts.models import Lecturer, Panel, Student, Supervisor
+from accounts.project_stages import ON_PROJECT, project_stages
 from academics.capacity import CapacityRole, CapacityState, resolve_lecturer_capacity
 from academics.services import current_effective_semester
 from appointments.ageing import (
@@ -18,6 +19,7 @@ from appointments.models import (
 )
 from marks.deadlines import mark_deadline_metadata
 from marks.models import EvaluationTask, MarkEntry
+from marks.stage_eligibility import stage_monitoring_tasks
 
 from .models import SemesterTimeline, SemesterTimelineEntry
 from .serializers import TimelineEntrySerializer
@@ -198,7 +200,7 @@ def _panel_actions(user, now):
 
 
 def _mark_actions(user, now):
-    from marks.completion_windows import task_due_at, task_window_active
+    from marks.completion_windows import task_due_at, task_eligible, task_window_active
 
     semester = current_effective_semester()
     scope = Q(completion_windows__ended_at__isnull=True, completion_windows__deadline__gt=now)
@@ -224,9 +226,9 @@ def _mark_actions(user, now):
         "period",
         "period__academic_semester",
         "mark_entry",
-    ).prefetch_related("completion_windows__granted_by")
+    ).prefetch_related("completion_windows__granted_by", "lifecycle_audits")
     actions = []
-    for task in tasks:
+    for task in stage_monitoring_tasks(tasks):
         window = task_window_active(task, now=now)
         if (semester is None or task.period.academic_semester_id != semester.pk) and not window:
             continue
@@ -241,6 +243,12 @@ def _mark_actions(user, now):
             "UPCOMING": "upcoming",
             "NO_DEADLINE": "pending",
         }[metadata["deadlineState"]]
+        office_recovery = (
+            user.role == User.Role.OFFICE_ADMIN
+            and not window
+            and task.period.status_at(now) == 'CLOSED'
+            and task_eligible(task, now)
+        )
         actions.append(
             _task(
                 id=f"marks_{task.pk}",
@@ -253,6 +261,7 @@ def _mark_actions(user, now):
                 recordId=str(task.pk),
                 semester=task.period.academic_semester.label if task.period.academic_semester_id else "Legacy / Unassigned",
                 semesterCode=task.period.academic_semester.code if task.period.academic_semester_id else None,
+                **({'needsLateSubmissionDecision': True} if office_recovery else {}),
                 **metadata,
             )
         )
@@ -277,7 +286,12 @@ def _timeline_actions(user, now):
         target_roles__contains=[role],
     ).select_related("timeline", "marks_period", "operational_period")
     if user.role == User.Role.STUDENT:
-        entries = entries.filter(marks_period__isnull=True)
+        if not Student.objects.filter(pk=user.pk, status=Student.Status.ACTIVE).exists():
+            return []
+        project = project_stages(semester, [user.pk])[user.pk]
+        if project.state != ON_PROJECT or not project.stage:
+            return []
+        entries = entries.filter(level=project.stage, marks_period__isnull=True)
     today = timezone.localdate(now)
     actions = []
     for entry in entries:

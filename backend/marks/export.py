@@ -10,11 +10,13 @@ from openpyxl.utils import get_column_letter
 from accounts.programmes import APPROVED_PROGRAMMES, normalise_programme
 from .completion_windows import task_due_at
 from .models import EvaluationTask, MarkEntry
+from .stage_eligibility import stage_monitoring_tasks
 
 
 PROGRAMME_TABS = dict(zip(APPROVED_PROGRAMMES, (
     'Data Science', 'Cyber Security', 'Artificial Intelligence',
 )))
+ASSESSMENT_LABELS = {'P1': 'RP1', 'P2': 'RP2'}
 IDENTITY = ['Record ID', 'Student ID', 'Student name', 'Programme', 'Semester',
             'Evaluation period', 'Assessment', 'Research title', 'Evaluator', 'Evaluator role',
             'Assignment status', 'Period status']
@@ -35,10 +37,14 @@ def submitted(task):
     return bool(entry and entry.status == MarkEntry.Status.SUBMITTED)
 
 
+def assessment_label(assessment):
+    return ASSESSMENT_LABELS.get(assessment, assessment or 'Unclassified (legacy)')
+
+
 def identity(task):
     return [f'MRK-{task.pk:05d}', task.profile.matric_no, task.profile.student_name,
             task.profile.programme, task.period.semester, task.period.name,
-            task.period.assessment or 'Unclassified (legacy)',
+            assessment_label(task.period.assessment),
             task.profile.proposed_topic, task.evaluator.full_name,
             task.get_evaluator_role_display(), task.lifecycle_status, task.period.lifecycle_status]
 
@@ -55,10 +61,12 @@ def build_marks_workbook(tasks, scope):
     active = EvaluationTask.objects.filter(
         profile_id__in={p for p, _ in pairs}, period_id__in={p for _, p in pairs},
         lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-    ).select_related('mark_entry', 'evaluator')
+    ).select_related('mark_entry', 'evaluator', 'profile__student__student',
+                     'period__academic_semester').prefetch_related('lifecycle_audits')
+    active = [task for task in active if (task.profile_id, task.period_id) in pairs]
+    monitoring_ids = {task.pk for task in stage_monitoring_tasks(active)}
     for task in active:
-        if (task.profile_id, task.period_id) in pairs:
-            relevant[task.profile_id, task.period_id].append(task)
+        relevant[task.profile_id, task.period_id].append(task)
 
     book = Workbook()
     book.remove(book.active)
@@ -109,18 +117,24 @@ def build_marks_workbook(tasks, scope):
         if key in seen:
             continue
         seen.add(key)
-        assignments = relevant[key]
+        assignments = [assignment for assignment in relevant[key] if assignment.pk in monitoring_ids]
+        review_required = len(assignments) != len(relevant[key])
         count = sum(submitted(t) for t in assignments)
-        progress = '; '.join(f'{t.get_evaluator_role_display()}: {t.evaluator.full_name} — '
-                             f'{"Submitted" if submitted(t) else "Pending"}' for t in assignments)
+        progress = []
+        for assignment in relevant[key]:
+            state = 'Review Required' if assignment.pk not in monitoring_ids else (
+                'Submitted' if submitted(assignment) else 'Pending')
+            progress.append(f'{assignment.get_evaluator_role_display()}: {assignment.evaluator.full_name} — {state}')
         summary.append([task.profile.matric_no, task.profile.student_name, task.profile.programme,
-                        task.period.semester, task.period.name, task.period.assessment or 'Unclassified (legacy)',
+                        task.period.semester, task.period.name, assessment_label(task.period.assessment),
                         f'{count} / {len(assignments)}',
+                        'Review Required' if review_required else
                         'Complete' if assignments and count == len(assignments) else
-                        'Incomplete' if assignments else 'No active assignments', progress])
+                        'Incomplete' if assignments else 'No active assignments', '; '.join(progress)])
     sheet('Summary', ['Student ID', 'Student name', 'Programme', 'Semester', 'Evaluation period', 'Assessment',
                      'Submitted / active assignments', 'Completion', 'Evaluator progress'], summary,
-          'Completion checks all active assignments for these students and periods, including assignments hidden by filters. '
+          'Completion checks active assignments for these students and periods, including assignments hidden by filters. '
+          'Unfinished assignments requiring stage review are shown separately from the completion count. '
           'No combined grade is calculated. Students without any matching assignment are not listed.')
 
     grouped = {name: [] for name in PROGRAMME_TABS.values()}
@@ -162,6 +176,8 @@ def build_marks_workbook(tasks, scope):
         entry = entry_for(task)
         due = task_due_at(task)
         state = 'Overdue' if due and due < now else 'Draft' if entry and entry.status == 'DRAFT' else 'Not Started'
+        if task.lifecycle_status == EvaluationTask.Lifecycle.ACTIVE and task.pk not in monitoring_ids:
+            state = 'Review Required'
         outstanding.append(identity(task) + [state, excel_date(due)])
     sheet('Outstanding', IDENTITY + ['Status', 'Deadline'], outstanding,
           'Matching unsubmitted assignments only; draft scores and feedback are excluded. '

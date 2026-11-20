@@ -8,7 +8,7 @@ from rest_framework.test import APITestCase
 
 from . import tests as fixture
 from .models import (
-    EvaluationPeriod, EvaluationTask, EvaluationTaskOverrideAudit,
+    EvaluationPeriod, EvaluationTask,
     MarkCorrectionAudit, MarkEntry, MarksConfigurationAudit, Rubric,
 )
 
@@ -207,7 +207,7 @@ class MarksAdminAcceptanceTests(APITestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(self.snapshot(entry), before)
 
-    def test_admin_cannot_reassign_evaluator_without_override_service(self):
+    def test_admin_cannot_reassign_evaluator(self):
         before = EvaluationTask.objects.values().get(pk=self.task.pk)
         response = self.admin_client(superuser=True).post(self.change_url(self.task), {
             "profile": self.profile.pk, "evaluator": self.other_lecturer.pk,
@@ -215,7 +215,6 @@ class MarksAdminAcceptanceTests(APITestCase):
         })
         self.assertEqual(response.status_code, 403)
         self.assertEqual(EvaluationTask.objects.values().get(pk=self.task.pk), before)
-        self.assertFalse(EvaluationTaskOverrideAudit.objects.exists())
 
     def test_admin_cannot_change_period_semester_outside_configuration_service(self):
         before = EvaluationPeriod.objects.values().get(pk=self.period.pk)

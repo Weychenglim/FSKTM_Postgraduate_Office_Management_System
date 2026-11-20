@@ -1,3 +1,4 @@
+import { shortAssessmentLabel } from '../utils/assessment';
 import {parseAppointmentMarkingTarget,mergeMarkingTasks} from '../utils/appointmentMarking';
 import { useLocation, useNavigate } from 'react-router';
 import { APP_ROUTES } from '../constants/routes';
@@ -116,12 +117,13 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = () => {
   // 2. Filters & Searches State
   const [searchTerm, setSearchTerm] = useListState('LecturerMarksEntry', 'searchTerm', '');
   const [selectedSemester, setSelectedSemester] = useListState('LecturerMarksEntry', 'selectedSemester', 'All Semesters');
+  const [assessment, setAssessment] = useListState('LecturerMarksEntry', 'assessment', '');
   const [selectedStatus, setSelectedStatus] = useListState('LecturerMarksEntry', 'selectedStatus', 'All Statuses');
   
   useEffect(()=>{
     if(!target)return;
-    setSearchTerm('');setSelectedSemester('All Semesters');setSelectedStatus('All Statuses');
-  },[target,setSearchTerm,setSelectedSemester,setSelectedStatus]);
+    setSearchTerm('');setSelectedSemester('All Semesters');setSelectedStatus('All Statuses');setAssessment('');
+  },[target,setSearchTerm,setSelectedSemester,setSelectedStatus,setAssessment]);
 
   // Active form view state
   const [activeFormTask, setActiveFormTask] = useState<EvaluationTask | null>(null);
@@ -145,14 +147,18 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = () => {
     setSearchTerm('');
     setSelectedSemester('All Semesters');
     setSelectedStatus('All Statuses');
+    setAssessment('');
   };
 
   const requestedRole = new URLSearchParams(contextSearch || location.search).get('role');
-  const selectedRole = target?.role ?? (requestedRole === 'SUPERVISOR' || requestedRole === 'PANEL' || requestedRole === 'BACKUP' ? requestedRole : initialMarkingRole(tasks, rememberedRole));
+  const selectedRole = target?.role ?? (requestedRole === 'SUPERVISOR' || requestedRole === 'PANEL' ? requestedRole : initialMarkingRole(tasks, rememberedRole));
   const workspace = markingWorkspaces[selectedRole];
   const roleTasks = tasksForMarkingRole(target?mergeMarkingTasks(tasks,linkedSubmitted):tasks, selectedRole).filter(task=>!target||task.studentId===target.studentId);
   const semesterOptions = getMarkTaskSemesters(tasks);
-  const filteredTasks = orderMarkingTasks(filterMarkTasks(roleTasks, searchTerm.trim(), selectedSemester, selectedStatus));
+  const hasUnclassified = roleTasks.some(task => !task.assessment);
+  const activeAssessment = assessment === 'unclassified' && !hasUnclassified ? '' : assessment;
+  const filteredTasks = orderMarkingTasks(filterMarkTasks(roleTasks, searchTerm.trim(), selectedSemester, selectedStatus)
+    .filter(task => !activeAssessment || (task.assessment || 'unclassified') === activeAssessment));
   const summaryTasks = filterMarkTasks(roleTasks, '', selectedSemester, 'All Statuses');
   const statAssigned = summaryTasks.length;
   const statNotStarted = summaryTasks.filter(task => task.status === 'NOT STARTED').length;
@@ -218,7 +224,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = () => {
               controls="lecturer-marking-workspace" countsKnown={!loading && !error} />
 
             <section id="lecturer-marking-workspace" aria-label={workspace.title} className="space-y-5">
-            {/* Counts cover this responsibility and selected semester, before search/status filters. */}
+            {/* Counts cover this responsibility and selected semester, before list filters. */}
             {!loading && !error ? <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
               <CustomSummaryCard 
                 title="Assigned tasks"
@@ -248,7 +254,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = () => {
                 <PortalButton onClick={() => navigate(`${APP_ROUTES.marksHistory}?role=${selectedRole}`)}>View submission history</PortalButton>
               </div>
 
-            <WorkspaceFilterCard onReset={clearFilters} fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
+            <WorkspaceFilterCard onReset={clearFilters} fieldsClassName="grid grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
               <label htmlFor="lecturer-marks-search" className="form-label min-w-0 sm:col-span-2 xl:col-span-1">Search students
                 <span className="relative mt-1 block">
                   <Search aria-hidden="true" className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -259,6 +265,14 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = () => {
                 <PortalSelect aria-label="Semester" value={selectedSemester} onChange={event => setSelectedSemester(event.target.value)} className="form-control form-control-sm mt-1">
                   <option>All Semesters</option>
                   {semesterOptions.map(semester => <option key={semester} value={semester}>{semester}</option>)}
+                </PortalSelect>
+              </label>
+              <label className="form-label min-w-0">Assessment
+                <PortalSelect aria-label="Assessment" value={activeAssessment} onChange={event => setAssessment(event.target.value)} className="form-control form-control-sm mt-1">
+                  <option value="">All assessments</option>
+                  <option value="P1">RP1</option>
+                  <option value="P2">RP2</option>
+                  {hasUnclassified ? <option value="unclassified">Unclassified</option> : null}
                 </PortalSelect>
               </label>
               <label className="form-label min-w-0">Status
@@ -279,7 +293,7 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = () => {
                   <table role="table" className="data-table block text-xs sm:table sm:min-w-[720px]">
                     <caption className="sr-only">{workspace.title} matching the current filters</caption>
                     <thead role="rowgroup" className="hidden sm:table-header-group"><tr role="row" className="data-thead">
-                      {['Student', 'Research / semester', 'Due', 'Status', 'Action'].map(label => <th key={label} scope="col" className="data-th">{label}</th>)}
+                      {['Student', 'Research / semester', 'Assessment', 'Due', 'Status', 'Action'].map(label => <th key={label} scope="col" className="data-th">{label}</th>)}
                     </tr></thead>
                     <tbody role="rowgroup" className="block space-y-3 sm:table-row-group sm:space-y-0">
                       {filteredTasks.map(task => {
@@ -293,6 +307,10 @@ export const LecturerMarksEntry: React.FC<LecturerMarksEntryProps> = () => {
                           <td role="cell" className="data-td col-span-2 block min-w-0 px-0 py-2 [overflow-wrap:anywhere] sm:table-cell sm:max-w-[260px] sm:px-5 sm:py-4">
                             <p className="card-value line-clamp-2">{task.researchTitle}</p>
                             <p className="card-description mt-1">{task.semester}</p>
+                          </td>
+                          <td role="cell" className="data-td block min-w-0 px-0 py-2 sm:table-cell sm:px-5 sm:py-4">
+                            <span className="card-label mb-1 block sm:hidden">Assessment</span>
+                            {shortAssessmentLabel(task.assessment)}
                           </td>
                           <td role="cell" className={`data-td block min-w-0 px-0 py-2 [overflow-wrap:anywhere] sm:table-cell sm:px-5 sm:py-4 ${overdue ? 'text-rose-700' : ''}`}>
                             <span className="card-label mb-1 block sm:hidden">Due</span>

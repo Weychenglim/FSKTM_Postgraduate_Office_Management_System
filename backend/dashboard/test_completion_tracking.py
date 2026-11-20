@@ -6,6 +6,7 @@ from openpyxl import load_workbook
 from rest_framework.test import APITestCase
 
 from academics.models import AcademicSemester
+from appointments.models import PanelAppointment
 from marks.models import EvaluationPeriod, EvaluationTask
 from . import test_reports as fixture
 
@@ -20,8 +21,10 @@ class CompletionWindowTrackingTests(APITestCase):
         fixture.WorkflowReportTests.setUp(self)
         self.office.is_staff = True
         self.office.save(update_fields=["is_staff"])
-        self.mark_task.evaluator_role = EvaluationTask.EvaluatorRole.BACKUP
-        self.mark_task.save(update_fields=["evaluator_role"])
+        PanelAppointment.objects.create(
+            recommendation=self.pending_panel, profile=self.profile,
+            supervisor=self.supervisor, panel_member=self.panel, approved_by=self.office,
+        )
         self.deadline = self.now + timedelta(days=3)
         self.client.force_authenticate(self.office)
 

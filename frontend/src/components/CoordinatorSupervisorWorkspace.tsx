@@ -11,6 +11,7 @@ import { SupervisionWorkbookExport } from './SupervisionWorkbookExport';
 import { SupervisorWorkspaceNavigation } from './SupervisorWorkspaceNavigation';
 import { AppointmentViewSwitch, RequestViewSwitch, WorkspaceSectionHeader } from './RequestWorkspacePrimitives';
 import { useListState } from './ListState';
+import { ProjectStageFilter, projectStageLabel } from './AttentionProjectStage';
 import { LoadingState, ErrorState } from './StateViews';
 import { requestStatusLabel } from '../utils/lecturerRequests';
 import { formatRequestStageWaiting } from '../utils/requestStageWaiting';
@@ -64,21 +65,28 @@ export function CoordinatorTeamsToolbar({view,onChange,focusRequest}: {view:'req
 }
 export function CoordinatorStudentBrowse({group,source,refreshVersion,onOpen}: {group?:SupervisorGroup;source?:BrowseParams;refreshVersion:number;onOpen:(matric:string)=>void}) {
  const {scopeKey,api,office,role}=useStaffSupervisorBrowse();
- const f=useCoordinatorFilters(group?`${scopeKey}-students:${group.id}:${source?.q??''}:${source?.programme??''}:${source?.semester??''}`:`${scopeKey}-team-students`,'name',source);
- const result=useCoordinatorPage(api.students,{...f.params,sort:'name',view:'students',supervisor:group?.id},refreshVersion);
+ const scope=group?`${scopeKey}-students:${group.id}:${source?.q??''}:${source?.programme??''}:${source?.semester??''}:${source?.projectStage??''}`:`${scopeKey}-team-students`;
+ const f=useCoordinatorFilters(scope,'name',source);
+ const [projectStage,setProjectStage]=useListState(scope,'projectStage',String(source?.projectStage??''));
+ const params={...f.params,projectStage,sort:'name',supervisor:group?.id};
+ const result=useCoordinatorPage(api.students,{...params,view:'students'},refreshVersion);
  return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white"><WorkspaceSectionHeader title={group?'Students under supervision':'Current teams'} description={group?(office?'Primary and supporting relationships across programmes. Each matching student appears once.':'Primary and supporting relationships in your managed programmes. Each matching student appears once.'):'Find a student and open their supervisory team.'} />
- <CoordinatorFiltersBar filters={{...f,sort:'name'}} facets={result.data?.facets} includeStatusAndDates={false} searchLabel="Find a student or supervisor" sortOptions={[["name","Student name"]]} actions={<SupervisionWorkbookExport role={role} params={{...f.params,sort:'name',supervisor:group?.id}} lecturer={!!group} disabled={result.loading||!!result.error}/>} />
+ <CoordinatorFiltersBar filters={{...f,sort:'name',reset:()=>{f.reset();setProjectStage('');}}} extraFilters={<ProjectStageFilter includeOtherStates value={projectStage} onChange={f.change(setProjectStage)} semester={result.data?.projectSemester}/>} facets={result.data?.facets} includeStatusAndDates={false} searchLabel="Find a student or supervisor" sortOptions={[["name","Student name"]]} actions={<SupervisionWorkbookExport role={role} params={params} lecturer={!!group} disabled={result.loading||!!result.error}/>} />
  <PageState {...result} empty={!result.data?.results.length}/>
- {!result.loading&&!result.error&&result.data?.results.length?<CoordinatorDataTable label="Current supervisory teams" columns={['Student','Programme',group?'Relationship':'Primary supervisor','Action']} rows={result.data.results.map(row=>({key:row.id,cells:[identity(row.studentName,row.matricNo),row.programme,group?row.relationship:row.primarySupervisor?.name??'Not appointed',<PortalButton size="sm" onClick={()=>onOpen(row.matricNo)}>View supervision</PortalButton>]}))}/>:null}
+ {!result.loading&&!result.error&&result.data?.results.length?<CoordinatorDataTable label="Current supervisory teams" columns={['Student','Programme','Project stage',group?'Relationship':'Primary supervisor','Action']} rows={result.data.results.map(row=>({key:row.id,cells:[identity(row.studentName,row.matricNo),row.programme,projectStageLabel(row.projectStage),group?row.relationship:row.primarySupervisor?.name??'Not appointed',<PortalButton size="sm" onClick={()=>onOpen(row.matricNo)}>View supervision</PortalButton>]}))}/>:null}
  {!result.loading&&!result.error?<CoordinatorPageFooter data={result.data} filters={f} noun="students"/>:null}</section>;
 }
 export function CoordinatorSupervisorBrowse({refreshVersion,onOpen,viewActions}: {viewActions?:React.ReactNode;refreshVersion:number;onOpen:(group:SupervisorGroup,source:BrowseParams)=>void}) {
  const {scopeKey,api,office,role}=useStaffSupervisorBrowse();
- const f=useCoordinatorFilters(`${scopeKey}-team-supervisors`,'name');const result=useCoordinatorPage(api.supervisors,{...f.params,view:'supervisors'},refreshVersion);
+ const scope=`${scopeKey}-team-supervisors`;
+ const f=useCoordinatorFilters(scope,'name');
+ const [projectStage,setProjectStage]=useListState(scope,'projectStage','');
+ const params={...f.params,projectStage};
+ const result=useCoordinatorPage(api.supervisors,{...params,view:'supervisors'},refreshVersion);
  return <section className="appointment-workspace-card rounded-2xl border border-slate-200 bg-white"><WorkspaceSectionHeader title="Current teams" actions={viewActions} description={office?"Browse supervisors and their students across programmes.":"Browse supervisors and their students in your managed programmes."}/>
- <CoordinatorFiltersBar filters={f} facets={result.data?.facets} includeStatusAndDates={false} searchLabel="Find a student or supervisor" sortOptions={[["name","Supervisor name"],["primary","Most primary students"],["supporting","Most supporting students"]]} actions={<SupervisionWorkbookExport role={role} params={f.params} disabled={result.loading||!!result.error}/>} />
+ <CoordinatorFiltersBar filters={{...f,reset:()=>{f.reset();setProjectStage('');}}} extraFilters={<ProjectStageFilter includeOtherStates value={projectStage} onChange={f.change(setProjectStage)} semester={result.data?.projectSemester}/>} facets={result.data?.facets} includeStatusAndDates={false} searchLabel="Find a student or supervisor" sortOptions={[["name","Supervisor name"],["primary","Most primary students"],["supporting","Most supporting students"]]} actions={<SupervisionWorkbookExport role={role} params={params} disabled={result.loading||!!result.error}/>} />
  <PageState {...result} empty={!result.data?.results.length}/>
- {!result.loading&&!result.error&&result.data?.results.length?<CoordinatorSupervisorTable rows={result.data.results} onOpen={group=>onOpen(group,f.params)}/>:null}
+ {!result.loading&&!result.error&&result.data?.results.length?<CoordinatorSupervisorTable rows={result.data.results} onOpen={group=>onOpen(group,params)}/>:null}
  {!result.loading&&!result.error?<CoordinatorPageFooter data={result.data} filters={f} noun="supervisors"/>:null}</section>;
 }
 export function CoordinatorAppointmentHistory({refreshVersion,onOpen,viewActions}: {viewActions?:React.ReactNode;refreshVersion:number;onOpen:(row:CoordinatorAppointmentRow)=>void}) {
@@ -123,7 +131,7 @@ export function CoordinatorSupervisorWorkspace(props:Props) {
  if(props.initialApplicationId||props.initialSupportingId||props.routeTeamStudentId)return <CoordinatorSupervisorApprovals {...props}/>;
  if(tool)return <CoordinatorCapacityBrowse initialTarget={capacityTarget} onClose={()=>{setTool(false);setCapacityTarget(null);}} refreshVersion={version}/>;
  if(supportingAppointment!==null)return <SupportingAppointmentRecord id={supportingAppointment} onBack={()=>setSupportingAppointment(null)}/>;
- if(props.workspaceView==='teams'&&selectedGroup&&teamView==='requests')return <RecordPage pageKey={`coordinator-supervisor-students:${selectedGroup.group.id}`} title={selectedGroup.group.name} subtitle="Students under supervision in your managed programmes" backLabel="Back to Supervisory teams" onBack={()=>setSelectedGroup(null)}><CoordinatorStudentBrowse key={`${selectedGroup.group.id}:${selectedGroup.source.q}:${selectedGroup.source.programme}:${selectedGroup.source.semester}`} group={selectedGroup.group} source={selectedGroup.source} refreshVersion={version} onOpen={id=>props.onNavigateToTeam?.(id)}/></RecordPage>;
+ if(props.workspaceView==='teams'&&selectedGroup&&teamView==='requests')return <RecordPage pageKey={`coordinator-supervisor-students:${selectedGroup.group.id}`} title={selectedGroup.group.name} subtitle="Students under supervision in your managed programmes" backLabel="Back to Supervisory teams" onBack={()=>setSelectedGroup(null)}><CoordinatorStudentBrowse key={`${selectedGroup.group.id}:${selectedGroup.source.q}:${selectedGroup.source.programme}:${selectedGroup.source.semester}:${selectedGroup.source.projectStage??''}`} group={selectedGroup.group} source={selectedGroup.source} refreshVersion={version} onOpen={id=>props.onNavigateToTeam?.(id)}/></RecordPage>;
  return <div className="space-y-6 text-left font-sans"><PageHeader title="Supervisor Appointments" subtitle="Review appointment requests and manage supervision in your programmes." actions={<PortalButton size="sm" onClick={()=>{setCapacityTarget(null);setTool(true);}}>Capacity reassessments</PortalButton>}/><SupervisorWorkspaceNavigation role="Programme Coordinator"/>
  {props.workspaceView==='teams'?<>{teamView==='history'?<CoordinatorAppointmentHistory viewActions={<CoordinatorTeamsToolbar focusRequest={focusRequest} view={teamView} onChange={setTeamView}/>} refreshVersion={version} onOpen={row=>row.kind==='primary'&&row.applicationId?props.onNavigateToApplication?.(String(row.applicationId)):setSupportingAppointment(row.id)}/>:<CoordinatorSupervisorBrowse viewActions={<CoordinatorTeamsToolbar focusRequest={focusRequest} view={teamView} onChange={setTeamView}/>} refreshVersion={version} onOpen={(group,source)=>setSelectedGroup({group,source})}/>}</>:<CoordinatorRequestsBrowse refreshVersion={version} onOpen={(id,kind)=>kind==='primary'?props.onNavigateToApplication?.(String(id)):props.onNavigateToSupportingRequest?.(String(id))} onCarryover={target=>{setCapacityTarget(target);setTool(true);}}/>}
  </div>;

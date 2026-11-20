@@ -1,5 +1,6 @@
-import { MarkRecord } from '../types';
+import type { MarkRecord, MarkRecordPeriod } from '../types';
 import assert from 'node:assert/strict';
+import { buildLecturerMarkProgress, lecturerTaskCounts } from './markLecturerProgress';
 import { filterMarkRecordsByStatusTab, getMarkRecordSummary, getOperationalMarkRecords, getMarkMonitoringSemesterLabel } from './markRecords';
 
 const records: MarkRecord[] = [
@@ -98,4 +99,20 @@ const explicitActive = { ...records[0], taskLifecycleStatus: 'ACTIVE' as const }
 assert.deepEqual(getOperationalMarkRecords([...historical, explicitActive]), [explicitActive],
   'Explicitly active submitted records remain in operational monitoring.');
 assert.deepEqual(getMarkRecordSummary(historical), { total: 0, submitted: 0, draft: 0, notStarted: 0, overdue: 0, incomplete: 0 });
+assert.deepEqual(filterMarkRecordsByStatusTab([...records, ...historical], 'Overdue'), [records[3]]);
+const heldSubmission = { ...explicitActive, stageReviewRequired: true };
+assert.deepEqual(filterMarkRecordsByStatusTab([heldSubmission, records[1]], 'Review Required'), [heldSubmission]);
+assert.deepEqual(filterMarkRecordsByStatusTab([heldSubmission], 'Submitted'), [heldSubmission]);
 console.log('Retired and paused Marks operational exclusion passed');
+
+const period: MarkRecordPeriod = { id: 1, name: 'RP1 marking', semester: records[0].semester,
+  assessment: 'P1', lifecycleStatus: 'CLOSED', effectiveStatus: 'CLOSED' };
+const lecturerTasks = buildLecturerMarkProgress([period], [
+  { ...heldSubmission, periodId: period.id },
+  { ...historical[0], periodId: period.id, stageReviewRequired: false },
+], [])[0].periods.get(period.id)!.tasks;
+assert.deepEqual([...lecturerTasks.values()].map(task => [task.recordId, task.status]), [
+  [heldSubmission.id, 'Stage review'], [historical[0].id, 'Retired'],
+]);
+assert.equal(lecturerTaskCounts([...lecturerTasks.values()]).review, 1);
+assert.equal(lecturerTaskCounts([...lecturerTasks.values()]).total, 1);

@@ -4,7 +4,7 @@ import {DashboardHeader} from './DashboardHeader';
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Files } from 'lucide-react';
 import { DashboardTimeline } from './DashboardTimeline';
 import { MonitoringTasksCard } from './MonitoringTasksCard';
@@ -15,6 +15,15 @@ import { resolveDashboardTaskRoute } from '../utils/workflowAgeing';
 import { ActiveSemesterContext } from './ActiveSemesterContext';
 import { StudentAppointmentStatusCards } from './StudentAppointmentStatusCards';
 import { ProjectStageQuestion } from './ProjectStageQuestion';
+import { getMyProjectStage, type StudentProject, type StudentProjectStatus } from '../services/registrySemestersApi';
+
+const projectStatusLabel: Record<StudentProjectStatus['state'], string> = {
+  ON_PROJECT: 'In progress',
+  NOT_STARTED: 'Not started',
+  COMPLETED: 'Completed',
+  NOT_STUDYING: 'Not studying this semester',
+  NOT_CONFIRMED: 'Stage unconfirmed',
+};
 
 interface StudentDashboardProps {
   studentName: string;
@@ -32,6 +41,28 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
   onNavigateToRoute,
 }) => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [project, setProject] = useState<StudentProject | null>(null);
+  const [projectLoadFailed, setProjectLoadFailed] = useState(false);
+  const [projectAttempt, setProjectAttempt] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    getMyProjectStage()
+      .then(data => { if (active) setProject(data); })
+      .catch(() => { if (active) setProjectLoadFailed(true); });
+    return () => { active = false; };
+  }, [projectAttempt]);
+
+  const projectStatus = project?.projectStatus;
+  const projectStage = projectStatus?.stage;
+  const projectStageTone = projectStage ? 'border-blue-200 bg-blue-50 text-blue-800'
+    : projectStatus?.state === 'COMPLETED' ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+    : 'border-slate-200 bg-white text-slate-700';
+
+  const retryProject = () => {
+    setProjectLoadFailed(false);
+    setProjectAttempt(attempt => attempt + 1);
+  };
 
   const triggerToast = (message: string) => {
     setToastMessage(message);
@@ -51,7 +82,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
     <div id="student-dashboard-container" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
       <PortalToast message={toastMessage} />
 
-      <DashboardHeader context={<ActiveSemesterContext />}
+      <DashboardHeader context={
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <ActiveSemesterContext />
+          {projectStatus && (
+            <div role="group" aria-label="Project stage" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-[15px] font-semibold leading-5 text-slate-800">Project stage</span>
+              <span className={`rounded-full border px-3 py-1 text-[15px] font-bold leading-5 ${projectStageTone}`}>
+                {projectStage ? (projectStage === 'P1' ? 'RP1' : 'RP2') : projectStatusLabel[projectStatus.state]}
+              </span>
+            </div>
+          )}
+        </div>
+      }
           actions={studentId && onNavigateToRoute ? (
             <PortalButton
               variant="primary"
@@ -73,12 +116,19 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
         </div>
       )}
 
-      <ProjectStageQuestion />
+      <ProjectStageQuestion question={project?.question ?? null} onUpdate={setProject} />
+      {projectLoadFailed && (
+        <div className="app-card flex flex-wrap items-center justify-between gap-3 p-4">
+          <p role="alert" className="text-sm text-slate-700">Research project status could not be loaded.</p>
+          <PortalButton size="sm" onClick={retryProject}>Retry</PortalButton>
+        </div>
+      )}
 
       <DashboardTimeline
         showManageTimeline={false}
         onTimelineUpdate={triggerToast}
         visibleRoles={['STUDENT']}
+        studentProject={projectStatus}
       />
 
       <StudentAppointmentStatusCards onNavigateToTab={onNavigateToTab} />
@@ -86,6 +136,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       <MonitoringTasksCard
         title="Student Action Centre"
         onTaskClick={navigateToAction}
+        projectStage={projectStage ?? null}
       />
     </div>
   );

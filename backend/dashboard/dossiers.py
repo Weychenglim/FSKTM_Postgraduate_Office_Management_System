@@ -7,6 +7,7 @@ from django.utils import timezone
 from academics.services import current_effective_semester
 from accounts.authorization import coordinator_manages_programme
 from accounts.models import Student
+from accounts.project_stages import ON_PROJECT, project_stages, shown
 from appointments.ageing import (
     panel_waiting_metadata,
     supervisor_waiting_metadata,
@@ -21,6 +22,7 @@ from appointments.models import (
 from appointments.serializers import AppointmentWorkflowEventSerializer
 from marks.deadlines import mark_deadline_metadata
 from marks.models import EvaluationTask, MarkEntry
+from marks.stage_eligibility import stage_monitoring_tasks
 
 from .models import SemesterTimeline
 
@@ -410,12 +412,13 @@ def _marks_records(profile, user, visibility, now):
             "mark_entry",
         )
         .order_by("-period__closes_at", "-assigned_at", "-id")
-        .prefetch_related("completion_windows__granted_by")
+        .prefetch_related("completion_windows__granted_by", "lifecycle_audits")
     )
     if user.role == User.Role.LECTURER:
         tasks = tasks.filter(evaluator=user)
 
     rows = []
+    monitoring_ids = {task.pk for task in stage_monitoring_tasks(tasks)}
     for task in tasks:
         from marks.completion_windows import task_due_at
 
@@ -433,6 +436,9 @@ def _marks_records(profile, user, visibility, now):
             status = "RETIRED"
         elif task.lifecycle_status == EvaluationTask.Lifecycle.PAUSED:
             status = "PAUSED"
+        elif task.pk not in monitoring_ids:
+            status = "REVIEW_REQUIRED"
+            deadline = {**deadline, 'deadlineState': 'REVIEW_REQUIRED', 'daysUntilDue': None}
         if visibility == "PUBLIC":
             row = {
                 "status": status,
@@ -478,6 +484,7 @@ def _marks_records(profile, user, visibility, now):
 
     active_rows = [
         row for row in rows if row["taskLifecycleStatus"] == EvaluationTask.Lifecycle.ACTIVE
+        and row['status'] != 'REVIEW_REQUIRED'
     ]
     submitted = sum(row["status"] == "SUBMITTED" for row in active_rows)
     statuses = {row["status"] for row in active_rows}
@@ -510,8 +517,7 @@ def _timeline_status(entry, today):
     return "ACTIVE"
 
 
-def _timeline_section(today):
-    academic_semester = current_effective_semester()
+def _timeline_section(today, *, academic_semester, project):
     if academic_semester is None:
         return {
             "semester": None,
@@ -536,6 +542,7 @@ def _timeline_section(today):
             "semesterCode": academic_semester.code,
             "entries": [],
         }
+    entries_for_student = timeline.entries.all() if project.state == ON_PROJECT and project.stage else []
     entries = [
         {
             "recordId": str(entry.pk),
@@ -548,8 +555,8 @@ def _timeline_section(today):
             "targetModule": "DASHBOARD",
             "recordType": "TIMELINE_ENTRY",
         }
-        for entry in timeline.entries.all()
-        if "STUDENT" in entry.target_roles
+        for entry in entries_for_student
+        if entry.level == project.stage and "STUDENT" in entry.target_roles
     ]
     return {
         "semester": timeline.semester,
@@ -677,8 +684,10 @@ def build_student_progress_dossier(user, student_id, now=None):
         if SECTION_MARKS in visible_set
         else None
     )
+    academic_semester = current_effective_semester()
+    project = project_stages(academic_semester, [student.pk])[student.pk] if academic_semester else None
     timeline = (
-        _timeline_section(timezone.localdate(now))
+        _timeline_section(timezone.localdate(now), academic_semester=academic_semester, project=project)
         if SECTION_TIMELINE in visible_set
         else None
     )
@@ -724,6 +733,8 @@ def build_student_progress_dossier(user, student_id, now=None):
             "programme": student.programme,
             "status": student.status,
             "intakeSemester": student.intake_semester,
+            "projectStage": shown(project) if project else None,
+            "projectSemester": academic_semester.label if academic_semester else None,
             "lifecycle": {
                 "status": student.status.upper(),
                 "effectiveAt": _iso(student.status_changed_at),

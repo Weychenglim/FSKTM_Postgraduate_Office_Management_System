@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Lecturer, OfficeStaff, Student
+from accounts.models import Lecturer, OfficeStaff, ProjectRegistration, StudentSemester, Student
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
@@ -23,7 +23,6 @@ from appointments.models import (
 from .models import (
     EvaluationPeriod,
     EvaluationTask,
-    EvaluationTaskOverrideAudit,
     MarkCorrectionAudit,
     MarkEntry,
     Rubric,
@@ -108,6 +107,9 @@ class MarkEntryWorkflowTests(APITestCase):
             proposed_topic="Reliable marks management",
             supervisor=self.other_lecturer,
         )
+        StudentSemester.objects.get_or_create(student=self.student_user.student,
+            session=self.academic_semester.academic_session, term=self.academic_semester.term)
+        ProjectRegistration.objects.create(student=self.student_user.student, academic_semester=self.academic_semester, stage='P1', confirmed_by=self.office_admin)
         self.rubric = Rubric.objects.create(
             name="Research Project Evaluation",
             code="RP-EVAL",
@@ -128,6 +130,7 @@ class MarkEntryWorkflowTests(APITestCase):
             display_order=2,
         )
         self.period = EvaluationPeriod.objects.create(
+            assessment='P1',
             name="Semester 1 Evaluation",
             semester="Sem 1 2025/2026",
             academic_semester=self.academic_semester,
@@ -622,81 +625,17 @@ class MarkEntryWorkflowTests(APITestCase):
         task = EvaluationTask.objects.get()
         self.assertIsNone(task.assigned_by)
 
-    def test_office_staff_can_create_backup_evaluator_with_audit_reason(self):
+    def test_backup_assignment_endpoint_has_been_removed(self):
         self.authenticate(self.office_admin)
-
         response = self.client.post(
             f"/api/marks/periods/{self.period.pk}/manual-overrides/",
-            {
-                "studentId": self.profile.matric_no,
-                "evaluatorId": self.other_lecturer.pk,
-                "reason": "Panel member is unavailable.",
-                "originalTaskId": self.task.pk,
-            },
+            {"studentId": self.profile.matric_no, "evaluatorId": self.other_lecturer.pk,
+             "reason": "Cover absence", "originalTaskId": self.task.pk},
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(response.data["evaluatorRole"], "BACKUP")
-        task = EvaluationTask.objects.get(pk=response.data["id"])
-        self.assertEqual(task.evaluator, self.other_lecturer)
-        audit = EvaluationTaskOverrideAudit.objects.get(task=task)
-        self.assertEqual(audit.actor, self.office_admin)
-        self.assertEqual(audit.original_evaluator, self.lecturer)
-        self.assertEqual(audit.new_evaluator, self.other_lecturer)
-        self.assertEqual(audit.reason, "Panel member is unavailable.")
-
-    def test_backup_evaluator_requires_office_staff_and_reason(self):
-        self.authenticate(self.office_admin)
-        missing_reason = self.client.post(
-            f"/api/marks/periods/{self.period.pk}/manual-overrides/",
-            {
-                "studentId": self.profile.matric_no,
-                "evaluatorId": self.other_lecturer.pk,
-                "reason": " ",
-            },
-            format="json",
-        )
-        self.authenticate(self.lecturer)
-        wrong_user = self.client.post(
-            f"/api/marks/periods/{self.period.pk}/manual-overrides/",
-            {
-                "studentId": self.profile.matric_no,
-                "evaluatorId": self.other_lecturer.pk,
-                "reason": "Panel member is unavailable.",
-            },
-            format="json",
-        )
-
-        self.assertEqual(missing_reason.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(wrong_user.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertFalse(
-            EvaluationTask.objects.filter(
-                evaluator_role=EvaluationTask.EvaluatorRole.BACKUP
-            ).exists()
-        )
-
-    def test_backup_evaluator_rejects_closed_period(self):
-        self.period.lifecycle_status = EvaluationPeriod.Lifecycle.CLOSED
-        self.period.save(update_fields=["lifecycle_status"])
-        self.authenticate(self.office_admin)
-
-        response = self.client.post(
-            f"/api/marks/periods/{self.period.pk}/manual-overrides/",
-            {
-                "studentId": self.profile.matric_no,
-                "evaluatorId": self.other_lecturer.pk,
-                "reason": "Panel member is unavailable.",
-            },
-            format="json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertFalse(
-            EvaluationTask.objects.filter(
-                evaluator_role=EvaluationTask.EvaluatorRole.BACKUP
-            ).exists()
-        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(EvaluationTask.objects.count(), 1)
 
     def test_office_staff_can_list_evaluation_periods_with_task_totals(self):
         MarkEntry.objects.create(
@@ -708,7 +647,7 @@ class MarkEntryWorkflowTests(APITestCase):
             profile=self.profile,
             evaluator=self.other_lecturer,
             period=self.period,
-            evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
+            evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
             assigned_by=self.office_admin,
         )
         self.authenticate(self.office_admin)
@@ -721,9 +660,21 @@ class MarkEntryWorkflowTests(APITestCase):
         self.assertEqual(response.data[0]["rubricName"], "Research Project Evaluation")
         self.assertEqual(response.data[0]["taskTotals"]["total"], 2)
         self.assertEqual(response.data[0]["taskTotals"]["panel"], 1)
-        self.assertEqual(response.data[0]["taskTotals"]["backup"], 1)
+        self.assertEqual(response.data[0]["taskTotals"]["supervisor"], 1)
         self.assertEqual(response.data[0]["taskTotals"]["submitted"], 1)
         self.assertEqual(response.data[0]["taskTotals"]["incomplete"], 1)
+
+    def test_period_list_filters_semester_before_the_unscoped_limit(self):
+        EvaluationPeriod.objects.bulk_create([
+            EvaluationPeriod(name=f'Later period {index}', semester='Other semester', rubric=self.rubric)
+            for index in range(101)
+        ])
+        self.authenticate(self.office_admin)
+
+        unscoped = self.client.get('/api/marks/periods/')
+        self.assertNotIn(self.period.pk, [row['id'] for row in unscoped.data])
+        scoped = self.client.get('/api/marks/periods/', {'semester': self.period.semester})
+        self.assertEqual([row['id'] for row in scoped.data], [self.period.pk])
 
     def test_non_office_users_cannot_list_assignment_options(self):
         self.authenticate(self.lecturer)
@@ -809,6 +760,51 @@ class MarkEntryWorkflowTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    def test_mark_records_keep_period_assessment_and_show_stage_review(self):
+        from .models import EvaluationTaskLifecycleAudit
+
+        ProjectRegistration.objects.filter(student=self.student_user.student).update(stage='P2')
+        self.period.closes_at = timezone.now() - timezone.timedelta(days=1)
+        self.period.save(update_fields=['closes_at'])
+        self.authenticate(self.office_admin)
+        record_id = f'MRK-{self.task.pk:05d}'
+        row = self.client.get('/api/marks/').data[0]
+        self.assertEqual((row['assessment'], row['status'], row['deadlineState']), ('P1', 'Review Required', None))
+        detail = self.client.get(f'/api/marks/records/{record_id}/').data
+        self.assertEqual(detail['period']['assessment'], 'P1')
+        self.assertTrue(detail['stageReviewRequired'])
+
+        MarkEntry.objects.create(task=self.task, status='SUBMITTED', total_mark=Decimal('88.00'))
+        EvaluationTaskLifecycleAudit.objects.create(task=self.task, actor=self.office_admin,
+            action='STAGE_REVIEW', reason='Review original submission')
+        row = self.client.get('/api/marks/').data[0]
+        self.assertEqual((row['assessment'], row['status'], row['totalMark']), ('P1', 'Submitted', '88.00'))
+        self.assertTrue(row['stageReviewRequired'])
+
+    def test_retired_record_detail_shows_review_only_for_recovery_or_submitted_marks(self):
+        from .models import EvaluationTaskLifecycleAudit
+
+        self.task.lifecycle_status = EvaluationTask.Lifecycle.RETIRED
+        self.task.save(update_fields=['lifecycle_status'])
+        EvaluationTaskLifecycleAudit.objects.create(task=self.task, actor=self.office_admin,
+            action='STAGE_REVIEW', reason='Project stage changed')
+        self.authenticate(self.office_admin)
+        url = f'/api/marks/records/MRK-{self.task.pk:05d}/'
+
+        self.assertTrue(self.client.get(url).data['stageReviewRequired'])
+        self.assertTrue(self.client.get('/api/marks/').data[0]['stageReviewRequired'])
+
+        self.period.closes_at = timezone.now() - timezone.timedelta(hours=1)
+        self.period.save(update_fields=['closes_at'])
+        detail = self.client.get(url).data
+        self.assertEqual(detail['assignment']['lifecycleStatus'], 'RETIRED')
+        self.assertFalse(detail['stageReviewRequired'])
+        self.assertFalse(self.client.get('/api/marks/').data[0]['stageReviewRequired'])
+
+        MarkEntry.objects.create(task=self.task, status=MarkEntry.Status.SUBMITTED)
+        self.assertTrue(self.client.get(url).data['stageReviewRequired'])
+        self.assertTrue(self.client.get('/api/marks/').data[0]['stageReviewRequired'])
+
     def test_office_staff_can_view_complete_persisted_mark_record_detail(self):
         self.authenticate(self.lecturer)
         self.client.put(
@@ -843,7 +839,6 @@ class MarkEntryWorkflowTests(APITestCase):
             response.data["correctionHistory"][0]["reason"],
             "Corrected transcription error.",
         )
-        self.assertEqual(response.data["overrideHistory"], [])
 
     def test_mark_record_detail_is_office_only_and_unknown_records_return_not_found(
         self,

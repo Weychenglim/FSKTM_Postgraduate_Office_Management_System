@@ -450,6 +450,10 @@ def transition_student(*, matric_no, actor, target_status, reason, early_approve
         paused = pause_student_evaluation_tasks(profile=profile, actor=actor, reason=reason)
         affected["pausedMarksTasks"] = [task.pk for task in paused]
     elif target == Student.Status.ACTIVE and profile:
+        # Make the target status visible to the authoritative stage lookup before
+        # resuming tasks. Keep the original instance status for the final audit;
+        # this provisional write rolls back with the whole transition on failure.
+        Student.objects.filter(pk=student.pk).update(status=target)
         result = resume_student_evaluation_tasks(profile=profile, actor=actor, reason=reason)
         affected["resumedMarksTasks"] = [task.pk for task in result["resumed"]]
         affected["retiredMarksTasks"] = [task.pk for task in result["retired"]]

@@ -8,7 +8,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
-from accounts.models import Lecturer, OfficeStaff, Student
+from accounts.models import Lecturer, OfficeStaff, ProjectRegistration, Student, StudentSemester
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
@@ -16,7 +16,7 @@ from appointments.models import (
     SupervisorApplication, SupervisorAppointment,
 )
 from .models import EvaluationPeriod, EvaluationTask, MarkEntry, Rubric, RubricComponent
-from .services import create_backup_evaluation_task, ensure_period_tasks
+from .services import ensure_period_tasks
 
 User = get_user_model()
 
@@ -62,6 +62,9 @@ class PeriodTargetingTests(APITestCase):
         student_user = self.user(name, User.Role.STUDENT) if linked else None
         if linked:
             Student.objects.create(user=student_user, matric_no=name, programme=programme)
+            StudentSemester.objects.create(student=student_user.student,
+                session=self.semester.academic_session, term=self.semester.term)
+            ProjectRegistration.objects.create(student=student_user.student, academic_semester=self.semester, stage='P1', confirmed_by=self.office)
         profile = StudentResearchProfile.objects.create(
             student=student_user, matric_no=name, student_name=name,
             programme=programme, semester=self.semester.label,
@@ -180,7 +183,7 @@ class PeriodTargetingTests(APITestCase):
         self.assertEqual(self.preview(period)["totals"]["existing"], 1)
         self.assertEqual(self.preview(period)["totals"]["new"], 0)
 
-    def test_linked_student_programme_is_authoritative_with_unlinked_fallback(self):
+    def test_linked_student_programme_is_authoritative_and_unlinked_is_excluded(self):
         stale = self.profile("stale", "Programme B")
         stale.programme = "Programme A"
         stale.save(update_fields=["programme"])
@@ -190,8 +193,8 @@ class PeriodTargetingTests(APITestCase):
         unlinked = self.profile("unlinked", " Programme A ", linked=False)
         period = self.period(programmeScope="SELECTED", programmes=["programme a"], evaluatorRoles=["PANEL"])
         rows = self.preview(period)["recipients"]
-        self.assertEqual([r["matricNo"] for r in rows], [unlinked.matric_no])
-        self.assertIsNone(rows[0]["studentId"])
+        self.assertEqual(rows, [])
+        self.assertEqual(self.preview(period)['exclusions'][0]['matricNo'], unlinked.matric_no)
 
     def test_all_includes_blank_programmes_and_selected_roles_only(self):
         profile = self.profile("all-blank", "")
@@ -240,36 +243,6 @@ class PeriodTargetingTests(APITestCase):
             self.client.force_authenticate(user)
             for path in ("/api/marks/programme-options/", f"/api/marks/periods/{period.pk}/recipient-preview/"):
                 self.assertEqual(self.client.get(path).status_code, 403)
-
-    def test_backup_rejects_out_of_scope_student(self):
-        profile = self.profile("outside-backup", "Programme B")
-        period = self.period(programmeScope="SELECTED", programmes=["Programme A"])
-        self.publish(period)
-        with self.assertRaises(ValidationError):
-            create_backup_evaluation_task(period=period, profile=profile, evaluator=self.backup, actor=self.office, reason="Cover absence")
-
-    def test_standalone_backup_permitted_within_programme(self):
-        profile = self.profile("inside-backup")
-        period = self.period(programmeScope="SELECTED", programmes=["Programme A"], evaluatorRoles=["PANEL"])
-        self.publish(period)
-        task = create_backup_evaluation_task(period=period, profile=profile, evaluator=self.backup, actor=self.office, reason="Cover absence")
-        self.assertEqual(task.evaluator_role, "BACKUP")
-
-    def test_backup_original_must_match_period_student_and_included_official_role(self):
-        profile = self.profile("backup-original")
-        other = self.profile("backup-other")
-        period = self.period(evaluatorRoles=["PANEL"])
-        other_period = self.period()
-        self.publish(period)
-        originals = [
-            EvaluationTask.objects.create(period=other_period, profile=profile, evaluator=self.panel, evaluator_role="PANEL"),
-            EvaluationTask.objects.create(period=period, profile=other, evaluator=self.panel, evaluator_role="PANEL"),
-            EvaluationTask.objects.create(period=period, profile=profile, evaluator=self.supervisor, evaluator_role="SUPERVISOR"),
-            EvaluationTask.objects.create(period=period, profile=profile, evaluator=self.panel, evaluator_role="BACKUP"),
-        ]
-        for original in originals:
-            with self.subTest(original=original.pk), self.assertRaises(ValidationError):
-                create_backup_evaluation_task(period=period, profile=profile, evaluator=self.backup, actor=self.office, reason="Cover absence", original_task=original)
 
     def test_reconciliation_does_not_report_untargeted_assignments_missing(self):
         from dashboard.reconciliation import _detect_marks_issues

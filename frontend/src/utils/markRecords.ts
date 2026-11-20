@@ -5,7 +5,8 @@ export type MarkRecordStatusTab =
   | 'Submitted'
   | 'Draft Saved'
   | 'Not Started'
-  | 'Overdue';
+  | 'Overdue'
+  | 'Review Required';
 
 export interface MarkRecordSummary {
   total: number;
@@ -17,7 +18,8 @@ export interface MarkRecordSummary {
 }
 
 export const getOperationalMarkRecords = (records: MarkRecord[]): MarkRecord[] =>
-  records.filter(record => !record.taskLifecycleStatus || record.taskLifecycleStatus === 'ACTIVE');
+  records.filter(record => (!record.taskLifecycleStatus || record.taskLifecycleStatus === 'ACTIVE')
+    && record.status !== 'Review Required');
 
 export const getMarkMonitoringSemesterLabel = (records: MarkRecord[]): string => {
   const semesters = [...new Set(getOperationalMarkRecords(records).map(record => record.semester))];
@@ -47,8 +49,15 @@ export const filterMarkRecordsByStatusTab = (
   statusTab: MarkRecordStatusTab,
 ): MarkRecord[] => {
   if (statusTab === 'All Records') return records;
-  if (statusTab === 'Draft Saved') {
-    return records.filter((record) => record.status === 'Draft');
+  if (statusTab === 'Review Required') {
+    return records.filter(record => record.stageReviewRequired || record.status === 'Review Required');
   }
-  return records.filter((record) => record.status === statusTab);
+  if (statusTab === 'Submitted') {
+    return records.filter(record => record.status === 'Submitted');
+  }
+  const operationalRecords = getOperationalMarkRecords(records);
+  if (statusTab === 'Draft Saved') {
+    return operationalRecords.filter(record => record.status === 'Draft');
+  }
+  return operationalRecords.filter(record => record.status === statusTab);
 };

@@ -51,7 +51,7 @@ const sections = [
 ] satisfies StudentProgressDossier['visibleSections'];
 assert.deepEqual(
   visibleProgressTabs(sections),
-  ['OVERVIEW', 'SUPERVISOR', 'PANEL', 'TIMELINE'],
+  ['SUPERVISOR', 'PANEL', 'TIMELINE'],
 );
 assert.deepEqual(
   visibleProgressTabs(sections, 'PUBLIC'),
@@ -62,9 +62,9 @@ assert.deepEqual(visibleProgressTabs(['MARKS'], 'PUBLIC'), [],
   'Students must not see evaluation sections even if a stale response includes Marks');
 assert.deepEqual(visibleProgressTabs(['SUPERVISOR', 'MARKS', 'TIMELINE'], 'PUBLIC'),
   ['SUPERVISOR', 'TIMELINE']);
-assert.deepEqual(visibleProgressTabs(['MARKS'], 'INTERNAL'), ['OVERVIEW', 'MARKS'],
+assert.deepEqual(visibleProgressTabs(['MARKS'], 'INTERNAL'), ['MARKS'],
   'Authorised staff keep Marks tracking');
 assert.deepEqual(visibleProgressTabs([], 'PUBLIC'), []);
-assert.deepEqual(visibleProgressTabs([], 'INTERNAL'), ['OVERVIEW']);
+assert.deepEqual(visibleProgressTabs([], 'INTERNAL'), []);
 
 console.log('studentProgress tests passed');

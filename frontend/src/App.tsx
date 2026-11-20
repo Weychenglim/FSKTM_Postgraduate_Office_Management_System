@@ -321,6 +321,12 @@ export default function App() {
   const attentionSource = currentUser?.role==='Office Staff/Admin' && typeof location.state?.recordReturn?.path==='string' && location.state.recordReturn.path.split('?')[0]===APP_ROUTES.dashboardAttention
     ? recordReturn(location.state.recordReturn,{path:APP_ROUTES.dashboardAttention,label:'Needs attention'},APP_ROUTES.dashboardAttention) : null;
   const returnToOfficeAttention = () => { if(attentionSource){const steps=recordBackSteps(window.history.state?.idx,attentionSource);if(steps)navigate(-steps);else navigate(attentionSource.path,{replace:true});}else navigate(APP_ROUTES.dashboard); };
+  const periodsReturn = recordReturn(location.state?.periodsReturn,
+    recordReturn(location.state?.periodsReturn, {path:APP_ROUTES.dashboard,label:'Dashboard'}, APP_ROUTES.dashboardWorkflowReconciliation),
+    APP_ROUTES.marksRecords);
+  const openIndividualDeadline = (route:string,label:string) => navigate(route, {state:{periodsReturn:{
+    path:pathname+location.search,label,historyIndex:window.history.state?.idx,
+  }}});
   const supervisorReturn = (parent: string, label: string) => attentionSource ?? recordReturn(location.state?.recordReturn, { path: parent + location.search, label }, APP_ROUTES.supervisorAppointments);
   const studentSupervisorSource = studentSupervisorRequestReturn(pathname, location.search, location.state?.recordReturn, window.history.state?.idx);
   const officeSupervisorParent = isSupervisorSuperviseesRoute ? APP_ROUTES.supervisorAppointmentSupervisees : isSupervisorRequestsRoute ? APP_ROUTES.supervisorAppointmentRequests : APP_ROUTES.supervisorAppointments;
@@ -587,6 +593,7 @@ export default function App() {
                   backLabel={attentionSource?'Back to Needs attention':undefined}
                   onBack={() => { const source = attentionSource ?? recordReturn(location.state?.recordReturn, { path: APP_ROUTES.marksRecords, label: 'Mark Entry Records' }, APP_ROUTES.marks); const steps = recordBackSteps(window.history.state?.idx, source); if (steps) navigate(-steps); else navigate(source.path, { replace: true }); }}
                   recordId={markRecordId}
+                  onManageDeadline={route => openIndividualDeadline(route, 'Marks record')}
                 />
               ) : (
                 <MarksOverview onViewRecords={openMarkRecords} />
@@ -800,7 +807,11 @@ export default function App() {
               ) : isDashboardPeriodsRoute && currentUser.role !== 'Office Staff/Admin' ? (
                 <Navigate to={APP_ROUTES.dashboard} replace />
               ) : isDashboardPeriodsRoute ? (
-                <OfficePeriodsManagement onBack={() => navigate(APP_ROUTES.dashboard)} onManageSemesters={() => navigate(APP_ROUTES.dashboardSemesters)} />
+                <OfficePeriodsManagement backLabel={`Back to ${periodsReturn.label}`} onBack={() => {
+                  const steps = recordBackSteps(window.history.state?.idx, periodsReturn);
+                  if (steps) navigate(-steps);
+                  else navigate(periodsReturn.path);
+                }} onManageSemesters={() => navigate(APP_ROUTES.dashboardSemesters)} />
               ) : isDashboardTimelineRoute && /^#(?:operational-period|marks-period)-\d+$/.test(location.hash) && currentUser.role === 'Office Staff/Admin' ? (
                 <Navigate to={`${APP_ROUTES.dashboardPeriods}${location.search}${location.hash}`} replace />
               ) : isDashboardLecturerCapacityRoute && currentUser.role !== 'Office Staff/Admin' ? (
@@ -813,7 +824,8 @@ export default function App() {
                 <WorkflowReconciliationCentre
                   onBack={returnToOfficeAttention}
                   backLabel={attentionSource?'Back to Needs attention':undefined}
-                  onNavigateToRoute={navigate}
+                  onNavigateToRoute={route => route.startsWith(`${APP_ROUTES.dashboardPeriods}?`)
+                    ? openIndividualDeadline(route, 'Workflow Reconciliation') : navigate(route)}
                   onOpenCapacity={() => navigate(APP_ROUTES.dashboardLecturerCapacity)}
                 />
               ) : isDashboardParticipantLifecycleRoute ? (

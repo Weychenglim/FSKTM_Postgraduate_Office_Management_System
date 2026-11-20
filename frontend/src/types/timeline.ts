@@ -78,6 +78,7 @@ export interface ActiveSemesterTimeline {
 }
 
 export interface TimelinePreviewRow {
+  position: number;
   level: TimelineLevel;
   step: number;
   title: string;
@@ -88,11 +89,27 @@ export interface TimelinePreviewRow {
   targetRoles: TimelineRole[];
 }
 
+export interface TimelineLinkConflict {
+  entryId: number;
+  level: TimelineLevel;
+  step: number;
+  title: string;
+  periodName: string;
+  deadlineStart: string;
+  deadlineEnd: string;
+  operationalPeriodId: number | null;
+  marksPeriodId: number | null;
+}
+
 export interface TimelineUploadPreview {
   mode: 'ADD' | 'REPLACE';
   existingCount: number;
-  resultingCount: number;
-  previewToken: string;
+  resultingCount: number | null;
+  previewToken: string | null;
+  linkReviewToken: string | null;
+  linkConflicts: TimelineLinkConflict[];
+  availableLinkRows: number[];
+  carriedCount: number;
   warnings: string[];
   rows: TimelinePreviewRow[];
   importedCount: number;

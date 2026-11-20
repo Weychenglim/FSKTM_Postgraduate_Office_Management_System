@@ -7,6 +7,8 @@ const roster=[{id:1,lecturerId:1,staffNo:'STAFF-1',lecturerName:'Lecturer One',p
 const draft={entries:[],readinessErrors:['STAFF-1: capacity entry is required for this Lecturer.']} as SemesterCapacityPlan;
 assert.equal(committedCapacityLoad(roster[0], 'SUPERVISOR'), 3, 'Use role workload, not the distinct student total');
 assert.equal(committedCapacityLoad(roster[0], 'PANEL'), 3, 'Pending Panel reservations count towards the minimum');
+assert.equal(committedCapacityLoad({...roster[0], panel:{...roster[0].panel!, expectedRp2Releases:1}}, 'PANEL'), 2,
+  'The future plan deducts expected RP2 releases while retaining reservations');
 assert.equal(committedCapacityLoad({...roster[0], panel:null}, 'PANEL'), null, 'Missing role workload is not zero');
 const missing=capacityWorkspaceRows(roster,draft);
 assert.equal(missing.length,1,'A blank draft must include configurable lecturer rows');

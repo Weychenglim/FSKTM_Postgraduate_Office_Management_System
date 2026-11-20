@@ -49,7 +49,6 @@ import type {
   RubricVersion,
 } from '../types';
 import {
-  formatPeriodStatus,
   marksMutationErrorMessage,
   toDateTimeLocalValue,
   validatePeriodTargeting,
@@ -61,9 +60,8 @@ import {
   PortalButton,
   PortalCard,
   PortalConfirmModal,
-  StatusBadge,
-  getStatusBadgeTone,
 } from './PortalPrimitives';
+import {WindowScheduleStatus} from './WindowScheduleStatus';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { malaysiaDeadline, formatMalaysiaDateTime as displayDateTime } from '../utils/malaysiaDateTime';
 import {parseMarksPeriodContext} from '../utils/periodPresentation';
@@ -713,9 +711,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
               </div>
               <div className="flex flex-wrap items-center gap-3">
               {selected ? (
-                <StatusBadge tone={getStatusBadgeTone(selected.effectiveStatus)}>
-                  {formatPeriodStatus(selected.effectiveStatus)}
-                </StatusBadge>
+                <WindowScheduleStatus {...selected}/>
               ) : null}
               </div>
             </div>
@@ -847,7 +843,7 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
               <div className="period-config-footer">
                 <div className="period-config-destructive-actions">
                   {selected?.lifecycleStatus === 'DRAFT' ? <PortalButton variant="danger" icon={Trash2} disabled={saving || selecting || conflictBlocked || savedReadBlocked} onClick={() => {setDeleteDraftError(null);setDeleteDraftTarget(selected);}}>Delete draft</PortalButton> : null}
-                  {closed ? <PortalButton icon={Archive} variant="danger" isLoading={saving} disabled={conflictBlocked || savedReadBlocked} onClick={() => {setReason(''); openFinalReview('archive');}}>Archive period</PortalButton> : null}
+                  {closed ? <PortalButton icon={Archive} variant="danger" isLoading={saving} disabled={conflictBlocked || savedReadBlocked} onClick={() => openFinalReview('archive')}>Archive period</PortalButton> : null}
                   {selected?.lifecycleStatus === 'DRAFT' && preview && canPublish ? <PortalButton icon={Users} onClick={() => setPreviewOpen(true)}>Preview recipients</PortalButton> : null}
                 </div>
                 <div className="period-config-write-actions">

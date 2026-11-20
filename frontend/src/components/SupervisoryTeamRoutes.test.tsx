@@ -1,3 +1,4 @@
+import { ListState } from './ListState';
 import { MemoryRouter } from 'react-router';
 import assert from 'node:assert/strict';
 import React from 'react';
@@ -19,7 +20,7 @@ const workspace: SupervisoryWorkspace = {
 };
 
 assert.ok('SupervisoryTeamRouteContent' in supervision, 'Loaded supervisory content supports routed views');
-const render = (view: string, overrides: Record<string, unknown> = {}) => renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement((supervision as any).SupervisoryTeamRouteContent, { workspace, view, busy: false, lecturerId: '4', search: '', page: 1, onSearch: () => {}, onPage: () => {}, onNavigateToStudent: () => {}, onNominate: () => {}, onEnd: () => {}, onReplace: () => {}, onNominationAction: () => {}, ...overrides })));
+const render = (view: string, overrides: Record<string, unknown> = {}) => renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(ListState.Provider, { value: new Map([['supervisory-teams:Lecturer:projectStage', 'P2']]) }, React.createElement((supervision as any).SupervisoryTeamRouteContent, { workspace, view, busy: false, lecturerId: '4', search: '', page: 1, onSearch: () => {}, onPage: () => {}, onNavigateToStudent: () => {}, onNominate: () => {}, onEnd: () => {}, onReplace: () => {}, onNominationAction: () => {}, ...overrides }))));
 
 const roster = render('roster');
 for (const text of ['Primary Student', 'PG007', 'Computing MSc', 'Primary supervisor', 'Supporting Student', 'PG008', 'Computing PhD', 'Supporting supervisor', 'View supervision']) assert.ok(roster.includes(text), `Roster missing ${text}`);
@@ -39,6 +40,14 @@ assert.match(render('roster', { search: 'PG008' }), /Supporting Student/);
 assert.doesNotMatch(render('roster', { search: 'PG008' }), /Primary Student/);
 assert.match(render('roster', { search: 'primary research' }), /Primary Student/);
 assert.match(render('roster', { search: 'unmatched' }), /No matching supervisees/);
+
+const stageRoster = render('roster', {role:'Lecturer', workspace:{...workspace, projectSemester:'Semester I', teams:[
+  {...workspace.teams[0], projectStage:'P1'},
+  {...workspace.teams[1], projectStage:'P2'},
+]}});
+assert.match(stageRoster, /Project stage/);
+assert.match(stageRoster, /Supporting Student/);
+assert.doesNotMatch(stageRoster, /Primary Student/);
 
 const requests = render('requests');
 for (const text of ['Actionable nomination justification', 'Prospective nomination justification', '>Accept<', '>Reject<']) assert.ok(requests.includes(text), `Requests missing ${text}`);

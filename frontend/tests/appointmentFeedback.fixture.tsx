@@ -54,7 +54,7 @@ await scenario('Failed Panel nomination keeps its selected member and notes with
   container.querySelector<HTMLButtonElement>('#submit-recommendation-btn')!.click();
   await until(()=>posts===1&&container.querySelector('form [role="alert"]')?.textContent?.includes('Panel nomination could not be saved'));
   check(container.querySelector<HTMLTextAreaElement>('#recommendation-notes-textarea')!.value==='Keep my Panel recommendation notes','Failure discarded Panel notes');
-  check(container.querySelector('form')?.textContent?.includes('Proposed Panel member')&&!!button('Remove selection'),'Failure discarded selected Panel member');
+  check(container.querySelector('#candidate-highlight-card')?.textContent?.includes('Dr Panel')&&!!button('Clear selection'),'Failure discarded selected Panel member');
   check(posts===1,'Submission failure must not automatically repeat the POST');
 });
 
@@ -66,12 +66,18 @@ async function supporting(conflict:boolean|403,saved=false,cancelBeforeRecovery=
     if(path.endsWith('/nominations/')&&options?.method==='POST'){posts++;return saved?Response.json({id:21},{status:201}):Response.json({detail:conflict?'Nomination eligibility changed':'Nomination could not be saved'},{status:conflict===403?403:conflict?409:500});}
     if(path.endsWith('/candidates/'))return Response.json([{id:8,name:'Dr Supporting',selectable:true,reason:'',capacityState:'AVAILABLE',activeLoad:1,limit:3}]);
     if(path.endsWith('/co-supervisor/')){reads++;return reads===2?Response.json({detail:'Workspace refresh unavailable'},{status:503}):Response.json({teams:[team],appointments:[],nominations:[]});}
+    if(path.endsWith('/research-amendments/options/'))return Response.json({students:[],programmes:[],profile:null,canSubmitResearch:false,canCorrect:false,canTransfer:false});
+    if(path.endsWith('/research-amendments/'))return Response.json({requests:[],revisions:[]});
     throw new Error(`Unexpected route ${path}`);
   };
   await mount(<SupervisoryTeamManagement role="Lecturer"/>);
   await until(()=>!!button('Nominate co-supervisor'));button('Nominate co-supervisor')!.click();
-  await until(()=>!!container.querySelector('select'));
-  change(container.querySelector('select')!,'8');change(container.querySelector('textarea')!,'Keep this nomination justification');
+  const nominationForm=()=>document.querySelector<HTMLFormElement>('form[aria-label="Co-supervisor nomination"]');
+  await until(()=>!!nominationForm()?.querySelector('[role="combobox"]'));
+  nominationForm()!.querySelector<HTMLInputElement>('[role="combobox"]')!.click();
+  await until(()=>!!nominationForm()?.querySelector('[role="option"]'));
+  nominationForm()!.querySelector<HTMLButtonElement>('[role="option"]')!.click();
+  change(nominationForm()!.querySelector('textarea')!,'Keep this nomination justification');
   await until(()=>!button('Submit nomination')!.disabled);button('Submit nomination')!.click();
   if(saved){
     await until(()=>posts===1&&container.textContent?.includes('Your nomination was saved.'));
@@ -83,11 +89,11 @@ async function supporting(conflict:boolean|403,saved=false,cancelBeforeRecovery=
     button('Reload supervisory team')!.click();await until(()=>reads===3);
     check(posts===1,'Saved-result recovery must not repeat the write');return;
   }
-  await until(()=>posts===1&&container.querySelector('form [role="alert"]')?.textContent?.includes(conflict?'Nomination eligibility changed':'Nomination could not be saved')&&(!conflict||container.textContent?.includes('Workspace refresh unavailable')));
+  await until(()=>posts===1&&nominationForm()?.querySelector('[role="alert"]')?.textContent?.includes(conflict?'Nomination eligibility changed':'Nomination could not be saved')&&(!conflict||document.body.textContent?.includes('Workspace refresh unavailable')));
   const form=button('Submit nomination')!.closest('form')!;
   check(form.querySelector('[role="alert"]')?.textContent?.includes(conflict?'Nomination eligibility changed':'Nomination could not be saved'),'Write failure must be an inline error in its form');
   check(form.querySelector<HTMLTextAreaElement>('textarea')!.value==='Keep this nomination justification','Failure discarded justification');
-  check(form.querySelector<HTMLSelectElement>('select')!.value==='8','Failure discarded candidate');
+  check(form.querySelector<HTMLInputElement>('[role="combobox"]')?.value==='Dr Supporting','Failure discarded candidate');
   if(conflict){
     check(button('Submit nomination')!.disabled,'Unreconciled eligibility must prevent a repeat write');
     check(button('Reload nomination availability'),'Recovery read needs a contextual action');

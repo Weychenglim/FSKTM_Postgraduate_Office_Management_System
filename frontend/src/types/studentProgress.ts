@@ -2,7 +2,7 @@ import type { AppointmentLifecycleEvent, SupervisorWorkflowEvent } from './appoi
 
 export type StudentProgressVisibility = 'INTERNAL' | 'PUBLIC';
 export type StudentProgressSection = 'SUPERVISOR' | 'PANEL' | 'MARKS' | 'TIMELINE';
-export type StudentProgressTab = 'OVERVIEW' | StudentProgressSection;
+export type StudentProgressTab = StudentProgressSection;
 
 export interface StudentProgressTarget {
   targetModule: string;
@@ -16,6 +16,8 @@ export interface StudentProgressIdentity {
   programme: string;
   status: string;
   intakeSemester: string;
+  projectStage?: string | null;
+  projectSemester?: string | null;
   lifecycle: {
     status: string;
     effectiveAt: string | null;

@@ -44,7 +44,7 @@ test('mounted calendar draft regressions', {timeout:60000}, async()=>{
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     for(const width of [1440,390,320]){
     const {stdout}=await promisify(execFile)(executable,[
-      '--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',
+      '--headless=new','--disable-gpu','--disable-background-networking','--disable-component-update','--no-first-run','--no-default-browser-check',
       `--user-data-dir=${join(directory,'profile-'+width)}`,'--dump-dom','--virtual-time-budget=15000',
       `http://127.0.0.1:${server.address().port}/?width=${width}`,
     ],{timeout:45000,maxBuffer:2*1024*1024,windowsHide:true});
@@ -52,7 +52,7 @@ test('mounted calendar draft regressions', {timeout:60000}, async()=>{
     assert.ok(result && result!=='RUNNING',`Browser tests did not finish: ${stdout.slice(-3000)}`);
     const decoded=result.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&');
     const checks=JSON.parse(decoded);
-    assert.equal(checks.length,32,'Every mounted scenario must finish');
+    assert.equal(checks.length,33,'Every mounted scenario must finish');
     console.log(checks.map(check=>`${check.error?'FAIL':'PASS'} ${check.name}${check.error?`: ${check.error}`:''}`).join('\n'));
     assert.deepEqual(checks.filter(check=>check.error),[],'Mounted browser regression failures');
     }

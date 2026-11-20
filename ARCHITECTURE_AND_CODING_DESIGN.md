@@ -1,3 +1,47 @@
+## Timeline import stage presentation
+
+`UploadTimelineDrawer` owns upload, links and review stages and retains the unresolved link preview alongside the current signed preview. Back restores the link preview and existing choices without a write. Each final preview resets import consent. File and mode changes clear both previews. `TimelineAddEventsModal` receives the current stage to update its title and hide the method selector during review. Stage changes focus the heading and reset dialog scroll. Existing signed preview, import and draft-discard flows handle persistence and failures.
+
+## Submitted marks feedback corrections
+
+The existing Office correction endpoint accepts optional `feedback` changes keyed by `componentId` alongside score and overall comment changes. The service validates that each component belongs to the submitted entry and includes its feedback in the reviewed version token. It saves the correction and its before/after snapshots in the same transaction under the existing locks and permissions. The correction history can display earlier audits with no feedback snapshot.
+
+## Office workflow reconciliation actions
+
+For Marks stage review, the evidence component maps the stored correction action to plain language and places the audit and registration identifiers under Record references. The impact fingerprint stays in the existing audit payload. The detail uses the existing Office Registry and Marks routes for manual referral.
+
+The Office attention projection applies the five-calendar-day follow-up threshold to routine requests using existing stage waiting metadata. It filters before computing summaries, facets and pagination so dashboard counts match the attention list.
+
+The reconciliation presentation maps issue types and source identifiers to named routes and Office instructions. The detail page places recorded evidence before the recommended next step and renders repair controls from the server preview. Handoff detection exposes the first unmet prerequisite through the existing dependencies field. Capacity links carry the semester and, where applicable, the lecturer or collection filter. Source workflows retain their authorization and audit checks.
+
+## Office recovery for unfinished evaluations (16 November 2026)
+
+The overdue finding uses a responsive choice panel. Retirement collects its reason and acknowledgement in the shared decision dialog and uses its existing unsaved-change guard.
+
+The Marks record detail groups its deadline information in a named region with a semantic timestamp. The header derives its Overdue badge from the existing effective deadline state for active, unsubmitted tasks outside registration review and active extra time. The grant button uses the same scoped route and stacks beneath the deadline on narrow screens.
+
+Overdue task retirement uses the existing Office reconciliation preview, fingerprint and application endpoint. The Marks service rechecks task eligibility, the effective deadline and completion-window access under the existing semester, period, student and task locks. It uses the same retirement transaction and lifecycle snapshot as other task retirements. Reconciliation records the same actor and reason in its own audit.
+
+Dashboard and Marks record detail use the existing evaluation access and deadline services to identify eligible closed-period work. Reconciliation includes the exact period and semester, evaluator, entry status and effective deadline in its existing closed-task check. The Office shortcut opens the existing Periods & deadlines form scoped to one task. The form checks the current task preview before presenting the grant, then uses the existing audited completion-window endpoint. The endpoint retains its authorization, eligibility and locking checks. This flow requires no schema change.
+
+## Programme transfers
+
+Coordinator navigation and research profile actions no longer offer new transfers. The research amendment service rejects new transfer submissions; existing records and their resolution paths remain intact.
+
+## Shared window history pagination (9 November 2026)
+
+OperationalHistory now sorts a copy of its input by timestamp/id descending and renders five entries per page with shared PortalButton controls. Each mounted history keeps independent page state; changing record IDs resets to the first page. Page changes return focus to the surrounding History disclosure heading. Pagination is client-side over existing audit payloads; APIs and stored records are unchanged.
+
+## Period extension register (9 November 2026)
+
+PeriodExtensions renders a compact summary or full-page details within the existing managed-window RecordPage, preserving local filters on return. It separates common deadline audit changes from personal grant records; native details rows reveal reasons, actors and revoke controls. A read-only Office-only GET /api/marks/periods/{id}/completion-windows/ aggregates historical grants with student/programme/evaluator identity and submission status using related-object loading, avoiding requests per task and excluding scores/comments. Appointment exception payloads additionally expose matricNo, programme and grantedBy. All writes continue through existing audited grant/revoke services; no schema migration or data reset. History retains general period changes without the former task dropdown.
+
+Extension views use a scoped typography scale and responsive summary rows. Each populated row selects the corresponding detail tab before opening the record page; individual grant pages retain the existing ten-record client-side pagination.
+
+The extension detail view groups window name, semester and coverage separately from the selected register and presents common deadline changes as a chronological audit list with responsive date and reason fields.
+
+The closed Marks window action uses the loaded task eligibility flags to decide whether to offer individual extra time. The existing server-side grant checks remain authoritative.
+
 ## Assessment display names (8 November 2026)
 
 Assessment options, period lists/search and publication review display Research Project 1 and Research Project 2. Shared assessmentLabel maps existing P1/P2 identifiers without rewriting data or resetting test records; no reseed or migration is needed.
@@ -18,6 +62,8 @@ Migration marks.0013 adds rubric-version allowed_evaluator_roles (API allowedEva
 
 Marks export uses the shared PortalButton primary/small styling and icon prop, matching appointment exports and keeping the icon beside the label with the shared loading state.
 
+Workbook row builders share a formatter that displays the stored assessment codes P1 and P2 as RP1 and RP2.
+
 Office-only POST `/api/marks/export/` validates 1–20,000 existing MRK IDs. The UI sends its complete filtered dataset through authenticated requestBlob with explicit JSON content type. Backend marks.export builds XLSX with the existing openpyxl dependency and fresh database values. Detail queries preload profiles/evaluators, rubrics/components, scores and completion windows. A separate active-assignment query computes completion independently of selection filters. Excel text is explicitly string-typed to prevent formula interpretation; scores remain numeric. Draft content is excluded from results. Response caching is disabled. UI includes matching count, pending/duplicate protection and retryable errors. No schema, grade aggregation, external Forms integration or new dependency.
 
 ## Calendar template instructions aligned with publication (8 November 2026)
@@ -26,11 +72,15 @@ Updated the existing `dashboard.excel.build_template_workbook` generator's Instr
 
 ## Calendar publication boundary (8 November 2026)
 
+The timeline chart uses day-proportional month columns. Event cards fit their titles, preserve at least the date range width, and wrap at 180 pixels when the date range is narrower. A flexible start offset shrinks only when a card would overflow the right edge. Cards contribute to row height so wrapped titles remain visible.
+
+The import preview uses one confirmation control when replacing the draft or acknowledging date warnings. The frontend resets it on workbook, mode or preview changes and passes acknowledged warnings through the existing signed upload API.
+
 `SemesterTimeline.is_active` continues identifying the single editable semester draft, preserving editor and period-connection entry IDs. A separate `is_published` timeline stores the public copy; conditional uniqueness and a check constraint prevent multiple publications or a mutable/public row. Schema migration `dashboard.0009_calendar_publication` precedes data migration `dashboard.0010_preserve_published_calendars` to commit PostgreSQL deferred indexes before copying data. The data migration copies existing non-Draft-semester calendars, including closed/archived reporting history; Draft-semester calendars stay private. Publication copies retain stable source entry IDs for reminder idempotency.
 
 `calendar_publication.py` owns content digests, actor-bound expiring review tokens and atomic publication. Managed reads hold the semester/period locks across serialization and token creation; publication uses the same parent lock, checks the full fingerprint and records PUBLISH audit evidence. Immutable public event facts are isolated from calendar drafts, while current linked events deliberately retain live authoritative period projections. Superseded publications freeze projected dates/status and release live period foreign keys so they cannot permanently block draft-period cleanup.
 
-Import preview/confirmation signatures include ADD/REPLACE. ADD appends using generated per-level steps/display order; REPLACE archives only the editable version, keeps its prior link-preservation rules and leaves publication untouched. Preview includes existing/incoming/resulting counts. Frontend import changes invalidate review and replacement consent. Calendar publication uses the shared DecisionDialog for count review, duplicate-write protection, stale-review recovery and committed-refresh failure handling. Audience filtering is enforced server-side; management requests remain Office-only and see the full draft.
+Import preview/confirmation signatures include ADD/REPLACE. ADD appends using generated per-level steps/display order. REPLACE archives the editable version and leaves publication untouched. A replacement preview reports unmatched linked entries and offers an explicit carry-forward or a one-to-one match with an unclaimed workbook row of the same level. A signed link review binds choices to the current actor, workbook, semester, draft and periods. A second signed preview captures the selections for confirmation under the existing semester lock. Carried events append at the end of their project group and are included in the final draft count. Matched and carried events retain their period foreign key. Frontend import changes invalidate review and replacement consent. Calendar publication uses the shared DecisionDialog for count review, duplicate-write protection, stale-review recovery and committed-refresh failure handling. Audience filtering is enforced server-side. Management requests remain Office-only and see the full draft.
 
 ## Phase six feedback integration (1 November 2026)
 
@@ -351,11 +401,11 @@ LecturerMarkingNavigation renders a subtle numeric badge only when a known count
 
 GET /api/marks/my-submitted-evaluations/ filters submitted entries by the authenticated lecturer across assignment lifecycles; it performs no task generation. SubmittedEvaluationSerializer retains the existing score/comment payload and adds an ISO submittedAt, assignment lifecycle, evaluation-period and rubric identity. It explicitly returns canEdit=false and canSubmit=false without running editable-task/completion-window eligibility logic. Queries select/prefetch related records and order by submitted timestamp descending with nulls last and stable task-ID ties. The active task API and write guards remain unchanged; no schema migration or dependencies. Normal handover/pause/retirement services already preserve submitted tasks. The dedicated history query also covers legacy non-active submitted records and removes the active-feed dependency; it does not alter those lifecycle services. Scores and comments come from the retained entry, with identity/research labels from the retained profile; this change does not create immutable profile snapshots.
 
-MarksEntryHistory owns its authenticated history read and loading/retry state instead of receiving the active queue. It reuses role navigation, including historical backup marking, and shared automatic filters. Filter/sort helpers compare actual timestamps and inclusive Malaysia dates, keeping unknown dates last and excluding them only when a date constraint is active. A record opens the existing SubmittedMarkDetail in read-only mode. History-only navigation never calls the active-task generation API. Phone rows keep View submission visible; selected role and filters survive detail return. Backend tests cover ownership, lifecycle retention, GET-only/no-write behaviour and unchanged retired-task write guards; frontend/browser tests cover independent reads, role/date filters, ordering, failures and responsive record return.
+MarksEntryHistory owns its authenticated history read and loading/retry state instead of receiving the active queue. It reuses role navigation and shared automatic filters. Filter/sort helpers compare actual timestamps and inclusive Malaysia dates, keeping unknown dates last and excluding them only when a date constraint is active. A record opens the existing SubmittedMarkDetail in read-only mode. History-only navigation never calls the active-task generation API. Phone rows keep View submission visible; selected role and filters survive detail return. Backend tests cover ownership, lifecycle retention, GET-only/no-write behaviour and unchanged retired-task write guards; frontend/browser tests cover independent reads, role/date filters, ordering, failures and responsive record return.
 
 ## Lecturer role-scoped marking workspace (25 October 2026)
 
-LecturerMarksEntry derives role-scoped tasks from the existing authenticated task response using lecturerMarking helpers. The markingRole selection uses authenticated-shell useListState; primary role navigation reuses the Supervisor/Panel presentation without nested status tabs. Both official roles remain available, with a conditional backup view and a first-load preference for an assigned role. Legacy payloads without evaluatorRole retain the established Panel interpretation. Summaries use role plus semester, while navigation unfinished counts cover each complete loaded role queue. Filters apply immediately inside PortalCard; stable task IDs retain separate period assessments. A nonmutating sort puts unfinished tasks first and orders each group by actual deadline, retaining original order on ties. Loading and read errors never manufacture zero totals.
+LecturerMarksEntry derives role-scoped tasks from the existing authenticated task response using lecturerMarking helpers. The markingRole selection uses authenticated-shell useListState; primary role navigation reuses the Supervisor/Panel presentation without nested status tabs. Both roles remain available, with a first-load preference for an assigned role. Legacy payloads without evaluatorRole retain the established Panel interpretation. Summaries use role plus semester, while navigation unfinished counts cover each complete loaded role queue. Filters apply immediately inside PortalCard; stable task IDs retain separate period assessments. A nonmutating sort puts unfinished tasks first and orders each group by actual deadline, retaining original order on ties. Loading and read errors never manufacture zero totals.
 
 Submission history receives only the selected role's task collection and an explicit role context. Its filters and results share a card. This does not change the existing active-task API or extend historical backend coverage. MarkEntryDetail and SubmittedMarkDetail display role context; draft save success updates the local task, keeps the mounted editor and resets its local dirty baseline after the awaited save succeeds. Errors preserve input and dirty tracking; navigation and submission confirmation guards remain authoritative. Phone task rows reuse the portal responsive table pattern, stacking identity/research and keeping due, status and the action visible without horizontal scrolling; desktop retains the table. Restored history views render loading/error recovery before showing empty or submitted results. No backend/schema/global typography/dependency changes. Mocked browser coverage checks mixed roles, conditional backup, panel/backup-only first loads, empty roles, scope/counts, immediate filters, history return, successful/failed draft saves and narrow layouts.
 
@@ -377,7 +427,7 @@ Marks overview, setup, checks, monitoring and subpages use shorter, state-specif
 
 `MarkEntryRecords` groups its search, counted Status dropdown and visible programme/semester/evaluator fields in the existing `WorkspaceFilterCard` from `RequestWorkspacePrimitives`. Clear filters uses the shared action footer with no Apply action or submission form. The filter panel and results remain in one surface. It reuses `filterMarkRecordsByStatusTab`, existing local search/filter predicates, `useListState` and dashboard monitoring context. A restored legacy applied dropdown status is reflected in the single visible status selection until reset or another status is chosen. Counts use the same loaded-record scope as each status filter rather than the former active-only summary. Search, programme, semester, evaluator and status selection filter immediately from authenticated-shell field state and reset pagination. The former applied-filter object is read only as a legacy status fallback; its separate draft/apply state and success toast are removed. Clear resets list filters while retaining monitoring scope. Loading/errors display unknown counts. Student/record identity and status/submission metadata share cells in an eight-column table inside a named focusable scroll region. Empty states bypass table/pagination. Pagination reuses `pageWindow` and clamps restored page state after a successful load. Service reads, permissions, lifecycle badges and academic mutations are unchanged; no new dependencies or global styles.
 
-`EvaluationTaskAssignment` uses two main `PortalCard` surfaces: combined period/generation and task management. Native `details` progressively reveals period metadata/readiness; session activity is a second disclosure inside the task card. The existing `WorkspaceFilterCard` contains visibly labelled Evaluator role and Task status `PortalSelect` controls, reusing the existing role/status state and immediate filtering. Role counts remain in dropdown options; submission counts remain compact text below. Clear filters uses the shared action footer and retains period scope. The grid stacks on mobile. The populated table combines student identity and evaluator role into their respective cells without discarding fields and scrolls in a named, focusable region. Empty results use a compact text block instead of wide table scaffolding. The backup assignment editor reuses two separate searchable `SelectMenu` fields, one for students and one for active lecturers, backed by the Office-only assignment-options endpoint's optional search mode; each returns up to 50 matches and a total count. Student results remain filtered by period programme scope. The fields sit side by side at desktop widths and stack on narrow screens; the shared picker portal keeps their menus from overlapping. The optional official-task link uses the already loaded task list. The editor separates assignment fields from reason/exception confirmation and uses the shared small-button style. The legacy endpoint response, generation/backup handlers, period targeting and authorization remain authoritative; no schema or dependency changes.
+`EvaluationTaskAssignment` uses two main `PortalCard` surfaces: combined period/generation and task management. Native `details` progressively reveals period metadata/readiness; session activity is a second disclosure inside the task card. The existing `WorkspaceFilterCard` contains visibly labelled Evaluator role and Task status `PortalSelect` controls, reusing the existing role/status state and immediate filtering. Role counts remain in dropdown options; submission counts remain compact text below. Clear filters uses the shared action footer and retains period scope. The grid stacks on mobile. The populated table combines student identity and evaluator role into their respective cells without discarding fields and scrolls in a named, focusable region. Empty results use a compact text block instead of wide table scaffolding.
 
 `RubricsManagementView` branches after loading/error handling: an empty library without an active creation form renders the shared `PortalCard`/`EmptyState` with `beginFamily`; the editor grid adds its family sidebar and desktop second column only when family groups exist. First-family creation reuses the existing form and mutations with focus moved to its family-code field. No service or rubric validation changes.
 
@@ -492,6 +542,10 @@ WorkflowReconciliationCentre composes the existing RecordPage/DecisionDialog wit
 The Office reconciliation API adds checkedAt and explanatory context within currentState (lecturer, semester, policy version, missing-link signals and overlap ranges). Context participates in the existing fingerprint. Search includes lecturer/staff/semester context. Filtered issues are stably prioritized by severity and repairability before paging. Audit GET accepts optional entityType/entityId filters applied before its existing latest-200 limit, and adds count; legacy callers remain supported. Existing detectors, repair eligibility and write services are unchanged. No schema migration or permission change.
 
 ## Lecturer capacity collections and policy composition (2026-10-23)
+
+The read-only lecturer dialog renders active student counts, published limits and pending commitments from the existing capacity workspace response. It uses the portal status badge for availability and opens the existing lecturer-scoped availability view.
+
+The capacity roster uses fixed label widths to align role values in workload and limit cells. Zero and missing limits have distinct values. The Office capacity workspace resolves current-semester RP stages in one batch and returns aggregate appointment counts by role. View and Edit limits share the Today and Next semester breakdown, with a disclosure beside each editable field. Forecasts continue to use the existing publication calculation. The distinct active-student total appears in View.
 
 OfficeCapacityWorkspace composes CapacityPolicySummary and CapacityCollectionPage. Its existing internal view state now distinguishes overview, versions, availability and activity without tabs or changing route authorization. View transitions restore overview page/scroll and retain semester/search/role; lecturer availability shortcuts carry a separate exact lecturer ID. Modal restoration checks the originating capacity view so leaving a lecturer dialog cannot scroll the destination back down.
 
@@ -858,6 +912,8 @@ Dashboard timeline entries have mutually exclusive nullable PROTECT links to Ope
 
 OperationalPeriodManagement is the Office extension hub in Timeline Management. Shared forms route appointment changes to academics, Marks changes to existing Marks period/completion-window services, and informational extensions to the timeline endpoint. Closed-semester read/recovery remains available with other mutation controls disabled. Existing Marks configuration retains draft/rubric/targeting/lifecycle work and delegates live deadline changes to the hub. OperationalIntakeFeedback fetches authorised contextual availability without clearing drafts; creation endpoints remain authoritative on races/read failures.
 
+The shared window detail displays the API's effective schedule independently of its published lifecycle. Supervisor and Panel use `ENDED` for formal closure wording in both the action and confirmation. Marks configuration uses effective `CLOSED` on a still-published evaluation period and keeps its signed unfinished-work review.
+
 announcements/connected_reminders.py derives opening, phase-specific closing and extension events from current committed period/task/audit facts. Existing calendar-only entries use separate audience/date events; linked entries do not duplicate notifications. DeadlineEmailDelivery persists optional email retries; delivery rechecks recipient/event membership, current work/role eligibility and current deadline content. Invalid queue rows do not consume the send-attempt limit. Student feed, direct notification access and weekly summaries suppress retained staff-only Marks/Panel notices. DeadlineReminderRun records actual-job status/counts; --dry-run performs no writes or deliveries. A PostgreSQL advisory lock prevents overlapping actual jobs. Windows scripts use the repository venv, explicit working directory, hidden execution and preview-by-default registration; real delivery needs explicit activation and configured mail infrastructure.
 
 ## Historical ownership/link proposal (2026-10-16, superseded by implementation above)
@@ -944,7 +1000,7 @@ Created the approved local-only account set through the existing Django UserMana
 
 `DecisionDialog.tsx` composes the existing native `PortalModal`, shared buttons, RecordDraft and outcome feedback. It distinguishes `review` from `confirmation`, supports contextual fields and explicit consequences, holds asynchronous saving/error state and one synchronous duplicate-submit latch, preserves typed fields on failure, and uses an in-dialog discard prompt. The last open immutable record identity persists through closing/reopening; 403/409 submission blocks clear only after explicit successful latest-record reload or a different record identity. `decisionSubmission.ts` provides `completeDecision` (save errors propagate; reload errors return `refreshFailed`) and the tested submission latch. `DecisionOutcome.successMessage` can carry a result-specific handoff message such as research-profile readiness.
 
-`DecisionFeedbackProvider` in the authenticated AppLayout retains one success/warning toast when a saved record leaves its host; publishing is limited to the current layout/session/role scope. Stable detail hosts and strict background refresh preserve dialogs, explicit latest-record review and the distinction between failed save and failed reload. Office Marks additionally disables further correction/reopening until a strict reload succeeds after a saved-but-refresh-failed outcome. Module callbacks keep business APIs, exact role/action capability checks, versions, expected stages, required reasons and transfer acknowledgements. Existing confirmation sites in Supervisor/research/supporting, Panel review/cancellation/lifecycle, Marks/completion/backup, Timeline deletion, Workflow repair and existing capacity authorisation use this shared layer; ordinary drafts retain their existing forms.
+`DecisionFeedbackProvider` in the authenticated AppLayout retains one success/warning toast when a saved record leaves its host; publishing is limited to the current layout/session/role scope. Stable detail hosts and strict background refresh preserve dialogs, explicit latest-record review and the distinction between failed save and failed reload. Office Marks additionally disables further correction/reopening until a strict reload succeeds after a saved-but-refresh-failed outcome. Module callbacks keep business APIs, exact role/action capability checks, versions, expected stages, required reasons and transfer acknowledgements. Existing confirmation sites in Supervisor/research/supporting, Panel review/cancellation/lifecycle, Marks/completion, Timeline deletion, Workflow repair and existing capacity authorisation use this shared layer; ordinary drafts retain their existing forms.
 
 Backend `appointments/panel_access.py` centralises linked-Student/programme agreement for Coordinator object and SQL queue scope. Recommendation mutations and Panel ending recheck authoritative access after workflow locks; profile changes and invalid/unlinked Student identities fail closed. Active delegation rules remain in accounts.authorization. Office/assigned audit and legacy list monitoring remain. No migration or added dependency.
 
@@ -1341,7 +1397,7 @@ The [pending-work register](docs/PENDING_WORK_REGISTER_2026-10-08.md) consolidat
 - Marks migration `0008_evaluation_period_targeting` adds `programme_scope`, programme-name JSON selections, and evaluator-role JSON selections to EvaluationPeriod with ALL/both-role defaults. It preserves existing periods, appointments, tasks, and Marks. API fields are `programmeScope`, `programmes`, and `evaluatorRoles`; omitted create fields retain legacy defaults.
 - `marks/targeting.py` centralizes validation, normalized programme matching, current official recipients, programme options, and recipient preview. Linked Student programme values take precedence; unlinked research profiles retain legacy lookup. Draft configuration changes record targeting in immutable configuration-audit snapshots; published targeting cannot be edited. Django admin exposes targeting read-only to preserve the audited Office mutation path.
 - Office-only GET `/api/marks/programme-options/` returns distinct nonblank programme options from existing Student/research data. GET `/api/marks/periods/<id>/recipient-preview/` returns current recipients, generated timestamp, role/student/task totals, and missing eligible appointments without generating tasks. Preview supports Draft configuration, and empty results do not prohibit publication.
-- Task generation locks the period, then candidate students and lecturers in primary-key order, and repeats shared eligibility selection before writes. Candidates outside the original lock set wait for the next existing generation trigger. Reconciliation consumes the same selector. Replacement creation applies current programme/role scope while retaining existing lifecycle audits and submitted Marks; backup creation validates programme and original-task boundaries.
+- Task generation locks the period, then candidate students and lecturers in primary-key order, and repeats shared eligibility selection before writes. Candidates outside the original lock set wait for the next existing generation trigger. Reconciliation consumes the same selector. Replacement creation applies current programme/role scope while retaining existing lifecycle audits and submitted Marks.
 - The Office period form captures scope and roles explicitly, retains saved programme options, and requires saved unchanged configuration plus a refreshed preview before publication. Edits, period changes, saves, and workspace reloads invalidate previews; pending responses use request counters to avoid restoring stale approval state. Period lists and assignment selectors display targeting summaries. No new top-level module or publication-token API is introduced.
 - Verification covers API/service scope, preview side effects, lifecycle preservation, legacy migration, concurrency, UI validation and rendering, broader affected-module regressions, and production build guards. Recreate parallel PostgreSQL test clones after schema changes; `--keepdb` may leave existing clones at an older schema.
 
@@ -1562,14 +1618,13 @@ The app uses React Router clean URLs for top-level modules and high-value workfl
 - Migration `marks.0003` assigns existing rubrics to version 1, uses their active-component total as target, normalizes active display order, and maps existing periods without changing configuration, task, entry, score, or foreign-key identifiers.
 - `marks.services` is the transactional configuration boundary. It uses row locks for version cloning, period transitions, and task creation, while draft/submission writes reload and lock the referenced period before validating its window so a concurrent close cannot race a lecturer write. Configuration mutations write immutable `MarksConfigurationAudit` snapshots.
 - Marks APIs support lecturer-scoped draft saving and immediate submission locking, plus Office monitoring and task generation from active Supervisor and Panel appointments. Domain-state conflicts are represented by `MarksStateConflict` and returned as HTTP `409`.
-- Office Staff/Admin Marks Assignment uses `/api/marks/periods/` and `/api/marks/assignment-options/` to populate production forms for task generation and backup evaluator assignment; raw database ID prompts are not part of the finished workflow.
-- The shared `SelectMenu` supports an inline search mode where the field itself is the combobox and the filtered list opens beneath it. Marks backup assignment uses separate Student, Backup Lecturer, and optional official-task controls in this mode; remote person searches remain debounced and limited to 50 results. Its interactive period selector contains only the current workspace period when published and non-ended, remains visible for the single option, and has no blank placeholder. Staff change workspace scope before creating a backup for another period; the entry action is disabled for an ineligible current period.
+- Office Staff/Admin Marks Assignment uses `/api/marks/periods/` and `/api/marks/assignment-options/` to load periods and student counts for task generation; raw database ID prompts are not part of the finished workflow.
 - Office Staff/Admin Marks overview combines `/api/marks/periods/`, `/api/marks/`, and `/api/dashboard/summary/` so period cards, submission monitoring, and Mark Entry Records use the same live task/record data.
 - Mark Entry Records accepts an initial status tab for dashboard and monitoring deep links; shared `src/utils/markRecords.ts` owns mark record summaries and status-tab filtering.
 - `/api/marks/` derives display status from task period timing, returning `Overdue` for unsubmitted tasks after `EvaluationPeriod.closes_at` without adding a database status.
 - `marks.deadlines` derives `dueAt`, `daysUntilDue`, and `deadlineState` from `EvaluationPeriod.closes_at`; submitted entries return `COMPLETE`, and the Marks workflow remains tracking-only.
-- `EvaluationTask.evaluator_role` distinguishes `SUPERVISOR`, `PANEL`, and `BACKUP` tasks; duplicate prevention includes the evaluator role so the same student/period can have separate supervisor and panel marks.
-- `marks.services.ensure_period_tasks()` is the shared generation path for manual Office Staff/Admin generation and active-period safety generation. It and backup/manual overrides require a published, non-ended period; backup assignments are audited by `EvaluationTaskOverrideAudit`.
+- `EvaluationTask.evaluator_role` distinguishes `SUPERVISOR` and `PANEL` tasks; duplicate prevention includes the evaluator role so the same student/period can have separate supervisor and panel marks.
+- `marks.services.ensure_period_tasks()` is the shared generation path for manual Office Staff/Admin generation and active-period safety generation. It requires a published, non-ended period.
 - Privileged mark correction/reopening lives in `marks.services` and is used by authorized Office portal endpoints with mandatory reasons, reviewed record versions and before/after snapshots. Submitted comments follow the same audited correction path as submitted component scores; Django admin provides inspection only.
 - Office configuration APIs are rooted at `/api/marks/rubrics/` and `/api/marks/periods/`; stable record details are loaded from `/api/marks/records/<recordId>/`. Configuration endpoints are Office Staff/Admin-only and expose archived periods only with `includeArchived=true`.
 - `canAccessMarksAdministration()` guards `/marks/config`, `/marks/rubrics`, `/marks/tasks`, `/marks/records`, and record-detail routes before mounting an Office screen. Django authorization remains authoritative and independently returns `403`.
@@ -1710,7 +1765,7 @@ The approved extension introduces dedicated supporting nomination and appointmen
 - A reusable section inside the supervisory-team workspace provides Office controls and coordinator history without introducing another top-level module. Backend authorization remains authoritative.
 - Additive schema changes preserve workflow foreign keys and original semesters. Focused regression coverage verifies policy choice, permissions, audit immutability, stale actions and unchanged source history. Verification results are recorded in PROJECT_STATUS.md.
 
-- Carryover decisions acquire semester `FOR NO KEY UPDATE` locks before Student/request/Lecturer locks. These serialize policy and lifecycle writes while permitting unrelated foreign-key inserts. Reconciliation handoff repair follows the same order; semester assignment locks the semester before the record. Marks generation and backup creation use non-key period locks so an in-flight appointment replacement can commit its new task while generation waits on the Student. PostgreSQL race tests retain controls that reproduce the previous lock conflict.
+- Carryover decisions acquire semester `FOR NO KEY UPDATE` locks before Student/request/Lecturer locks. These serialize policy and lifecycle writes while permitting unrelated foreign-key inserts. Reconciliation handoff repair follows the same order; semester assignment locks the semester before the record. Marks generation uses non-key period locks so an in-flight appointment replacement can commit its new task while generation waits on the Student. PostgreSQL race tests retain controls that reproduce the previous lock conflict.
 - Migration `appointments.0015_capacity_reassessment` adds an append-only `CapacityReassessmentEvent` ledger with exactly one workflow foreign key per event. Grant/replacement, revocation and consumption preserve actor identity, reason, stage, target semester and the capacity snapshot; no inferred historical grants are seeded.
 
 ## Report, Backup Assignment and Timezone Corrections (2026-09-30)
@@ -1864,8 +1919,8 @@ Desktop window tables allocate 15% to Closes and 12% to Status, moving Status le
 ProgrammeCoverageReview groups coverage by window ID while preserving programme membership and uncovered programmes. Restriction review opts into the shared DecisionDialog wide size. DecisionDialog uses PortalConfirmModal for unsaved dismissal, preserving dirty guards, owner callbacks and native focus trapping; replacement review remains unchanged.
 
 
-### Submission access labels - 31 October 2026
-WindowSubmissionAccess combines lifecycle, effective schedule and activity enforcement for appointment overview rows. Marks schedule status remains unchanged. Status column widened to 18%, reducing preceding column widths.
+### Submission window status and access
+`getWindowScheduleStatus` combines lifecycle and effective schedule for the Office overview and the shared `WindowScheduleStatus` badge. It maps expired published appointment windows (`ENDED`) and Marks periods (`CLOSED`) to Deadline passed. A lifecycle of `CLOSED` takes precedence and displays Closed. The badge appears in the window list, detail and Marks configuration. Activity enforcement supplies separate appointment access text. Existing API values and submission rules are authoritative.
 
 ### Shared submission availability feedback - 31 October 2026
 - OperationalIntakeFeedback composes SubmissionAvailabilityNotice for consistent responsive icon/title/detail/action layout. MarkEntryDetail reuses the notice without conflating Marks task permissions with operational intake enforcement.
@@ -2081,7 +2136,7 @@ Marks overview semester context (2026-11-02): Show the selected academic semeste
 
 
 ### Evaluation task workspace — 2026-11-02
-EvaluationTaskAssignment filters generation-period choices independently of loaded task/backup data. Empty scopes suppress filters and count summaries; temporary assignment activity renders in a separate conditional collapsible card.
+EvaluationTaskAssignment filters generation-period choices independently of loaded task data. Empty scopes suppress filters and count summaries; temporary assignment activity renders in a separate conditional collapsible card.
 
 ### Atomic retirement on explicit period closure — 2026-11-03
 close_evaluation_period invokes the existing retire_participant_evaluation_tasks service within its closure transaction after signed-preview validation. Retirement skips submitted entries, invalidates live task completion windows, and records actor/reason with entry snapshots. ClosureSummary receives a period-only retirement presentation flag; semester/handover messaging remains unchanged. No schema or endpoint changes.
@@ -2108,7 +2163,7 @@ Office dates disclosure now separates the entry schedule from a chronological ac
 
 - Both mark record detail views use formatMalaysiaDateTimeCompact, which explicitly formats Asia/Kuala_Lumpur timestamps. The existing full formatter retains its timezone suffix for other callers. This removes the Office device-time dependency and repeated Lecturer timezone suffixes.
 
-- Office marks correction/reopening dialogs: added matching rounded-square close controls with unsaved-change protection; score and comment fields use explicit padding and heights because portalled dialogs do not inherit workspace styles. Component feedback remains preserved and read-only in the correction workflow.
+- Office marks correction/reopening dialogs use matching rounded-square close controls and unsaved-change protection. The correction draft includes component feedback changes and uses the shared review dialog for confirmation and conflict recovery.
 
 - MarkEntryPeriodConfig keeps saving/pendingWrite active through the post-write read; savedReadBlocked is set only after a committed write fails to refresh, preserving recovery controls without flashing a false warning.
 
@@ -2145,3 +2200,143 @@ The existing evaluation-period detail endpoint accepts `DELETE` for authorized O
 
 
 Period configuration groups draft deletion and closed-period archiving in the left side of the footer, using the shared PortalButton and existing confirmation flows. Footer button text uses a consistent line height.
+
+
+## Marks stage lookup adapter (9 November 2026)
+
+`backend/marks/stage_eligibility.py` exposes `period_stage_eligibility(period, student_ids)`, returning immutable StageEligibility decisions keyed by Student PK (None represents an unlinked profile). It batches the authoritative accounts.project_stages lookup for the period semester, checks CONFIRMED and exact P1/P2 equality, and preserves Registry exclusion reasons. Invalid period configuration fails closed without a Registry query. It performs no writes or inference. The initial task-1 helper was subsequently wired into runtime workflows by stages 1 and 2 below; consumers retain existing checks and lock/recheck eligibility before writes. Database-backed tests cover exact semester/stage matching, exclusions, special semesters, completion boundaries and bounded batch queries.
+
+
+## RP stages 1 and 2 integration (9 November 2026)
+
+The Marks stage adapter is now consumed by targeting, generation, replacement, resume/reconciliation, lecturer writes and completion-window eligibility. Recipient targeting batches Registry stage reads, uses linked Student records only and retains programme/role/participant rules. Preview eligibility.expectedStudents/excludedStudents/reasonCounts, exclusions, missingAssignments, configurationIssues and semesterId supplement existing totals/missingAppointments. Existing active and paused tasks count as existing; paused rows carry taskStatus=PAUSED. Missing-profile issues are deduplicated per student/reason while supervisor/panel missing counts remain independent.
+
+Marks writes and completion-window grants lock Student before task rows and reread stage decisions under that lock, serializing with Registry confirmations/corrections. Generation retains its period no-key lock, stable Student/Lecturer locks and final recipient recheck; replacement/resume paths share the Student lock. Return-to-Active transitions make the target status visible inside the same transaction before stage-based resume, while retaining the original status for lifecycle audit. Invalid stage resume preserves paused tasks for the later correction workflow.
+
+Recipient preview renders searchable, paginated eligibility explanations and Registry links; the Project stages page accepts a semester query parameter and shows unappointed unconfirmed students without an urgent flag. No schema changes or new API endpoints are needed. Correction callbacks, task retirement/pausing caused by registration changes, submitted-mark policy and application restrictions remain outside this implementation.
+
+
+## Stages 1–2 review hardening (10 November 2026)
+
+Official generation and both handover creation paths share official_assignment_paused, keyed by period/profile/role across evaluators. Preview taskStatus=BLOCKED identifies paused work held under a different evaluator and excludes it from new/existing totals. Reconciliation resume checks profile scope. Marks lock_tasks retains the Student identity snapshot used for locking, then compares freshly loaded task profile links; backup/resume/reconciliation likewise reject changed links. This closes supported legacy None-to-Student relinking races without introducing Profile locks or lock-order inversions. The existing student workflow eligibility helper accepts an optional current_semester snapshot; targeting computes it once per batch to avoid per-student semester queries while retaining default caller behavior.
+
+## RP stage 3 correction contract (10 November 2026)
+
+Upgrade verification (10 November 2026): PostgreSQL upgrades are rehearsed on a restored custom-format pg_dump backup before touching the configured local database. Backups remain outside the repository under Documents/FKSTM_Database_Backups. TypeScript fixes restore the missing AlertTriangle import, explicitly type operational-history fixture state, and remove an obsolete header fixture prop; no runtime behavior or requirements change.
+
+`marks.stage_corrections` owns version-1 `preview_stage_change` and transactional `apply_stage_change`. Preview returns task identities grouped by period/state/action, existing summary counts, paused/retired/legacy counts, requiresReview and an HMAC fingerprint over all semester task evidence, entry versions, completion windows and Registry lookup context. `accounts.project_stages.marks_impact` remains a compatibility wrapper. Registry holds Student, registration and ordered task locks, recomputes the impact, validates revision/fingerprint/acknowledgement, writes registration, invokes Marks apply, then appends registration history including actual outcomes. It never takes semester/period locks after Student, avoiding inversion against completion/submission and generation. Apply has no post-commit work and never changes submitted entries.
+
+The existing impact endpoint accepts first confirmations; the correction endpoint requires expectedImpact and accepts revision=0 for an absent registration. Bulk confirmation locks/reviews every row and skips affected rows with an actionable reason; safe rows invoke the same Marks apply callback. Lifecycle audits add STAGE_REVIEW and STAGE_RESOLVED (migration marks.0014, choice metadata only). Review snapshots retain semester, Student, registration revision, impact token and action. Holds are cleared only by explicit eligible resume or audited retired-history release, never by unrelated retirement. Generation and replacement guards honour outstanding holds across evaluators. Dashboard reconciliation surfaces held, submitted, retired and legacy work. If a held draft's evaluator appointment has ended, Office can explicitly retire it while preserving the draft and hold, then review release of the retired history; release never requires the obsolete evaluator's appointment. Submitted academic decisions remain manual.
+
+ProjectStages requires a loaded preview before saving, sends its token, lists task outcomes, provides failure/retry and stale-review recovery, and exposes individual first confirmation plus bulk skipped-row feedback. PostgreSQL regression coverage verifies lifecycle preservation, stale impacts, first/void/bulk operations, rollback and concurrent Marks writes. Browser fixtures intercept all HTTP and exercise the production component/API client at desktop/mobile widths.
+
+## Final-plan coordinator callback adapter (10 November 2026)
+
+`marks.stage_changes` exposes Xiang's keyword-only preview/apply signatures and StageChangeStale. Both the legacy Registry contract and this new adapter reuse the task classification/evidence builder in `stage_corrections`; the existing Registry endpoints retain their current behavior. The new HMAC binds student, exact semester, old/new stage and all task evidence, without reading live Registry lookup metadata: Registry may save before or after cleanup inside its transaction. Registry must separately validate its registration revision and effective old stage under locks. Preview returns exactly notStarted/draft/submitted/token; apply returns task outcomes for optional audit use.
+
+Apply requires an existing atomic block, takes Student then ProjectRegistration then ordered task locks, recomputes the token and delegates lifecycle changes/audits/window invalidation to the existing implementation. It never writes registration or opens a separate transaction. The caller must let failures escape the outer atomic block. The lookup gate consumes only state/stage/reason and accepts ON_PROJECT plus temporary CONFIRMED compatibility; it does not import the legacy state constant. No migrations or frontend changes are introduced. Integration responsibilities and remaining work are recorded in docs/RP_MARKS_CONTRACT_HANDOFF_2026-11-10.md.
+
+## Registry–Marks integration (12 November 2026)
+
+Registry's `project_stage_marks` adapter calls the Marks preview and apply callbacks. `change_stages` checks a supplied single-student token even if the new preview has zero affected tasks, and requires acknowledgement plus a token whenever cleanup has affected work. Unclassified tasks that receive a review audit are counted by entry status in the preview. The callback revalidates task evidence under locks inside Registry's transaction. Marks receives the coordinator as audit actor through that service call, independently of Marks Entry route permissions. The dialog blocks Save after a failed preview or a stale single-student save and offers a retry with fresh acknowledgement.
+
+Marks eligibility consumes the live Registry lookup's ON_PROJECT state and matching P1/P2 for the assessment semester. Tests call the real coordinator API and exercise the same service concurrently with draft writes, task generation, completion-window grants, and profile linking on PostgreSQL.
+
+## Supervisor/Panel RP acceptance coverage (10 November 2026)
+
+Review confirmed `marks.targeting.period_recipients` reads active appointments independently of the originating application semester; it applies the shared exact-semester stage gate. Existing `activate_replacement`, supervisor approval and coordinator Panel approval keep lifecycle/replacement logic separate from registration, with Marks handover handled by the existing gated services. No production changes were necessary for this review.
+
+`appointments.test_rp_stage_handoffs` simulates only Xiang's future lookup contract (state/stage/reason). It exercises real semester activation, closure previews, on-commit Registry rollover, Marks generation/correction and Supervisor/Panel replacement approval endpoints. Tests cover regular and Special Semester transitions, idempotent generation, all non-project lookup states, unchanged appointment/pending-request records during correction, and RP2 replacements preserving the other role, registration records and RP1 submitted evidence. This verifies consumer compatibility, not Xiang's unfinished lookup calculation or first-approval trigger. Existing source-stage calculation remains teammate-owned.
+
+## RP operational tracking consistency (11 November 2026)
+
+The Office Marks list and detail payloads expose the evaluation period's assessment and stage-review indicator. The list batches eligibility through stage_monitoring_tasks and prefetches lifecycle audits and completion windows. The table computes status counts and filtered export IDs from the same assessment/search/semester/programme/evaluator selection. The workbook retains the existing Assessment column and identifies blocked unfinished work in its Summary and Outstanding sheets. Responsive filters reuse the workspace grid and the table's horizontal scroll region.
+
+The Marks Records list and detail payloads share the Reconciliation recovery rule when deciding whether to display a stage-review warning for a retired task without submitted marks. Lifecycle audit events retain the review hold. The lecturer view keeps retired history separate from current assignments and excludes it from operational counts.
+
+Marks overview loads semester-scoped period totals through the optional semester filter on the periods endpoint. Scoped reads bypass the unscoped 100-period limit. Monitoring paginates the selected semester in the browser.
+
+The Marks Records filter derives Unclassified availability from the full route and monitoring scope before local filters and pagination. After a successful load, the list clears a saved Unclassified selection if the scoped records have no missing assessments.
+
+The six-column Marks Records table uses roomier cells and a 980px minimum width inside its local scroll region. Removing the Research title cell leaves the existing search, detail payload, and workbook schema intact.
+
+Office appointment coverage uses the shared Registry project-stage lookup for the active semester. Ordinary pages batch lookup for visible students. Stage-filtered requests batch lookup for candidates and restrict the database queryset before pagination. Supervisor summary counts reuse the same RP1 predicate. The existing paged Excel loader receives the table parameters and includes project stage and semester. Waiting queues and capacity queries retain their existing scope.
+
+The appointment handoff tests use the real Registry declaration, first Supervisor approval, and semester activation. They assert that automatic RP2 needs no explicit RP2 registration and retains the appointment IDs and active load. The Excel check replays Registry-backed Attention responses in the real frontend export and reads the resulting workbooks.
+
+Coverage queries ignore stage filtering when the active semester is absent. The list response reports a null project semester, and both pages disable the shared stage control.
+
+The shared stage control uses the same label and field layout as the other coverage filters. Supervisor Attention passes its summary RP1 count to the RP1 option only for the unfiltered cohort.
+
+`marks.stage_eligibility.stage_monitoring_tasks` batches exact-semester eligibility by period and excludes stage-blocked/review-held unfinished tasks while retaining submitted facts. Caller-owned lifecycle and authorisation filters are applied before operational reporting. Reports/exports and period_task_totals use this shared selection; dossiers retain all historical rows, label blocked active unfinished rows REVIEW_REQUIRED, and exclude them from completion denominators and ordinary overdue attention. Existing generic status formatting supports the label without frontend changes. Submission percentages remain workflow facts, not academic-validity decisions; reconciliation holds remain authoritative.
+
+Completion-window eligibility and ordinary task_access both check stage_review_pending. Marks reminders inherit that access check; their task query now prefetches lifecycle audits. Tracking consumers prefetch entry/audit evidence and batch lookup calls per period. No registration writes, schema migration, calendar audience changes or closure-preview weakening. New dashboard.test_rp_stage_tracking covers mismatches, review holds, submitted evidence, eligible reminders and retained closure acknowledgement.
+
+Homepage summary counters intersect their existing role-scoped queryset with the shared monitoring selection, preserving existing aggregation/response fields. Homepage Marks actions use the same selection and audit prefetch. No new dashboard cards, count categories or frontend layout are introduced. Dossier/summary fixtures that expect actionable marking now explicitly provide a P1 assessment and matching registration instead of relying on unclassified/unregistered work.
+
+## RP2 appointment release and capacity planning (12 November 2026)
+
+The academic activation callback runs Registry's existing semester move before calling the Appointments release service. The service reads the effective stages, locks candidate students, and rechecks eligibility before using the existing audited appointment end operations in one transaction. Appointment source semesters distinguish prior appointments from appointments created for the incoming semester. Completed is a project-stage signal. The release does not record grades or graduation.
+
+Capacity plan reads and locked publication validation use the same forecast. Upcoming plans deduct only active appointments expected to end after RP2. A normal semester can project automatic progression where Registry will supply a missing studied row. A Special Semester requires existing participation to forecast release. Live role resolutions and reservations remain authoritative for booking. The Office Capacity editor displays live workload beside the expected releases and projected role commitments.
+## Archived semester identity and validation
+
+The semester session/term database uniqueness constraint applies to non-archived rows; the display code can repeat across archived records. Semester IDs and foreign-key history are preserved. Model validation returns separate term and date errors, while the semester form renders inline errors and a short summary. Existing Registry records keyed by session and term continue to represent the same academic period, independent of semester row IDs.
+
+## Student dashboard project status
+
+The student-only Registry declaration endpoint includes the effective semester ID, state and stage alongside the existing question. The response shares the Registry lookup between the status and question. The dashboard consumes this response after reads, answers and correction requests. The timeline uses its existing published, role-filtered entries and matches the Registry semester ID and stage before selecting the earliest deadline still current in Malaysia.
+
+Dashboard timeline actions use Registry's effective stage for active students before selecting published student entries. The browsable calendar uses its existing role-based audience, and the Student Action Centre reloads when a declaration changes the displayed stage.
+
+The progress dossier filters published semester milestones using the student's Registry stage for the same semester after resolving viewer access. The frontend opens the first authorised record tab.
+
+
+## Appointment rosters and marking by project stage
+
+Appointment rosters batch the effective-semester Registry lookup after role scoping. Staff supervision filters before SQL pagination and uses the same student selection for Excel. Panel filters before grouping and pagination. Active appointment exports label the project stage and its semester. The Marks task API includes its period's assessment for filtering and display.
+
+Existing appointment detail responses include the current Registry stage and semester after access checks. The dossier shares one Registry lookup between its student header and milestone filtering. Current stage displays use the same label across detail cards. Marks detail displays read the evaluation period assessment already in the task response.
+
+The shared Supervision details layout presents the Registry stage as a student detail and passes the appointment semester to the compact appointment record. It suppresses the duplicate project semester when the record shows the same semester.
+
+The shared Panel assignment layout uses its student details grid for the stage and passes the semester to the appointment record. The Office follow-up overview keeps its own layout.
+
+The shared dossier header renders the same academic status fields for staff and students. The staff lifecycle history renders separately under the existing internal visibility check.
+
+The student appointment card and the pending Panel overview share the programme and project stage fields.
+
+Staff appointment details and the two Office follow-up overviews reuse the project stage field.
+
+Both lecturer Marks detail views share the same student details fields and format the task's stored assessment with the existing RP labels.
+
+## Removal of Marks backup assignment
+
+The Marks API and UI support Supervisor and Panel evaluation tasks. Migration marks.0015 deletes legacy Backup tasks and their dependent Marks data, drops the dedicated override-audit table, and enforces the two remaining evaluator roles. The data deletion is permanent. Official-task marks, completion windows, corrections, and appointment handovers remain governed by their existing services.
+
+## Office Marks Records and lecturer progress
+
+Marks Records uses the URL for semester, period and lecturer view, and keeps record refinements in authenticated-shell list state. The Office-only period list offers a lightweight `recordOptions` response for non-draft periods, including periods without tasks. Existing dashboard monitoring links retain their operational records scope. Excel continues to export the filtered Records view.
+
+Both Records tabs render the same evaluation period selector and update the existing URL scope through the same handler.
+
+The lecturer view loads recipient previews for the selected open or scheduled periods and uses the existing Office task records, evaluator IDs and role/period keys. Missing-task candidates come from preview rows marked NEW. Review-held work remains separate, and closed/archived views derive progress from saved records. Active task completion windows can still permit marking after their period closes.
+
+Lecturer task details use the existing Office Records route with `view=lecturers` and a `lecturer` query parameter. List pagination lives in `lecturerPage`, and the authenticated shell retains the lecturer search. The detail page keeps the originating semester and period and uses the existing mark-record return navigation.
+
+The lecturer view stores programme and follow-up filters in the Records URL. It loads programme names from the existing Office options endpoint and scopes saved records and recipient previews before grouping by lecturer. Follow-up filters the grouped list, and the programme selection is retained in the detail route.
+
+The lecturer detail uses `taskPeriod` and `taskPage` to preserve its selected table and page when Office opens an individual mark record. Period changes reset task pagination without changing the originating list scope.
+
+The period options response includes the configured closing timestamp. The lecturer detail uses it alongside assessment and semester to distinguish period options while keeping the selected field’s value to the period name.
+## Office dashboard timeline audiences
+
+`active_timeline_payload` returns every event in the selected publication for Office administrators. Student, Lecturer and Coordinator dashboard reads retain their existing server-side audience filtering. The dashboard resolves the current semester's published snapshot, while the Office management endpoint resolves the editable draft. `TimelineCalendar` uses a project-specific empty state without implying a dependency between P1 and P2.
+
+## Evaluation Task Assignment period selection
+
+`EvaluationTaskAssignment` resolves the selection against published periods with an open or scheduled status. It filters assignments by the selected period ID before applying role or task status filters. Period counts come from the selected period response. The empty selection links to the existing Mark Entry Records route.
+
+## Evaluation period recipient preview views
+
+`MarkEntryRecipientPreview` uses the existing preview response for three keyboard-operable tabs. The missing-requirements count is the sum of affected supervisor and panel tasks. Tabs retain their filters when switching. Exclusions are grouped by backend reason and paginated within each group after filtering. The backend applies semester and assessment-stage eligibility before counting missing appointments.

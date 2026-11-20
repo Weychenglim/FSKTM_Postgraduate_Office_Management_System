@@ -58,7 +58,6 @@ export interface DashboardSummary {
   overdueMarkEntries: number;
   supervisorMarkTasks?: number;
   panelMarkTasks?: number;
-  backupMarkTasks?: number;
   submittedMarkEntries?: number;
   reconciliationIssues?: number;
   reconciliationBlocking?: number;

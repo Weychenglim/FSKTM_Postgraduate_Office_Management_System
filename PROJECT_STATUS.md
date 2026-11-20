@@ -1,3 +1,85 @@
+## Timeline import review screens
+
+The workbook summary uses a spreadsheet icon, a stronger wrapping filename and quieter import-action text. Change file is a blue text action with a swap icon, a larger click area and a soft hover background. The publication reminder below final review was removed at the user's request.
+
+The import dialog now shows separate upload, linked-event and final-review screens. Later screens replace upload controls with a compact workbook summary and Change file action. Back retains linked-event selections, and returning to final review requires fresh confirmation. Method tabs hide during review. The date confirmation uses an aligned checkbox and text wrapper, with Manage period above the responsive date comparison.
+
+Verified with 33 mounted calendar scenarios at 1440, 390 and 320 pixels, including stage focus, preserved linked choices, consent reset and import failure recovery. Production-CSS screenshots were inspected for linked-event and final-review layouts at desktop and mobile widths. The frontend type check passed.
+
+## Office semester timeline visibility
+
+Office dashboard now includes every published event across all audiences in both research project tabs. Empty tabs say which project has no events to display. The misleading P1-first explanation has been removed.
+
+Verified with 35 Django timeline/publication tests, timeline rendering and browser checks at 1440, 1280, 390 and 320 pixels, and the frontend type check. Coverage includes concurrent P1/P2 dates, unpublished draft isolation and audience filtering for Student, Lecturer and Coordinator. The local UAT backend was restarted to load the change.
+
+## Submitted marks feedback corrections
+
+Office can edit component feedback inline from Correct submitted marks. The review shows each text change in stacked Before and After sections and the correction history retains both versions. Feedback-only corrections preserve the submitted status and total.
+
+The correction dialog has a compact title row and one card for the component marks. Each maximum sits next to its score input, with the feedback control directly below. Long previews truncate on one line and empty components display No feedback. A lightly tinted footer groups the larger total with the marks it sums.
+
+Verified with the Marks browser fixture at 1440px and 390px, the frontend type check, and 33 Django correction and write-reliability tests. A running UAT backend must be restarted to load the updated endpoint.
+
+## Marks records period filter
+
+By lecturer now uses the same Evaluation period dropdown as Records. Links preselect the period, and staff can switch periods or choose All periods while keeping the selected semester and lecturer search.
+
+The By lecturer filter footer places Needs follow-up on the left and Clear filters on the right. The search and dropdown fields share one row on wide screens and wrap into a grid on smaller screens.
+
+## Submission window closure
+
+Office window lists, details and Marks configuration now share one status badge. Deadline passed identifies a published window after its cutoff. Closed identifies formal closure. Supervisor and Panel show a short submission-access note alongside the schedule.
+
+The window table and detail browser suites passed at 1440, 1280, 390 and 320 pixels. The Marks configuration browser suite, status checks and TypeScript passed.
+
+Supervisor and Panel now offer Close period after the scheduled deadline, consistent with Marks. The shared detail distinguishes schedule expiry from submission access. Appointment closure explains the effect of date restrictions and personal extra time. Marks retains its unfinished-work review before formal closure.
+
+Browser checks passed for early and post-deadline closure in all three modules. The broader Periods workspace suite still reports three pre-existing Marks navigation and draft scenarios. TypeScript and the period-detail checks passed.
+
+## Timeline replacement review
+
+The timeline chart displays one card per event. Short events fit their titles and shift left only when the card would overflow the right edge. Longer titles wrap within the row.
+
+The final import preview uses one confirmation below the event table for replacement and applicable date warnings. The warning panel only lists date issues, and the preview heading and count line summarize the draft change.
+
+Office can now carry an omitted linked event into the replacement, confirm a renamed workbook row, or keep the authoritative window dates when the workbook differs. The preview names the affected event, links to its period and shows the resulting draft before import.
+
+The linked-event dropdown displays placeholder text in the empty field. Browser coverage checks that the opened list offers only the existing event and eligible Excel rows.
+
+Linked-event review gives the decision more space and keeps its purpose behind a question-mark help control. The date comparison and period action appear when the selected workbook dates differ. The calendar browser tests cover both help states and matching or conflicting dates.
+
+All 36 focused Django tests passed. The browser suite passed all 33 scenarios at 1440, 390 and 320 pixels. TypeScript and the timeline API client test passed. The isolated UAT backend was restarted, and authenticated previews through port 3003 exercised all three choices without saving calendar or period changes.
+
+## Office workflow reconciliation actions
+
+RP Registration review now shows the task outcome and Marks entry in plain language. The evidence hides the fingerprint and keeps useful IDs under Record references. Office can open RP Registration and the exact Marks record, and the page lists what to share with the Programme Coordinator. Referral is manual. The reconciliation browser suite passed at 1440, 390 and 320 pixels, and all nine presentation tests passed.
+
+Office Needs attention now shows routine requests waiting on other reviewers starting on day five of the current review stage. Verified the threshold and immediate exceptions in 13 focused Django tests, passed the Office attention browser suite, and restarted the isolated UAT backend. The live read confirmed dashboard totals match the inbox, with no recent routine requests in the UAT data.
+
+Overdue evaluation findings now show extra time and retirement as two equal choices. The retirement form opens in a dedicated confirmation dialog. The reconciliation browser suite passed all 60 checks at 1440, 390 and 320 pixels, including the choice layout and the reason and acknowledgement requirements.
+
+Office can now retire an otherwise eligible overdue evaluation from its reconciliation finding when the evaluation is no longer required. The page explains both choices, identifies the task in confirmation and records the reason. The existing retirement workflow keeps saved draft marks.
+
+Verified 62 focused Django tests, the active-extension guard, 60 browser checks across desktop and mobile, TypeScript and the production build. Restarted the isolated UAT backend and verified task #3 offers both options through port 3003. Retirement writes were exercised on disposable records.
+
+Section 3 covers Office recheck behavior. The browser journey applies an audited semester repair and verifies that rechecking removes the finding. API tests verify that granting individual extra time clears the overdue finding while the grant is active and that cancelling a stale research request clears its finding while preserving a separate revision-chain finding. The live Office API confirmed that retired task #4 remains open for review with no supported repair for its current registration. Write checks used disposable PostgreSQL fixtures.
+
+Section 3 passed all 69 focused Django tests, including the real HTTP browser journeys at 1440 and 390 pixels. At that point the reconciliation browser fixture passed 57 checks across 1440, 390 and 320 pixels and TypeScript passed.
+
+Section 2 adds issue-specific instructions above the recorded evidence and source links for Marks, appointment requests and records, research amendments, staff accounts, Timeline and capacity. Stale research amendments direct Office to the existing cancellation workflow. Blocked appointment handoffs show their first unmet prerequisite. Findings requiring academic or administrative review identify the appropriate owner.
+
+Verified 46 backend tests. Browser checks cover the reconciliation page at 1440, 390 and 320 pixels and the capacity workspace at those widths plus 1280 pixels. The isolated UAT backend was restarted and the Office reconciliation list and preview were verified through port 3003.
+
+## Office recovery for unfinished evaluations (16 November 2026)
+
+Overdue active records now show a single Overdue badge in the header. The deadline card keeps the saved-draft explanation and the extra-time action. Browser checks passed for the standard, overdue and active extra-time records at 1440, 390 and 320 pixels. TypeScript passed.
+
+The Submission deadline card now gives the deadline and timezone a dedicated row, places deadline status alongside the heading, and highlights the individual grant action. Browser fixtures cover the standard, overdue and active extra-time record at 1440, 390 and 320 pixels and verify the grant still opens the selected evaluation task.
+
+Section 1 adds task-specific guidance to Needs attention, overdue and extra-time states to Marks record detail, and a single-task grant shortcut from Marks and reconciliation.
+
+Verification passed for 42 backend tests, 18 focused frontend tests, the production build, and the TypeScript check. Isolated browser fixtures verified overdue and extra-time display, stale-task handling and the single-task grant payload at 1440, 390 and 320 pixels. The backend regression test checked the recovery flag before a grant, after expiry and after submission.
+
 ## New date and time pickers (12 November 2026)
 
 Xiang found the browser's own date and time boxes ugly and out of place. New shared pickers in `components/DateFields.tsx`:
@@ -108,6 +190,17 @@ The office no longer confirms every student's RP1/RP2 stage. The stage follows t
 - **Migration:** `accounts.0022`.
 - **Edge cases:** a Special Semester the student did not register for is skipped, not a break. Not being on a Special Semester is not studying, not missing. Withdrawn, graduated and waiting-for-Senate students are never "Not answered" and are left out of the current semester's list. A student's answer locks once they have any supervisor, supporting supervisor or panel appointment.
 - **Verified:** backend tests, with only the same 8 failures as `main`. A browser check on a copy of the dev database passed 45 of 45 at desktop and phone width as a student, a coordinator and the office.
+## Main sync integration status (12 November 2026)
+
+Fast-forwarded the working branch to main at 192c48b1. The incoming project-stage implementation was retained during stash restoration; the prior local versions remain in the named backup stash. The frontend build passed. Focused Registry/Marks tests reported 9 failures and 1 import error across 78 tests because saved Marks fixtures and tests still target the earlier registration contract; integration remains to be reconciled.
+
+Follow-up: reconciled Marks tests and fixtures with the live Registry lookup and coordinator routes. Matching assessment tasks generate from the effective stage, including automatic RP2. Registry requires a valid impact token when Marks work is affected, rejects stale previews, and saves correction and cleanup atomically. The dialog allows retry after preview failure or a stale save. Coordinator Marks Entry access is still denied. Verified 252 focused PostgreSQL tests, two frontend test scripts, and five correction browser scenarios at both desktop and mobile widths. The broader dashboard run also hit a separate test expecting a successful programme transfer while this workspace disables transfers. Full regression and rollout are pending. No application database changes.
+
+## Programme transfer handoff
+
+Removed the coordinator transfer tab and new-transfer controls, and blocked new transfer submissions at the service boundary. Existing transfer records remain unchanged.
+
+Increased the left inset of the Student column in Mark Entry Records to give it more space from the card edge.
 
 ## Student status, graduation and project stage restructured (9 November 2026)
 
@@ -133,6 +226,22 @@ The office used to activate a semester and then remember to update the students 
 - **Students tab:** says how many moved for the first 14 days. It still asks if someone is not on the semester, such as a student added afterwards.
 - **Migration:** `accounts.0020`. The new columns have database defaults, so older code keeps working on a migrated database.
 - **Limit:** the portal cannot see Maya, so every Active student is assumed to have registered until the office marks them.
+## Shared window history pagination (9 November 2026)
+
+Implemented shared five-entry History pagination for all three submission/evaluation window types. Added ordering/range render checks and mounted tests for independent navigation, focus, refreshed shorter histories and empty states. Verification: history render checks, all 12 mounted browser scenarios at 1440/390/320 widths and production build passed. Existing ExcelJS chunk advisory remains.
+
+## Period extension UI (9 November 2026)
+
+Implemented compact Extensions summary and full-page grant/deadline details in managed submission and Marks windows. Added search, programme/status filters, pagination, responsive expandable rows and reasoned revocation; removed personal-grant task dropdown from History. Added Office-only period grant register and appointment identity metadata. Verification: 19 completion-window tests and 33 operational-period tests passed (52 total); all 27 focused browser checks passed across 1440/390/320 widths, including actual managed-window navigation and filter preservation. Summary/history render checks passed. Production build passed with the existing ExcelJS chunk advisory. Screenshots reviewed using production CSS at desktop/mobile sizes. Local UAT backend restarted; authenticated register GET returned HTTP 200 through both API port 8003 and frontend proxy 3003. No migration or data reset. The broader periods workspace suite has five failures reproduced with the original HEAD version of OperationalPeriodManagement; these involve older Marks selectors, event search and the existing extension-impact assertion. Typecheck reports only the two pre-existing errors in MarkEntryDetail and phaseSixFeedback.fixture.
+
+Refined the Extensions summary into accessible rows showing the latest and previous deadline, change count and grant counts. Each populated row opens its corresponding detail tab; search and pagination remain available for large individual grant registers.
+
+Redesigned the extension detail context, view controls and deadline history with responsive layouts and clearer labels; removed the time zone field from the context card.
+
+Removed the export explanation from the Mark Entry Records page; export behaviour is unchanged.
+
+Closed evaluation windows now explain when no task is eligible for individual extra time and label the action specifically when eligible tasks exist.
+
 ## Assessment display names (8 November 2026)
 
 Assessment options, period lists/search and publication review display Research Project 1 and Research Project 2. Shared assessmentLabel maps existing P1/P2 identifiers without rewriting data or resetting test records; no reseed or migration is needed.
@@ -4612,7 +4721,7 @@ Office dates disclosure now separates the entry schedule from a chronological ac
 
 - Standardized Office and Lecturer mark record schedule/activity timestamps and added a single Malaysia time label. Timezone regression checks passed under America/New_York and Asia/Tokyo; shared record navigation check passed.
 
-- Office marks correction/reopening dialogs: added matching rounded-square close controls with unsaved-change protection; score and comment fields use explicit padding and heights because portalled dialogs do not inherit workspace styles. Component feedback remains preserved and read-only in the correction workflow.
+- Office marks correction/reopening dialogs gained matching rounded-square close controls with unsaved-change protection and explicit field spacing. Component feedback editing was added in the later submitted marks feedback correction update.
 
 - Fixed transient refresh-required warning on successful period creation, updates and lifecycle transitions; real refresh failures still block subsequent writes and expose recovery.
 
@@ -4702,3 +4811,257 @@ Moved Delete draft from the list to the period footer and aligned Archive with t
 - Adjusted period footer button icons for optical alignment with their labels.
 
 - Replaced rubric role setup notice with general guidance for locked versions.
+
+- Capitalized the calendar UNPUBLISHED status label.
+
+- Clarified the calendar publication confirmation with separate event counts and submission window information.
+
+- Updated the calendar import action selector to use the standard full-width portal dropdown.
+
+- Matched the calendar publication badge font weight to other status badges.
+
+## RP1/RP2 coordination reply (9 November 2026)
+
+Prepared `docs/RP_STAGE_REPLY_TO_XIANG_2026-11-09.md` for Wey Cheng's review and manual sharing with Xiang. It answers the latest Registry handoff, proposes Marks integration scope and correction/preview transaction rules, and separates technical recommendations from Office policy decisions. The reply remains a draft for review and joint acknowledgement, not implementation approval or a delivery commitment. Baseline review fetched origin/main at 227a3b2; 75 focused lifecycle/Marks tests passed in a temporary PostgreSQL test database. TypeScript still reports the missing AlertTriangle import, obsolete onHelpdeskTrigger fixture prop and local periodHistory fixture type mismatch. No application code, application database, migrations or student records were changed by this coordination task. Existing requirements/design documents were checked; proposed integration rules have not been adopted as implemented requirements or architecture.
+
+
+## RP1/RP2 task 1: shared stage gate (9 November 2026)
+
+Implemented the read-only Marks stage eligibility helper and focused database-backed tests. Only exact semester and confirmed matching P1/P2 pass; exclusions return reasons. No runtime consumers are wired yet: generation, previews, backup/replacement, resume, submission and correction integration remain pending. Existing working-tree changes are preserved. No migrations or application/student records were changed. Validation: all 85 stage-helper, student-lifecycle, period-targeting and backup-reassignment tests passed in an isolated temporary PostgreSQL test database, which was destroyed afterward; git diff --check passed.
+
+
+## RP stages 1 and 2 implementation (9 November 2026)
+
+Implemented stage guards across Marks generation, backups, both replacement paths, resume/reconciliation, drafts/submission and completion-window grants/use. Added separate Office preview exclusions, matching-stage expected/missing counts, actionable student lists, paused-task visibility and semester-scoped Registry navigation. Registry now includes unappointed unconfirmed students without marking them urgent. Fixed return-to-Active transaction ordering so resumed tasks see the target student status. Existing submitted history and paused drafts remain preserved. Stage 3 correction integration and Office-dependent restrictions remain pending.
+
+Validation: final combined run passed all 310 Marks, Registry lifecycle, participant lifecycle and PostgreSQL concurrency tests in an isolated temporary test database (destroyed afterward; fast password hashing was used only in the test process). Frontend recipient-preview rendering tests and production build passed; git diff --check passed. TypeScript still reports the same three baseline issues (missing AlertTriangle import, obsolete onHelpdeskTrigger fixture prop, and periodHistory fixture type mismatch); no new changed-component errors were reported. Independent review found no blocking issue; its minor duplicate missing-profile list finding was fixed and regression-tested. No application database migrations, student-record changes, commits or pushes were performed. Pre-existing working-tree changes were retained.
+
+
+## Stages 1–2 inspection and fixes (10 November 2026)
+
+Reproduced and fixed paused-task bypasses in handover/generation, out-of-scope reconciliation resume, repeated current-semester queries in recipient previews, and a PostgreSQL legacy-profile linking race that could bypass the intended Student lock. Added regression coverage and blocked-assignment preview rendering. Independent review reproduced the relinking race using the supported supervisor profile-linking flow. Final validation: all 316 Marks, Registry lifecycle, participant lifecycle and PostgreSQL concurrency tests passed in an isolated temporary database, which was destroyed afterward; preview rendering tests and git diff --check passed. TypeScript still reports the same three baseline errors (AlertTriangle import, periodHistory fixture type mismatch, obsolete onHelpdeskTrigger fixture prop), with no new errors. No application/student data or migrations were changed; no commits or pushes were made.
+
+## RP stage 3 implementation (10 November 2026)
+
+### Subsequent local upgrade and TypeScript cleanup (10 November 2026)
+
+Final full backend run: 2358 tests in 1376.386 seconds; 2335 passed, 9 failures, 12 errors and 2 skipped. Temporary test database destroyed. Failures involve compound lifecycle/completion eligibility, appointment Marks handoffs, reminders and supporting-supervisor concurrency; they require follow-up triage rather than assumed baseline attribution. Detailed failure output is retained outside the repository at C:/Users/User/Documents/FKSTM_Database_Backups/full_regression_20261110.log. Frontend lint/build pass; period-history and project-stage browser runners pass; phaseSixFeedback runner fails its expected scenario count (32 expected, fixture reports 23). Full regression is therefore not clean. No assertions were weakened and no unrelated production fixes were attempted.
+
+Fixed all three reported TypeScript errors. npm run lint and production build pass. Applied all pending migrations to localhost:5432/fsktm_pg_office after reviewing data operations, making a custom-format backup, successfully restoring it into an isolated rehearsal database and migrating that copy. Backup: C:/Users/User/Documents/FKSTM_Database_Backups/fsktm_before_upgrade_20261110_015758.dump (863417 bytes). Rehearsal database removed afterward. All 13 students remain; migration seeding created 16 semester records, with zero project registrations (no RP stage was guessed). Existing migrations also enable email preferences, update FAQ/template data and remove empty legacy tag tables. Django check and migrate --check pass. Full backend regression results are pending; browser history and stage-review tests pass, while phaseSixFeedback browser runner expects 32 scenarios but its fixture currently defines/reports 23. No test assertions were weakened. PROJECT_REQUIREMENTS.md was checked: no feature/business-rule changes in this cleanup.
+
+User reported Xiang accepted the technical reply and authorised implementation. Added Marks-owned impact/apply callbacks, atomic registration integration, reviewed fingerprints, first/void/bulk safeguards, audited task lifecycle changes and completion invalidation. Added persistent stage-review holds and Office reconciliation recovery for eligible paused/retired work. Submitted marks and academic decisions remain preserved/manual. Frontend individual review, bulk skip feedback, preview failures, stale revision refresh and task impact details are wired. Migration marks.0014 adds audit action choice metadata; it has not been applied to the application database.
+
+Independent review found and prompted fixes for unresolved retired holds, unrelated retirement clearing a hold, obsolete evaluator appointments blocking recovery of preserved work, and stale frontend registration revisions. Explicit paused retirement preserves draft evidence and the hold; a separate audited release permits normal generation without reviving retired history.
+
+Validation: an initial 492-test broader run exposed eight test-setup failures. Dashboard fixtures were updated to include confirmed P1 registrations/classified periods and properly published calendar snapshots, retaining their behavior assertions; the reused isolated test database's migration-seeded programme rules were restored for testing after earlier transaction-test flushes. The final targeted rerun passed all 125 affected/new Marks, Registry, dashboard/report/dossier and PostgreSQL concurrency tests in 107.755 seconds; the isolated test database was destroyed. The entire expanded suite was not rerun after these fixture fixes. Five browser scenarios passed at both 1280px and 390px (10 checks); recipient-preview rendering, production build, migration consistency dry-run and git diff --check passed. TypeScript continues to report the same three baseline issues (AlertTriangle import, periodHistory fixture type mismatch and obsolete onHelpdeskTrigger fixture prop). No application/student data changes, application migrations, commits or pushes. Office-policy restrictions remain deferred.
+
+## Regression repair handoff (10 November 2026)
+
+Prepared docs/REGRESSION_FIX_SESSION_HANDOFF_2026-11-10.md with the 21 backend failures, browser coverage mismatch, source-traced causes awaiting focused verification, and completed database migration/backup state. No regression fixes were made during this handoff. Latest authoritative state: all migrations applied locally; TypeScript lint/build passed; full regression remains failing as recorded above. Requirements and architecture need no change for this documentation-only handoff.
+
+## Regression repair verification — 10 November 2026
+
+- Updated lifecycle, appointment, co-supervision and reminder test fixtures to supply confirmed exact-semester P1 registrations, assessment types, a real draft status, and published timeline snapshots with source entries. The nomination race now starts with one approved supporting appointment and checks that only one concurrent pending nomination is created.
+- The affected backend modules ran 89 tests: 85 passed and four reminder setups initially errored. After correcting the snapshot fixture, all 10 reminder-module tests passed in a fresh isolated PostgreSQL test database. The complete backend regression is running in another unique disposable database; see `outputs/regression_current.log` for its final result.
+- The phase-six browser fixture now has 32 scenarios, adding validation, unsaved-change, accessibility and dismissal checks; the phase-six, period-history and project-stage browser runners passed. Frontend lint and production build passed; the build reported its large-chunk warning. `git diff --check` passed with line-ending warnings only.
+- Requirements and architecture documentation were reviewed; these test-fixture and coverage changes do not change product scope or architecture. Real database state and Office-dependent policy boundaries remain as recorded in the regression handoff.
+- Follow-up: the full-suite process is no longer running, and its log contains no final test summary or confirmed cleanup. The full regression result is therefore unknown and must be rerun; do not interpret the partial log as a pass.
+- Full regression rerun completed: 2,358 backend tests passed, with 2 skipped, in 480.811 seconds. Django destroyed the isolated test database. Log: `outputs/regression_rerun.log`.
+
+## Five-module RP plan coverage review (10 November 2026)
+
+Reviewed accepted RP scope against Dashboard/Timeline, Supervisor Appointments, Panel Appointments, Marks and Workflow/Approval Tracking. Findings and ownership are in docs/RP_FIVE_MODULE_PLAN_COVERAGE_REVIEW_2026-11-10.md. Marks is detailed; other modules need explicit audience, pending-approval, replacement/extension and tracking/count decisions. No new business rule approved or application/database change made. Regression repair passed per user report, not independently rerun here. Requirements/design checked; this review records unresolved scope rather than changing either.
+
+- UAT sign-in repair (10 November 2026): the isolated UAT database was missing pending migrations, causing an `accounts_student.exit_reason` error. A custom-format backup was created and its archive listing verified before applying the 11 pending migrations. Migration check and an Office login through the running API passed. Backup: `backend/.env.five-module-uat/backups/before_login_schema_20261110_141626.dump`.
+
+## Final-plan task 1: Marks coordinator contract (10 November 2026)
+
+Implemented Xiang's exact preview/apply callback interface and StageChangeStale in marks/stage_changes.py, sharing existing cleanup/evidence logic. Tokens survive Registry saving its new stage inside the same transaction, but reject changed task evidence and transition/student/semester arguments. Apply requires the caller's transaction and locks Student, ProjectRegistration and ordered tasks. Updated the Marks gate for ON_PROJECT with temporary CONFIRMED compatibility. Registration/progression/UI and the existing Registry callers are unchanged; Xiang must wire his coordinator flow and keep registration-version, permissions, current-semester and bulk-exclusion checks. Handoff: docs/RP_MARKS_CONTRACT_HANDOFF_2026-11-10.md. Office policy approval remains pending.
+
+Verification: the contract-availability test failed before implementation. An initial 38-test run caught a duplicate-assignment setup in the new test, corrected by using distinct marking periods. Final expanded run: 97 tests passed in 22.012 seconds, covering the new contract, old stage gates/corrections/integration, PostgreSQL concurrency/relink checks, targeting and completion windows. Django created and destroyed test_rp_contract_20261110. Django system checks, Python compilation and git diff --check passed (line-ending warnings only). Full regression was not rerun for this scoped change. Independent read-only review found no concrete introduced bugs or critical missing tests. No application database migration, student-record change, commit or push. Requirements and architecture updated.
+
+## Final-plan task 2: Supervisor/Panel consumer review (10 November 2026)
+
+Reviewed active appointment selection, Supervisor approval/replacement, Panel approval/replacement, stage-filtered generation and coordinator cleanup. Existing runtime behavior meets the agreed continuity boundaries; no production workflow changes were needed. Added appointments.test_rp_stage_handoffs with seven acceptance tests covering RP1/RP2 continuity through regular/Special semesters, non-project exclusions, unchanged pending requests/appointments during correction, and RP2 replacements preserving the other role, registration records and RP1 submissions.
+
+The final seven-test run passed in 2.763 seconds. It uses real semester activation/closure preview and executes on-commit callbacks; normal-semester StudentRegistry/StudentSemester advancement is asserted, and Special Semester participation is explicitly seeded. Only Xiang's future lookup is simulated. Independent review identified the missing rollover assertion; it was added and the final tests passed. Python compilation, Django checks and git diff --check passed. The related appointment/Marks regression passed 104 tests in 195.905 seconds; that run loaded the earlier seven-test version before the real-activation/rollover assertions were strengthened, which then passed the separate final run. Both disposable PostgreSQL databases were destroyed. Full regression was not rerun. Requirements, architecture and the Marks integration handoff were updated. No application-data changes, migrations, commit or push. Xiang's first-approval stage selection and automatic progression still need joint testing when his implementation lands.
+
+## Final-plan task 3: tracking/count/reminder consistency (11 November 2026)
+
+Marks Records UI follow-up (11 November 2026): added the marking period's assessment to the list and record detail, with RP1/RP2/Unclassified filtering, consistent scoped status counts, review indicators, and an assessment label in the Excel filter summary. The workbook keeps its Assessment column and distinguishes blocked unfinished work from ordinary pending or overdue work. Layout places Assessment beside Student and stacks filters on narrow screens. Validation passed 48 targeted Django tests, the frontend Marks record utility checks, TypeScript, production build, and all six Marks export browser scenarios at 1440px and 390px. A separate visual fixture with production CSS confirmed both widths fit and the mobile table scrolls within its own region. The older full Marks visual suite stopped in its overview fixture on an unmocked read. No migration was required.
+
+Marks Records now offers the Unclassified filter only when the current view contains unclassified records. Older records retain their label, and an unavailable saved selection resets to All assessments.
+
+Marks Records layout follow-up (11 November 2026): removed Research title from the table and increased cell padding. The desktop and mobile browser fixtures passed. The UAT export 500 came from an older module cached by the no-reload Django process. Restarted only that backend and verified through the UAT portal API that the selected semester exported a readable five-sheet workbook with three records.
+
+Supervisor and Panel Attention now show the active semester's project stage on missing-appointment rows and Excel exports. The Supervisor RP1 shortcut resets other filters and sorts students without an application first. The Panel semester filter is labeled Research profile semester to reflect the existing field. The pages consume the current Registry lookup pending Xiang's integration.
+
+Supervisor and Panel Attention now disable the stage filter when there is no active semester. Saved stage selections leave the full coverage list available in that state.
+
+Aligned the Project stage field with adjacent filters by removing the semester hint. Moved the Supervisor RP1 count from the standalone shortcut into the dropdown.
+
+Follow-up (11 November 2026): at the user's explicit request, removed the obsolete successful-programme-transfer acceptance test and its unused import from dashboard.test_reporting_acceptance. The existing rejection test for unavailable transfer creation remains in appointments.test_research_amendments. All eight remaining reporting acceptance tests passed in 9.132 seconds in disposable PostgreSQL test_reporting_cleanup_20261111, which Django destroyed. git diff --check passed. The earlier 178-test result below is historical; that broader selection was not rerun after this test removal. Requirements/architecture reviewed: no product behavior, scope or design changed, so no additional edits needed there.
+
+Fixed ordinary operational counts and overdue attention including wrong-stage/review-held unfinished tasks. Reports/exports, period totals, homepage counters/actions share stage_monitoring_tasks; dossiers keep blocked rows as Review Required. Submitted facts remain counted without clearing academic-review holds. Explicit holds now block task access/completion windows and consequently reminders. Calendar audiences/layout, appointment reminders and closure acknowledgement behavior are unchanged. Eight new RP tracking tests cover mismatches, holds, submitted evidence, eligible work, homepage counts, historical lifecycle rows and closure acknowledgement.
+
+Red verification reproduced three report/dossier failures and a separate homepage counting failure. The first 117-test related run had only one dossier-fixture failure; an expanded 161-test run reported five fixture failures plus one independent programme-transfer error. Corrected the dossier and homepage fixtures to supply matching P1 registration and classified periods, preserving assertions. Final expanded verification ran 178 tests in 94.972 seconds: 177 passed, including all eight new RP tests, and one unrelated acceptance test errored. That transfer test calls TRANSFER, which appointments.research_amendments.submit explicitly rejects as unavailable in this workspace; no transfer code/test was changed by this task. The expanded checks used test-only MD5 password hashing and the isolated test_rp_tracking_verified_20261111 PostgreSQL database, which Django destroyed. Other reproduction/intermediate test databases were also destroyed. Frontend studentProgress/workflowReports utility tests, Django check, compilation and git diff --check passed. Independent code reviews found no actionable implementation issues. Full regression was not rerun and the broader selected suite is not fully green because of the transfer-test mismatch. No application/student data changes, migrations, commits or pushes. Requirements/design and the integration handoff updated; Xiang's completed source still needs joint integration testing.
+
+## Supervisor and Panel recheck with Registry (12 November 2026)
+
+Replaced simulated stage answers in the appointment handoff suite with Registry's actual lookup. The suite exercises student declaration, first Supervisor approval, semester activation, automatic RP2, and the Office Attention filters. Regular rollover, registered Special Semester, skipped Special Semester, and rollover from Special into the next session retain appointment IDs and active lecturer load. RP2 replacements preserve the other role and submitted RP1 marks.
+
+Both Office Attention pages were mounted in Chrome using responses captured from the disposable PostgreSQL run. Each RP2 export kept the stage filter and produced a readable XLSX with the expected matric number, RP2 stage, and Special Semester. Application behavior and live records were unchanged.
+
+Verification passed 162 targeted Django tests, eight frontend tests, and both Chrome workbook checks. The Django tests used a disposable PostgreSQL database.
+
+- UAT migrations applied on 12 November 2026 after verifying a backup archive at `backend/.env.five-module-uat/backups/before_migrations_20261112_180446.dump`. All pending migrations completed and the migration check passed; student sign-in returned HTTP 200.
+
+## RP2 lecturer capacity rollover (12 November 2026)
+
+Implemented next-semester workload forecasts in Office Lecturer Capacity and automatic, audited release of prior RP2 appointments at qualifying semester activation. Live bookings retain the slots until the release commits. Registry code, graduation, and existing student data were left unchanged. The release runs on new activations, with no historical backfill.
+
+Verification passed 238 targeted backend tests, both Capacity utility suites, TypeScript, the production build, and 47 browser scenarios at each of four viewport widths. The backend tests used disposable PostgreSQL. No migration is required for this change.
+
+## Marks Excel assessment labels (13 November 2026)
+
+The Summary, programme results, and Outstanding sheets now display RP1 and RP2 in the Assessment column. The export formats the labels using the existing stored assessment codes.
+
+All eight Marks export tests passed on disposable PostgreSQL.
+## Archived semester duplicates (13 November 2026)
+
+Added conditional uniqueness for non-archived academic semesters and field-level duplicate and overlap feedback. The academics 0006 migration was applied to the local UAT database; other databases require the migration before using the new creation behavior. Registry records keyed by session and term remain associated with that academic period.
+
+## Lecturer capacity details layout (13 November 2026)
+
+Grouped active student counts, moved pending commitments into the relevant role cards, and made the number of available places the main figure. Availability now uses a status badge and a scoped shortcut. TypeScript and the capacity browser scenarios at 1440, 1280, 390 and 320 px passed.
+
+## Lecturer capacity roster layout (13 November 2026)
+
+The roster now has more column spacing, a labelled staff number, quieter unrestricted availability and one missing-limits message per lecturer. Current workload is visible in the row. The RP2 forecast opens on demand and shows how continuing appointments and pending reservations contribute to projected occupied places. Capacity calculations and records are unchanged.
+
+TypeScript, the production build and all 47 capacity browser scenarios at each of four viewport widths passed. The expanded forecast was visually checked on desktop and mobile.
+
+## Lecturer details spacing (13 November 2026)
+
+Increased the spacing between workload, published capacity, and availability in the lecturer details dialog.
+
+The roster now aligns both the colons and values on the Supervision and Panel lines, with a gap before the Supervision colon. Reservations and forecasts are available in View and Edit limits. Staff numbers remain searchable.
+
+Added spacing after role colons and between role lines. Numbers and missing-limit text use the same alignment.
+
+Lecturer details now highlights places held for coordinator review in the role card. The shared next-semester breakdown shows active appointments, adds holds, and subtracts expected RP2 releases to explain the estimate shown in View and Edit limits.
+
+The forecast now shows Today and Next semester as two rows. Today's RP1 and RP2 counts come from Registry, and Edit limits explains each publication minimum under its field.
+
+## Student dashboard RP1 declaration review (13 November 2026)
+
+Read-only UAT inspection confirmed that Student 05 is in their first AI coursework semester, so Registry returns no declaration question. For eligible coursework students, the dashboard replaces the question with a locked answer and offers a coordinator correction request. The 19 Registry declaration and correction tests passed on disposable PostgreSQL. The dashboard browser fixture covered the hidden card and both answers, including reopening the dashboard, at 1280 and 390 px. Portal behavior and UAT records were unchanged.
+
+## Student dashboard project status
+
+The student timeline now shows the effective Registry project status and highlights the next published deadline for the student's stage. Both timeline tabs remain available. The student's manual tab choice takes precedence over the stage default.
+
+All 79 Registry and Dashboard backend tests passed. Browser checks covered both declarations, the RP2 default and deadline selection, and manual switching at 1280 and 390 px.
+
+Removed the item count from the shared semester timeline for RP1 and RP2 across roles.
+
+The Student Action Centre now filters calendar deadlines by the student's effective RP stage. Both calendar tabs remain available for browsing.
+
+Moved Project stage beneath the semester details in the student dashboard header. The timeline shows a compact deadline line when a matching upcoming deadline exists.
+
+Aligned Project stage to the right of the semester details on desktop and increased the label and badge sizes. The stage stacks below the semester details on narrow screens.
+
+Student Record and My Academic Record limit milestones to the student's confirmed stage for every authorised viewer. Removed the staff Overview tab, attention list and its badge.
+
+
+## Appointment rosters and marking by project stage
+
+Added project stage columns and filters to current Supervisor and Panel assignment views, and assessment filtering to the lecturer marking task list.
+
+Added the current stage and semester to active supervision and Panel details, Office appointment follow-up, student appointment overviews, and academic records. Lecturer marking and submitted-mark details now identify the task's assessment. No schema migration is required.
+
+Moved Project stage into the student details grid on Supervision details and placed Appointment semester in the appointment record.
+
+Applied the same layout to Panel appointment and assignment details.
+
+Updated Student Record and My Academic Record to show the three academic status fields together in their shared header.
+
+Moved Your project stage beside Programme on My supervisors and My panel, including pending Panel appointments.
+
+Moved Project stage beside Programme on the Supervisor and Panel Needs attention detail pages.
+
+Aligned Assessment and Semester in the top details card on both lecturer Marks detail pages.
+## Evaluation task generation confirmation (14 November 2026)
+
+Reorganized the generation confirmation using the shared DecisionDialog, with a saved-settings review and a plain-language existing-task note, preserving the existing generation and cancellation behavior.
+
+## Marks backup evaluator removal (14 November 2026)
+
+Removed the backup assignment form, API, monitoring counts and filters, lecturer workspace, and dedicated override audit. Marks task generation, formal appointment handovers, completion windows, and official mark history continue to use Supervisor and Panel roles.
+
+Migration marks.0015 removes backup-only data and restricts task roles to Supervisor and Panel. The isolated UAT database contained zero backup tasks and audit rows. Backed it up, applied the migration, verified all four official tasks remained, and restarted the UAT backend. Health returned HTTP 200 and the former assignment route returned HTTP 404. The migration regression verified backup cleanup and official record preservation on disposable PostgreSQL.
+
+The broader backend run passed 325 of 330 tests. Five programme-transfer tests still expect a workflow disabled in this workspace. The two focused migration and route tests, 14 frontend checks, scoped Chrome tests, TypeScript, and the production build passed.
+## Submission monitoring filter (14 November 2026)
+
+Submission monitoring uses underlined, keyboard-accessible tabs for open/scheduled and closed periods, matching the document requirements page. It initially selects closed periods if none are open or scheduled, while retaining the user's selection until the semester changes.
+The monitoring table has space below the tabs, tighter cell padding, and subtle header and row dividers. Only the selected tab has an underline, avoiding a second full-width divider above the table header.
+
+## Marks Records period filters and lecturer view (14 November 2026)
+
+The Records page exposes its semester and evaluation period selections, keeps secondary filters under More filters, and accepts direct links to periods with zero tasks. By lecturer shows attention counts and expands to period and role details. Current-period checks reuse recipient previews. Historical progress uses saved tasks.
+
+Verified 58 focused backend tests, mounted Chrome checks for deep links, export, lecturer progress and responsive filters, TypeScript and the production build. Restarted the isolated UAT backend and verified the Office API through the frontend proxy with three period options and four saved records. Current-period gaps were exercised in test fixtures because the UAT periods were closed. No migration or academic-record update was required.
+
+## Lecturer marking task details (15 November 2026)
+
+Replaced the expandable lecturer rows with a table and View tasks links. The dedicated view lists progress and student tasks per evaluation period. Back restores the originating list and its scope. Verified the lecturer drilldown and return at desktop and mobile widths, Marks overview and Office monitoring navigation, TypeScript and the production build.
+
+Submission monitoring now labels empty periods No tasks and keeps the period-specific records link available.
+
+The lecturer table left-aligns its Action column and uses consistent badges for completed, in-progress, and exceptional work.
+
+Added Programme and Needs follow-up filters to the lecturer list. Chrome tests at desktop and mobile widths verify that programme selection updates the counts and detail, and that follow-up selection narrows the list and can be cleared.
+
+Lecturer task details now show one period at a time and ten tasks per page. The period summary explains stage-review holds excluded from progress. Desktop and mobile Chrome regressions cover a twenty-task fixture, period switching, and the existing Marks overview links.
+
+The existing lecturer task page now displays Mark entry period, Assessment, Marking window and Submission progress as separate header fields above one student table. Chrome, TypeScript and 17 Marks backend checks passed. The UAT backend was restarted and the health endpoint returned 200.
+
+Reworked the lecturer task header into a period selector row and a compact summary underneath. The selector stays available with one period. Desktop and mobile Chrome checks cover both single-period and multiple-period lists.
+
+Refined the header typography and spacing. The period selector, assessment and window form one group, with a separate submission summary that stacks beneath them on narrow screens. Checked the styled layout in Chrome at 320, 390 and 1440 pixels and reviewed desktop and mobile screenshots.
+
+Increased the spacing between assessment and marking window. Replaced the submission progress bar with a larger count and a distinct hold note. Build and targeted Chrome checks passed at desktop and mobile widths.
+
+Moved Assessment into the top student details card on Office Mark Entry Record Detail.
+
+Office Mark Entry Record Detail suppresses the review badge on retired, unsubmitted tasks when Reconciliation cannot release the hold.
+
+Applied the same rule to the lecturer summary and task list. The task remains viewable as Retired and stays outside follow-up and submission counts.
+
+Updated Submission monitoring with semester-scoped loading, a separate Assessment column, simplified submission status, and direct record links.
+
+Increased Submission monitoring table headers to 12 px for readability.
+
+## Submission monitoring release checks (16 November 2026)
+
+Restarted the isolated UAT backend and verified Office sign-in, semester switching, and the period-specific View records action in Chrome. The UAT data has no monitoring periods in the older semester options. Browser fixtures verified an older semester with a closed RP2 period and record filtering.
+
+TypeScript, the production build, and the focused Marks overview browser suite passed. The broader run passed 245 of 252 frontend scripts and 42 of 67 browser suites. Failures include a visual fixture expecting no tabs anywhere on Marks overview despite the Submission monitoring status tabs.
+
+Full Django regression ran 2,455 tests on disposable PostgreSQL: 2,441 passed, nine failed, three errored, and two were skipped. All failures and errors were in programme-transfer scenarios that expect the workspace's disabled workflow to accept a transfer. Django destroyed the test database. Regression logs are in the user's temporary directory under `fkstm-full-regression-20261115.log`, `fkstm-frontend-unit-20261115.log`, and `fkstm-frontend-browser-20261115.log`.
+
+Removed ten tests for the retired transfer workflow and narrowed two mixed tests to supported research-amendment behavior. The test confirming transfers are disabled remains. All 23 tests in the three affected Django modules passed. Frontend triage confirmed outdated tab assertions, missing mocked API routes, and fixtures missing the required Marks assessment. The focused Marks overview suite passed again. Other frontend failures still require triage.
+## Reconciliation table spacing (16 November 2026)
+
+Rebalanced issue table column widths to give the next step and action more room while reducing the affected record column.
+
+The issue review places recorded evidence before the recommended next step.
+
+## Evaluation Task Assignment period selection (20 November 2026)
+
+Scoped assignment rows and controls to the selected period and linked the empty state to Mark Entry Records. Browser checks passed at desktop and mobile widths for open, scheduled, closed-only, no-period and selected-period-without-tasks states. The generation workflow browser suite passed.
+
+## Evaluation period recipient preview views (20 November 2026)
+
+Added tabs for marking tasks, missing requirements and excluded students. Exclusions show counts and shared guidance by reason. The mounted period-draft and publication-safeguards suites passed at 1440, 390 and 320 pixels. The large-preview regression covers 125 tasks and 24 exclusions, keyboard tab switching, search and independent pagination.

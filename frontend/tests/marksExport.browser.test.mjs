@@ -41,7 +41,7 @@ test('mounted marks export', {timeout: 120000}, async () => {
       assert.ok(value && value !== 'RUNNING', stdout.slice(-2500));
       const results = JSON.parse(value.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&'));
       console.log(width, results);
-      assert.equal(results.length, 5);
+      assert.equal(results.length, 13);
       assert.deepEqual(results.filter(r => r.error), []);
     }
   } finally {

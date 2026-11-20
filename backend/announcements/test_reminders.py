@@ -135,17 +135,21 @@ class DeadlineReminderTests(TestCase):
             created_by=self.office,
             activated_at=self.now,
         )
-        self.timeline = SemesterTimeline.objects.create(
+        self.draft_timeline = SemesterTimeline.objects.create(
             semester="Semester 1", session="2026/2027", academic_semester=self.semester,
             is_active=True, uploaded_by=self.office,
         )
+        self.timeline = SemesterTimeline.objects.create(
+            semester="Semester 1", session="2026/2027", academic_semester=self.semester,
+            is_active=False, is_published=True, published_at=self.now, uploaded_by=self.office,
+        )
 
     def entry(self, step, title, days_left, roles):
-        return SemesterTimelineEntry.objects.create(
-            timeline=self.timeline, level=SemesterTimelineEntry.Level.P1, step=step, title=title,
+        values = dict(level=SemesterTimelineEntry.Level.P1, step=step, title=title,
             detail=f"{title} details.", action_owner="Owner", deadline_start=self.today - timedelta(days=5),
-            deadline_end=self.today + timedelta(days=days_left), target_roles=roles,
-        )
+            deadline_end=self.today + timedelta(days=days_left), target_roles=roles)
+        source = SemesterTimelineEntry.objects.create(timeline=self.draft_timeline, **values)
+        return SemesterTimelineEntry.objects.create(timeline=self.timeline, source_entry_id=source.pk, **values)
 
     def reminders(self, user):
         return list(Notification.objects.filter(recipient=user, module_label="Deadline Reminder").values_list("title", flat=True))
@@ -178,10 +182,12 @@ class DeadlineReminderTests(TestCase):
     def test_marks_reminders_go_to_evaluators_with_unsubmitted_tasks(self):
         rubric = Rubric.objects.create(name="Reminder Rubric", code="reminder-rubric")
         closing = EvaluationPeriod.objects.create(
+            assessment="P1",
             name="P1 Evaluation", semester="Semester 1", academic_semester=self.semester, rubric=rubric,
             closes_at=self.now + timedelta(days=1), lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
         )
         later = EvaluationPeriod.objects.create(
+            assessment="P2",
             name="P2 Evaluation", semester="Semester 1", academic_semester=self.semester, rubric=rubric,
             closes_at=self.now + timedelta(days=20), lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
         )
@@ -190,8 +196,12 @@ class DeadlineReminderTests(TestCase):
         profiles = []
         for index in range(3):
             student = make_user(f"evaluated{index}@example.test")
-            Student.objects.create(user=student, matric_no=f"REM-S{index}",
+            student_record = Student.objects.create(user=student, matric_no=f"REM-S{index}",
                                    programme="MASTER OF DATA SCIENCE (COURSEWORK)")
+            from accounts.models import ProjectRegistration, StudentSemester
+            StudentSemester.objects.get_or_create(student=student_record,
+                session=self.semester.academic_session, term=self.semester.term)
+            ProjectRegistration.objects.create(student=student_record, academic_semester=self.semester, stage="P1")
             profiles.append(
                 StudentResearchProfile.objects.create(
                     student=student, matric_no=f"REM-S{index}", student_name=f"Student {index}",

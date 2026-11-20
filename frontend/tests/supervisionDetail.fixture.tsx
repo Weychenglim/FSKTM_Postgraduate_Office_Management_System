@@ -12,7 +12,8 @@ const ended:CoSupervisorAppointment={...supporting,id:3,status:'ENDED',endOutcom
 const nomination:CoSupervisorNomination={id:4,studentId:7,studentName:'Example postgraduate',matricNo:'PREVIEW-007',candidate:{id:12,name:'Private proposed candidate'},nominator:{id:9,name:'Dr Primary'},status:'PENDING_COORDINATOR',justification:'Private saved justification',reason:'',submittedAt:'2026-10-01T01:00:00Z',replacesAppointmentId:null,allowedActions:[],history:[]};
 const team:SupervisoryTeam={studentId:7,matricNo:'PREVIEW-007',studentName:'Example postgraduate',studentEmail:'student@example.test',programme:'Computing',studentStatus:'Active',primarySupervisor:{id:9,name:'Dr Primary'},primaryAppointmentId:1,primaryAppointmentDetails:{email:'primary@example.test',department:'Primary research department',appointmentDate:'2026-10-01',semester:'Semester I'},approvedApplicationId:1,canChangePrimarySupervisor:false,research:{title:'Explainable recommendations for postgraduate academic support',area:'Explainable AI',abstract:'First saved paragraph.\n\nA complete second paragraph explaining the recorded research scope.'},appointments:[supporting,ended],nominations:[nomination],canNominate:false,timeline:[{id:'primary-1',title:'Supervisor application approved',date:'2026-10-01',status:'APPROVED'},{id:'timeline-1',title:'Semester milestone',date:'2026-11-01',status:'UPCOMING'}],panel:{current:{member:{id:13,name:'Dr Current Panel'},email:'panel@example.test',department:'Computing',appointmentDate:'2026-10-01',requestId:5,recordKey:'panel-5',canView:true},pending:null,canRecommend:false,canReplace:false}};
 const primary:SupervisorApplicationRecord={id:1,studentId:'PREVIEW-007',studentName:'Example postgraduate',programme:'Computing',semester:'Semester I 2026/2027',proposedSupervisor:'Dr Primary',proposedSupervisorId:'L9',researchTitle:team.research.title,researchArea:team.research.area,researchAbstract:team.research.abstract,researchProfileReady:true,status:'APPROVED',rejectionReason:'',submittedAt:'2026-10-01T01:00:00Z',coordinatorDecisionAt:'2026-10-01T02:00:00Z',workflow:[],appointmentLifecycle:{appointmentId:1,status:'ACTIVE',endOutcome:null,endReason:null,endedAt:null,endedBy:null,supersedesAppointmentId:null,replacementAppointmentId:null,lifecycle:[]}};
-const root=createRoot(document.getElementById('root')!);
+let renderError: unknown;
+const root=createRoot(document.getElementById('root')!, {onUncaughtError: error=> { renderError=error; }});
 const tick=()=>new Promise(resolve=>setTimeout(resolve,25));
 const check=(value:unknown,message:string)=>{if(!value)throw Error(message);};
 const text=()=>document.getElementById('root')!.textContent||'';
@@ -22,7 +23,7 @@ let calls:string[]=[];
 window.fetch=async()=>{throw Error('Pure layout checks must not call any live API');};
 
 async function mount(role:UserRole,nextTeam=team,busy=false,withMarks=false){
-  calls=[];
+  calls=[];renderError=undefined;
   const lecturer=role==='Lecturer',office=role==='Office Staff/Admin';
   const visible={...nextTeam,canNominate:lecturer,canChangePrimarySupervisor:office,panel:nextTeam.panel?{...nextTeam.panel,canReplace:lecturer}:undefined,appointments:nextTeam.appointments.map(row=>({...row,canEnd:lecturer&&row.status==='ACTIVE'}))};
   const workspace:SupervisoryWorkspace={teams:[visible],appointments:visible.appointments,nominations:visible.nominations,primaryApplication:primary};
@@ -30,6 +31,7 @@ async function mount(role:UserRole,nextTeam=team,busy=false,withMarks=false){
     onNavigateToMarks={withMarks?target=>calls.push(`marks:${target?.studentId}:${target?.role}:${target?.taskId}`):undefined} onNavigateToApplication={id=>calls.push(`application:${id}`)} onNavigateToDossier={id=>calls.push(`student:${id}`)} onNavigateToPanelRequest={(id,key)=>calls.push(`panel:${id}:${key}`)} onNavigateToPanelRecommendation={id=>calls.push(`recommend:${id}`)} onChangePrimarySupervisor={id=>calls.push(`change:${id}`)} onEndPrimary={async()=>{}}
     onNominate={row=>calls.push(`nominate:${row.matricNo}`)} onEnd={row=>calls.push(`end:${row.id}`)} onReplace={(_,row)=>calls.push(`replace:${row.id}`)} onNominationAction={(row,action)=>calls.push(`nomination:${row.id}:${action}`)}/>));
   await tick();
+  if(renderError)throw renderError;
 }
 function verifyActionButtons(){
   for(const group of document.querySelectorAll<HTMLElement>('[data-detail-actions]')){
@@ -38,8 +40,8 @@ function verifyActionButtons(){
       if(!node.getClientRects().length)continue;
       const rect=node.getBoundingClientRect(),style=getComputedStyle(node);
       check(Math.abs(rect.width-group.getBoundingClientRect().width)<2,'Sidebar action is not full width');
-      check(rect.height>=44,'Sidebar action is too short');
-      check(style.textTransform==='none'&&style.fontSize==='12px','Sidebar action uses toolbar typography');
+      check(rect.height>=32,'Sidebar action is too short');
+      check(style.textTransform==='uppercase'&&['10px','11px'].includes(style.fontSize),'Sidebar action should use standard uppercase portal typography');
       if(previous)check(rect.top>=previous.bottom+8,'Sidebar actions are crowded or side by side');
       previous=rect;
     }

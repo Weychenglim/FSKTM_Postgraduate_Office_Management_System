@@ -58,7 +58,9 @@ class CoSupervisionConcurrencyTests(APITransactionTestCase):
         )
 
     def test_competing_nominations_cannot_claim_same_last_team_position(self):
-        self.submit(self.student, self.new_supervisor)
+        first = self.submit(self.student, self.new_supervisor)
+        decide(nomination_id=first.pk, actor=self.new_supervisor, action="accept")
+        decide(nomination_id=first.pk, actor=self.coordinator, action="approve")
         results = self.parallel(
             [
                 lambda: self.submit(self.student, self.panel),
@@ -70,7 +72,7 @@ class CoSupervisionConcurrencyTests(APITransactionTestCase):
             CoSupervisorNomination.objects.filter(
                 student=self.student, status__in=CoSupervisorNomination.PENDING_STATUSES
             ).count(),
-            2,
+            1,
         )
 
     def test_competing_approvals_cannot_exceed_shared_lecturer_capacity(self):

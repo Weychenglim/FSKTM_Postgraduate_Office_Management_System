@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.utils import timezone
 
-from accounts.eligibility import user_is_assignable_lecturer
+from accounts.eligibility import student_is_workflow_eligible, user_is_assignable_lecturer
 from accounts.models import Student
+from accounts.semester_rules import active_semester
 from appointments.models import PanelAppointment, StudentResearchProfile, SupervisorAppointment
 from .models import EvaluationTask
+from .stage_eligibility import period_stage_eligibility
 
 
 def normalize_targeting(scope, programmes, roles):
@@ -87,11 +89,20 @@ class Recipient:
         return self.profile.pk, self.evaluator.pk, self.role
 
 
+def official_assignment_paused(period, profile, role):
+    """A new evaluator must not bypass paused work for the same official role."""
+    from .stage_corrections import assignment_stage_review_pending
+    return EvaluationTask.objects.filter(
+        period=period, profile=profile, evaluator_role=role, lifecycle_status='PAUSED',
+    ).exists() or assignment_stage_review_pending(period, profile, role)
+
+
 def period_recipients(period):
     """Read-only current eligibility; callers must lock and recheck before writes."""
     profiles = list(StudentResearchProfile.objects.select_related("student__student"))
     linked = {profile.student_id: profile for profile in profiles if profile.student_id}
-    legacy = {profile.matric_no.casefold(): profile for profile in profiles if not profile.student_id}
+    stages = period_stage_eligibility(period, linked)
+    current_semester = active_semester()
     recipients = {}
     if "SUPERVISOR" in period.evaluator_roles:
         appointments = SupervisorAppointment.objects.filter(
@@ -100,8 +111,9 @@ def period_recipients(period):
         ).select_related("student__user", "supervisor__lecturer")
         for appointment in appointments:
             student = appointment.student
-            profile = linked.get(student.user_id) or legacy.get(student.matric_no.casefold())
+            profile = linked.get(student.user_id)
             if (profile is None or not profile_in_scope(period, profile)
+                    or not stages[student.pk].eligible or not student_is_workflow_eligible(student, current_semester=current_semester)
                     or not user_is_assignable_lecturer(appointment.supervisor)):
                 continue
             recipient = Recipient(profile, student, appointment.supervisor, "SUPERVISOR")
@@ -113,7 +125,8 @@ def period_recipients(period):
         for appointment in appointments:
             profile = appointment.profile
             student = profile_student(profile)
-            if profile.student_id and (not student or student.status != Student.Status.ACTIVE):
+            if (not student or not student_is_workflow_eligible(student, current_semester=current_semester)
+                    or student.pk not in stages or not stages[student.pk].eligible):
                 continue
             if not profile_in_scope(period, profile) or not user_is_assignable_lecturer(appointment.panel_member):
                 continue
@@ -124,9 +137,17 @@ def period_recipients(period):
 
 def recipient_preview(period):
     recipients = period_recipients(period)
-    existing = set(EvaluationTask.objects.filter(
-        period=period, lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-    ).values_list("profile_id", "evaluator_id", "evaluator_role"))
+    existing = {
+        (profile_id, evaluator_id, role): lifecycle
+        for profile_id, evaluator_id, role, lifecycle in EvaluationTask.objects.filter(
+            period=period, lifecycle_status__in=['ACTIVE', 'PAUSED'],
+        ).values_list('profile_id', 'evaluator_id', 'evaluator_role', 'lifecycle_status')
+    }
+    paused_roles = {(profile_id, role) for (profile_id, _, role), state in existing.items() if state == 'PAUSED'}
+    from .stage_corrections import stage_review_pending
+    paused_roles.update((task.profile_id, task.evaluator_role) for task in
+        EvaluationTask.objects.filter(period=period, lifecycle_audits__action='STAGE_REVIEW')
+        .distinct().prefetch_related('lifecycle_audits') if stage_review_pending(task))
     rows = [{
         "studentId": row.student.pk if row.student else None,
         "matricNo": row.profile.matric_no,
@@ -135,35 +156,57 @@ def recipient_preview(period):
         "evaluatorId": row.evaluator.pk,
         "evaluatorName": row.evaluator.full_name,
         "evaluatorRole": row.role,
-        "taskStatus": "EXISTING" if row.key in existing else "NEW",
+        "taskStatus": "PAUSED" if existing.get(row.key) == 'PAUSED' else "EXISTING" if row.key in existing
+            else "BLOCKED" if (row.profile.pk, row.role) in paused_roles else "NEW",
     } for row in recipients]
     # Include eligible students without a research profile so the preview explains
     # why selecting their programme does not yet generate any evaluation tasks.
     profiles = list(StudentResearchProfile.objects.select_related("student__student"))
-    expected_students = set()
-    linked_ids = {profile.student_id for profile in profiles if profile.student_id}
-    legacy_matrics = {profile.matric_no.casefold() for profile in profiles if not profile.student_id}
+    candidates = {}
     for profile in profiles:
         student = profile_student(profile)
-        if profile.student_id and (not student or student.status != Student.Status.ACTIVE):
-            continue
         if profile_in_scope(period, profile):
-            expected_students.add(("profile", profile.pk))
-    expected_students.update(
-        ("student", student.pk)
-        for student in Student.objects.filter(status=Student.Status.ACTIVE)
-        if student.pk not in linked_ids and student.matric_no.casefold() not in legacy_matrics
-        and programme_matches(period, student.programme)
-    )
-    missing = {}
+            key = ('student', student.pk) if student else ('profile', profile.pk)
+            candidates[key] = (student, profile)
+    for student in Student.objects.filter(status__in=[Student.Status.ACTIVE, Student.Status.DEFERRED]).select_related('user'):
+        if programme_matches(period, student.programme):
+            candidates.setdefault(('student', student.pk), (student, None))
+    stages = period_stage_eligibility(period, [student.pk for student, _ in candidates.values() if student])
+    current_semester = active_semester()
+    expected_students, exclusions, reason_counts = set(), [], {}
+    for key, (student, profile) in candidates.items():
+        reason = stages[student.pk].reason if student else 'STUDENT_NOT_LINKED'
+        if not reason and not student_is_workflow_eligible(student, current_semester=current_semester):
+            reason = 'STUDENT_INELIGIBLE'
+        if reason:
+            exclusions.append({
+                'studentId': student.pk if student else None,
+                'matricNo': student.matric_no if student else profile.matric_no,
+                'studentName': student.user.full_name if student else profile.student_name,
+                'programme': student.programme if student else profile.programme,
+                'reason': reason,
+            })
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        else:
+            expected_students.add(key)
+    missing, missing_assignments = {}, []
     for role in ("SUPERVISOR", "PANEL"):
         covered = {
-            ("profile", row.profile.pk)
+            ("student", row.student.pk)
             for row in recipients if row.role == role
         }
         missing[role.lower()] = len(expected_students - covered) if role in period.evaluator_roles else 0
+        if role in period.evaluator_roles:
+            for key in sorted(expected_students - covered):
+                student, profile = candidates[key]
+                missing_assignments.append({
+                    'studentId': student.pk, 'matricNo': student.matric_no,
+                    'studentName': student.user.full_name, 'programme': student.programme,
+                    'reason': 'MISSING_RESEARCH_PROFILE' if profile is None else f'MISSING_{role}_APPOINTMENT',
+                })
     return {
         "periodId": period.pk,
+        "semesterId": period.academic_semester_id,
         "generatedAt": timezone.now().isoformat(),
         "recipients": rows,
         "totals": {
@@ -171,8 +214,13 @@ def recipient_preview(period):
             "supervisor": sum(row.role == "SUPERVISOR" for row in recipients),
             "panel": sum(row.role == "PANEL" for row in recipients),
             "total": len(rows),
-            "existing": sum(row["taskStatus"] == "EXISTING" for row in rows),
+            "existing": sum(row["taskStatus"] in {"EXISTING", "PAUSED"} for row in rows),
             "new": sum(row["taskStatus"] == "NEW" for row in rows),
         },
         "missingAppointments": missing,
+        "missingAssignments": list({(row['studentId'], row['reason']): row for row in missing_assignments}.values()),
+        "eligibility": {"expectedStudents": len(expected_students), "excludedStudents": len(exclusions), "reasonCounts": reason_counts},
+        "exclusions": sorted(exclusions, key=lambda row: row['matricNo']),
+        "configurationIssues": (["PERIOD_SEMESTER_NOT_CONFIGURED"] if not period.academic_semester_id else [])
+            + (["PERIOD_STAGE_NOT_CONFIGURED"] if period.assessment not in {'P1', 'P2'} else []),
     }

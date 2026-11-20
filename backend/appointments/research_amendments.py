@@ -156,9 +156,7 @@ def submit(*, actor, data):
             raise AmendmentForbidden('Students may request amendments only to their own research.')
         student_id = actor.pk
     elif kind == 'TRANSFER':
-        if not office(actor):
-            raise AmendmentForbidden('Only Office Staff/Admin may initiate programme transfers.')
-        student_id = data.get('studentId')
+        raise ValueError('Programme transfers are no longer available in this workspace.')
     else:
         raise ValueError('Select RESEARCH or TRANSFER.')
     student, profile = _lock_student(student_id)

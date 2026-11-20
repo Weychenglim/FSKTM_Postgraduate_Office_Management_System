@@ -24,6 +24,7 @@ CATEGORIES = {
     'panel': 'Panel appointment requests',
 }
 URGENCY = {'overdue': 0, 'due': 1, 'blocking': 2, 'normal': 3}
+REQUEST_FOLLOW_UP_DAYS = 5
 OWNERS = {
     'SUPERVISOR': 'Supervisor', 'CO_SUPERVISOR': 'Co-supervisor',
     'SELECTED_PANEL': 'Panel', 'PROGRAMME_COORDINATOR': 'Programme Coordinator',
@@ -86,13 +87,18 @@ def attention_rows(tasks):
     rows, seen = [], set()
     for task in tasks:
         category = category_for(task)
-        if not category or task['id'] in seen or task['status'].lower() in {'completed', 'complete', 'done'} or task.get('recordType') == 'TIMELINE_ENTRY':
+        status = task['status'].lower()
+        if not category or task['id'] in seen or status in {'completed', 'complete', 'done'} or task.get('recordType') == 'TIMELINE_ENTRY':
             continue
-        seen.add(task['id'])
         responsibility = 'waiting' if task.get('waitingOn') and task['waitingOn'] != 'FACULTY_PROCESSING' else 'review'
         urgency = {'OVERDUE': 'overdue', 'DUE_TODAY': 'due'}.get(task.get('deadlineState'), 'normal')
-        if category in {'reconciliation', 'documents'} and task['status'] == 'critical':
+        if category in {'reconciliation', 'documents'} and status == 'critical':
             urgency = 'blocking'
+        if (category in {'supervision', 'panel'} and responsibility == 'waiting'
+                and urgency == 'normal' and status != 'critical'
+                and (task.get('waitingDays') or 0) < REQUEST_FOLLOW_UP_DAYS):
+            continue
+        seen.add(task['id'])
         rows.append({**task, 'category': category, 'responsibility': responsibility, 'urgency': urgency,
                      'programme': task.get('programme') or 'Faculty-wide'})
     return sorted(rows, key=lambda row: (row['responsibility'] == 'waiting', URGENCY[row['urgency']], -(row.get('waitingDays') or 0), str(row.get('dueAt') or ''), row['id']))

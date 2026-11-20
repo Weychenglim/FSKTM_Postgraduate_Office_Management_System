@@ -819,7 +819,12 @@ class SupervisorAppointmentWorkflowTests(APITestCase):
             name="Overall Evaluation",
             max_marks=Decimal("100.00"),
         )
+        from accounts.models import ProjectRegistration, StudentSemester
+        StudentSemester.objects.get_or_create(student=self.student_user.student,
+            session=self.academic_semester.academic_session, term=self.academic_semester.term)
+        ProjectRegistration.objects.create(student=self.student_user.student, academic_semester=self.academic_semester, stage="P1")
         period = EvaluationPeriod.objects.create(
+            assessment="P1",
             name="Handoff Evaluation Period",
             semester=self.academic_semester.label,
             academic_semester=self.academic_semester,

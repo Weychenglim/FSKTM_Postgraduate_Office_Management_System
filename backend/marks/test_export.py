@@ -82,7 +82,7 @@ class MarksExportTests(APITestCase):
         tasks = [self.task]
         for index in range(6):
             task = EvaluationTask.objects.create(profile=self.profile, evaluator=self.other_lecturer,
-                period=self.period, evaluator_role='BACKUP', lifecycle_status='RETIRED')
+                period=self.period, evaluator_role='SUPERVISOR', lifecycle_status='RETIRED')
             MarkEntry.objects.create(task=task, status='SUBMITTED', total_mark=index)
             tasks.append(task)
         book = load_workbook(BytesIO(self.export([f'MRK-{t.pk:05d}' for t in tasks]).content))
@@ -103,11 +103,25 @@ class MarksExportTests(APITestCase):
 
     def test_assessment_identity_is_traceable_in_workbook(self):
         self.client.force_authenticate(self.office_admin)
+        self.submit()
+        for assessment, label in [('P1', 'RP1'), ('P2', 'RP2'), ('', 'Unclassified (legacy)')]:
+            with self.subTest(assessment=assessment):
+                self.period.assessment = assessment
+                self.period.save(update_fields=['assessment'])
+                book = load_workbook(BytesIO(self.export().content))
+                for name in ['Summary', 'Artificial Intelligence']:
+                    headers = [cell.value for cell in book[name][6]]
+                    row = dict(zip(headers, [cell.value for cell in book[name][7]]))
+                    self.assertEqual(row['Assessment'], label)
+
+    def test_wrong_stage_unsubmitted_export_shows_review_instead_of_pending(self):
+        self.client.force_authenticate(self.office_admin)
         self.period.assessment = 'P2'
         self.period.save(update_fields=['assessment'])
-        self.submit()
         book = load_workbook(BytesIO(self.export().content))
-        for name in ['Summary', 'Artificial Intelligence']:
-            headers = [cell.value for cell in book[name][6]]
-            row = dict(zip(headers, [cell.value for cell in book[name][7]]))
-            self.assertEqual(row['Assessment'], 'P2')
+        outstanding = dict(zip((cell.value for cell in book['Outstanding'][6]),
+                               (cell.value for cell in book['Outstanding'][7])))
+        self.assertEqual((outstanding['Assessment'], outstanding['Status']), ('RP2', 'Review Required'))
+        summary = dict(zip((cell.value for cell in book['Summary'][6]),
+                           (cell.value for cell in book['Summary'][7])))
+        self.assertEqual(summary['Completion'], 'Review Required')

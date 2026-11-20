@@ -4,7 +4,7 @@ import {PortalModal, useModalTitle} from './PortalModal';
 import {PortalButton} from './PortalPrimitives';
 import {OfficeToolViews} from './OfficeToolPrimitives';
 import {AddTimelineEntryDrawer} from './AddTimelineEntryDrawer';
-import {UploadTimelineDrawer} from './UploadTimelineDrawer';
+import {UploadTimelineDrawer, type TimelineImportStage} from './UploadTimelineDrawer';
 import {DraftNavigationGuard} from './DraftNavigationGuard';
 import {AlertMessage} from './AlertMessage';
 
@@ -28,6 +28,7 @@ export function TimelineAddEventsModal({isOpen = true, onClose, onSave, onImport
   const [createDirty, setCreateDirty] = useState(false);
   const [importDirty, setImportDirty] = useState(false);
   const [importBusy, setImportBusy] = useState(false);
+  const [importStage, setImportStage] = useState<TimelineImportStage>('upload');
   const [discard, setDiscard] = useState(false);
   const [createVersion, setCreateVersion] = useState(0);
   const [importVersion, setImportVersion] = useState(0);
@@ -52,19 +53,19 @@ export function TimelineAddEventsModal({isOpen = true, onClose, onSave, onImport
     <DraftNavigationGuard dirty={isOpen && (createDirty || importDirty)} busy={isOpen && pending} onDiscard={close}/>
     <PortalModal isOpen={isOpen} onClose={requestClose} busy={pending} labelledBy={titleId} className="max-w-3xl p-0">
       <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4 sm:px-6">
-        <div><h2 id={titleId} className="section-heading">Add events</h2><p className="card-description mt-1">{semesterLabel}</p></div>
+        <div><h2 id={titleId} className="section-heading outline-none">{method === 'import' && importStage !== 'upload' ? importStage === 'review' ? 'Review import' : 'Import events' : 'Add events'}</h2><p className="card-description mt-1">{semesterLabel}</p></div>
         <PortalButton variant="ghost" icon={X} aria-label="Close add events" disabled={pending} onClick={requestClose} />
       </header>
       <div className="space-y-6 p-5 sm:p-6">
         {completion && <AlertMessage type={completion.tone} message={completion.message} />}
-        <fieldset disabled={pending}>
+        <fieldset disabled={pending} hidden={method === 'import' && importStage !== 'upload'}>
           <OfficeToolViews<'create' | 'import'> label="How to add events" appearance="workspace" value={method} onChange={setMethod} options={[{value:'create',label:'Create one event'},{value:'import',label:'Import from Excel'}]} />
         </fieldset>
         <div hidden={method !== 'create'}>
           <AddTimelineEntryDrawer key={createVersion} embedded isOpen={isOpen} onClose={requestClose} onSave={created} timelineLabel={semesterLabel} busy={busy} error={error} onDirtyChange={setCreateDirty} />
         </div>
         <div hidden={method !== 'import'}>
-          <UploadTimelineDrawer key={importVersion} embedded isOpen={isOpen} onClose={imported} onCancel={requestClose} onImportSuccess={onImportSuccess} semesterId={semesterId} semesterLabel={semesterLabel} onDirtyChange={setImportDirty} onBusyChange={setImportBusy} />
+          <UploadTimelineDrawer key={importVersion} embedded isOpen={isOpen} onClose={imported} onCancel={requestClose} onImportSuccess={onImportSuccess} semesterId={semesterId} semesterLabel={semesterLabel} onDirtyChange={setImportDirty} onBusyChange={setImportBusy} onStageChange={setImportStage} />
         </div>
       </div>
     </PortalModal>

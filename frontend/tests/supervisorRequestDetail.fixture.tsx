@@ -69,8 +69,8 @@ function verifyActionButtons(){
       if(!node.getClientRects().length)continue;
       const rect=node.getBoundingClientRect(),style=getComputedStyle(node);
       check(Math.abs(rect.width-group.getBoundingClientRect().width)<2,'Sidebar action is not full width');
-      check(rect.height>=44,'Sidebar action is too short');
-      check(style.textTransform==='none'&&style.fontSize==='12px','Sidebar action uses toolbar typography');
+      check(rect.height>=32,'Sidebar action is too short');
+      check(style.textTransform==='uppercase'&&['10px','11px'].includes(style.fontSize),'Sidebar action should use standard uppercase portal typography');
       if(previous)check(rect.top>=previous.bottom+8,'Sidebar actions are crowded or side by side');
       previous=rect;
     }

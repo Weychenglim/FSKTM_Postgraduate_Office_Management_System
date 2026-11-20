@@ -4,6 +4,7 @@ import { getReconciliationAudits } from '../services/workflowReconciliationApi';
 import { reconciliationErrorMessage } from '../utils/workflowReconciliation';
 import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
 import { ErrorState, LoadingState } from './StateViews';
+import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
 
 export const humanizeReconciliationLabel = (value: string) => value
   .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
@@ -22,14 +23,43 @@ const stateValue = (value: unknown): string => {
 const contextKeys = new Set(['lecturerName', 'staffNo', 'semesterLabel', 'semesterCode', 'planVersion', 'planStatus']);
 const technicalKey = (key: string) => /Ids?$/.test(key) || key === 'missingAssignments';
 
+const stageCorrectionNotes: Record<string, string> = {
+  RETIRE: 'The registration correction retired this evaluation task.',
+  PAUSE: 'The registration correction paused this evaluation task and kept the saved draft.',
+  PRESERVE_PAUSE: 'The task stayed paused when the registration was corrected.',
+  REVIEW_SUBMITTED: 'The submitted marks were kept for academic review after the registration correction.',
+  REVIEW_LEGACY: 'The evaluation period has no RP1 or RP2 classification. The correction flagged the task for review.',
+};
+
+const marksEntryLabels: Record<string, string> = {
+  NOT_STARTED: 'No marks entered',
+  DRAFT: 'Draft saved',
+  SUBMITTED: 'Submitted',
+};
+
 export function ReconciliationEvidence({ issue }: { issue: ReconciliationIssue }) {
   const legacy = issue.issueType === 'CAPACITY_LEGACY_LIMIT_DIVERGENCE';
-  const values = Object.entries(issue.currentState).filter(([key]) => !contextKeys.has(key));
+  const stageReview = issue.issueType === 'MARKS_STAGE_REVIEW';
+  const savedCorrection = issue.currentState.stageCorrection;
+  const correction = stageReview && savedCorrection && typeof savedCorrection === 'object'
+    ? savedCorrection as Record<string, unknown> : null;
+  const correctionNote = correction && typeof correction.action === 'string' ? stageCorrectionNotes[correction.action] : undefined;
+  const values = Object.entries(issue.currentState).filter(([key]) => !contextKeys.has(key)
+    && !['closedWithUnfinishedWork', 'canGrantCompletionWindow', 'completionWindowBlocker'].includes(key)
+    && !(stageReview && key === 'stageCorrection'));
   const facts = values.filter(([key]) => !technicalKey(key));
   const identifiers = values.filter(([key]) => technicalKey(key));
+  if (correction) {
+    for (const key of ['semesterId', 'studentId', 'registrationRevision']) {
+      if (typeof correction[key] === 'number') identifiers.push([key, correction[key]]);
+    }
+  }
   const roles = [['Supervisor', 'supervisorLimit', 'legacySupervisorLimit'], ['Panel', 'panelLimit', 'legacyPanelLimit']];
   return <section aria-label="Evidence" className="space-y-5">
-    <h3 className="section-heading">{legacy ? 'Compare the saved limits' : 'Recorded evidence'}</h3>
+    {correctionNote && <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+      <h3 className="card-value">What happened</h3>
+      <p className="card-description mt-1">{correctionNote}</p>
+    </div>}
     {legacy ? <CoordinatorDataTable label="Capacity limit comparison"
       columns={['Role', 'Published semester limit', 'Old profile limit', 'Comparison']}
       rows={roles.filter(([, current, old]) => issue.currentState[current] != null || issue.currentState[old] != null).map(([role, current, old]) => ({
@@ -37,8 +67,13 @@ export function ReconciliationEvidence({ issue }: { issue: ReconciliationIssue }
           issue.currentState[current] === issue.currentState[old] ? 'Matches' : <span className="font-semibold text-amber-800">Different</span>],
       }))} />
       : facts.length > 0 ? <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">{facts.map(([key, value]) => <div key={key} className="min-w-0">
-        <dt className="card-description">{key === 'matchingSemesterCount' ? 'Semesters matching all available evidence' : humanizeReconciliationLabel(key)}</dt>
-        <dd className="card-value mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{stateValue(value)}</dd>
+        <dt className="card-description">{key === 'matchingSemesterCount' ? 'Semesters matching all available evidence'
+          : stageReview && key === 'lifecycleStatus' ? 'Evaluation task'
+          : stageReview && key === 'entryStatus' ? 'Marks entry'
+          : humanizeReconciliationLabel(key)}</dt>
+        <dd className="card-value mt-1 whitespace-pre-wrap [overflow-wrap:anywhere]">{key === 'effectiveDeadline' && typeof value === 'string' ? formatMalaysiaDateTime(value)
+          : stageReview && typeof value === 'string' ? (key === 'entryStatus' && marksEntryLabels[value]) || humanizeReconciliationLabel(value)
+          : stateValue(value)}</dd>
       </div>)}</dl> : <p className="card-description">{issue.summary}</p>}
     <details className="border-t border-slate-200 pt-4">
       <summary className="card-value cursor-pointer">Record references</summary>

@@ -338,9 +338,9 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
       <PageHeader
         className="office-tool-heading"
         title="Calendar"
-        titleAside={!loading && !error && <span role="status" className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] leading-4 font-semibold whitespace-nowrap ${timeline?.publication?.hasUnpublishedChanges ? 'bg-indigo-100/70 text-indigo-800' : timeline?.publication?.publishedAt ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+        titleAside={!loading && !error && <span role="status" className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] leading-4 font-extrabold whitespace-nowrap ${timeline?.publication?.hasUnpublishedChanges ? 'bg-indigo-100/70 text-indigo-800' : timeline?.publication?.publishedAt ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
           <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${timeline?.publication?.hasUnpublishedChanges ? 'bg-indigo-500' : timeline?.publication?.publishedAt ? 'bg-emerald-500' : 'bg-slate-400'}`}/>
-          {timeline?.publication?.hasUnpublishedChanges ? 'Unpublished' : timeline?.publication?.publishedAt ? 'Published' : timeline?.available ? 'Publication unavailable' : 'No calendar yet'}
+          {timeline?.publication?.hasUnpublishedChanges ? 'UNPUBLISHED' : timeline?.publication?.publishedAt ? 'Published' : timeline?.available ? 'Publication unavailable' : 'No calendar yet'}
         </span>}
         subtitle="Plan and communicate semester events. Submission windows and extra time are managed in Periods & deadlines."
         backLabel={backLabel}
@@ -418,7 +418,14 @@ const TimelineManagementContent: React.FC<TimelineManagementProps> = ({
 
       {/* Delete Confirmation Modal */}
       <DecisionDialog isOpen={!!publishReview} decisionKey={`publish-${publishReview?.semesterId}`} title="Publish calendar?" kind="review"
-        message={<>{publishReview?.label}: publish all {publishReview?.count} draft events, replacing {publishReview?.publishedCount} published events. Publish this calendar to its selected audiences? Submission windows stay unchanged.</>}
+        message={<div className="space-y-4">
+          <p>Publish the calendar for <strong className="text-slate-900">{publishReview?.label}</strong> to its selected audiences?</p>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 space-y-2">
+            <p><strong className="text-slate-900">{publishReview?.count}</strong> draft {publishReview?.count === 1 ? 'event' : 'events'} will be published.</p>
+            <p><strong className="text-slate-900">{publishReview?.publishedCount}</strong> currently published {publishReview?.publishedCount === 1 ? 'event' : 'events'} will be replaced.</p>
+          </div>
+          <p>Submission windows will remain unchanged.</p>
+        </div>}
         confirmLabel="Publish calendar" successMessage="Calendar published. Selected audiences will see it on their next refresh."
         busy={publishing} onClose={() => {if (!publishingRef.current) setPublishReview(null);}}
         onReload={async () => {await loadEntries(true);}}

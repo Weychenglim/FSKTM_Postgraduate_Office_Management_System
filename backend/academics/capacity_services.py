@@ -9,7 +9,7 @@ from django.utils import timezone
 
 from accounts.models import Lecturer, Panel, Supervisor
 
-from .capacity import capacity_workload_counts
+from .capacity import capacity_plan_workloads
 from .models import (
     AcademicSemester,
     LecturerAvailabilityWindow,
@@ -689,8 +689,9 @@ def _capacity_plan_readiness_errors(
     # meet today's commitments; existing over-capacity policies remain readable.
     if plan.lifecycle_status == SemesterCapacityPlan.Lifecycle.DRAFT and entries:
         if workload_context is None:
-            workload_context = capacity_workload_counts(
-                entry.lecturer.user_id for entry in entries
+            workload_context = capacity_plan_workloads(
+                plan.academic_semester,
+                (entry.lecturer.user_id for entry in entries),
             )
         for entry in entries:
             user_id = entry.lecturer.user_id
@@ -698,15 +699,17 @@ def _capacity_plan_readiness_errors(
             supervisor_reserved = workload_context["supervisorReservations"].get(user_id, 0)
             panel_active = workload_context["panelLoad"].get(user_id, 0)
             panel_reserved = workload_context["panelReservations"].get(user_id, 0)
-            for role, limit, load in (
-                ("Supervisor", entry.supervisor_limit, supervisor_load + supervisor_reserved),
-                ("Panel", entry.panel_limit, panel_active + panel_reserved),
+            for role, limit, active, reserved, forecast in (
+                ("Supervisor", entry.supervisor_limit, supervisor_load, supervisor_reserved,
+                 workload_context.get("supervisorRp2Releases", {}).get(user_id, 0)),
+                ("Panel", entry.panel_limit, panel_active, panel_reserved,
+                 workload_context.get("panelRp2Releases", {}).get(user_id, 0)),
             ):
+                release = min(active, forecast)
+                load = active - release + reserved
                 if limit is not None and limit < load:
-                    detail = (
-                        f" ({panel_active} active + {panel_reserved} reserved)"
-                        if role == "Panel" else f" ({supervisor_load} active + {supervisor_reserved} reserved)"
-                    )
+                    adjustment = f" - {release} expected RP2 releases" if release else ""
+                    detail = f" ({active} active + {reserved} reserved{adjustment})"
                     errors.append(
                         f"{entry.lecturer.staff_no}: {role} limit {limit} is below "
                         f"committed workload {load}{detail} (minimum {load})."

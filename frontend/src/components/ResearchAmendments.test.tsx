@@ -168,7 +168,8 @@ for (const role of ['Office Staff/Admin', 'Programme Coordinator'] as const) {
   assert.match(detail, /Old abstract|New abstract|Submitted explanation/);
   assert.doesNotMatch(detail, /Other request reason/);
   assert.doesNotMatch(renderRoute({ role, routeView: 'new' }), /Permitted request form/, 'Staff cannot create through Student submission capability');
-  assert.match(renderRoute({ role, routeView: 'new', options: { ...formOptions, canSubmitResearch: false, canTransfer: true } }), /Permitted request form/);
+  assert.doesNotMatch(renderRoute({ role, routeView: 'new', options: { ...formOptions, canSubmitResearch: false, canTransfer: true } }), /Permitted request form/, 'A legacy transfer capability cannot expose a creation form');
+  assert.match(renderRoute({ role, routeView: 'new', options: { ...formOptions, canSubmitResearch: false, canCorrect: true } }), /Permitted request form/);
 }
 console.log('Routed research shells isolate staff records and preserve role-specific creation capabilities; default staff remains embedded');
 for (const query of ['Abstract change', 'Research request #10', 'Research amendment #10', 'Request #10']) {

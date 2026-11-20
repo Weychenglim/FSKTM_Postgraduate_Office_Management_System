@@ -4,11 +4,23 @@ import {IconHeading} from './IconHeading';
 import {AppointmentIcon} from './AppointmentPrimitives';
 import {PortalCard, StatusBadge} from './PortalPrimitives';
 import {ResearchAbstract} from './ResearchAbstract';
+import {projectStageLabel} from './AttentionProjectStage';
 import type {SupervisoryTeam} from '../types/coSupervision';
 import type {StudentResearchProfileSummary} from '../types/appointment';
 
 export const supervisionDetailLabel = 'text-xs font-medium leading-6 text-slate-600';
 export const supervisionDetailBody = 'text-sm font-normal leading-6 text-slate-900 [overflow-wrap:anywhere]';
+
+export function AppointmentProjectStageField({stage, semester, displayedSemester}: {
+  stage?: string | null; semester?: string | null; displayedSemester?: string | null;
+}) {
+  if (!stage) return null;
+  const projectSemester=semester?.trim();
+  return <div className="min-w-0 space-y-2">
+    <dt className={supervisionDetailLabel}>Project stage</dt>
+    <dd className={supervisionDetailBody}>{projectStageLabel(stage)}{projectSemester && projectSemester !== displayedSemester?.trim() && <span className="mt-1 block text-xs leading-5 text-slate-600">{projectSemester}</span>}</dd>
+  </div>;
+}
 
 export function SupervisionDetailSection({title, icon, actions, children, contentClassName}: {
   title:string; icon:LucideIcon; actions?:React.ReactNode; children:React.ReactNode; contentClassName?:string;
@@ -37,9 +49,9 @@ export function SupervisionOverview({team, context, actions}: {
     </div>
     <dl className="mt-6 grid gap-x-8 gap-y-5 border-t border-slate-100 pt-5 sm:grid-cols-2">
       <div className="min-w-0 space-y-2"><dt className={supervisionDetailLabel}>Programme</dt><dd className={supervisionDetailBody}>{team.programme || 'Not recorded'}</dd></div>
-      <div className="min-w-0 space-y-2"><dt className={supervisionDetailLabel}>Student status</dt><dd className={`${supervisionDetailBody} capitalize`}>{team.studentStatus.replaceAll('_',' ').toLowerCase() || 'Not recorded'}</dd></div>
-      {context?.semester ? <div className="min-w-0 space-y-2"><dt className={supervisionDetailLabel}>Semester</dt><dd className={supervisionDetailBody}>{context.semester}</dd></div> : null}
       {email ? <div className="min-w-0 space-y-2"><dt className={supervisionDetailLabel}>Student email</dt><dd className={supervisionDetailBody}><a className="rounded hover:underline focus-visible:outline-2 focus-visible:outline-blue-600" href={`mailto:${email}`}>{email}</a></dd></div> : null}
+      <div className="min-w-0 space-y-2 sm:col-start-1"><dt className={supervisionDetailLabel}>Enrolment status</dt><dd className={`${supervisionDetailBody} capitalize`}>{team.studentStatus.replaceAll('_',' ').toLowerCase() || 'Not recorded'}</dd></div>
+      <AppointmentProjectStageField stage={team.projectStage} semester={team.projectSemester} displayedSemester={context?.semester}/>
     </dl>
   </PortalCard>;
 }

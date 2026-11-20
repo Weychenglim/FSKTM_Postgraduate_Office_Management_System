@@ -7,6 +7,7 @@ urlpatterns = [
     path('export/', views.export_mark_records_view),
     path("periods/<int:pk>/closure-preview/", views.period_closure_preview_view),
     path("tasks/<int:pk>/completion-windows/", views.completion_window_history_view),
+    path("periods/<int:pk>/completion-windows/", views.period_completion_windows_view),
     path("completion-windows/", views.completion_window_grant_view),
     path("completion-windows/<int:pk>/revoke/", views.completion_window_revoke_view),
     path("", views.mark_records_view),
@@ -41,7 +42,6 @@ urlpatterns = [
     path("my-evaluation-tasks/", views.my_evaluation_tasks_view),
     path("my-submitted-evaluations/", views.my_submitted_evaluations_view),
     path("periods/<int:pk>/generate-tasks/", views.generate_period_tasks_view),
-    path("periods/<int:pk>/manual-overrides/", views.manual_override_task_view),
     path("tasks/<int:pk>/draft/", views.save_draft_view),
     path("tasks/<int:pk>/submit/", views.submit_marks_view),
 ]

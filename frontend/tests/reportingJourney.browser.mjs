@@ -62,7 +62,7 @@ try {
   const result = JSON.parse(encoded.replaceAll('&quot;', '"').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&amp;', '&'));
   assert.equal(result.error, undefined, JSON.stringify(result));
   assert.equal(result.viewportWidth, config.width, 'The actual browser viewport must match the requested width');
-  const expected = { reports: 40, reconciliation: 17, race: 9, privacy: 12 };
+  const expected = { reports: 40, reconciliation: 18, race: 9, privacy: 12 };
   assert.equal(result.checks.length, expected[config.mode], 'All A05 assertions must run');
   console.log(`${config.width}px ${config.mode}: ${result.checks.length} real HTTP/browser assertions passed`);
   console.log(result.checks.map(check => `PASS ${check}`).join('\n'));

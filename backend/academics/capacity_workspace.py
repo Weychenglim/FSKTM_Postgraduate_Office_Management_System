@@ -10,6 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from accounts.models import Lecturer, Student
+from accounts.project_stages import project_stages
 from appointments.models import (
     CoSupervisorAppointment,
     PanelAppointment,
@@ -17,6 +18,7 @@ from appointments.models import (
     SupervisorAppointment,
     SupervisorApplication,
 )
+from appointments.rp_rollover import expected_rp2_releases
 
 from .capacity import CapacityRole, derive_capacity_resolution
 from .models import (
@@ -27,12 +29,13 @@ from .models import (
 )
 from .permissions import IsOfficeStaffAdmin
 from .serializers import _capacity_resolution_payload
+from .services import current_effective_semester
 
 
 def _active_workload(queryset, lecturer_field, student_field):
     """Keep appointment counts for policy and distinct students for roster display."""
     loads = Counter()
-    students = defaultdict(set)
+    students = defaultdict(Counter)
     incomplete_user_ids = set()
     for user_id, student_id in queryset.order_by().values_list(
         lecturer_field, student_field
@@ -41,8 +44,19 @@ def _active_workload(queryset, lecturer_field, student_field):
         if student_id is None:
             incomplete_user_ids.add(user_id)
         else:
-            students[user_id].add(student_id)
+            students[user_id][student_id] += 1
     return loads, students, incomplete_user_ids
+
+
+def _stage_counts(appointments, stages, active_load):
+    rp1 = rp2 = 0
+    for student_id, count in appointments.items():
+        answer = stages.get(student_id)
+        if answer and answer.stage == "P1":
+            rp1 += count
+        elif answer and answer.stage == "P2":
+            rp2 += count
+    return {"rp1": rp1, "rp2": rp2, "withoutStage": active_load - rp1 - rp2}
 
 
 @api_view(["GET"])
@@ -76,6 +90,7 @@ def capacity_workspace_view(request, pk):
     )
     lecturer_ids = [lecturer.pk for lecturer in lecturers]
     user_ids = [lecturer.user_id for lecturer in lecturers]
+    supervisor_releases, panel_releases = expected_rp2_releases(semester, user_ids)
     primary_requests = {row["proposed_supervisor_id"]: row for row in SupervisorApplication.objects.filter(
         proposed_supervisor_id__in=user_ids, status__in=["SUBMITTED_TO_SUPERVISOR", "PENDING_COORDINATOR"]
     ).order_by().values("proposed_supervisor_id").annotate(
@@ -136,6 +151,14 @@ def capacity_workspace_view(request, pk):
         ),
         "panel_member_id", "profile__student_id",
     )
+    student_ids = {
+        student_id
+        for workload in (primary_students, supporting_students, panel_students)
+        for students in workload.values()
+        for student_id in students
+    }
+    current_semester = current_effective_semester() if student_ids else None
+    stages = project_stages(current_semester, student_ids) if current_semester else {}
     reservations = {
         row["recommended_member_id"]: row["total"]
         for row in PanelRecommendation.objects.filter(
@@ -172,7 +195,7 @@ def capacity_workspace_view(request, pk):
         ):
             if not exists:
                 continue
-            resolution = _capacity_resolution_payload(derive_capacity_resolution(
+            capacity = derive_capacity_resolution(
                 semester_id=semester.pk,
                 plan_id=published_plan.pk if published_plan is not None else None,
                 plan_version=published_plan.version if published_plan is not None else None,
@@ -183,7 +206,11 @@ def capacity_workspace_view(request, pk):
                 pending_requests=primary_requests.get(user_id, {}).get("pending", 0) if role == CapacityRole.SUPERVISOR else 0,
                 eligible=participant_eligible,
                 unavailable_until=unavailable_until.get((lecturer.pk, role.value)),
-            ))
+            )
+            releases = supervisor_releases if role == CapacityRole.SUPERVISOR else panel_releases
+            resolution = _capacity_resolution_payload(
+                capacity, expected_rp2_releases=releases.get(user_id, 0),
+            )
             if role == CapacityRole.SUPERVISOR:
                 supervisor = resolution
             else:
@@ -200,6 +227,13 @@ def capacity_workspace_view(request, pk):
             "panelLimit": limits.get("panel_limit"),
             "supervisor": supervisor,
             "panel": panel,
+            "workloadStages": {
+                "supervisor": _stage_counts(
+                    primary_students[user_id] + supporting_students[user_id],
+                    stages, primary_load[user_id] + supporting_load[user_id],
+                ),
+                "panel": _stage_counts(panel_students[user_id], stages, panel_load[user_id]),
+            },
             "primaryStudentCount": len(primary_students[user_id]),
             "supportingStudentCount": len(supporting_students[user_id]),
             "panelStudentCount": (
@@ -207,7 +241,9 @@ def capacity_workspace_view(request, pk):
             ),
             "activeStudentCount": (
                 None if identity_incomplete else len(
-                    primary_students[user_id] | supporting_students[user_id] | panel_students[user_id]
+                    primary_students[user_id].keys()
+                    | supporting_students[user_id].keys()
+                    | panel_students[user_id].keys()
                 )
             ),
             "workloadIdentityIncomplete": identity_incomplete,

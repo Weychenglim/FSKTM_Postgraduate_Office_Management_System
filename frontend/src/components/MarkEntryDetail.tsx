@@ -1,6 +1,6 @@
 import {formatMalaysiaDateTime} from '../utils/malaysiaDateTime';
 import {SubmissionAvailabilityNotice} from './OperationalIntakeFeedback';
-import { MarksHeading } from './MarksPrimitives';
+import { MarksTaskDetails } from './MarksPrimitives';
 import { DecisionDialog } from './DecisionDialog';
 import type { DecisionOutcome } from '../utils/decisionSubmission';
 /**
@@ -9,7 +9,7 @@ import type { DecisionOutcome } from '../utils/decisionSubmission';
  */
 
 import React, { useRef, useState } from 'react';
-import { CheckCircle2, Save, UserRound } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Save } from 'lucide-react';
 
 import { RecordPage } from './RecordPage';
 import {readFormFeedback, type FormFeedbackState} from '../utils/formFeedback';
@@ -36,9 +36,7 @@ const evaluatorRoleLabel = (task: EvaluationTask): string =>
   task.evaluatorRoleLabel || (
     task.evaluatorRole === 'SUPERVISOR'
       ? 'Supervisor'
-      : task.evaluatorRole === 'BACKUP'
-        ? 'Backup Evaluator'
-        : 'Panel Member'
+      : 'Panel Member'
   );
 
 const draftValues = (task: EvaluationTask) => Object.fromEntries(
@@ -200,6 +198,9 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
       {!submitted && (isReadOnly || task.completionWindow?.status === 'ACTIVE') ? <SubmissionAvailabilityNotice ariaLabel="Marking availability"
         title={isReadOnly ? (['SCHEDULED', 'UPCOMING'].includes(task.periodEffectiveStatus || '') ? 'Marking not open yet' : ['CLOSED', 'ENDED', 'ARCHIVED'].includes(task.periodEffectiveStatus || '') ? 'Marking closed' : 'Marking unavailable') : 'Extra time available'}
         description={isReadOnly ? 'This task is read only. Marks cannot be saved or submitted.' : <>Your deadline: {formatMalaysiaDateTime(task.effectiveDueAt || task.completionWindow!.deadline)}</>} /> : null}
+      <PortalCard padding="lg" className="rounded-lg">
+        <MarksTaskDetails task={task}/>
+      </PortalCard>
       {components.length === 0 ? (
         <PortalCard padding="lg" className="rounded-lg">
           <div className="card-description flex items-start gap-3 text-amber-800">
@@ -210,16 +211,6 @@ export const MarkEntryDetail: React.FC<MarkEntryDetailProps> = ({
       ) : (
         <div className="space-y-6">
           <PortalCard padding="none" className="overflow-hidden">
-            <div className="border-b border-slate-200 px-6 py-6 sm:px-8">
-              <MarksHeading icon={UserRound}>{task.studentName}</MarksHeading>
-              <p className="card-description mt-1">
-                {task.studentId} · {task.semester}
-              </p>
-              <p className="mt-3 text-sm leading-6 text-slate-800">
-                {task.researchTitle}
-              </p>
-            </div>
-
             <div className="divide-y divide-slate-100">
               {components.map((component, index) => (
                 <div

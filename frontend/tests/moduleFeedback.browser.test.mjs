@@ -25,7 +25,7 @@ test('Five-module contextual feedback',{timeout:240000},async()=>{
     const encoded=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];assert.ok(encoded&&encoded!=='RUNNING',stdout.slice(-2000));
     const result=JSON.parse(encoded.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
     console.log(result.results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
-    assert.equal(result.results.length,7);assert.deepEqual(result.results.filter(row=>row.error),[]);
+    assert.equal(result.results.length,8);assert.deepEqual(result.results.filter(row=>row.error),[]);
   }
   for(const width of [1440,390]) for(const view of ['overlap','marks-empty']) {
     await promisify(execFile)(executable,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',`--user-data-dir=${join(directory,`preview-${view}-${width}`)}`,'--window-size=1400,1250','--dump-dom','--virtual-time-budget=10000',`--screenshot=${join(tmpdir(),`module-feedback-${view}-${width}.png`)}`,`${server.resolvedUrls.local[0]}module-feedback-test?width=${width}&preview=${view}`],{timeout:30000,maxBuffer:3*1024*1024,windowsHide:true});

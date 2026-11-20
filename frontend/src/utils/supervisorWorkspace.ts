@@ -37,7 +37,6 @@ export function supervisorWorkspaceLinks(role: SupervisorWorkspaceRole) {
     ...(role === 'Office Staff/Admin' ? [{section:'overview',label:'Needs attention',route:APP_ROUTES.supervisorAppointments}] : []),
     { section: 'requests', label: 'Appointment requests', route: role==='Office Staff/Admin'?APP_ROUTES.supervisorAppointmentRequests:APP_ROUTES.supervisorAppointments },
     { section: 'supervisees', label: 'Supervisory teams', route: APP_ROUTES.supervisorAppointmentSupervisees },
-    ...(role === 'Programme Coordinator' ? [{ section: 'research', label: 'Programme transfers', route: APP_ROUTES.supervisorResearchChanges }] : []),
   ] : [
     { section: 'requests', label: 'Appointment requests', route: APP_ROUTES.supervisorAppointments },
     { section: 'supervisees', label: 'My supervisees', route: APP_ROUTES.supervisorAppointmentSupervisees },

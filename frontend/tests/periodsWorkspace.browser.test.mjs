@@ -25,7 +25,7 @@ test('Periods workspace interactions and responsive layout',{timeout:240000},asy
     const encoded=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];assert.ok(encoded&&encoded!=='RUNNING',stdout.slice(-2000));
     const result=JSON.parse(encoded.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
     console.log(result.results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
-    assert.equal(result.results.length,30);assert.deepEqual(result.results.filter(row=>row.error),[]);
+    assert.equal(result.results.length,31);assert.deepEqual(result.results.filter(row=>row.error),[]);
   }
   for(const width of [1440,390]) for(const view of ['overview','marks','window','calendar','restrictions','create','linked-create','event-picker']) {
     await promisify(execFile)(executable,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',`--user-data-dir=${join(directory,`preview-${view}-${width}`)}`,'--window-size=1400,1250','--dump-dom','--virtual-time-budget=10000',`--screenshot=${join(directory,`periods-${view}-${width}.png`)}`,`${server.resolvedUrls.local[0]}periods-workspace-test?width=${width}&preview=${view}`],{timeout:30000,maxBuffer:3*1024*1024,windowsHide:true});

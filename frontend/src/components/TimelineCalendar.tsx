@@ -139,34 +139,28 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
   const rangeStart = monthKeys[0] ? startOfMonthFromKey(monthKeys[0]) : null;
   const rangeEnd = monthKeys[monthKeys.length - 1] ? endOfMonthFromKey(monthKeys[monthKeys.length - 1]) : null;
   const totalDays = rangeStart && rangeEnd ? dayDiff(rangeStart, rangeEnd) + 1 : 1;
+  const monthColumns = monthKeys.map(key => `${endOfMonthFromKey(key).getDate()}fr`).join(' ');
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        {showPhaseTabs ? (
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
-            {(['P1', 'P2'] as const).map((level) => (
-              <button
-                key={level}
-                type="button"
-                onClick={() => setSelectedLevel(level)}
-                className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition ${
-                  selectedLevel === level
-                    ? 'bg-brand-navy text-white shadow-3xs'
-                    : 'text-slate-500 hover:bg-white hover:text-brand-navy'
-                }`}
-              >
-                {levelLabels[level]}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <span className="sr-only">{levelLabels[selectedLevel]}</span>
-        )}
-        <span className="card-label">
-          {activeEntries.length} {activeEntries.length === 1 ? 'item' : 'items'}
-        </span>
-      </div>
+      {showPhaseTabs && (
+        <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 w-fit">
+          {(['P1', 'P2'] as const).map((level) => (
+            <button
+              key={level}
+              type="button"
+              onClick={() => setSelectedLevel(level)}
+              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition ${
+                selectedLevel === level
+                  ? 'bg-brand-navy text-white shadow-3xs'
+                  : 'text-slate-500 hover:bg-white hover:text-brand-navy'
+              }`}
+            >
+              {levelLabels[level]}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white">
         <div className="bg-slate-50 px-4 py-3 flex items-center justify-between gap-3 border-b border-slate-200">
@@ -180,21 +174,16 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
           <div className="px-5 py-10 text-center bg-white">
             <ListTodo className="w-6 h-6 mx-auto mb-3 text-slate-400" />
             <p className="card-value">
-              {selectedLevel === 'P2' ? 'P2 timeline is not available yet' : 'P1 timeline is not available yet'}
-            </p>
-            <p className="card-description mt-1">
-              {selectedLevel === 'P2'
-                ? 'P1 starts first.'
-                : 'Upload the active semester timeline to show the first project phase.'}
+              No {levelLabels[selectedLevel]} events to display.
             </p>
           </div>
         ) : (
           <div className="p-4 overflow-x-auto">
-            <div className="min-w-[640px] space-y-2">
+            <div className="space-y-2" style={{ minWidth: Math.max(640, monthKeys.length * 180) }}>
               <div
                 className="grid"
                 style={{
-                  gridTemplateColumns: `repeat(${Math.max(monthKeys.length, 1)}, minmax(180px, 1fr))`,
+                  gridTemplateColumns: monthColumns,
                 }}
               >
                 {monthKeys.map((key) => (
@@ -213,29 +202,30 @@ export const TimelineCalendar: React.FC<TimelineCalendarProps> = ({
                 const offsetDays = rangeStart && start ? dayDiff(rangeStart, start) : 0;
                 const durationDays = start && end ? dayDiff(start, end) + 1 : 1;
                 const leftPercent = Math.min(100, Math.max(0, (offsetDays / totalDays) * 100));
-                const widthPercent = Math.max(4, Math.min(100 - leftPercent, (durationDays / totalDays) * 100));
+                const widthPercent = Math.min(100 - leftPercent, (durationDays / totalDays) * 100);
 
                 return (
                   <div
                     key={entry.id}
-                    className="relative min-h-[72px] rounded-2xl border border-slate-100 bg-white hover:bg-slate-50/70 transition overflow-hidden"
+                    className="relative flex min-h-[72px] items-center overflow-hidden rounded-2xl border border-slate-100 bg-white py-3 transition hover:bg-slate-50/70"
                   >
                     <div
-                      className="absolute inset-0 grid"
-                      style={{ gridTemplateColumns: `repeat(${Math.max(monthKeys.length, 1)}, minmax(180px, 1fr))` }}
+                      className="pointer-events-none absolute inset-0 grid"
+                      style={{ gridTemplateColumns: monthColumns }}
                     >
                       {monthKeys.map((key) => (
                         <div key={key} className="border-l first:border-l-0 border-slate-100" />
                       ))}
                     </div>
+                    <div aria-hidden="true" style={{ flexBasis: `${leftPercent}%` }} />
 
                     <button
                       type="button"
                       onClick={() => setSelectedEntry(entry)}
-                      className="absolute top-3 min-h-11 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-left hover:border-indigo-300 hover:bg-indigo-100 transition shadow-3xs"
+                      className="relative block min-h-11 w-max shrink-0 rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-left shadow-3xs transition hover:border-indigo-300 hover:bg-indigo-100 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
                       style={{
-                        left: `${leftPercent}%`,
-                        width: `min(${100 - leftPercent}%, max(${widthPercent}%, 180px))`,
+                        minWidth: `max(44px, ${widthPercent}%)`,
+                        maxWidth: `max(180px, ${widthPercent}%)`,
                       }}
                     >
                       <span className="block text-[11px] font-black text-brand-navy leading-snug whitespace-normal break-words">

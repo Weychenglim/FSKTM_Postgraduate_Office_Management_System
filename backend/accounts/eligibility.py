@@ -2,13 +2,19 @@ from django.core.exceptions import ObjectDoesNotExist
 
 from .models import Lecturer, Student, User
 
+_CURRENT_SEMESTER_UNSET = object()
 
-def student_is_workflow_eligible(student):
+
+def student_is_workflow_eligible(student, *, current_semester=_CURRENT_SEMESTER_UNSET):
     if not student or student.status != Student.Status.ACTIVE:
         return False
     from .semester_rules import active_semester, starts_later
 
-    return not (student.intake_semester and starts_later(student, active_semester()))
+    if not student.intake_semester:
+        return True
+    if current_semester is _CURRENT_SEMESTER_UNSET:
+        current_semester = active_semester()
+    return not starts_later(student, current_semester)
 
 
 def user_is_assignable_lecturer(user):

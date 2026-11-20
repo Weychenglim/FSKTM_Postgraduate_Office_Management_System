@@ -15,24 +15,22 @@ test('Supervisor summaries use the full filtered collection across pages and aut
   const browse = getSupervisorWorkloadPage(records, { search: '', department: '', status: '' }, 2, 10);
   assert.equal(browse.rows.length, 3);
   const html = render(<WorkloadMonitoringSummary kind="supervisor" records={browse.filtered} />);
-  assert.match(metric(html, 'Lecturers in view')!, /card-metric">13</);
-  assert.match(html, /1 without published capacity/);
+  assert.match(metric(html, 'Lecturers')!, /card-metric">13</);
   assert.match(metric(html, 'Active appointments')!, /card-metric">26</);
-  assert.match(metric(html, 'Available lecturers')!, /card-metric">10</);
+  assert.match(metric(html, 'Available')!, /card-metric">10</);
   assert.match(metric(html, 'At or over capacity')!, /card-metric">2</);
-  assert.match(html, /1 full; 1 over capacity/);
   const filtered = getSupervisorWorkloadPage(records, { search: '', department: '', status: 'FULL' }, 2, 10);
   const filteredHtml = render(<WorkloadMonitoringSummary kind="supervisor" records={filtered.filtered} />);
-  assert.match(metric(filteredHtml, 'Lecturers in view')!, /card-metric">1</);
-  assert.match(metric(filteredHtml, 'Available lecturers')!, /card-metric">0</);
+  assert.match(metric(filteredHtml, 'Lecturers')!, /card-metric">1</);
+  assert.match(metric(filteredHtml, 'Available')!, /card-metric">0</);
 });
 
-test('Panel seats include reservations without double counting active appointments', () => {
-  const panel: PanelWorkloadRecord = { ...base, id: 'P1', name: 'Panel example', initials: 'PE', currentStudents: 5, confirmedAppointments: 2, pendingNominations: 3, workloadItems: [] };
+test('Panel reservations count towards capacity without inflating active appointments', () => {
+  const panel: PanelWorkloadRecord = { ...base, id: 'P1', name: 'Panel example', initials: 'PE', currentStudents: 5, confirmedAppointments: 2, pendingNominations: 3, capacityState: 'FULL', workloadItems: [] };
   const filtered = getPanelWorkloadPage([panel], { search: '', department: '', status: '' }, 1, 10);
   const html = render(<WorkloadMonitoringSummary kind="panel" records={filtered.filtered} />);
-  assert.match(metric(html, 'Occupied panel seats')!, /card-metric">5</);
-  assert.match(html, /2 active appointments; 3 pending reservations/);
+  assert.match(metric(html, 'Active appointments')!, /card-metric">2</);
+  assert.match(metric(html, 'At or over capacity')!, /card-metric">1</);
 });
 
 test('Unconfigured, temporarily unavailable and ineligible lecturers are not advertised as available', () => {
@@ -42,8 +40,7 @@ test('Unconfigured, temporarily unavailable and ineligible lecturers are not adv
     { ...base, capacityState: 'INELIGIBLE' },
   ];
   const html = render(<WorkloadMonitoringSummary kind="supervisor" records={records} />);
-  assert.match(html, /1 without published capacity/);
-  assert.match(metric(html, 'Available lecturers')!, /card-metric">0</);
+  assert.match(metric(html, 'Available')!, /card-metric">0</);
   assert.match(metric(html, 'At or over capacity')!, /card-metric">0</);
   const empty = render(<WorkloadMonitoringSummary kind="panel" records={[]} />);
   assert.equal((empty.match(/card-metric">0</g) ?? []).length, 4);

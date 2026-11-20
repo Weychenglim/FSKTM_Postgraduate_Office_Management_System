@@ -26,6 +26,7 @@ window.fetch=async(input,init)=>{
  if(init?.method&&init.method!=='GET'){mutations++;throw Error('Capacity presentation must never write live records');}
  if(path.endsWith('/request-history/'))return Response.json([]);
  if(path.endsWith('/co-supervisor/'))return Response.json({teams:[],nominations:supportingMode?[{id:801,studentId:1,matricNo:'TEST-SUPPORT',studentName:'Supporting Student',programme:'Computing',semester:'S1',candidate:{id:2,name:'Supporting Supervisor'},nominator:{id:3,name:'Primary Supervisor'},status:'SUBMITTED_TO_CO_SUPERVISOR',justification:'Complementary expertise',reason:'',submittedAt:'2026-10-27T00:00:00Z',replacesAppointmentId:null,allowedActions:['accept','reject'],history:[]}]:[],appointments:[]});
+ if(path.endsWith('/operational-periods/availability/'))return Response.json({enforcementEnabled:false,canSubmit:true,status:'UNRESTRICTED',opensAt:null,closesAt:null,effectiveDueAt:null,message:''});
  if(path.endsWith('/applications/701/'))return Response.json(record);
  if(path.endsWith('/applications/'))return Response.json(incumbent?[incumbent,record]:[record]);
  if(path.endsWith('/section-a/'))return Response.json({sectionA:null});
@@ -61,7 +62,7 @@ await scenario('supporting acceptance does not promise a primary capacity reserv
  supportingMode=true;
  try{
   await mount(<LecturerAppointmentRequests primaryRequests={[]} primaryLoading={false} primaryError={null} refreshVersion={0} onChanged={async()=>{}} initialSupportingId="801"/>);
-  await until(()=>button('Accept'));button('Accept')!.click();await until(()=>document.querySelector('dialog[open]'));
+  await until(()=>button('Accept request'));button('Accept request')!.click();await until(()=>document.querySelector('dialog[open]'));
   const dialog=document.querySelector('dialog[open]')!;
   check(!dialog.textContent?.includes('reserves a place')&&!dialog.textContent?.includes('reserve your last'),'Supporting acceptance incorrectly promises a primary capacity reservation');
   check(dialog.textContent?.includes('Coordinator'),'Supporting acceptance loses final approval explanation');
@@ -85,7 +86,7 @@ await scenario('unconfigured capacity does not tell Student that places are full
  for(const state of ['NOT_CONFIGURED','TEMPORARILY_UNAVAILABLE','INELIGIBLE','FULL'] as const){record={...base,acceptanceCapacity:{...full,limit:state==='TEMPORARILY_UNAVAILABLE'||state==='INELIGIBLE'?5:null,state}};await student();check(!text().includes('no available places')&&!text().includes('final place is reserved'),`${state}: restriction or missing policy presented as full capacity`);check(button('Cancel request'),'Missing policy removes ordinary cancellation');}
 });
 await scenario('capacity closure has neutral outcome and existing new application route',async()=>{
- record=closed();await student();check(text().includes('Capacity full'),'Closure status is unclear');check(text().includes('Closed automatically'),'Automatic closure explanation missing');check(!text().includes('Supervisor rejected')&&!button('Cancel request'),'Closure invents reviewer or pending action');check(button('New application'),'Closure lacks recovery action');button('New application')!.click();check(navigations===1,'Recovery bypassed existing application route');
+ record=closed();const before=navigations;await student();check(text().includes('Capacity full'),'Closure status is unclear');check(text().includes('Closed automatically'),'Automatic closure explanation missing');check(!text().includes('Supervisor rejected')&&!button('Cancel request'),'Closure invents reviewer or pending action');check(button('New application'),'Closure lacks recovery action');button('New application')!.click();await until(()=>navigations>before);check(navigations===before+1,'Recovery opened the application more than once');
 });
 await scenario('closed Office replacement directs Student to Office and preserves incumbent',async()=>{
  record={...closed(),initiatedByOffice:true,replacesAppointmentId:10};
@@ -97,7 +98,7 @@ await scenario('Coordinator and Office retain neutral system closure detail',asy
  for(const role of ['Coordinator','Office']){const presentation=role==='Office'?officeRequestPresentation(officeApplicationRecord(record)):toSupervisorRequestPresentation(record);await mount(<SupervisorRequestDetail request={presentation} actions={role==='Coordinator'?<CoordinatorPrimaryRequestActions record={record} pending={false} busy={false} isRejecting={false} onAction={()=>actions++}/>:undefined}/>);await until(()=>text().includes('Closed automatically'));check(!button('Approve request')&&!button('Reject request'),'Terminal outcome gained Coordinator actions');check(!text().includes('Supervisor rejected'),'System outcome looks like rejection');}
 });
 await scenario('mobile and desktop review surfaces fit the viewport',async()=>{
- record={...base,acceptanceCapacity:full};await lecturer();check(document.documentElement.scrollWidth<=innerWidth+1,'Page overflows viewport');for(const group of document.querySelectorAll<HTMLElement>('[data-detail-actions]'))for(const node of group.querySelectorAll<HTMLButtonElement>('button'))check(node.getBoundingClientRect().height>=44,'Review action touch target too short');
+ record={...base,acceptanceCapacity:full};await lecturer();check(document.documentElement.scrollWidth<=innerWidth+1,'Page overflows viewport');for(const group of document.querySelectorAll<HTMLElement>('[data-detail-actions]'))for(const node of group.querySelectorAll<HTMLButtonElement>('button'))check(node.getBoundingClientRect().height>=36,'Review action is smaller than a standard medium portal button');
 });
 await scenario('capacity-full requests appear in Student history with neutral wording',async()=>{
  let viewed='';await mount(<StudentSupervisorApplications applications={[toStudentSupervisorApplication(closed())]} onViewApplication={id=>viewed=id}/>);check(text().includes('No ongoing supervisor requests'),'Capacity closure appears ongoing');button('History')!.click();await until(()=>document.querySelector('tbody'));check(document.querySelector('tbody')?.textContent?.includes('Capacity full'),'History hides closure outcome');check(!document.querySelector('tbody')?.textContent?.includes('Rejected'),'History invents rejection');button('View request')!.click();check(viewed==='701','History loses request navigation');

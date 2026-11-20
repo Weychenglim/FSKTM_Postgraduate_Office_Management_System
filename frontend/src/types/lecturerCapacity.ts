@@ -21,6 +21,7 @@ export interface CapacityResolution {
   limit: number | null;
   activeLoad: number;
   reservedLoad: number;
+  expectedRp2Releases?: number;
   availableSlots: number;
   state: CapacityState;
   unavailableUntil: string | null;

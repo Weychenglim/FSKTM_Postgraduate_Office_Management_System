@@ -96,7 +96,7 @@ class CompletionConcurrencyTests(APITransactionTestCase):
                 # Appointment handovers preserve the original task and may insert
                 # its replacement in the same period before committing.
                 EvaluationTask.objects.create(period_id=task.period_id,
-                    profile_id=task.profile_id, evaluator=self.panel, evaluator_role='BACKUP')
+                    profile_id=task.profile_id, evaluator=self.panel, evaluator_role='SUPERVISOR')
                 task.lifecycle_status = 'RETIRED'
                 task.save(update_fields=['lifecycle_status'])
 
@@ -131,7 +131,7 @@ class CompletionConcurrencyTests(APITransactionTestCase):
                 if not locked_period.wait(5):
                     raise RuntimeError('Preview did not lock its period')
                 EvaluationTask.objects.create(period_id=task.period_id,
-                    profile_id=task.profile_id, evaluator=self.panel, evaluator_role='BACKUP')
+                    profile_id=task.profile_id, evaluator=self.panel, evaluator_role='SUPERVISOR')
                 task.lifecycle_status = 'RETIRED'
                 task.save(update_fields=['lifecycle_status'])
 
