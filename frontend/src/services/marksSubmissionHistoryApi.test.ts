@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { getSubmittedEvaluations } from './marksApi';
 
 const calls: Array<{ url: string; method: string; body: unknown }> = [];
-const record = { id: 8, evaluatorRole: 'BACKUP', status: 'SUBMITTED', submittedAt: '2026-01-01T17:00:00Z', taskLifecycleStatus: 'RETIRED', canEdit: false, canSubmit: false, components: [{ code: 'methodology', marksAwarded: '50.00', feedback: 'Retained' }] };
+const record = { id: 8, evaluatorRole: 'PANEL', status: 'SUBMITTED', submittedAt: '2026-01-01T17:00:00Z', taskLifecycleStatus: 'RETIRED', canEdit: false, canSubmit: false, components: [{ code: 'methodology', marksAwarded: '50.00', feedback: 'Retained' }] };
 globalThis.fetch = (async (url, init) => {
   calls.push({ url: String(url), method: init?.method ?? 'GET', body: init?.body });
   return new Response(JSON.stringify([record]), { headers: { 'Content-Type': 'application/json' } });

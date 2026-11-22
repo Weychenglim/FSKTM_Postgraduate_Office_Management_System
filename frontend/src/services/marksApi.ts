@@ -10,11 +10,11 @@ import type {
   EvaluationPreviewTask,
   EvaluationTask,
   MarkRecord,
+  MarkRecordPeriod,
   MarkRecordDetail,
   MarksAssignmentOptions,
   MarksAssignmentSearchResults,
   MarksAssignmentStudentOption,
-  MarksAssignmentLecturerOption,
   RubricComponent,
   RubricVersion,
 } from '../types';
@@ -32,6 +32,10 @@ export async function getMarkRecords(): Promise<MarkRecord[]> {
   return request<MarkRecord[]>('/marks/');
 }
 
+export async function getMarkRecordPeriods(): Promise<MarkRecordPeriod[]> {
+  return request<MarkRecordPeriod[]>('/marks/periods/?recordOptions=true');
+}
+
 export async function getMarkRecordById(id: string): Promise<MarkRecordDetail> {
   return request<MarkRecordDetail>(`/marks/records/${encodeURIComponent(id)}/`);
 }
@@ -40,6 +44,7 @@ export type SubmittedMarksCorrection = {
   expectedVersion: string;
   reason: string;
   scores: Array<{ componentId: number; marksAwarded: string }>;
+  feedback?: Array<{ componentId: number; feedback: string }>;
   comments?: string;
 };
 
@@ -57,9 +62,12 @@ export async function getEvaluationPreviewTasks(): Promise<EvaluationPreviewTask
 
 export async function getEvaluationPeriods(
   includeArchived = false,
+  semester?: string,
 ): Promise<EvaluationPeriodOption[]> {
-  const query = includeArchived ? '?includeArchived=true' : '';
-  return request<EvaluationPeriodOption[]>(`/marks/periods/${query}`);
+  const query = new URLSearchParams();
+  if (includeArchived) query.set('includeArchived', 'true');
+  if (semester) query.set('semester', semester);
+  return request<EvaluationPeriodOption[]>(`/marks/periods/${query.size ? `?${query}` : ''}`);
 }
 
 export async function getEvaluationPeriod(
@@ -245,15 +253,6 @@ export async function searchMarksAssignmentStudents(
   return request<MarksAssignmentSearchResults<MarksAssignmentStudentOption>>(`/marks/assignment-options/?${params}`, { signal });
 }
 
-export async function searchMarksAssignmentLecturers(
-  query: string,
-  limit = 50,
-  signal?: AbortSignal,
-): Promise<MarksAssignmentSearchResults<MarksAssignmentLecturerOption>> {
-  const params = new URLSearchParams({ kind: 'lecturers', q: query, limit: String(limit) });
-  return request<MarksAssignmentSearchResults<MarksAssignmentLecturerOption>>(`/marks/assignment-options/?${params}`, { signal });
-}
-
 export async function generateEvaluationTasks(periodId: number): Promise<{
   createdCount: number;
   supervisorCreatedCount: number;
@@ -263,22 +262,6 @@ export async function generateEvaluationTasks(periodId: number): Promise<{
   return request(`/marks/periods/${periodId}/generate-tasks/`, {
     method: 'POST',
   });
-}
-
-export async function createBackupEvaluationTask(
-  periodId: number,
-  payload: {
-    studentId: string;
-    evaluatorId: number;
-    reason: string;
-    originalTaskId?: number;
-  },
-): Promise<EvaluationTask> {
-  const created = await request<EvaluationTask>(
-    `/marks/periods/${periodId}/manual-overrides/`,
-    { method: 'POST', body: JSON.stringify(payload) },
-  );
-  return withLegacyRubricFields(created);
 }
 
 export async function getEvaluationTasks(): Promise<EvaluationTask[]> {

@@ -19,6 +19,7 @@ from appointments.models import (
 )
 from marks.models import EvaluationTask, MarkEntry
 from marks.services import ensure_active_period_tasks
+from marks.stage_eligibility import stage_monitoring_tasks
 from academics.models import AcademicSemester
 from academics.services import current_effective_semester
 from .actions import build_dashboard_tasks
@@ -52,7 +53,7 @@ from .serializers import (
     active_timeline_payload,
 )
 from .upload_security import validate_timeline_upload
-from .timeline_import import create_preview, prepare_rows, verify_preview
+from .timeline_import import create_preview, parse_choices, prepare_rows, verify_preview
 
 
 User = get_user_model()
@@ -398,6 +399,7 @@ def template_view(request):
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
+@transaction.atomic
 def preview_timeline_upload_view(request):
     denied = admin_required_response(request.user)
     if denied:
@@ -408,8 +410,22 @@ def preview_timeline_upload_view(request):
     semester = get_timeline_semester(request)
     if semester is None:
         return timeline_locked_response()
+    mode = request.data.get('mode', 'ADD')
+    choices = None
+    if 'linkChoices' in request.data:
+        try:
+            choices = parse_choices(request.data['linkChoices'])
+            if mode != 'REPLACE' or not choices:
+                raise ValidationError('Linked event choices require a replacement review.')
+        except ValidationError as exc:
+            return Response({"errors": exc.messages}, status=400)
+        semester = AcademicSemester.objects.select_for_update().get(pk=semester.pk)
+        try:
+            verify_preview(request.data.get('linkReviewToken'), uploaded_file, semester, request.user, mode)
+        except ValidationError as exc:
+            return Response({"errors": exc.messages}, status=409)
     try:
-        return Response(create_preview(uploaded_file, semester, request.user, request.data.get('mode', 'ADD')))
+        return Response(create_preview(uploaded_file, semester, request.user, mode, choices))
     except ValidationError as exc:
         return Response({"errors": exc.messages}, status=400)
 
@@ -442,11 +458,14 @@ def upload_timeline_view(request):
         if semester.lifecycle_status not in {"DRAFT", "ACTIVE"}:
             return timeline_locked_response()
         try:
-            verify_preview(token, uploaded_file, semester, request.user, request.data.get('mode', 'ADD'))
+            choices = verify_preview(token, uploaded_file, semester, request.user, request.data.get('mode', 'ADD'))
         except ValidationError as exc:
             return Response({"errors": exc.messages}, status=409)
         try:
-            rows, warnings = prepare_rows(uploaded_file, semester, request.data.get('mode', 'ADD'))
+            rows, warnings, conflicts, _, carried = prepare_rows(
+                uploaded_file, semester, request.data.get('mode', 'ADD'), choices)
+            if conflicts:
+                raise ValidationError('Review the linked events before importing this replacement.')
         except ValidationError as exc:
             return Response({"errors": exc.messages}, status=400)
         if warnings and str(request.data.get("acknowledgeWarnings", "")).lower() != "true":
@@ -475,7 +494,7 @@ def upload_timeline_view(request):
         TimelineAuditLog.objects.create(actor=request.user, timeline=timeline,
             action=TimelineAuditLog.Action.REPLACE if replaced and not adding else TimelineAuditLog.Action.UPLOAD,
             summary=f"{'Added' if adding else 'Replaced draft with'} {len(rows)} calendar events from {uploaded_file.name}."[:500])
-    return Response({"importedCount": len(rows), "timeline": active_timeline_payload(timeline)}, status=201)
+    return Response({"importedCount": len(rows) - carried, "timeline": active_timeline_payload(timeline)}, status=201)
 
 
 @api_view(["POST"])
@@ -681,7 +700,6 @@ def dashboard_summary_view(request):
         "overdueMarkEntries": 0,
         "supervisorMarkTasks": 0,
         "panelMarkTasks": 0,
-        "backupMarkTasks": 0,
         "submittedMarkEntries": 0,
         "reconciliationIssues": 0,
         "reconciliationBlocking": 0,
@@ -741,6 +759,10 @@ def dashboard_summary_view(request):
     else:
         all_tasks = EvaluationTask.objects.none()
 
+    monitoring_tasks = stage_monitoring_tasks(all_tasks.select_related(
+        'mark_entry', 'profile__student__student', 'period__academic_semester'
+    ).prefetch_related('lifecycle_audits'))
+    all_tasks = all_tasks.filter(pk__in=[task.pk for task in monitoring_tasks])
     submitted_task_ids = MarkEntry.objects.filter(
         task__in=all_tasks,
         status=MarkEntry.Status.SUBMITTED,
@@ -769,9 +791,6 @@ def dashboard_summary_view(request):
     ).count()
     summary["panelMarkTasks"] = all_tasks.filter(
         evaluator_role=EvaluationTask.EvaluatorRole.PANEL,
-    ).count()
-    summary["backupMarkTasks"] = all_tasks.filter(
-        evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
     ).count()
     summary["submittedMarkEntries"] = len(submitted_task_ids)
     summary["incompleteMarkEntries"] = all_tasks.exclude(

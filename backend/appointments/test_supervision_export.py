@@ -93,7 +93,8 @@ class SupervisionExportTests(APITestCase):
         self.assertEqual(len(self.records(workbook, "Students by lecturer")), 28)
         self.assertEqual(len(self.records(workbook, "Supervisors by student")), 28)
         self.assertLessEqual(len(large) - len(small), 1)
-        self.assertLessEqual(len(large), 10)
+        # The current-semester lookup adds fixed batch reads, independent of roster size.
+        self.assertLessEqual(len(large), 12)
 
     def test_namespace_guards_accept_nonstaff_office_but_reject_other_roles_and_inactive(self):
         for namespace, actors in (

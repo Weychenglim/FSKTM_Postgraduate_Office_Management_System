@@ -26,6 +26,18 @@ test('Panel appointment history is separate from management and its source reque
   assert.doesNotMatch(html,/data-appointment-history|Approval history|Recorded coordinator/,'Creation-only appointments refer to their source request');
 });
 
+test('Panel assignment puts the stage in student details and the appointment semester in its record',()=>{
+  const html=render(<PanelAssignmentDetails record={{...panel,semester:'Semester I',projectStage:'P2',projectSemester:'Semester II'}}/>);
+  const [studentAndTeam,appointment]=html.split('data-panel-appointment-record');
+  assert.match(studentAndTeam,/<dt[^>]*>Project stage<\/dt><dd[^>]*>RP2<span[^>]*>Semester II<\/span><\/dd>/);
+  assert.doesNotMatch(studentAndTeam,/Semester I<\/dd>/);
+  assert.match(appointment,/Appointment semester<.*>Semester I</);
+
+  const sameSemester=render(<PanelAssignmentDetails record={{...panel,semester:'Semester II',projectStage:'P2',projectSemester:'Semester II'}} academicTeam={null}/>);
+  assert.match(sameSemester,/<dt[^>]*>Project stage<\/dt><dd[^>]*>RP2<\/dd>/);
+  assert.equal((sameSemester.match(/Semester II/g)??[]).length,1);
+});
+
 test('Supervision separates history from the shared academic schedule',()=>{
   const team:SupervisoryTeam={studentId:7,matricNo:'PG007',studentName:'Example student',programme:'Computing',studentStatus:'ACTIVE',primarySupervisor:{id:9,name:'Dr Primary'},primaryAppointmentId:4,research:{title:'Research',area:'AI',abstract:'Abstract'},appointments:[],nominations:[],canNominate:false,timeline:[{id:'primary-1',title:'Recorded appointment event',status:'APPROVED'},{id:'timeline-1',title:'Shared semester date',status:'UPCOMING'}]};
   const noop=()=>{};

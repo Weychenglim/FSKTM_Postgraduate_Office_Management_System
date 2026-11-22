@@ -6,6 +6,7 @@
 import React, { useEffect, useId, useState } from 'react';
 import type { MarksImpact, StageChangeResult, StageRow } from '../services/registrySemestersApi';
 import { changeProjectStages, getProjectStageImpact, keepProjectStageAnswers } from '../services/registrySemestersApi';
+import { ApiError } from '../services/apiClient';
 import { marksLine, stageChoices, touchesMarks } from '../utils/projectStages';
 import type { DialogChoice } from '../utils/projectStages';
 import { studentCount } from '../utils/registrySemesters';
@@ -31,6 +32,7 @@ export const ProjectStageChangeDialog: React.FC<{
   const [checked, setChecked] = useState(false);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
   const single = rows.length === 1 ? rows[0] : null;
 
   useEffect(() => {
@@ -49,7 +51,7 @@ export const ProjectStageChangeDialog: React.FC<{
       .then(found => { if (!cancelled) setImpact(found); })
       .catch(err => { if (!cancelled) setProblem(errorText(err, 'Could not check Marks.')); });
     return () => { cancelled = true; };
-  }, [isOpen, single, choice, semesterId]);
+  }, [isOpen, single, choice, semesterId, previewAttempt]);
 
   const working = (on: boolean) => {
     setBusy(on);
@@ -74,6 +76,10 @@ export const ProjectStageChangeDialog: React.FC<{
       onSaved(result, choice === 'KEEP');
     } catch (err) {
       setProblem(errorText(err, 'Could not save this.'));
+      if (single && choice !== 'KEEP' && err instanceof ApiError && err.status === 409) {
+        setImpact(null);
+        setChecked(false);
+      }
     } finally {
       working(false);
     }
@@ -82,8 +88,15 @@ export const ProjectStageChangeDialog: React.FC<{
   const choices = stageChoices(rows);
   const keeping = choice === 'KEEP';
   const needsCheck = Boolean(single) && !keeping && touchesMarks(impact);
-  const waitingForImpact = Boolean(single && choice && !keeping && !impact && !problem);
-  const canSave = Boolean(choice && (keeping || reason) && !waitingForImpact && (!needsCheck || checked));
+  const needsPreview = Boolean(single && choice && !keeping && !impact);
+  const canSave = Boolean(choice && (keeping || reason) && !needsPreview && (!needsCheck || checked));
+  const selectChoice = (next: DialogChoice) => {
+    if (next === choice) return;
+    setProblem(null);
+    setImpact(null);
+    setChecked(false);
+    setChoice(next);
+  };
 
   return (
     <DialogShell
@@ -99,7 +112,7 @@ export const ProjectStageChangeDialog: React.FC<{
     >
       <div role="group" aria-label="New stage" className="flex flex-wrap gap-2">
         {choices.map(option => (
-          <button key={option.value} type="button" aria-pressed={choice === option.value} disabled={busy} onClick={() => { setProblem(null); setChoice(option.value); }} className={`rounded-lg border px-3.5 py-2 text-[13px] font-bold transition cursor-pointer ${choice === option.value ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
+          <button key={option.value} type="button" aria-pressed={choice === option.value} disabled={busy} onClick={() => selectChoice(option.value)} className={`rounded-lg border px-3.5 py-2 text-[13px] font-bold transition cursor-pointer ${choice === option.value ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}>
             {option.label}
           </button>
         ))}
@@ -120,6 +133,12 @@ export const ProjectStageChangeDialog: React.FC<{
         </div>
       )}
       {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
+      {problem && needsPreview && (
+        <PortalButton disabled={busy} onClick={() => {
+          setProblem(null);
+          setPreviewAttempt(attempt => attempt + 1);
+        }}>Retry preview</PortalButton>
+      )}
     </DialogShell>
   );
 };

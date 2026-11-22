@@ -119,7 +119,7 @@ const page = readFileSync(resolve('src/components/ProjectStages.tsx'), 'utf8');
 assert.match(app, /currentUser\.role === 'Office Staff\/Admin' \|\| currentUser\.role === 'Programme Coordinator' \? <ProjectStages \/>/);
 assert.match(app, /showProjectStages=\{currentUser\.role === 'Programme Coordinator'\}/);
 assert.match(registry, /\{showProjectStages && \(\s*<PortalButton onClick=\{\(\) => navigate\(APP_ROUTES\.registryProjectStages\)\}/);
-assert.match(dashboard, /const \[stage, setStage\] = useProjectStageQuestion\(\);/);
+assert.match(dashboard, /<ProjectStageQuestion question=/);
 assert.ok(dashboard.indexOf('{stageAsking && stageCardNode}') < dashboard.indexOf('<DashboardTimeline'), 'an unanswered question sits above the timeline');
 assert.ok(dashboard.indexOf('{!stageAsking && stageCardNode}') > dashboard.indexOf('<DashboardTimeline'), 'a confirmed record sits with the appointment cards');
 assert.match(api, /\/project-stages\/change\//);
@@ -136,7 +136,7 @@ assert.match(card, /getProjectStages\(null, matric\)/);
 assert.match(card, /data\.canChange && <PortalButton size="sm" onClick=\{\(\) => setChanging\(true\)\}>Change<\/PortalButton>/);
 assert.match(card, /<h4 className="section-label">RP Registration<\/h4>/);
 assert.match(page, /<RecordPage title="RP Registration"/);
-assert.match(registry, /RP Registration\n/);
+assert.match(registry, /RP Registration\r?\n/);
 assert.match(registry, /\{ label: 'RP Registration', onSelect: \(\) => navigate\(APP_ROUTES\.registryProjectStages\) \}/);
 assert.match(dialog, /`Change \$\{single\.name\}'s RP registration`/);
 for (const source of [page, card, dialog, registry]) {

@@ -73,6 +73,42 @@ class CalendarPublicationTests(APITestCase):
         self.assertEqual(self.publish().status_code, 200)
         self.assertNotIn('Draft title', str(self.public()))
 
+    def test_office_dashboard_shows_all_published_audiences_and_concurrent_projects(self):
+        preview, content = self.import_rows()
+        self.assertEqual(self.confirm(preview, content).status_code, 201)
+        entries = list(SemesterTimelineEntry.objects.filter(timeline__is_active=True).order_by('display_order'))
+        for entry, role in zip(entries, ('STUDENT', 'OFFICE_STAFF', 'LECTURER')):
+            entry.target_roles = [role]
+            entry.deadline_start = entries[0].deadline_start
+            entry.deadline_end = entries[0].deadline_end
+            entry.save()
+        self.assertEqual(self.publish().status_code, 200)
+
+        entries[0].title = 'Unpublished change'
+        entries[0].save(update_fields=['title'])
+        office = self.client.get('/api/dashboard/timeline/active/')
+        self.assertEqual(office.status_code, 200)
+        self.assertEqual([group['level'] for group in office.data['levels']], ['P1', 'P2'])
+        published = [entry for group in office.data['levels'] for entry in group['entries']]
+        self.assertEqual(len(published), 3)
+        self.assertEqual({role for entry in published for role in entry['targetRoles']},
+                         {'STUDENT', 'LECTURER', 'OFFICE_STAFF'})
+        self.assertNotIn('Unpublished change', str(office.data))
+        self.assertEqual(len({entry['deadlineStart'] for entry in published}), 1)
+
+        lecturer = fixture.User.objects.create_user(
+            email='calendar-lecturer@example.com', role=fixture.User.Role.LECTURER)
+        coordinator = fixture.User.objects.create_user(
+            email='calendar-coordinator@example.com', role=fixture.User.Role.COORDINATOR)
+        for actor, audience in ((self.student, 'STUDENT'), (lecturer, 'LECTURER'), (coordinator, 'LECTURER')):
+            with self.subTest(role=actor.role):
+                self.client.force_authenticate(actor)
+                response = self.client.get('/api/dashboard/timeline/active/')
+                self.assertEqual(response.status_code, 200)
+                visible = [entry for group in response.data['levels'] for entry in group['entries']]
+                self.assertEqual(len(visible), 1)
+                self.assertEqual(visible[0]['targetRoles'], [audience])
+
     def test_stale_publish_and_permissions(self):
         preview, content = self.import_rows()
         self.confirm(preview, content)

@@ -4,10 +4,10 @@ import type { CoSupervisorNomination, CoSupervisorAppointment, SupervisoryWorksp
 import type { CapacityReassessment, CapacitySemester, CapacityRequestKind } from '../types/capacityReassessment';
 
 export type BrowseParams = Record<string, string | number | undefined>;
-export interface BrowsePage<T> { results: T[]; total: number; page: number; pageSize: number; pageCount: number; reviewCount?: number; facets: { programmes: string[]; semesters: string[]; statuses: string[] } }
+export interface BrowsePage<T> { results: T[]; total: number; page: number; pageSize: number; pageCount: number; reviewCount?: number; projectSemester?: string | null; facets: { programmes: string[]; semesters: string[]; statuses: string[] } }
 export interface CoordinatorRequestRow { key: string; id: number; kind: 'primary' | 'supporting'; studentName: string; matricNo: string; programme: string; candidateName: string; status: string; submittedAt: string; decidedAt?: string | null; waitingDays: number | null; canDecide: boolean; carryover: boolean }
 export interface SupervisorGroup { id: number; name: string; staffNo: string; primaryCount: number; supportingCount: number }
-export interface CoordinatorStudentRow { id: number; matricNo: string; studentName: string; programme: string; primarySupervisor: {id: number; name: string} | null; relationship: string | null }
+export interface CoordinatorStudentRow { id: number; matricNo: string; studentName: string; programme: string; primarySupervisor: {id: number; name: string} | null; relationship: string | null; projectStage?: string | null }
 export interface CoordinatorAppointmentRow { key: string; id: number; kind: 'primary' | 'supporting'; studentName: string; matricNo: string; programme: string; supervisorName: string; appointmentDate: string; endedAt: string | null; outcome: string; applicationId: number | null; studentId: number }
 export type CarryoverRow = Pick<CapacityReassessment, 'id' | 'kind' | 'status' | 'student' | 'candidate' | 'originalSemester' | 'authorization'>;
 const base = '/appointments/coordinator-workspace';

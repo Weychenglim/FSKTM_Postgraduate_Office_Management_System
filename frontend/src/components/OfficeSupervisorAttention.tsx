@@ -1,3 +1,4 @@
+import {ProjectStageFilter, projectStageLabel} from './AttentionProjectStage';
 import {Download, UserRoundSearch, Clock3, Gauge, ChevronRight} from 'lucide-react';
 import {AppointmentIcon} from './AppointmentPrimitives';
 import {WorkspaceFilterActions} from './RequestWorkspacePrimitives';
@@ -29,7 +30,7 @@ const workloadReason=(row:OfficeAttentionWorkload)=>workloadReasons[row.reason]?
 const studentReason=(row:OfficeAttentionStudent)=>row.pendingStatus?'Application in progress':'No ongoing application';
 type TableProps={category:OfficeAttentionCategory;rows:OfficeAttentionRow[];onStudent:(matric:string)=>void;onRequest:(row:OfficeAttentionRequest)=>void;onWorkload:(id:string)=>void};
 export function OfficeAttentionTable({category,rows,onStudent,onRequest,onWorkload}:TableProps) {
-  if(category==='students')return <CoordinatorDataTable label="Students without a primary supervisor" columns={['Student','Programme','Intake semester','Application status','Action']} rows={(rows as OfficeAttentionStudent[]).map(row=>({key:row.id,cells:[<><p>{row.studentName}</p><p className="card-caption mt-1">{row.matricNo}</p></>,row.programme||'Not recorded',row.semester||'Not recorded',<AppointmentStatusCell status={row.pendingStatus} emptyLabel="No ongoing application"/>,<div className="flex flex-wrap justify-end gap-2"><PortalButton size="sm" className="whitespace-nowrap" onClick={()=>onStudent(row.matricNo)}>View details</PortalButton></div>]}))}/>;
+  if(category==='students')return <CoordinatorDataTable label="Students without a primary supervisor" columns={['Student','Programme','Project stage','Intake semester','Application status','Action']} rows={(rows as OfficeAttentionStudent[]).map(row=>({key:row.id,cells:[<><p>{row.studentName}</p><p className="card-caption mt-1">{row.matricNo}</p></>,row.programme||'Not recorded',projectStageLabel(row.projectStage),row.semester||'Not recorded',<AppointmentStatusCell status={row.pendingStatus} emptyLabel="No ongoing application"/>,<div className="flex flex-wrap justify-end gap-2"><PortalButton size="sm" className="whitespace-nowrap" onClick={()=>onStudent(row.matricNo)}>View details</PortalButton></div>]}))}/>;
   if(category==='workload')return <CoordinatorDataTable label="Supervisor workload concerns" columns={['Supervisor','Department','Current load','Configured limit','Reason for attention','Action']} rows={(rows as OfficeAttentionWorkload[]).map(row=>({key:row.id,cells:[<><p>{row.lecturerName}</p><p className="card-caption mt-1">{row.lecturerId}</p></>,row.department||'Not recorded',<><p>{row.activeLoad ?? row.currentStudents} active</p><p className="card-caption">{row.reservedLoad ?? 0} reserved</p></>,row.workloadLimit==null||row.capacityState==='NOT_CONFIGURED'?'Not configured':row.workloadLimit,workloadReason(row),<PortalButton size="sm" onClick={()=>onWorkload(row.lecturerId)}>View workload</PortalButton>]}))}/>;
   return <CoordinatorDataTable label="Requests waiting for review" columns={['Student','Request type','Programme','Current reviewer','Time at this stage','Action']} rows={(rows as OfficeAttentionRequest[]).map(row=>({key:row.key,cells:[<><p>{row.studentName}</p><p className="card-caption mt-1">{row.matricNo}</p></>,officeRequestKindLabel(row.kind),row.programme,<AppointmentReviewerCell name={['Supervisor','Supporting lecturer'].includes(row.waitingOn)?row.candidateName:undefined} role={row.waitingOn==='Supporting lecturer'?'Supporting Supervisor':row.waitingOn||requestStatusLabel(row.status)}/>,formatRequestStageWaiting(row.status,row.waitingDays),<PortalButton size="sm" onClick={()=>onRequest(row)}>View request</PortalButton>]}))}/>;
 }
@@ -51,9 +52,11 @@ function attentionColumns(category:OfficeAttentionCategory):CsvColumn<OfficeAtte
     {header:'Programme',value:row=>(row as OfficeAttentionStudent|OfficeAttentionRequest).programme},
   ];
   return category==='students'?[...common,
+    {header:'Project stage',value:row=>projectStageLabel((row as OfficeAttentionStudent).projectStage)},
+    {header:'Project semester',value:row=>(row as OfficeAttentionStudent).projectSemester},
     {header:'Intake semester',value:row=>(row as OfficeAttentionStudent).semester},
     {header:'Application progress',value:row=>studentReason(row as OfficeAttentionStudent)},
-    {header:'Current stage',value:row=>(row as OfficeAttentionStudent).pendingStatus},
+    {header:'Application status',value:row=>(row as OfficeAttentionStudent).pendingStatus},
   ]:[...common,
     {header:'Request type',value:row=>officeRequestKindLabel((row as OfficeAttentionRequest).kind)},
     {header:'Request ID',value:row=>(row as OfficeAttentionRequest).id},
@@ -64,16 +67,19 @@ function attentionColumns(category:OfficeAttentionCategory):CsvColumn<OfficeAtte
   ];
 }
 
-function OfficeAttentionBrowse({category,refreshVersion,capacitySemester,onStudent,onRequest,onWorkload}:Omit<TableProps,'rows'>&{refreshVersion:number;capacitySemester?:OfficeAttentionSummary['capacitySemester']}) {
+function OfficeAttentionBrowse({category,refreshVersion,capacitySemester,rp1Count,onStudent,onRequest,onWorkload}:Omit<TableProps,'rows'>&{refreshVersion:number;rp1Count?:number|null;capacitySemester?:OfficeAttentionSummary['capacitySemester']}) {
   const initialSort=category==='students'?'no_request':category==='waiting'?'waiting':'name';
   const f=useCoordinatorFilters(`office-attention:${category}`,initialSort);
-  const result=useCoordinatorPage(officeSupervisorApi.attention,{...f.params,category},refreshVersion);
+  const [projectStage,setProjectStage]=useListState('office-attention:students','projectStage','');
+  const hasOtherFilters = Boolean(f.q.trim() || f.programme || f.semester || f.status);
+  const params={...f.params,category,projectStage:category==='students'?projectStage:undefined};
+  const result=useCoordinatorPage(officeSupervisorApi.attention,params,refreshVersion);
   const [exporting,setExporting]=useState(false),[exportError,setExportError]=useState<string|null>(null),[exportNotice,setExportNotice]=useState<string|null>(null);
   const noun=categories.find(item=>item.key===category)!.unit;
   const exportRecords=async()=>{
     if(exporting)return;
     setExporting(true);setExportError(null);setExportNotice(null);
-    try{const count=await exportOfficeBrowsePage(`supervisor_attention_${category}.xlsx`,officeSupervisorApi.attention,{...f.params,category},attentionColumns(category));setExportNotice(`Exported ${count} matching ${count===1?noun.slice(0,-1):noun}.`);}
+    try{const count=await exportOfficeBrowsePage(`supervisor_attention_${category}.xlsx`,officeSupervisorApi.attention,params,attentionColumns(category));setExportNotice(`Exported ${count} matching ${count===1?noun.slice(0,-1):noun}.`);}
     catch(error){setExportError(error instanceof Error?error.message:'Records could not be exported.');}
     finally{setExporting(false);}
   };
@@ -89,7 +95,7 @@ function OfficeAttentionBrowse({category,refreshVersion,capacitySemester,onStude
       <label className="form-label">Reason<PortalSelect className="form-control form-control-sm mt-1" value={f.status} onChange={e=>f.change(f.setStatus)(e.target.value)}><option value="">All reasons</option>{Object.entries(workloadReasons).map(([value,label])=><option value={value} key={value}>{label}</option>)}</PortalSelect></label>
       <label className="form-label">Sort by<PortalSelect className="form-control form-control-sm mt-1" value={f.sort} onChange={e=>{f.setSort(e.target.value);f.setPage(1);}}><option value="name">Supervisor name</option><option value="load">Highest load first</option></PortalSelect></label>
     </div><WorkspaceFilterActions onReset={f.reset}>{exportAction}</WorkspaceFilterActions></div>
-    :<CoordinatorFiltersBar filters={category==='students'?{...f,type:f.status,setType:f.setStatus}:f} facets={result.data?.facets} requests={category==='waiting'} includeStatusAndDates={category==='waiting'} searchLabel="Find a student" searchPlaceholder="Student name or matric number"
+    :<CoordinatorFiltersBar filters={category==='students'?{...f,type:f.status,setType:f.setStatus,reset:()=>{f.reset();setProjectStage('');}}:f} extraFilters={category==='students'?<ProjectStageFilter value={projectStage} onChange={f.change(setProjectStage)} semester={result.data ? result.data.projectSemester : capacitySemester?.label} rp1Count={hasOtherFilters ? null : rp1Count}/>:undefined} facets={result.data?.facets} requests={category==='waiting'} includeStatusAndDates={category==='waiting'} searchLabel="Find a student" searchPlaceholder="Student name or matric number"
       typeLabel={category==='students'?'Application progress':'Request type'} typeOptions={category==='students'?[['','All students'],['none','No ongoing application'],['in_progress','Application in progress']]:[['all','All types'],['primary','Primary supervisor'],['supporting','Supporting supervisor'],['research','Research change'],['transfer','Programme transfer']]}
       semesterLabel={category==='students'?'Intake semester':'Semester'}
       statusLabel={officeAttentionStatusLabel}
@@ -109,6 +115,6 @@ export function OfficeSupervisorAttention({refreshVersion=0,onStudent,onRequest,
 
     <div role="group" aria-label="Records needing attention" className="grid gap-3 sm:grid-cols-3">{categories.map(item=><button type="button" key={item.key} aria-pressed={category===item.key} onClick={()=>setCategory(item.key)} className={`flex flex-col items-stretch space-y-2 rounded-2xl border p-5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy ${category===item.key?'border-brand-navy bg-blue-50/40 shadow-sm':'border-slate-200 bg-white hover:border-slate-400'}`}><span className="flex items-center justify-between gap-3"><AppointmentIcon icon={item.icon} tone="info"/><ChevronRight aria-hidden="true" focusable="false" className="h-4 w-4 shrink-0 text-slate-400"/></span><span className="card-value block">{item.title}</span><span className="card-metric block">{summaryLoading?'…':summary?summary[item.count]:'—'} <span className="card-caption font-medium">{summary&&!summaryLoading&&summary[item.count]===1?item.unit.slice(0,-1):item.unit}</span></span><span className="card-description block">{item.description}</span></button>)}</div>
     {summaryError?<ErrorState message={`Attention counts unavailable. ${summaryError}`} onRetry={()=>setRetry(value=>value+1)}/>:null}
-    <OfficeAttentionBrowse key={category} category={category} refreshVersion={refreshVersion} capacitySemester={summary?.capacitySemester} onStudent={onStudent} onRequest={onRequest} onWorkload={onWorkload}/>
+    <OfficeAttentionBrowse key={category} category={category} refreshVersion={refreshVersion} capacitySemester={summary?.capacitySemester} rp1Count={summaryLoading?null:summary?.withoutSupervisorRp1} onStudent={onStudent} onRequest={onRequest} onWorkload={onWorkload}/>
   </div>;
 }

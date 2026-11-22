@@ -28,6 +28,17 @@ class ResearchAmendmentTests(APITestCase):
         self.assertEqual(result.status_code, 201, result.data)
         return result.data['id']
 
+    def test_programme_transfer_creation_is_unavailable(self):
+        from .models import ResearchAmendment
+        self.client.force_authenticate(user=self.office)
+        options = self.client.get(self.base + 'options/', {'studentId': self.student.pk})
+        self.assertEqual(options.status_code, 200)
+        self.assertFalse(options.data['canTransfer'])
+        response = self.post(self.office, kind='TRANSFER', studentId=self.student.pk,
+            destinationProgramme='MASTER OF SOFTWARE ENGINEERING', reason='Transfer')
+        self.assertEqual(response.status_code, 400)
+        self.assertFalse(ResearchAmendment.objects.filter(kind='TRANSFER').exists())
+
     def test_supervisor_finalizes_research_and_preserves_original_proposal(self):
         pk = self.research()
         result = self.post(self.coordinator, f'{pk}/decision/', decision='APPROVE')
@@ -125,21 +136,6 @@ class ResearchAmendmentTests(APITestCase):
         self.research()
         self.assertEqual(self.post(self.office, 'corrections/', studentId=self.student.pk, title='Another typo', reason='Typo', meaningUnchanged=True, expectedRevision=1).status_code, 409)
 
-    def test_transfer_requires_explicit_team_retention_and_no_marks(self):
-        from marks.models import EvaluationTask
-        before = list(EvaluationTask.objects.values())
-        result = self.post(self.office, kind='TRANSFER', studentId=self.student.pk, destinationProgramme='  master of software engineering ', reason='Programme change')
-        self.assertEqual(result.status_code, 201, result.data)
-        pk = result.data['id']
-        self.assertEqual(self.post(self.coordinator, f'{pk}/decision/', decision='APPROVE').status_code, 400)
-        self.assertEqual(self.post(self.coordinator, f'{pk}/decision/', decision='APPROVE', retainTeam=True).status_code, 200)
-        self.assertEqual(self.post(self.other_coordinator, f'{pk}/decision/', decision='APPROVE', retainTeam=True).status_code, 200)
-        self.student.refresh_from_db()
-        self.profile.refresh_from_db()
-        self.assertEqual(self.student.programme, 'MASTER OF SOFTWARE ENGINEERING')
-        self.assertEqual(self.profile.programme, self.student.programme)
-        self.assertEqual(list(EvaluationTask.objects.values()), before)
-
     def test_deferred_can_cancel_but_cannot_decide(self):
         pk = self.research()
         Student.objects.filter(pk=self.student.pk).update(status=Student.Status.DEFERRED)
@@ -168,70 +164,23 @@ class ResearchAmendmentTests(APITestCase):
         result = self.post(self.supervisor, f'{pk}/decision/', decision='APPROVE')
         self.assertEqual(result.status_code, 409)
 
-    def test_old_coordinator_keeps_only_decision_history_after_transfer(self):
-        result = self.post(self.office, kind='TRANSFER', studentId=self.student.pk, destinationProgramme='MASTER OF SOFTWARE ENGINEERING', reason='Transfer')
-        pk = result.data['id']
-        self.post(self.coordinator, f'{pk}/decision/', decision='APPROVE', retainTeam=True)
-        self.post(self.other_coordinator, f'{pk}/decision/', decision='APPROVE', retainTeam=True)
-        self.client.force_authenticate(user=self.coordinator)
-        self.assertEqual(self.client.get(self.base + f'{pk}/').status_code, 200)
-        self.assertEqual(self.client.get(self.base + f'options/?studentId={self.student.pk}').status_code, 404)
-
-    def test_same_coordinator_needs_two_explicit_stages_and_stale_replay_conflicts(self):
-        from accounts.models import CoordinatorDelegation
-        from django.utils import timezone
-        CoordinatorDelegation.objects.create(coordinator=self.coordinator,
-            programme='MASTER OF SOFTWARE ENGINEERING', starts_on=timezone.localdate(),
-            ends_on=timezone.localdate() + timezone.timedelta(days=3),
-            granted_by=self.office, justification='Acting destination coordinator.')
-        row = self.post(self.office, kind='TRANSFER', studentId=self.student.pk,
-                        destinationProgramme='MASTER OF SOFTWARE ENGINEERING', reason='Transfer').data
-        data = dict(decision='APPROVE', retainTeam=True, expectedStatus=row['status'])
-        self.assertEqual(self.post(self.coordinator, f"{row['id']}/decision/", **data).status_code, 200)
-        self.assertEqual(self.post(self.coordinator, f"{row['id']}/decision/", **data).status_code, 409)
-        self.student.refresh_from_db()
-        self.assertNotEqual(self.student.programme, 'MASTER OF SOFTWARE ENGINEERING')
-        data['expectedStatus'] = 'PENDING_DESTINATION_COORDINATOR'
-        self.assertEqual(self.post(self.coordinator, f"{row['id']}/decision/", **data).status_code, 200)
-
     def test_rejections_and_cancellations_preserve_profile(self):
         original = self.profile.proposed_topic
-        for reviewer in (self.supervisor,):
-            pk = self.research()
-            self.assertEqual(self.post(self.coordinator, f'{pk}/decision/', decision='REJECT', reason='Programme reviewer').status_code, 403)
-            self.assertEqual(self.post(reviewer, f'{pk}/decision/', decision='REJECT', reason='Revise proposal').status_code, 200)
-            self.profile.refresh_from_db()
-            self.assertEqual(self.profile.proposed_topic, original)
-        for reviewer in (self.coordinator, self.other_coordinator):
-            row = self.post(self.office, kind='TRANSFER', studentId=self.student.pk,
-                            destinationProgramme='MASTER OF SOFTWARE ENGINEERING', reason='Transfer').data
-            if reviewer == self.other_coordinator:
-                self.assertEqual(self.post(self.coordinator, f"{row['id']}/decision/", decision='APPROVE', retainTeam=True).status_code, 200)
-            self.assertEqual(self.post(reviewer, f"{row['id']}/decision/", decision='REJECT', reason='Transfer not approved').status_code, 200)
+        pk = self.research()
+        self.assertEqual(self.post(self.coordinator, f'{pk}/decision/', decision='REJECT', reason='Programme reviewer').status_code, 403)
+        self.assertEqual(self.post(self.supervisor, f'{pk}/decision/', decision='REJECT', reason='Revise proposal').status_code, 200)
         self.profile.refresh_from_db()
+        self.assertEqual(self.profile.proposed_topic, original)
         self.assertEqual(self.profile.revision, 0)
 
-    def test_transfer_team_change_and_pending_nomination_block(self):
-        from .models import SupervisorApplication, PanelRecommendation
-        pending = SupervisorApplication.objects.create(student=self.student,
-            proposed_supervisor=self.new_supervisor, academic_semester=self.semester,
-            research_title='Replacement', research_area='SE', research_abstract='Abstract')
-        args = dict(kind='TRANSFER', studentId=self.student.pk,
-                    destinationProgramme='MASTER OF SOFTWARE ENGINEERING', reason='Transfer')
-        self.assertEqual(self.post(self.office, **args).status_code, 409)
-        pending.status = 'CANCELLED_BY_STUDENT'
-        pending.save()
-        row = self.post(self.office, **args).data
-        self.assertEqual(self.post(self.coordinator, f"{row['id']}/decision/", decision='APPROVE', retainTeam=True).status_code, 200)
-        fixture.AppointmentLifecycleTests._panel_appointment(self)
-        self.assertEqual(self.post(self.other_coordinator, f"{row['id']}/decision/", decision='APPROVE', retainTeam=True).status_code, 409)
+        pk = self.research()
+        self.assertEqual(self.post(self.student_user, f'{pk}/cancel/', reason='Withdraw request').status_code, 200)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.proposed_topic, original)
+        self.assertEqual(self.profile.revision, 0)
 
-    def test_unavailable_destination_and_legacy_records_are_rejected(self):
+    def test_legacy_research_records_without_a_linked_student_are_rejected(self):
         from .models import StudentResearchProfile
-        self.other_coordinator.is_active = False
-        self.other_coordinator.save()
-        self.assertEqual(self.post(self.office, kind='TRANSFER', studentId=self.student.pk,
-            destinationProgramme='MASTER OF SOFTWARE ENGINEERING', reason='Transfer').status_code, 409)
         StudentResearchProfile.objects.filter(pk=self.profile.pk).update(student=None)
         self.assertEqual(self.post(self.student_user, kind='RESEARCH', title='New', reason='Change').status_code, 404)
 

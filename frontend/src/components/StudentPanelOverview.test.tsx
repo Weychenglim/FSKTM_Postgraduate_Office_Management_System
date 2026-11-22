@@ -13,6 +13,14 @@ const appointment:StudentPanelAppointmentView={
 };
 const render=(value:StudentPanelAppointmentView)=>renderToStaticMarkup(<MemoryRouter><StudentPanelAppointmentOverview appointment={value}/></MemoryRouter>);
 
+test('Current project stage sits beside Programme in both Panel states',()=>{
+  const confirmed=render({...appointment,projectStage:'P2',projectSemester:'Semester II 2026/2027'});
+  assert.match(confirmed, /Programme<\/dt>.*Your project stage<\/dt><dd[^>]*>RP2<span[^>]*>Semester II 2026\/2027<\/span>/);
+  const pending=render({...appointment,status:'PENDING',readinessState:'FACULTY_PROCESSING',projectStage:'P1',projectSemester:appointment.semester});
+  assert.match(pending, /Programme<\/dt>.*Your project stage<\/dt><dd[^>]*>RP1<\/dd>/);
+  assert.doesNotMatch(pending, /Current project stage/);
+});
+
 test('Student overview separates current identity, confirmed member and saved research',()=>{
   const html=render(appointment);
   assert.doesNotMatch(html,/aria-label="Academic context"/);

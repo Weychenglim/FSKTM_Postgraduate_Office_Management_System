@@ -27,9 +27,9 @@ class AmendmentMigrationTests(APITransactionTestCase):
             Entry = apps.get_model('marks', 'MarkEntry')
             Score = apps.get_model('marks', 'MarkScore')
             submitted = Entry.objects.create(task_id=self.task.pk, status='SUBMITTED', total_mark=81)
-            backup = Task.objects.create(period_id=self.period_obj.pk, evaluator_id=self.panel.pk,
-                                        profile_id=self.student_profile.pk, evaluator_role='BACKUP')
-            draft = Entry.objects.create(task=backup, status='DRAFT', total_mark=72)
+            panel_task = Task.objects.create(period_id=self.period_obj.pk, evaluator_id=self.panel.pk,
+                                        profile_id=self.student_profile.pk, evaluator_role='PANEL')
+            draft = Entry.objects.create(task=panel_task, status='DRAFT', total_mark=72)
             for entry, score in ((submitted, 81), (draft, 72)):
                 Score.objects.create(entry=entry, component_id=self.rubric.components.get().pk,
                                      marks_awarded=score, feedback='Preserved feedback')

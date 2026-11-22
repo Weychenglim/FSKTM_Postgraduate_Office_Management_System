@@ -21,13 +21,13 @@ export function availabilityStatus(item: LecturerAvailabilityWindow) {
 }
 
 /** Each destination owns one bounded server page; other histories stay unloaded. */
-export function CapacityCollectionPage({collection, semesterId, revision, initialStatus, initialVersion, mutable, busy, lecturer, onClearLecturer, onPlan, onDiscard, onPrepare, onActivity}: {
-  collection: CapacityCollection; semesterId: number; revision: number; initialStatus?: string; initialVersion?: number; mutable: boolean; busy: boolean;
+export function CapacityCollectionPage({collection, semesterId, revision, initialStatus, initialSearch, initialVersion, mutable, busy, lecturer, onClearLecturer, onPlan, onDiscard, onPrepare, onActivity}: {
+  collection: CapacityCollection; semesterId: number; revision: number; initialStatus?: string; initialSearch?: string; initialVersion?: number; mutable: boolean; busy: boolean;
   lecturer: {id: number; name: string} | null; onClearLecturer: () => void;
   onPlan: (plan: SemesterCapacityPlan) => void; onDiscard: (plan: SemesterCapacityPlan) => void; onPrepare: () => void; onActivity: (version?: number) => void;
 }) {
   const plans = collection === 'capacity-plans', availability = collection === 'availability';
-  const [search,setSearch] = useState(''), [status,setStatus] = useState(initialStatus ?? (availability ? 'CURRENT' : 'ALL')), [role,setRole] = useState('ALL');
+  const [search,setSearch] = useState(initialSearch ?? ''), [status,setStatus] = useState(initialStatus ?? (availability ? 'CURRENT' : 'ALL')), [role,setRole] = useState('ALL');
   const [page,setPage] = useState(1), [size,setSize] = useState(10), [retry,setRetry] = useState(0);
   const [version,setVersion] = useState(initialVersion?.toString() ?? 'ALL');
   const [result,setResult] = useState<CapacityPage<Row> | null>(null), [loading,setLoading] = useState(true), [error,setError] = useState<string | null>(null);

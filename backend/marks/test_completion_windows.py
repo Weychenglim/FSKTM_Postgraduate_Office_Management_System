@@ -24,6 +24,39 @@ class CompletionWindowTests(APITestCase):
     def grant(self, **values):
         return self.client.post('/api/marks/completion-windows/', {'taskIds': [self.task.pk], 'deadline': (timezone.now()+timezone.timedelta(days=10)).isoformat(), 'reason': 'Approved additional time', **values}, format='json')
 
+    def test_period_extension_list_includes_replaced_grants_and_task_identity(self):
+        self.assertEqual(self.grant().status_code, 201)
+        self.assertEqual(self.grant(reason='Renewed time').status_code, 201)
+        other_period = self.period()
+        response = self.client.get(f'/api/marks/periods/{self.period_obj.pk}/completion-windows/')
+        self.assertEqual(response.status_code, 200)
+        rows = response.data['windows']
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({row['status'] for row in rows}, {'ACTIVE', 'SUPERSEDED'})
+        self.assertEqual(rows[0]['studentName'], self.student_profile.student_name)
+        self.assertEqual(rows[0]['studentId'], self.student_profile.matric_no)
+        self.assertEqual(rows[0]['programme'], self.student_profile.programme)
+        self.assertEqual(rows[0]['evaluatorName'], self.supervisor.full_name)
+        self.assertEqual(rows[0]['evaluatorRole'], 'Supervisor')
+        self.assertEqual(rows[0]['submissionStatus'], 'PENDING')
+        self.assertEqual(self.client.get(f'/api/marks/periods/{other_period.pk}/completion-windows/').data['windows'], [])
+
+    def test_period_extension_list_is_office_only_and_checks_period(self):
+        self.assertEqual(self.client.get('/api/marks/periods/999999/completion-windows/').status_code, 404)
+        self.client.force_authenticate(self.supervisor)
+        self.assertEqual(self.client.get(f'/api/marks/periods/{self.period_obj.pk}/completion-windows/').status_code, 403)
+
+    def test_period_extension_list_keeps_submitted_grants_without_scores(self):
+        from .models import MarkEntry
+        self.assertEqual(self.grant().status_code, 201)
+        MarkEntry.objects.create(task=self.task, status='SUBMITTED', total_mark='80.00', comments='Private marks comments')
+        row = self.client.get(f'/api/marks/periods/{self.period_obj.pk}/completion-windows/').data['windows'][0]
+        self.assertEqual(row['status'], 'COMPLETED')
+        self.assertEqual(row['submissionStatus'], 'SUBMITTED')
+        self.assertFalse(row['canRevoke'])
+        self.assertNotIn('totalMark', row)
+        self.assertNotIn('comments', row)
+
     def test_monitoring_overdue_respects_personal_completion_deadline(self):
         from .views import period_task_totals
         self.period_obj.closes_at = timezone.now() - timezone.timedelta(days=1)
@@ -31,6 +64,89 @@ class CompletionWindowTests(APITestCase):
         self.assertEqual(period_task_totals(self.period_obj)['overdue'], 1)
         self.assertEqual(self.grant().status_code, 201)
         self.assertEqual(period_task_totals(self.period_obj)['overdue'], 0)
+
+    def test_office_can_identify_and_recheck_an_ended_evaluation_draft(self):
+        from unittest.mock import patch
+        from .models import MarkEntry
+
+        self.period_obj.closes_at = timezone.now() - timezone.timedelta(days=1)
+        self.period_obj.save(update_fields=['closes_at'])
+        reconciliation_url = '/api/dashboard/reconciliation/'
+        record_url = f'/api/marks/records/MRK-{self.task.pk:05d}/'
+
+        def issues():
+            return [item for item in self.client.get(reconciliation_url).data['results']
+                    if item['issueType'] == 'MARKS_TASK_INCONSISTENT' and item['recordId'] == str(self.task.pk)]
+
+        self.assertEqual(issues()[0]['title'], 'Evaluation period ended with an unfinished task')
+        MarkEntry.objects.create(task=self.task, status='DRAFT', comments='Saved draft')
+        issue = issues()[0]
+        self.assertEqual(issue['title'], 'Evaluation period ended with an unsubmitted draft')
+        self.assertTrue(issue['currentState']['canGrantCompletionWindow'])
+        self.assertEqual(issue['currentState']['periodId'], self.period_obj.pk)
+        attention = self.client.get('/api/dashboard/attention/', {'category': 'evaluations'}).data['results']
+        self.assertTrue(next(row for row in attention if row['recordId'] == str(self.task.pk))['needsLateSubmissionDecision'])
+        record = self.client.get(record_url).data
+        self.assertEqual(record['period']['deadlineState'], 'OVERDUE')
+        self.assertTrue(record['needsLateSubmissionDecision'])
+
+        deadline = timezone.now() + timezone.timedelta(days=10)
+        self.assertEqual(self.grant(deadline=deadline.isoformat()).status_code, 201)
+        self.assertEqual(issues(), [])
+        from .services import MarksStateConflict, reconcile_evaluation_task
+        with self.assertRaisesMessage(MarksStateConflict, 'no longer be retired as overdue'):
+            reconcile_evaluation_task(task_id=self.task.pk, action='RETIRED', actor=self.office,
+                                      reason='An extension was granted after review.', retire_overdue=True)
+        record = self.client.get(record_url).data
+        self.assertEqual(record['completionWindow']['status'], 'ACTIVE')
+        self.assertFalse(record['needsLateSubmissionDecision'])
+
+        with patch('django.utils.timezone.now', return_value=deadline + timezone.timedelta(seconds=1)):
+            self.assertTrue(issues()[0]['currentState']['canGrantCompletionWindow'])
+            self.assertEqual(self.client.get(record_url).data['period']['deadlineState'], 'OVERDUE')
+
+        self.client.force_authenticate(self.supervisor)
+        submitted = self.client.put(f'/api/marks/tasks/{self.task.pk}/draft/', with_version(self.task, {
+            'scores': [{'componentId': self.rubric.components.get().pk, 'marksAwarded': '80.00'}],
+        }), format='json')
+        self.assertEqual(submitted.status_code, 200)
+        self.assertEqual(self.client.post(f'/api/marks/tasks/{self.task.pk}/submit/',
+            submission_payload(self.task), format='json').status_code, 200)
+        self.client.force_authenticate(self.office)
+        self.assertEqual(issues(), [])
+
+    def test_office_can_retire_an_overdue_draft_with_an_audited_reason(self):
+        from dashboard.models import WorkflowReconciliationAudit
+        from .models import MarkEntry, MarkScore
+
+        self.period_obj.closes_at = timezone.now() - timezone.timedelta(days=1)
+        self.period_obj.save(update_fields=['closes_at'])
+        draft = MarkEntry.objects.create(task=self.task, status='DRAFT', comments='Saved draft')
+        score = MarkScore.objects.create(entry=draft, component=self.rubric.components.get(), marks_awarded=80)
+        url = '/api/dashboard/reconciliation/'
+        issue = next(row for row in self.client.get(url).data['results']
+                     if row['issueType'] == 'MARKS_TASK_INCONSISTENT' and row['recordId'] == str(self.task.pk))
+        detail = f"{url}issues/{issue['issueId']}/"
+        preview = self.client.get(f'{detail}preview/')
+        self.assertEqual(preview.status_code, 200, preview.data)
+        self.assertIn('RETIRE_MARKS_TASK', {row['action'] for row in preview.data['allowedResolutions']})
+        payload = {'expectedFingerprint': issue['fingerprint'], 'reason': 'Evaluation no longer required.',
+                   'resolution': {'action': 'RETIRE_MARKS_TASK'}}
+        self.assertEqual(self.client.post(f'{detail}apply/', {**payload, 'reason': ' '}, format='json').status_code, 400)
+        self.client.force_authenticate(self.supervisor)
+        self.assertEqual(self.client.post(f'{detail}apply/', payload, format='json').status_code, 403)
+        self.client.force_authenticate(self.office)
+        applied = self.client.post(f'{detail}apply/', payload, format='json')
+        self.assertEqual(applied.status_code, 200, applied.data)
+        self.task.refresh_from_db()
+        draft.refresh_from_db()
+        score.refresh_from_db()
+        self.assertEqual(self.task.lifecycle_status, 'RETIRED')
+        self.assertEqual((draft.status, draft.comments, score.marks_awarded), ('DRAFT', 'Saved draft', 80))
+        self.assertEqual(self.task.lifecycle_audits.get(action='RETIRED').reason, payload['reason'])
+        self.assertEqual(WorkflowReconciliationAudit.objects.get(action='RETIRE_MARKS_TASK').actor, self.office)
+        self.assertFalse(any(row['issueId'] == issue['issueId'] for row in self.client.get(url).data['results']))
+        self.assertEqual(self.client.post(f'{detail}apply/', payload, format='json').status_code, 409)
 
     def test_close_retires_unfinished_tasks_preserving_marks_and_other_periods(self):
         from .models import MarkEntry, EvaluationTaskLifecycleAudit
@@ -41,7 +157,7 @@ class CompletionWindowTests(APITestCase):
             profile=self.student_profile, evaluator_role='PANEL')
         submitted = MarkEntry.objects.create(task=submitted_task, status='SUBMITTED', total_mark='80.00')
         paused = EvaluationTask.objects.create(period=self.period_obj, evaluator=self.office,
-            profile=self.student_profile, evaluator_role='BACKUP', lifecycle_status='PAUSED')
+            profile=self.student_profile, evaluator_role='SUPERVISOR', lifecycle_status='PAUSED')
         other_period = self.period()
         other = EvaluationTask.objects.create(period=other_period, evaluator=self.supervisor,
             profile=self.student_profile, evaluator_role='SUPERVISOR')

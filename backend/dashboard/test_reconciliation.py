@@ -13,6 +13,8 @@ from accounts.models import (
     Lecturer,
     OfficeStaff,
     Panel,
+    ProjectRegistration,
+    StudentSemester,
     Student,
     Supervisor,
 )
@@ -757,6 +759,20 @@ class WorkflowReconciliationApiTests(TestCase):
         profile.refresh_from_db()
         self.assertEqual(profile.supervisor_id, appointment.supervisor_id)
 
+    def test_missing_handoff_explains_when_the_approval_event_is_missing(self):
+        application = SupervisorApplication.objects.create(
+            student=self.student,
+            proposed_supervisor=self.lecturer,
+            research_title="Missing approval evidence",
+            status=SupervisorApplication.Status.APPROVED,
+            academic_semester=self.semester,
+            coordinator_decided_at=timezone.now(),
+        )
+        self.authenticate(self.office)
+        issue = self.issue("SUPERVISOR_HANDOFF_INCOMPLETE", record_id=application.pk)
+        self.assertEqual(issue["repairability"], "REVIEW_REQUIRED")
+        self.assertIn("approval event", issue["dependencies"][0])
+
     def test_missing_approved_handoffs_preserve_original_approval_attribution(self):
         coordinator_user = User.objects.create_user(
             email="handoff.coordinator@example.test",
@@ -892,6 +908,7 @@ class WorkflowReconciliationApiTests(TestCase):
         )
         period = EvaluationPeriod.objects.create(
             name="Reconciliation Period",
+            assessment='P1',
             semester=self.semester.label,
             academic_semester=self.semester,
             rubric=rubric,
@@ -900,6 +917,10 @@ class WorkflowReconciliationApiTests(TestCase):
             lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
         )
         self.authenticate(self.office)
+        StudentSemester.objects.get_or_create(student=self.student,
+            session=self.semester.academic_session, term=self.semester.term)
+        ProjectRegistration.objects.create(student=self.student, academic_semester=self.semester,
+            stage='P1', confirmed_by=self.office)
         missing = self.issue("MARKS_TASKS_MISSING", record_id=period.pk)
 
         generated = self.apply_issue(

@@ -4,9 +4,11 @@ import { PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
 import { RequestSection, ViewStudentRecordAction } from './RequestDetailPrimitives';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { appointmentDetailTypography as text } from './AppointmentPrimitives';
+import { AppointmentProjectStageField } from './SupervisionDetailLayout';
 
-export function AppointmentAttentionOverview({ module, studentName, studentId, programme, active, supervisor, research, pendingRequest, onOpenStudent, onOpenAppointment }: {
+export function AppointmentAttentionOverview({ module, studentName, studentId, programme, projectStage, projectSemester, active, supervisor, research, pendingRequest, onOpenStudent, onOpenAppointment }: {
   module: 'Supervisor' | 'Panel'; studentName: string; studentId: string; programme: string; active: boolean; supervisor?: string;
+  projectStage?: string | null; projectSemester?: string | null;
   research?: { title?: string; area?: string; abstract?: string };
   pendingRequest?: { status: string; candidate?: string; onOpen?: () => void };
   onOpenStudent?: (id: string) => void; onOpenAppointment?: () => void;
@@ -15,6 +17,7 @@ export function AppointmentAttentionOverview({ module, studentName, studentId, p
   return <div data-appointment-attention-overview className="space-y-6">
     <RequestSummaryCard title="Student overview" studentName={studentName} studentId={studentId} programme={programme} showSemester={false}
       participants={supervisor ? [{ label: 'Primary supervisor', value: supervisor }] : []}
+      academicField={<AppointmentProjectStageField stage={projectStage} semester={projectSemester}/>}
       contextAction={<ViewStudentRecordAction studentId={studentId} onOpen={onOpenStudent} />} />
     <PortalCard padding="lg"><RequestSection title="Appointment status" headingClassName={text.heading}>
       <StatusBadge tone={active ? 'success' : 'neutral'}>{status}</StatusBadge>

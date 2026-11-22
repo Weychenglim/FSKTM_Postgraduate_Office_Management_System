@@ -23,6 +23,7 @@ import {officeSupervisorApi} from '../services/staffSupervisorWorkspaceApi';
 import { getCoordinatorTeam } from '../services/coordinatorWorkspaceApi';
 import { useRecordDraft } from './RecordDraft';
 import { useListState } from './ListState';
+import { ProjectStageFilter, projectStageLabel } from './AttentionProjectStage';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Users } from 'lucide-react';
 import { decideCoSupervisor, endCoSupervisor, getCoSupervisorCandidates, getSupervisoryWorkspace, getSupervisoryTeam, nominateCoSupervisor } from '../services/coSupervisionApi';
@@ -310,6 +311,7 @@ export function StudentSupervisorsOverview({ workspace, actions, content }: { wo
   return <div data-student-supervision-overview>
     <StudentAppointmentLayout guidance={<SupervisorAppointmentGuidance hasSupervisor={!!team?.primarySupervisor} hasPendingRequest={!!content?.requests} onShowFAQChatbot={content?.onShowFAQChatbot}/>}>
     <StudentAppointmentCard title="My supervisors" memberLabel="Primary supervisor" name={team?.primarySupervisor?.name ?? 'Supervisor not appointed'} status={team?.primarySupervisor ? 'Active' : 'Not appointed'} tone={team?.primarySupervisor ? 'success' : 'neutral'}
+      projectStage={team?.projectStage} projectSemester={team?.projectSemester}
       actions={team?.primarySupervisor ? actions : undefined} programme={team?.programme} semester={team?.primaryAppointmentDetails?.semester}
       email={team?.primaryAppointmentDetails?.email} department={team?.primaryAppointmentDetails?.department} appointmentDate={team?.primaryAppointmentDetails?.appointmentDate ? displayDate(team.primaryAppointmentDetails.appointmentDate) : null}>
         <section aria-label="Supporting supervisors" className="min-w-0 space-y-5 border-t border-slate-200 pt-6"><h3 className={supervisionDetailLabel}>Supporting supervisors</h3>
@@ -466,6 +468,8 @@ export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, s
   onEnd: (row: CoSupervisorAppointment) => void; onReplace: (team: SupervisoryTeam, row: CoSupervisorAppointment) => void;
   onNominationAction: (row: CoSupervisorNomination, action: CoSupervisorAction) => void;
 }) {
+  const [savedStage, setStage] = useListState(`supervisory-teams:${role}`, 'projectStage', '');
+  const stage = workspace.projectSemester ? savedStage : '';
   if (view === 'studentHistory') return null;
   if (view === 'studentOverview') return <StudentSupervisorsOverview workspace={workspace} actions={studentActions} content={studentContent} />;
   if (view === 'detail') {
@@ -474,19 +478,20 @@ export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, s
     const primary=workspace.primaryApplication?.studentId===team.matricNo&&workspace.primaryApplication.appointmentLifecycle?.appointmentId===team.primaryAppointmentId?workspace.primaryApplication:null;
     const ownDetails=detailContext?.studentId===team.matricNo&&detailContext.appointmentId===team.primaryAppointmentId?detailContext:undefined;
     const appointment:SupervisorAppointmentPresentation|null=primary?toCoordinatorAppointmentPresentation(primary):ownDetails?{studentName:team.studentName,studentId:team.matricNo,supervisor:ownDetails.supervisorName,status:ownDetails.status.toUpperCase(),approvedAt:ownDetails.appointmentDate,events:[]}:null;
+    const appointmentSemester=ownDetails?.semester??primary?.semester??team.primaryAppointmentDetails?.semester;
     const canOpenApprovedApplication=!!onNavigateToApplication && !!team.primaryAppointmentId
       && Number.isInteger(team.approvedApplicationId) && (team.approvedApplicationId??0)>0;
     const approvedApplicationAction=canOpenApprovedApplication?<PortalButton size="sm" variant="primary" icon={FileText} disabled={busy} onClick={()=>onNavigateToApplication!(String(team.approvedApplicationId!))}>View approved application</PortalButton>:undefined;
     const hasReplacementControls=role==='Office Staff/Admin' && primary?.appointmentLifecycle?.status==='ACTIVE'
       && !!(team.pendingPrimaryReplacement || (team.canChangePrimarySupervisor && team.primaryAppointmentId && onChangePrimarySupervisor));
     return <div className="space-y-5"><SupervisoryStudentDetailCard key={team.matricNo} team={team} busy={busy} initiallyOpen collapsible={false}
-      context={{semester:ownDetails?.semester??primary?.semester,email:ownDetails?.email??(primary as typeof primary & {email?:string})?.email}}
+      context={{semester:appointment ? appointmentSemester : undefined,email:ownDetails?.email??(primary as typeof primary & {email?:string})?.email}}
       actions={onNavigateToDossier||detailActions||(!appointment&&approvedApplicationAction)?<><ViewStudentRecordAction studentId={team.matricNo} onOpen={onNavigateToDossier} disabled={busy}/>{detailActions}{!appointment?approvedApplicationAction:null}</>:undefined}
       onRecommendPanel={role==='Lecturer'&&onNavigateToPanelRecommendation?()=>onNavigateToPanelRecommendation(team.matricNo):undefined}
       onViewPanelRequest={onNavigateToPanelRequest?(id,key)=>onNavigateToPanelRequest(String(id),key):undefined}
       onNominate={() => onNominate(team)} onEnd={onEnd} onReplace={row => onReplace(team, row)} onNominationAction={onNominationAction}
       appointmentEvents={appointment?.events}
-      management={appointment?<fieldset disabled={busy} className="min-w-0"><SupervisorAppointmentRecordCard markingAction={role==='Lecturer'&&onNavigateToMarks&&appointment.status==='ACTIVE'?<AppointmentMarkingAction key={team.matricNo} studentId={team.matricNo} role="SUPERVISOR" onOpen={onNavigateToMarks} busy={busy}/>:undefined} compact showHistory={false} record={appointment}
+      management={appointment?<fieldset disabled={busy} className="min-w-0"><SupervisorAppointmentRecordCard markingAction={role==='Lecturer'&&onNavigateToMarks&&appointment.status==='ACTIVE'?<AppointmentMarkingAction key={team.matricNo} studentId={team.matricNo} role="SUPERVISOR" onOpen={onNavigateToMarks} busy={busy}/>:undefined} compact showHistory={false} record={appointment} appointmentSemester={appointmentSemester}
         sourceAction={approvedApplicationAction}
         actions={hasReplacementControls?<PrimarySupervisorReplacementActions variant="secondary" role={role} team={team} active busy={busy} onChange={team.primaryAppointmentId&&onChangePrimarySupervisor?()=>onChangePrimarySupervisor(team.primaryAppointmentId!):undefined}/>:undefined}
         onEnd={primary&&['Office Staff/Admin','Programme Coordinator'].includes(role??'')?onEndPrimary:undefined}/></fieldset>:null}/>
@@ -509,20 +514,24 @@ export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, s
     const reviews = nominations.filter(row => row.allowedActions.length && `${row.studentName} ${row.matricNo} ${row.candidate.name}`.toLowerCase().includes(query));
     return <div className="space-y-4">{searchField}{reviews.length ? <div className="space-y-3"><h3 className="section-label">Nominations requiring action ({reviews.length})</h3>{reviews.map(row => <CoSupervisorNominationCard key={row.id} nomination={row} busy={busy} onAction={onNominationAction} />)}</div> : <EmptyState title={query ? 'No matching nominations' : 'No nominations requiring action'} description="Supporting-supervisor nominations awaiting your decision will appear here." />}</div>;
   }
-  const teams = workspace.teams.filter(team => `${team.studentName} ${team.matricNo} ${team.programme} ${team.research.title}`.toLowerCase().includes(query));
+  const teams = workspace.teams.filter(team => (!stage || team.projectStage === stage) && `${team.studentName} ${team.matricNo} ${team.programme} ${team.research.title}`.toLowerCase().includes(query));
   const pageSize = workspacePageSize(requestedPageSize);
   const pageCount = Math.max(1, Math.ceil(teams.length / pageSize));
   const currentPage = Math.max(1, Math.min(page, pageCount));
   const staffView = role === 'Office Staff/Admin' || role === 'Programme Coordinator';
-  return <div className="space-y-5"><RequestFilters search={search} onSearch={onSearch} searchLabel="Find a student" searchPlaceholder="Student name, matric number, programme or research title" />{teams.length ? <section className="space-y-3" aria-label={staffView ? 'Supervisory teams' : 'Current supervisees'}>
+  return <div className="space-y-5"><RequestFilters search={search} onSearch={onSearch} searchLabel="Find a student" searchPlaceholder="Student name, matric number, programme or research title"
+    onReset={() => { onSearch(''); setStage(''); onPage(1); }}>
+    <ProjectStageFilter className="w-full sm:w-48" value={stage} semester={workspace.projectSemester} includeOtherStates
+      onChange={value => { setStage(value); onPage(1); }} />
+  </RequestFilters>{teams.length ? <section className="space-y-3" aria-label={staffView ? 'Supervisory teams' : 'Current supervisees'}>
     <div className="flex items-center gap-2"><h3 className="section-label">{staffView ? 'Current teams' : 'Current supervisees'}</h3><span className="card-description">({teams.length})</span></div>
-    <WorkspaceRecordTable label={staffView ? 'Supervisory team records' : 'Current supervisee records'} roster roleLabel={staffView ? 'Primary supervisor' : undefined} rows={teams.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(team => ({
-      key: team.studentId, studentName: team.studentName, matricNo: team.matricNo, programme: team.programme,
+    <WorkspaceRecordTable label={staffView ? 'Supervisory team records' : 'Current supervisee records'} roster showProjectStage roleLabel={staffView ? 'Primary supervisor' : undefined} rows={teams.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(team => ({
+      key: team.studentId, studentName: team.studentName, matricNo: team.matricNo, programme: team.programme, projectStage: projectStageLabel(team.projectStage),
       role: staffView ? team.primarySupervisor?.name ?? 'Awaiting primary appointment' : lecturerId && String(team.primarySupervisor?.id) === lecturerId ? 'Primary supervisor' : lecturerId && team.appointments.some(row => row.status === 'ACTIVE' && String(row.supervisor.id) === lecturerId) ? 'Supporting supervisor' : 'Not recorded',
       actionLabel: 'View supervision', disabled: !onNavigateToStudent || busy,
       onOpen: () => onNavigateToStudent?.(team.matricNo), actionAriaLabel: `View supervision for ${team.studentName}`,
     }))} />
-    </section> : <EmptyState title={query ? 'No matching supervisees' : 'No current supervisees'} description="Students in your current primary and supporting supervisory teams will appear here." />}
+    </section> : <EmptyState title={query || stage ? 'No matching supervisees' : 'No current supervisees'} description="Students in your current primary and supporting supervisory teams will appear here." />}
     <WorkspacePagination page={currentPage} pageCount={pageCount} total={teams.length} noun={staffView ? 'teams' : 'supervisees'} onPage={onPage} pageSize={pageSize} onPageSize={onPageSize} />
   </div>;
 }

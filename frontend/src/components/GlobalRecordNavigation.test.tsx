@@ -13,7 +13,7 @@ import { PanelAppointmentManagement } from './PanelAppointmentManagement';
 import { StaffResearchWorkspace } from './StaffResearchWorkspace';
 import { AnnouncementManagement } from './AnnouncementManagement';
 
-const task: any = {id:'17', studentName:'Synthetic student', studentId:'M123', status:'SUBMITTED', components:[], totalMark:null};
+const task: any = {id:'17', studentName:'Synthetic student', studentId:'M123', status:'SUBMITTED', semester:'Semester I 2026/2027', assessment:'P1', components:[], totalMark:null};
 function page(node: React.ReactNode, label: string) {
   const html = renderToStaticMarkup(node);
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1, `${label}: one heading even while loading`);
@@ -21,8 +21,12 @@ function page(node: React.ReactNode, label: string) {
   assert.doesNotMatch(html, /fixed inset|role="dialog"|<dialog/, `${label}: substantial record is not an overlay`);
   return html;
 }
-page(<MarkEntryDetail task={task} onBack={() => {}} onSave={async () => {}} onSubmit={async () => {}} />, 'Marks');
-page(<SubmittedMarkDetail task={task} onBack={() => {}} backLabel="Back to Marks Entry History" />, 'Submitted marks');
+const marking = page(<MarkEntryDetail task={task} onBack={() => {}} onSave={async () => {}} onSubmit={async () => {}} />, 'Marks');
+const submitted = page(<SubmittedMarkDetail task={task} onBack={() => {}} backLabel="Back to Marks Entry History" />, 'Submitted marks');
+for (const html of [marking, submitted]) {
+  assert.match(html, /<dl[^>]*>(?:(?!<\/dl>).)*Semester<\/dt><dd[^>]*>Semester I 2026\/2027<\/dd><\/div><div[^>]*><dt[^>]*>Assessment<\/dt><dd[^>]*>RP1<\/dd>/);
+  assert.equal((html.match(/>Assessment<\/dt>/g) ?? []).length, 1);
+}
 page(<UploadNewDocument onBack={() => {}} onUploadSuccess={() => {}} />, 'File upload');
 const coordinator = page(<MemoryRouter><CoordinatorSupervisorApprovals initialApplicationId="17" /></MemoryRouter>, 'Coordinator notification');
 assert.doesNotMatch(coordinator, /<h1[^>]*>Supervisor Appointment Approvals|Programme Appointment Records|supervisory-team-management/i, 'Deep links open only the selected request');

@@ -5,7 +5,8 @@
 
 // Marks Entry & Management domain models (UC24-UC29).
 
-export type MarkStatus = 'Submitted' | 'Draft' | 'Not Started' | 'Overdue' | 'Closed';
+export type MarkStatus = 'Submitted' | 'Draft' | 'Not Started' | 'Overdue' | 'Closed' | 'Review Required';
+export type MarkAssessment = '' | 'P1' | 'P2';
 
 export type DeadlineState =
   | 'NO_DEADLINE'
@@ -30,12 +31,16 @@ export interface DeadlineMetadata {
 export interface MarkRecord extends DeadlineMetadata {
   periodId?: number;
   periodName?: string;
+  assessment?: MarkAssessment;
+  stageReviewRequired?: boolean;
+  hasActiveCompletionWindow?: boolean;
   id: string; // Record ID e.g. "MRK-2025-021"
   studentId: string;
   studentName: string;
   studentInitials: string;
   researchTitle: string;
   panelMember: string;
+  evaluatorId?: number;
   evaluatorRole?: EvaluationTaskRole;
   evaluatorRoleLabel?: string;
   semester: string;
@@ -102,13 +107,12 @@ export interface RubricVersion {
 
 // Evaluation task assignment preview rows (UC25).
 export type EvaluationPreviewStatus = 'GENERATED' | 'PENDING' | 'NOTIFIED' | 'NOT_STARTED' | 'DRAFT' | 'SUBMITTED' | 'OVERDUE';
-export type EvaluationTaskRole = 'SUPERVISOR' | 'PANEL' | 'BACKUP';
+export type EvaluationTaskRole = 'SUPERVISOR' | 'PANEL';
 
 export interface EvaluationTaskTotals {
   total: number;
   supervisor: number;
   panel: number;
-  backup: number;
   submitted: number;
   incomplete: number;
   overdue: number;
@@ -150,14 +154,24 @@ export interface EvaluationRecipientPreview {
     evaluatorId: number;
     evaluatorName: string;
     evaluatorRole: 'SUPERVISOR' | 'PANEL';
-    taskStatus: 'EXISTING' | 'NEW';
+    taskStatus: 'EXISTING' | 'NEW' | 'PAUSED' | 'BLOCKED';
   }>;
   totals: { students: number; supervisor: number; panel: number; total: number; existing: number; new: number };
   missingAppointments: { supervisor: number; panel: number };
+  eligibility?: { expectedStudents: number; excludedStudents: number; reasonCounts: Record<string, number> };
+  exclusions?: Array<{ studentId: number | null; matricNo: string; studentName: string; programme: string; reason: string }>;
+  missingAssignments?: Array<{ studentId: number; matricNo: string; studentName: string; programme: string; reason: string }>;
+  configurationIssues?: string[];
+  semesterId?: number | null;
 }
+
+export type MarkRecordPeriod = Pick<EvaluationPeriodOption,
+  'id' | 'name' | 'semester' | 'assessment' | 'lifecycleStatus' | 'effectiveStatus'> & { closesAt?: string | null };
 
 export interface MarkRecordDetail extends DeadlineMetadata {
   recordId: string;
+  needsLateSubmissionDecision?: boolean;
+  stageReviewRequired?: boolean;
   officeActions?: {
     canCorrect: boolean;
     canReopen: boolean;
@@ -193,7 +207,9 @@ export interface MarkRecordDetail extends DeadlineMetadata {
   };
   period: DeadlineMetadata & {
     id: number;
+    semesterId?: number | null;
     name: string;
+    assessment?: MarkAssessment;
     semester: string;
     opensAt: string | null;
     closesAt: string | null;
@@ -220,14 +236,6 @@ export interface MarkRecordDetail extends DeadlineMetadata {
     updatedAt: string | null;
     isLocked: boolean;
   };
-  overrideHistory: Array<{
-    id: number;
-    actorName: string;
-    originalEvaluator: string | null;
-    newEvaluator: string;
-    reason: string;
-    createdAt: string;
-  }>;
   correctionHistory: Array<{
     id: number;
     action: 'CORRECT' | 'REOPEN';
@@ -308,6 +316,7 @@ export interface EvaluationTaskComponent {
 }
 
 export interface EvaluationTask extends DeadlineMetadata {
+  assessment?: MarkAssessment;
   opensAt?: string | null;
   closesAt?: string | null;
   assignedAt?: string | null;
@@ -358,6 +367,10 @@ export interface CompletionWindow {
   supersedesId: number | null;
   canRevoke: boolean;
 }
+  export interface CompletionWindowRegisterRow extends CompletionWindow {
+    studentId:string; studentName:string; programme:string;
+    evaluatorName:string; evaluatorRole:string; submissionStatus?:string;
+  }
 export interface ClosureCounts { submitted: number; notStarted: number; draft: number; paused: number; activeWindows: number; unfinished: number }
 export interface ClosurePreview {
   previewToken: string;

@@ -4,7 +4,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
+from accounts.models import Coordinator, Lecturer, OfficeStaff, ProjectRegistration, StudentSemester, Student, Supervisor
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
@@ -105,6 +105,10 @@ class DashboardSummaryTests(APITestCase):
             proposed_topic="Dashboard integration",
             supervisor=self.supervisor,
         )
+        StudentSemester.objects.get_or_create(student=self.student_user.student,
+            session=self.academic_semester.academic_session, term=self.academic_semester.term)
+        ProjectRegistration.objects.create(student=self.student_user.student,
+            academic_semester=self.academic_semester, stage='P1')
         SupervisorApplication.objects.create(
             student=self.student_user.student,
             proposed_supervisor=self.supervisor,
@@ -121,6 +125,7 @@ class DashboardSummaryTests(APITestCase):
         rubric = Rubric.objects.create(name="Summary Rubric", code="summary-rubric")
         period = EvaluationPeriod.objects.create(
             name="Summary Period",
+            assessment='P1',
             semester="Sem 1 2025/2026",
             academic_semester=self.academic_semester,
             rubric=rubric,
@@ -208,7 +213,7 @@ class DashboardSummaryTests(APITestCase):
         EvaluationTask.objects.create(profile=self.profile, evaluator=self.panel, period=task.period,
             evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR)
         EvaluationTask.objects.create(profile=self.profile, evaluator=self.panel, period=task.period,
-            evaluator_role=EvaluationTask.EvaluatorRole.BACKUP, lifecycle_status=EvaluationTask.Lifecycle.RETIRED)
+            evaluator_role=EvaluationTask.EvaluatorRole.PANEL, lifecycle_status=EvaluationTask.Lifecycle.RETIRED)
         EvaluationTask.objects.create(profile=self.profile, evaluator=self.supervisor, period=task.period)
         self.authenticate(self.panel)
         result = self.client.get("/api/dashboard/summary/").data
@@ -217,7 +222,6 @@ class DashboardSummaryTests(APITestCase):
         self.assertEqual(result["submittedMarkEntries"], 1)
         self.assertEqual(result["supervisorMarkTasks"], 1)
         self.assertEqual(result["panelMarkTasks"], 1)
-        self.assertEqual(result["backupMarkTasks"], 0)
         self.authenticate(self.student_user)
         result = self.client.get("/api/dashboard/summary/").data
         self.assertEqual(result["assignedMarkTasks"], 0)

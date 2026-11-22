@@ -9,6 +9,7 @@ import { formatMalaysiaDateTimeCompact as displayDateTime } from '../utils/malay
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Clock3,
   ClipboardCheck,
   Lock,
   MessageSquare,
@@ -18,16 +19,20 @@ import { getMarkRecordById } from '../services';
 import type { MarkRecordDetail } from '../types';
 import {
   PortalCard,
+  PortalButton,
   StatusBadge,
   getStatusBadgeTone,
 } from './PortalPrimitives';
 import { ErrorState, LoadingState } from './StateViews';
 import { SubmittedMarksActions, MarkCorrectionHistoryView } from './SubmittedMarksActions';
+import { assessmentLabel } from '../utils/assessment';
+import { officeMarksDeadlineRoute } from '../utils/officeDashboard';
 
 interface MarkEntryRecordDetailProps {
   onBack: () => void;
   backLabel?: string;
   recordId: string;
+  onManageDeadline?: (route: string) => void;
 }
 
 const entryStatusLabel = (status: MarkRecordDetail['entry']['status']) => ({
@@ -40,6 +45,7 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
   onBack,
   backLabel = 'Back to Mark Entry Records',
   recordId,
+  onManageDeadline,
 }) => {
   const [record, setRecord] = useState<MarkRecordDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,7 +100,15 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
     );
   }
 
-  const statusLabel = entryStatusLabel(record.entry.status);
+  const trackDeadline = record.assignment.lifecycleStatus === 'ACTIVE'
+    && record.entry.status !== 'SUBMITTED' && !record.stageReviewRequired;
+  const extraTime = trackDeadline && record.canGrantCompletionWindow && record.completionWindow?.status === 'ACTIVE'
+    ? record.completionWindow : null;
+  const overdue = trackDeadline && !extraTime && record.period.deadlineState === 'OVERDUE';
+  const statusLabel = overdue ? 'Overdue' : entryStatusLabel(record.entry.status);
+  const effectiveDeadline = record.effectiveDueAt ?? record.period.dueAt;
+  const recoveryRoute = record.needsLateSubmissionDecision && record.period.semesterId
+    ? officeMarksDeadlineRoute({ id: record.period.id, semesterId: record.period.semesterId }, record.taskId) : null;
   const totalMark = record.entry.totalMark || '-';
   const activity = [
     { label: 'Assigned', date: record.assignment.assignedAt, detail: record.assignment.assignedBy ? `By ${record.assignment.assignedBy}` : 'Automatic assignment' },
@@ -112,9 +126,12 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
         backLabel={backLabel}
         onBack={onBack}
         actions={(
-          <StatusBadge tone={record.assignment.lifecycleStatus === 'ACTIVE' ? getStatusBadgeTone(statusLabel) : record.assignment.lifecycleStatus === 'PAUSED' ? 'warning' : 'neutral'} dot>
-            {record.assignment.lifecycleStatus === 'ACTIVE' ? statusLabel : record.assignment.lifecycleStatus === 'PAUSED' ? 'Paused' : 'Retired'}
-          </StatusBadge>
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge tone={record.assignment.lifecycleStatus === 'ACTIVE' ? getStatusBadgeTone(statusLabel) : record.assignment.lifecycleStatus === 'PAUSED' ? 'warning' : 'neutral'} dot>
+              {record.assignment.lifecycleStatus === 'ACTIVE' ? statusLabel : record.assignment.lifecycleStatus === 'PAUSED' ? 'Paused' : 'Retired'}
+            </StatusBadge>
+            {record.stageReviewRequired && <StatusBadge tone="warning">Review required</StatusBadge>}
+          </div>
         )}
       >
 
@@ -132,11 +149,42 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
       `}</style>
     <div id="mark-entry-record-detail"  className="marks-workspace office-mark-detail space-y-7 animate-fade-in text-left">
 
+      {(overdue || extraTime || recoveryRoute) && <PortalCard padding="none" role="region"
+        aria-labelledby="mark-submission-deadline" className="rounded-lg">
+        <div className="flex flex-col gap-4 p-4 sm:p-6 md:flex-row md:items-center md:justify-between md:gap-6">
+          <div className="flex min-w-0 items-start gap-3.5">
+            <MarksIcon icon={Clock3} tone={overdue ? 'danger' : 'info'} />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <h2 id="mark-submission-deadline" className="section-label">Submission deadline</h2>
+                {extraTime && <StatusBadge tone="info">Extra time active</StatusBadge>}
+              </div>
+              {effectiveDeadline && <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <time dateTime={effectiveDeadline} className="text-lg font-semibold leading-snug text-brand-navy tabular-nums sm:text-xl">{displayDateTime(effectiveDeadline)}</time>
+                <span className="text-xs text-slate-600">Malaysia time</span>
+              </p>}
+              <p className="mt-2 break-words text-sm leading-5 text-slate-600">{extraTime
+                ? `${record.evaluator.name} can submit during the extra time window.`
+                : record.entry.status === 'DRAFT'
+                  ? `${record.evaluator.name} saved a draft. Submission is still pending.`
+                  : `Marks from ${record.evaluator.name} are still awaiting submission.`}</p>
+            </div>
+          </div>
+          {recoveryRoute && onManageDeadline && <div className="shrink-0 border-t border-slate-200 pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-6">
+            <PortalButton variant="primary" className="min-h-11 w-full md:w-auto"
+              disabled={loading || !!error} onClick={() => onManageDeadline(recoveryRoute)}>
+              <span className="normal-case tracking-normal">Grant individual extra time</span>
+            </PortalButton>
+          </div>}
+        </div>
+      </PortalCard>}
+
       <PortalCard padding="lg" className="rounded-lg">
         <dl className="grid gap-x-10 gap-y-5 sm:grid-cols-2">
           <div><dt>Student</dt><dd className="mt-2">{record.student.name}</dd><dd className="mt-1 text-slate-500">{record.student.studentId}</dd></div>
           <div><dt>Programme</dt><dd className="mt-2">{record.student.programme}</dd></div>
-          <div className="sm:col-span-2"><dt>Research title</dt><dd className="mt-2">{record.student.researchTitle}</dd></div>
+          <div><dt>Research title</dt><dd className="mt-2">{record.student.researchTitle}</dd></div>
+          <div><dt>Assessment</dt><dd className="mt-2">{assessmentLabel(record.period.assessment)}</dd></div>
         </dl>
       </PortalCard>
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -208,21 +256,6 @@ export const MarkEntryRecordDetail: React.FC<MarkEntryRecordDetailProps> = ({
               <div className="mt-5"><MarkCorrectionHistoryView events={record.correctionHistory} components={record.rubric.components}/></div>
             </details>
           </PortalCard> : null}
-          {record.overrideHistory.length > 0 ? (
-          <PortalCard padding="lg" className="rounded-lg">
-              <h2 className="section-label">Evaluator overrides</h2>
-              <div className="mt-4 space-y-4">
-                {record.overrideHistory.map((event) => (
-                  <div key={event.id} className="text-xs">
-                    <p className="card-value">{event.newEvaluator}</p>
-                    <p className="card-description mt-1">{event.reason}</p>
-                    <p className="card-description mt-1">{displayDateTime(event.createdAt)}</p>
-                  </div>
-                ))}
-              </div>
-            </PortalCard>
-          ) : null}
-
           {record.handoverHistory.length > 0 ? (
             <PortalCard padding="lg" className="rounded-lg">
               <h2 className="section-label">Appointment handover audit</h2>

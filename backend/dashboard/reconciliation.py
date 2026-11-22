@@ -446,6 +446,52 @@ def _request_capacity_available(row):
     return True
 
 
+def _handoff_review_blocker(row, approval_event):
+    panel = isinstance(row, PanelRecommendation)
+    if not approval_event or not row.coordinator_decided_at:
+        return "Ask a system administrator to verify the original Coordinator approval event and decision date."
+    if not row.academic_semester_id:
+        return "Verify the request’s academic semester. Review any semester-link finding for this same request."
+
+    programme = row.profile.programme if panel else row.student.programme
+    if not coordinator_manages_programme(approval_event.actor, programme):
+        return "Ask Registry Management to verify the original approver’s Coordinator assignment for this programme."
+
+    eligible_student = (
+        profile_student_is_workflow_eligible(row.profile)
+        if panel
+        else student_is_workflow_eligible(row.student)
+    )
+    if not eligible_student:
+        return "Ask Registry Management to verify the student’s account and current eligibility."
+    if panel:
+        if row.supervisor_id == row.recommended_member_id:
+            return "Ask the Programme Coordinator to review the Panel recommendation because it names the student’s Supervisor."
+        if not SupervisorAppointment.objects.filter(
+            student__matric_no__iexact=row.profile.matric_no,
+            supervisor=row.supervisor,
+            status=SupervisorAppointment.Status.ACTIVE,
+        ).exists():
+            return "Review the student’s supervisory team. The nominating Supervisor has no matching active appointment."
+
+    candidate = row.recommended_member if panel else row.proposed_supervisor
+    if not user_is_assignable_lecturer(candidate):
+        return "Ask Registry Management to verify that the nominated lecturer is eligible for assignment."
+    if not _request_capacity_available(row):
+        return "Review the nominated lecturer’s capacity and availability for the request’s semester in Lecturer capacity."
+
+    if panel:
+        if not row.replaces_appointment_id and PanelAppointment.objects.filter(
+            profile=row.profile, status=PanelAppointment.Status.ACTIVE
+        ).exists():
+            return "Review the student’s active Panel appointment before creating another appointment."
+    elif SupervisorAppointment.objects.filter(
+        student=row.student, status=SupervisorAppointment.Status.ACTIVE
+    ).exists():
+        return "Review the student’s active Supervisor appointment before creating another appointment."
+    return None
+
+
 def detect_reconciliation_issues(*, include_accepted=False):
     from .co_supervision_tracking import co_supervisor_reconciliation_issues
     from .amendment_tracking import amendment_reconciliation_issues
@@ -531,6 +577,7 @@ def detect_reconciliation_issues(*, include_accepted=False):
                 programme=coordinator.programme_managed or None,
                 student_id=None,
                 current_state={
+                    "userId": coordinator.lecturer.user_id,
                     "role": coordinator.lecturer.user.role,
                     "programmeManaged": coordinator.programme_managed,
                 },
@@ -750,21 +797,8 @@ def detect_reconciliation_issues(*, include_accepted=False):
             .order_by("-created_at", "-id")
             .first()
         )
-        repairable = bool(
-            approval_event
-            and application.coordinator_decided_at
-            and application.academic_semester_id
-            and coordinator_manages_programme(
-                approval_event.actor, application.student.programme
-            )
-            and student_is_workflow_eligible(application.student)
-            and user_is_assignable_lecturer(application.proposed_supervisor)
-            and _request_capacity_available(application)
-            and not SupervisorAppointment.objects.filter(
-                student=application.student,
-                status=SupervisorAppointment.Status.ACTIVE,
-            ).exists()
-        )
+        blocker = _handoff_review_blocker(application, approval_event)
+        repairable = blocker is None
         issues.append(
             ReconciliationIssue(
                 issue_id=_issue_id(
@@ -791,11 +825,7 @@ def detect_reconciliation_issues(*, include_accepted=False):
                 suggestion=(
                     {"action": "COMPLETE_SUPERVISOR_HANDOFF"} if repairable else {}
                 ),
-                dependencies=(
-                    []
-                    if repairable
-                    else ["Restore all authoritative approval prerequisites."]
-                ),
+                dependencies=[blocker] if blocker else [],
             )
         )
     for recommendation in PanelRecommendation.objects.filter(
@@ -807,30 +837,8 @@ def detect_reconciliation_issues(*, include_accepted=False):
             .order_by("-created_at", "-id")
             .first()
         )
-        repairable = bool(
-            approval_event
-            and recommendation.coordinator_decided_at
-            and recommendation.academic_semester_id
-            and coordinator_manages_programme(
-                approval_event.actor, recommendation.profile.programme
-            )
-            and profile_student_is_workflow_eligible(recommendation.profile)
-            and recommendation.supervisor_id != recommendation.recommended_member_id
-            and SupervisorAppointment.objects.filter(
-                student__matric_no__iexact=recommendation.profile.matric_no,
-                supervisor=recommendation.supervisor,
-                status=SupervisorAppointment.Status.ACTIVE,
-            ).exists()
-            and user_is_assignable_lecturer(recommendation.recommended_member)
-            and _request_capacity_available(recommendation)
-            and (
-                recommendation.replaces_appointment_id is not None
-                or not PanelAppointment.objects.filter(
-                    profile=recommendation.profile,
-                    status=PanelAppointment.Status.ACTIVE,
-                ).exists()
-            )
-        )
+        blocker = _handoff_review_blocker(recommendation, approval_event)
+        repairable = blocker is None
         issues.append(
             ReconciliationIssue(
                 issue_id=_issue_id(
@@ -855,9 +863,7 @@ def detect_reconciliation_issues(*, include_accepted=False):
                     "approvalEventId": approval_event.pk if approval_event else None,
                 },
                 suggestion={"action": "COMPLETE_PANEL_HANDOFF"} if repairable else {},
-                dependencies=(
-                    [] if repairable else ["Restore authoritative approval metadata."]
-                ),
+                dependencies=[blocker] if blocker else [],
             )
         )
 
@@ -894,13 +900,41 @@ def _task_evaluator_and_appointment_valid(task):
 
 
 def _detect_marks_issues():
+    from marks.completion_windows import task_due_at, task_eligible, task_window_active
+
     issues = []
     tasks = EvaluationTask.objects.filter(
         lifecycle_status__in=[
             EvaluationTask.Lifecycle.ACTIVE,
             EvaluationTask.Lifecycle.PAUSED,
         ]
-    ).select_related("profile__student__student", "evaluator__lecturer", "period__academic_semester", "mark_entry").prefetch_related("completion_windows__granted_by")
+    ).select_related("profile__student__student", "evaluator__lecturer", "period__academic_semester", "mark_entry").prefetch_related("completion_windows__granted_by", 'lifecycle_audits')
+    from marks.stage_corrections import stage_review_pending, stage_review_resolution
+    from marks.stage_eligibility import profile_stage_eligibility
+
+    # Include retired correction evidence too; never offer automatic regeneration.
+    review_tasks = EvaluationTask.objects.filter(lifecycle_audits__action='STAGE_REVIEW').distinct().select_related(
+        'profile__student__student', 'period__academic_semester', 'mark_entry', 'evaluator__lecturer').prefetch_related('lifecycle_audits')
+    held_ids = set()
+    for task in review_tasks:
+        if not stage_review_pending(task):
+            continue
+        held_ids.add(task.pk)
+        review = next(event for event in task.lifecycle_audits.all() if event.action == 'STAGE_REVIEW')
+        resolution = stage_review_resolution(task)
+        issues.append(ReconciliationIssue(
+            issue_id=_issue_id('MARKS_STAGE_REVIEW', 'EVALUATION_TASK', task.pk),
+            module='MARKS', issue_type='MARKS_STAGE_REVIEW', severity='BLOCKING',
+            repairability='REPAIRABLE' if resolution else 'REVIEW_REQUIRED', title='Registration change needs Marks review',
+            summary='Review the preserved assessment evidence. Registration changes do not decide academic validity.',
+            record_type='EVALUATION_TASK', record_id=str(task.pk), programme=task.profile.programme,
+            student_id=task.profile.matric_no,
+            current_state={'lifecycleStatus': task.lifecycle_status, 'reviewAuditId': review.pk,
+                'entryStatus': getattr(getattr(task, 'mark_entry', None), 'status', 'NOT_STARTED'),
+                'stageCorrection': review.entry_snapshot.get('stageCorrection', {})},
+            suggestion={'action': resolution} if resolution else {},
+            navigation={'targetModule': 'MARKS', 'recordType': 'MARKS_TASK', 'recordId': str(task.pk)},
+        ))
     submitted_ids = set(
         MarkEntry.objects.filter(
             task__in=tasks,
@@ -908,17 +942,31 @@ def _detect_marks_issues():
         ).values_list("task_id", flat=True)
     )
     for task in tasks:
+        if task.pk in held_ids:
+            continue
+        if not profile_stage_eligibility(task.period, task.profile).eligible:
+            issues.append(ReconciliationIssue(
+                issue_id=_issue_id('MARKS_STAGE_REVIEW', 'EVALUATION_TASK', task.pk),
+                module='MARKS', issue_type='MARKS_STAGE_REVIEW', severity='BLOCKING',
+                repairability='REVIEW_REQUIRED', title='Evaluation task does not match registration',
+                summary='Review the student registration and preserved assessment evidence.',
+                record_type='EVALUATION_TASK', record_id=str(task.pk), programme=task.profile.programme,
+                student_id=task.profile.matric_no,
+                current_state={'lifecycleStatus': task.lifecycle_status,
+                    'reason': profile_stage_eligibility(task.period, task.profile).reason},
+            ))
+            continue
         if task.pk in submitted_ids:
             continue
         student = _task_student(task)
         student_status = student.status if student else None
         appointment_valid = _task_evaluator_and_appointment_valid(task)
-        from marks.completion_windows import task_window_active
-
         period_valid = task.period.accepts_submissions or bool(task_window_active(task))
         action = None
         reason = None
         review_required = False
+        title = 'Evaluation task lifecycle is inconsistent'
+        recovery_state = {}
         if task.lifecycle_status == EvaluationTask.Lifecycle.ACTIVE:
             if student and student.status == Student.Status.DEFERRED:
                 action = "PAUSE_MARKS_TASK"
@@ -936,7 +984,33 @@ def _detect_marks_issues():
                 if (task.period.effective_status == "CLOSED" and semester
                         and semester.lifecycle_status != AcademicSemester.Lifecycle.ARCHIVED):
                     review_required = True
-                    reason = "The evaluation period closed with unfinished work; Office must review a completion window or task retirement."
+                    entry_status = getattr(getattr(task, 'mark_entry', None), 'status', MarkEntry.Status.NOT_STARTED)
+                    title = ('Evaluation period ended with an unsubmitted draft' if entry_status == MarkEntry.Status.DRAFT
+                             else 'Evaluation period ended with an unfinished task')
+                    reason = 'The evaluation period ended before the evaluator submitted the marks.'
+                    can_grant = task_eligible(task)
+                    if can_grant:
+                        action = "RETIRE_MARKS_TASK"
+                        review_required = False
+                    due_at = task_due_at(task)
+                    recovery_state = {
+                        'closedWithUnfinishedWork': True,
+                        'canGrantCompletionWindow': can_grant,
+                        'entryStatus': entry_status,
+                        'periodId': task.period_id,
+                        'semesterId': semester.pk,
+                        'evaluationPeriod': task.period.name,
+                        'evaluator': task.evaluator.full_name,
+                        'effectiveDeadline': due_at.isoformat() if due_at else None,
+                    }
+                    if not can_grant:
+                        if semester.lifecycle_status not in (AcademicSemester.Lifecycle.ACTIVE, AcademicSemester.Lifecycle.CLOSED):
+                            blocker = 'Extra time requires an active or closed academic semester. Review the semester linked to this evaluation period.'
+                        elif task.period.opens_at and task.period.opens_at > timezone.now():
+                            blocker = 'The evaluation period was closed before it opened. Review the dates in the evaluation period configuration.'
+                        else:
+                            blocker = 'This evaluator or student does not meet the current completion-window eligibility rules. Review the Marks record and verify the registration and appointment.'
+                        recovery_state['completionWindowBlocker'] = blocker
                 else:
                     action = "RETIRE_MARKS_TASK"
                     reason = "The evaluation period no longer accepts submissions."
@@ -965,7 +1039,7 @@ def _detect_marks_issues():
                 issue_type="MARKS_TASK_INCONSISTENT",
                 severity="BLOCKING",
                 repairability="REVIEW_REQUIRED" if review_required else "REPAIRABLE",
-                title="Evaluation task lifecycle is inconsistent",
+                title=title,
                 summary=reason,
                 record_type="EVALUATION_TASK",
                 record_id=str(task.pk),
@@ -978,6 +1052,7 @@ def _detect_marks_issues():
                     "appointmentValid": appointment_valid,
                     "evaluatorId": task.evaluator_id,
                     "evaluatorRole": task.evaluator_role,
+                    **recovery_state,
                 },
                 suggestion={"action": action} if action else {},
                 navigation={
@@ -993,7 +1068,9 @@ def _detect_marks_issues():
             continue
         from marks.targeting import period_recipients
 
-        expected = {row.key for row in period_recipients(period)}
+        from marks.targeting import official_assignment_paused
+        expected = {row.key for row in period_recipients(period)
+            if not official_assignment_paused(period, row.profile, row.role)}
         existing = set(
             EvaluationTask.objects.filter(
                 period=period,
@@ -1019,6 +1096,8 @@ def _detect_marks_issues():
                 programme=None,
                 student_id=None,
                 current_state={
+                    "semesterId": period.academic_semester_id,
+                    "evaluationPeriod": period.name,
                     "periodStatus": period.effective_status,
                     "missingCount": len(missing),
                     "missingAssignments": sorted(
@@ -1108,6 +1187,11 @@ def _detect_appointment_integrity_issues():
                     dependencies=[
                         "Review the immutable workflow and appointment history."
                     ],
+                    navigation=(
+                        {"targetModule": module, "recordType": "SUPERVISOR_APPLICATION", "recordId": str(source.pk)}
+                        if record_type == "SUPERVISOR_APPOINTMENT"
+                        else {}
+                    ),
                 )
             )
     return issues
@@ -1251,11 +1335,14 @@ def allowed_resolutions(issue):
                 "label": "Create the missing approved Panel appointment",
             }
         ]
-    if issue.issue_type == "MARKS_TASK_INCONSISTENT" and issue.suggestion.get("action"):
+    if issue.issue_type in ('MARKS_TASK_INCONSISTENT', 'MARKS_STAGE_REVIEW') and issue.suggestion.get("action"):
         return [
             {
                 "action": issue.suggestion["action"],
-                "label": issue.suggestion["action"].replace("_", " ").title(),
+                "label": ('Release retired history for normal task generation'
+                    if issue.suggestion['action'] == 'RELEASE_STAGE_REVIEW'
+                    else 'Retire this task' if issue.current_state.get('closedWithUnfinishedWork')
+                    else issue.suggestion["action"].replace("_", " ").title()),
             }
         ]
     if issue.issue_type == "MARKS_TASKS_MISSING":
@@ -1663,6 +1750,7 @@ def _apply_panel_handoff(issue, actor):
 
 
 MARKS_RECONCILIATION_ACTIONS = {
+    'RELEASE_STAGE_REVIEW': 'STAGE_RESOLVED',
     "PAUSE_MARKS_TASK": "PAUSED",
     "RESUME_MARKS_TASK": "RESUMED",
     "RETIRE_MARKS_TASK": "RETIRED",
@@ -1680,6 +1768,8 @@ def _apply_marks_task(issue, action, actor, reason):
             action=MARKS_RECONCILIATION_ACTIONS[action],
             actor=actor,
             reason=reason,
+            expected_stage_review=issue.current_state.get('reviewAuditId'),
+            retire_overdue=action == 'RETIRE_MARKS_TASK' and issue.current_state.get('closedWithUnfinishedWork', False),
         )
     except MarksStateConflict as exc:
         raise ReconciliationConflict(str(exc)) from exc

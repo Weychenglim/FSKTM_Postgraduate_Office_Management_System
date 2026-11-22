@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from accounts.models import Coordinator, Lecturer, OfficeStaff, Student, Supervisor
+from accounts.models import Coordinator, Lecturer, OfficeStaff, ProjectRegistration, StudentSemester, Student, Supervisor
 from academics.models import AcademicSemester
 from academics.test_capacity_helpers import publish_test_capacity_plan
 from appointments.models import (
@@ -166,6 +166,7 @@ class StudentProgressDossierTests(APITestCase):
         )
         self.period = EvaluationPeriod.objects.create(
             name="Dossier Period",
+            assessment='P1',
             semester="Semester 1 2026/2027",
             academic_semester=self.academic_semester,
             rubric=rubric,
@@ -186,7 +187,7 @@ class StudentProgressDossierTests(APITestCase):
             profile=self.profile,
             evaluator=self.other_lecturer,
             period=self.period,
-            evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
+            evaluator_role=EvaluationTask.EvaluatorRole.SUPERVISOR,
         )
         MarkEntry.objects.create(
             task=self.other_task,
@@ -244,6 +245,12 @@ class StudentProgressDossierTests(APITestCase):
             display_order=1,
         )
         publish_test_capacity_plan(self.academic_semester, self.office)
+        from .calendar_publication import publication_state, publish_calendar
+        publish_calendar(self.academic_semester, self.office,
+            publication_state(self.active_timeline, self.office)['reviewToken'])
+        self.student_timeline_entry = SemesterTimelineEntry.objects.get(
+            timeline__academic_semester=self.academic_semester, timeline__is_published=True,
+            source_entry_id=self.student_timeline_entry.pk)
 
     def create_user(self, email, name, role):
         return User.objects.create_user(
@@ -269,6 +276,9 @@ class StudentProgressDossierTests(APITestCase):
             programme=programme,
             intake_semester="Semester 1 2026/2027",
         )
+        StudentSemester.objects.get_or_create(student=student,
+            session=self.academic_semester.academic_session, term=self.academic_semester.term)
+        ProjectRegistration.objects.create(student=student, academic_semester=self.academic_semester, stage='P1')
         profile = None
         if with_profile:
             profile = StudentResearchProfile.objects.create(
@@ -370,6 +380,44 @@ class StudentProgressDossierTests(APITestCase):
         self.authenticate(unrelated)
         denied = self.client.get(self.dossier_url())
         self.assertEqual(denied.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_milestones_match_student_stage_for_authorised_viewers(self):
+        from .calendar_publication import publication_state, publish_calendar
+
+        SemesterTimelineEntry.objects.create(
+            timeline=self.active_timeline,
+            level=SemesterTimelineEntry.Level.P2,
+            step=1,
+            title="Final presentation",
+            action_owner="Student",
+            deadline_start=self.student_timeline_entry.deadline_start,
+            deadline_end=self.student_timeline_entry.deadline_end,
+            target_roles=["STUDENT"],
+        )
+        publish_calendar(self.academic_semester, self.office,
+            publication_state(self.active_timeline, self.office)["reviewToken"])
+
+        def milestone_titles(stage):
+            response = self.client.get(self.dossier_url())
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(response.data["student"]["projectStage"], stage)
+            self.assertEqual(response.data["student"]["projectSemester"], self.academic_semester.label)
+            return [entry["title"] for entry in response.data["timeline"]["entries"]]
+
+        viewers = (self.student_user, self.supervisor, self.panel, self.coordinator, self.office)
+        for viewer in viewers:
+            with self.subTest(viewer=viewer.role, stage="P1"):
+                self.authenticate(viewer)
+                self.assertEqual(milestone_titles("P1"), ["Student proposal submission"])
+
+        registration = ProjectRegistration.objects.get(student=self.student, academic_semester=self.academic_semester)
+        registration.stage = "P2"
+        registration.source = ProjectRegistration.Source.COORDINATOR
+        registration.save(update_fields=["stage", "source"])
+        for viewer in viewers:
+            with self.subTest(viewer=viewer.role, stage="P2"):
+                self.authenticate(viewer)
+                self.assertEqual(milestone_titles("P2"), ["Final presentation"])
 
     def test_student_self_view_redacts_internal_panel_marks_and_audit_fields(self):
         self.authenticate(self.student_user)

@@ -1,3 +1,5 @@
+import json
+
 from django.utils import timezone
 from rest_framework.test import APITestCase
 from appointments import test_dashboard_timeline as fixture
@@ -10,13 +12,13 @@ class TimelinePreviewSafetyTests(APITestCase):
     setUp = fixture.DashboardTimelineApiTests.setUp
     valid_rows = fixture.DashboardTimelineApiTests.valid_rows
 
-    def preview(self, rows=None):
+    def preview(self, rows=None, **kwargs):
         self.client.force_authenticate(self.admin)
         upload = workbook_upload(rows or self.valid_rows())
         content = upload.read()
         upload.seek(0)
         response = self.client.post('/api/dashboard/timeline/upload/preview/',
-            {'semesterId': self.academic_semester.pk, 'file': upload, 'mode': 'REPLACE'}, format='multipart')
+            {'semesterId': self.academic_semester.pk, 'file': upload, 'mode': 'REPLACE', **kwargs}, format='multipart')
         self.assertEqual(response.status_code, 200, getattr(response, 'data', None))
         return response.data, content
 
@@ -120,22 +122,91 @@ class TimelinePreviewSafetyTests(APITestCase):
         period.refresh_from_db()
         self.assertEqual((period.opens_at, period.closes_at), original_dates)
 
-    def test_replacement_cannot_drop_link_and_equivalent_legacy_row_preserves_it(self):
-        period = self.period()
+    def existing_link(self, period, marks=False):
         timeline = SemesterTimeline.objects.create(academic_semester=self.academic_semester,
             semester='Semester I', session='2026/2027', uploaded_by=self.admin)
-        row = self.linked_row(period)[:8]
+        row = self.linked_row(period, marks=marks)[:8]
         entry = SemesterTimelineEntry.objects.create(timeline=timeline, level='P1', step=1,
             title=row[1], detail=row[2], action_owner=row[3], deadline_start=row[4], deadline_end=row[5],
-            week_label=row[6], target_roles=['LECTURER'], operational_period=period)
-        self.client.force_authenticate(self.admin)
-        bad = self.client.post('/api/dashboard/timeline/upload/preview/',
-            {'semesterId': self.academic_semester.pk, 'file': workbook_upload(self.valid_rows()), 'mode': 'REPLACE'}, format='multipart')
-        self.assertEqual(bad.status_code, 400, bad.data)
-        self.assertTrue(SemesterTimeline.objects.get(pk=timeline.pk).is_active)
+            week_label=row[6], target_roles=['LECTURER'], **{'marks_period' if marks else 'operational_period': period})
+        return entry, row
+
+    def resolve(self, preview, content, choices):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return self.client.post('/api/dashboard/timeline/upload/preview/', {
+            'semesterId': self.academic_semester.pk,
+            'file': SimpleUploadedFile('timeline.xlsx', content), 'mode': 'REPLACE',
+            'linkReviewToken': preview['linkReviewToken'], 'linkChoices': json.dumps(choices),
+        }, format='multipart')
+
+    def test_equivalent_legacy_row_preserves_link(self):
+        period = self.period()
+        entry, row = self.existing_link(period)
         preview, content = self.preview([row])
         self.assertEqual(self.confirm(preview, content).status_code, 201)
         self.assertEqual(SemesterTimelineEntry.objects.get(timeline__is_active=True).operational_period_id, period.pk)
+
+    def test_replacement_can_keep_missing_ended_event_after_explicit_review(self):
+        period = self.period()
+        period.closes_at -= timezone.timedelta(days=4)
+        period.opens_at = period.closes_at - timezone.timedelta(days=1)
+        period.save(update_fields=['opens_at', 'closes_at'])
+        entry, _ = self.existing_link(period)
+        preview, content = self.preview()
+        self.assertIsNone(preview['previewToken'])
+        self.assertEqual(preview['linkConflicts'][0]['title'], entry.title)
+        self.assertEqual(self.confirm(preview, content, previewToken=preview['linkReviewToken']).status_code, 400)
+        reviewed = self.resolve(preview, content, {str(entry.pk): 'keep'})
+        self.assertEqual(reviewed.status_code, 200, reviewed.data)
+        self.assertEqual(reviewed.data['resultingCount'], 4)
+        self.assertEqual(reviewed.data['carriedCount'], 1)
+        self.assertTrue(SemesterTimeline.objects.get(pk=entry.timeline_id).is_active)
+        response = self.confirm(reviewed.data, content, linkChoices=json.dumps({str(entry.pk): 'match:1'}))
+        self.assertEqual(response.status_code, 201, response.data)
+        saved = SemesterTimelineEntry.objects.get(timeline__is_active=True, operational_period=period)
+        self.assertEqual(saved.title, entry.title)
+        self.assertEqual(saved.projected_dates, entry.projected_dates)
+
+    def test_replacement_can_confirm_renamed_row_with_same_dates(self):
+        period = self.period()
+        entry, row = self.existing_link(period)
+        row[1] = 'Renamed event'
+        preview, content = self.preview([row])
+        reviewed = self.resolve(preview, content, {str(entry.pk): 'match:1'})
+        self.assertEqual(reviewed.status_code, 200, reviewed.data)
+        self.assertEqual(self.confirm(reviewed.data, content).status_code, 201)
+        saved = SemesterTimelineEntry.objects.get(timeline__is_active=True)
+        self.assertEqual((saved.title, saved.operational_period_id), (row[1], period.pk))
+
+    def test_replacement_uses_window_dates_after_explicit_confirmation(self):
+        period = self.period(marks=True)
+        entry, row = self.existing_link(period, marks=True)
+        original_close = period.closes_at
+        row[5] += timezone.timedelta(days=3)
+        preview, content = self.preview([row])
+        self.assertEqual(preview['linkConflicts'][0]['marksPeriodId'], period.pk)
+        self.assertEqual(self.resolve(preview, content, {str(entry.pk): 'match:1'}).status_code, 400)
+        reviewed = self.resolve(preview, content, {str(entry.pk): 'keep-dates:1'})
+        self.assertEqual(reviewed.status_code, 200, reviewed.data)
+        self.assertEqual(reviewed.data['rows'][0]['deadlineEnd'], entry.deadline_end.isoformat())
+        self.assertEqual(self.confirm(reviewed.data, content).status_code, 201)
+        saved = SemesterTimelineEntry.objects.get(timeline__is_active=True, marks_period=period)
+        period.refresh_from_db()
+        self.assertEqual(saved.deadline_end, entry.deadline_end)
+        self.assertEqual(period.closes_at, original_close)
+
+    def test_link_decisions_reject_duplicate_rows_and_stale_window_dates(self):
+        period = self.period()
+        entry, row = self.existing_link(period)
+        second = SemesterTimelineEntry.objects.create(timeline=entry.timeline, level='P1', step=2,
+            title='Another linked event', deadline_start=row[4], deadline_end=row[5], operational_period=period)
+        row[1] = 'Renamed'
+        preview, content = self.preview([row])
+        choices = {str(entry.pk): 'match:1', str(second.pk): 'match:1'}
+        self.assertEqual(self.resolve(preview, content, choices).status_code, 400)
+        period.closes_at += timezone.timedelta(days=1)
+        period.save(update_fields=['closes_at'])
+        self.assertEqual(self.resolve(preview, content, choices).status_code, 409)
 
     def test_link_edit_makes_preview_stale(self):
         preview, content = self.preview()

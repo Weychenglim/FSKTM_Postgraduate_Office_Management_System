@@ -1,7 +1,10 @@
 import {request} from './apiClient';
 import type {LecturerCapacityEntry} from '../types';
 
+type WorkloadStages = {rp1: number; rp2: number; withoutStage: number};
+
 export type CapacityWorkspaceLecturer = Omit<LecturerCapacityEntry,'updatedBy'|'createdAt'|'updatedAt'> & {
+  workloadStages?: {supervisor: WorkloadStages; panel: WorkloadStages};
   availabilitySummary?: {current: number; scheduled: number};
   activeStudentCount:number|null;
   primaryStudentCount:number|null;

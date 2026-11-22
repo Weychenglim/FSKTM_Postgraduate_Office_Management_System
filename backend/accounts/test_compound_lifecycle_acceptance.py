@@ -20,7 +20,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.authorization import coordinator_programmes
 from accounts.delegations import grant_delegation, revoke_delegation, today
-from accounts.models import Coordinator, ParticipantLifecycleAudit, Student, User
+from accounts.models import Coordinator, ParticipantLifecycleAudit, Student, StudentSemester, User
 from accounts.participant_lifecycle import (
     ParticipantLifecycleConflict, transition_lecturer, transition_student,
 )
@@ -71,6 +71,17 @@ class CompoundLifecycleFixture:
             f'/api/accounts/participants/students/{self.student.matric_no}/transition/',
             {'targetStatus': target, 'reason': reason}, expected)
 
+    def return_to_study(self):
+        row = self.student.semesters.get(
+            session=self.semester.academic_session, term=self.semester.term)
+        self.assertEqual(row.outcome, StudentSemester.Outcome.LEAVE)
+        self.client.force_authenticate(self.office)
+        response = self.client.patch(
+            f'/api/registry/students/{self.student.matric_no}/semesters/{row.pk}/',
+            {'outcome': StudentSemester.Outcome.STUDIED}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
     def lecturer_transition(self, actor, target, expected=200):
         return self.post(self.office,
             f'/api/accounts/participants/lecturers/{actor.lecturer.staff_no}/transition/',
@@ -81,7 +92,7 @@ class CompoundLifecycleFixture:
             profile=self.profile, period=self.period, evaluator=evaluator or self.panel,
             evaluator_role=role, assigned_by=self.office,
         )
-        entry = MarkEntry.objects.create(task=task, comments='Saved draft survives', total_mark=46)
+        entry = MarkEntry.objects.create(task=task, status=MarkEntry.Status.DRAFT, comments='Saved draft survives', total_mark=46)
         MarkScore.objects.create(entry=entry, component=self.period.rubric.components.get(), marks_awarded=46)
         return task
 
@@ -174,7 +185,7 @@ class CompoundLifecycleAcceptanceTests(CompoundLifecycleFixture, APITestCase):
         self.post(self.office,
             f'/api/appointments/panel/appointments/{self.panel_appointment.pk}/end/',
             {'outcome': 'OTHER', 'reason': 'Panel appointment ended during leave'})
-        self.transition('ACTIVE', 'Returned after panel departure')
+        self.return_to_study()
         task.refresh_from_db()
         window.refresh_from_db()
         self.assertEqual(task.lifecycle_status, 'RETIRED')
@@ -196,7 +207,7 @@ class CompoundLifecycleAcceptanceTests(CompoundLifecycleFixture, APITestCase):
         window = self.window(task)
         marks = self.marks_snapshot()
         self.transition('DEFERRED')
-        self.transition('ACTIVE')
+        self.return_to_study()
         task.refresh_from_db()
         window.refresh_from_db()
         self.assertEqual(task.lifecycle_status, 'ACTIVE')
@@ -252,8 +263,13 @@ class CompoundLifecycleAcceptanceTests(CompoundLifecycleFixture, APITestCase):
         self.assertEqual(self.other_coordinator.lecturer.lifecycle_audits.count(), 2)
 
     def test_retirement_audit_outage_preserves_login_refresh_token_and_draft(self):
-        task = self.draft(self.new_panel, 'BACKUP')
+        appointment = self.panel_appointment
+        appointment.panel_member = self.new_panel
+        appointment.save(update_fields=['panel_member'])
+        task = self.draft(self.new_panel, 'PANEL')
         self.window(task)
+        appointment.status = 'ENDED'
+        appointment.save(update_fields=['status'])
         self.lecturer_transition(self.new_panel, 'RETIRING')
         token = RefreshToken.for_user(self.new_panel)
         before = self.snapshot()
@@ -297,9 +313,6 @@ class CompoundLifecycleAcceptanceTests(CompoundLifecycleFixture, APITestCase):
         self.post(self.office,
             f'/api/appointments/supervisor/appointments/{self.supervisor_appointment.pk}/replacement/',
             {'proposedSupervisorId': self.new_panel.lecturer.staff_no, 'reason': 'Direct identifier bypass'}, 409)
-        self.post(self.office, f'/api/marks/periods/{self.period.pk}/manual-overrides/',
-            {'studentId': self.student.matric_no, 'evaluatorId': self.new_panel.pk,
-             'reason': 'Direct identifier bypass'}, 400)
         self.post(self.office, '/api/marks/completion-windows/',
             {'taskIds': [task.pk], 'deadline': (timezone.now() + timedelta(days=10)).isoformat(),
              'reason': 'Direct identifier bypass'}, 409)
@@ -307,12 +320,9 @@ class CompoundLifecycleAcceptanceTests(CompoundLifecycleFixture, APITestCase):
         ensure_period_tasks(self.period, actor=self.office)
         self.assertEqual(self.snapshot(), before)
 
-    def test_retiring_evaluator_cannot_be_selected_by_direct_backup_or_supporting_identifiers(self):
+    def test_retiring_lecturer_cannot_be_nominated_as_supporting_supervisor(self):
         self.lecturer_transition(self.new_panel, 'RETIRING')
         before = self.snapshot()
-        self.post(self.office, f'/api/marks/periods/{self.period.pk}/manual-overrides/',
-            {'studentId': self.student.matric_no, 'evaluatorId': self.new_panel.pk,
-             'reason': 'Bypass hidden candidate'}, 400)
         self.post(self.supervisor, '/api/appointments/co-supervisor/nominations/',
             {'studentId': self.student.pk, 'candidateId': self.new_panel.pk,
              'justification': 'Bypass hidden candidate'}, 409)

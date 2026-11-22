@@ -13,6 +13,8 @@ from accounts.models import (
     Lecturer,
     OfficeStaff,
     Panel,
+    ProjectRegistration,
+    StudentSemester,
     Student,
     Supervisor,
 )
@@ -130,6 +132,9 @@ class AppointmentLifecycleTests(APITestCase):
             abstract=self.application.research_abstract,
             supervisor=self.supervisor,
         )
+        StudentSemester.objects.get_or_create(student=self.student,
+            session=self.semester.academic_session, term=self.semester.term)
+        ProjectRegistration.objects.create(student=self.student, academic_semester=self.semester, stage="P1")
         publish_test_capacity_plan(self.semester, self.office)
 
     def _lecturer(self, email, staff_no, *, supervisor=False, panel=False):
@@ -423,6 +428,7 @@ class AppointmentLifecycleTests(APITestCase):
         )
         now = timezone.now()
         period = EvaluationPeriod.objects.create(
+            assessment="P1",
             name="Lifecycle Evaluation",
             semester=self.semester.label,
             academic_semester=self.semester,
@@ -519,6 +525,7 @@ class AppointmentLifecycleTests(APITestCase):
         )
         now = timezone.now()
         period = EvaluationPeriod.objects.create(
+            assessment="P1",
             name="Late Replacement Evaluation",
             semester=self.semester.label,
             academic_semester=self.semester,

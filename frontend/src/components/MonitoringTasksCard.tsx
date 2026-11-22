@@ -27,6 +27,10 @@ interface MonitoringTasksCardProps {
   className?: string;
 }
 
+interface MonitoringTasksCardContainerProps extends MonitoringTasksCardProps {
+  projectStage?: string | null;
+}
+
 interface MonitoringTasksCardViewProps extends MonitoringTasksCardProps {
   tasks: DashboardTask[];
   loading: boolean;
@@ -137,7 +141,7 @@ export const MonitoringTasksCardView: React.FC<MonitoringTasksCardViewProps> = (
   </section>
 );
 
-export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = (props) => {
+export const MonitoringTasksCard: React.FC<MonitoringTasksCardContainerProps> = ({ projectStage, ...props }) => {
   const [tasks, setTasks] = useState<DashboardTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,7 +173,7 @@ export const MonitoringTasksCard: React.FC<MonitoringTasksCardProps> = (props) =
     };
   }, []);
 
-  useEffect(() => loadTasks(), [loadTasks]);
+  useEffect(() => loadTasks(), [loadTasks, projectStage]);
 
   return (
     <MonitoringTasksCardView

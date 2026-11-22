@@ -23,6 +23,7 @@ from appointments.models import PanelRecommendation, SupervisorApplication
 from marks.deadlines import mark_deadline_metadata
 from marks.models import EvaluationTask, MarkEntry
 from marks.completion_windows import task_due_at, task_access
+from marks.stage_eligibility import stage_monitoring_tasks
 
 from .models import SemesterTimelineEntry
 from .serializers import TimelineEntrySerializer
@@ -563,7 +564,7 @@ def _mark_rows(
         "period",
         "period__academic_semester",
         "mark_entry",
-    ).prefetch_related("completion_windows__granted_by")
+    ).prefetch_related("completion_windows__granted_by", "lifecycle_audits")
     if user.role == User.Role.LECTURER:
         tasks = tasks.filter(evaluator=user)
     elif programme:
@@ -576,7 +577,7 @@ def _mark_rows(
     )
 
     rows = []
-    for task in tasks:
+    for task in stage_monitoring_tasks(tasks):
         effective_due_at = task_due_at(task, now=now)
         report_date = effective_due_at or task.assigned_at
         if not _within_range(report_date, start_date, end_date):

@@ -3,7 +3,7 @@ from collections.abc import Mapping
 from django.utils import timezone
 from rest_framework import serializers
 
-from .capacity import CapacityRole, capacity_workload_counts, derive_capacity_resolution
+from .capacity import CapacityRole, capacity_plan_workloads, derive_capacity_resolution
 from .capacity_services import (
     capacity_eligible_lecturers,
     capacity_plan_content_fingerprint,
@@ -225,8 +225,8 @@ def _user_reference(user):
     }
 
 
-def _capacity_resolution_payload(result):
-    return {
+def _capacity_resolution_payload(result, *, expected_rp2_releases=None):
+    payload = {
         "semesterId": result.semester_id,
         "planId": result.plan_id,
         "planVersion": result.plan_version,
@@ -243,6 +243,9 @@ def _capacity_resolution_payload(result):
             else None
         ),
     }
+    if expected_rp2_releases is not None:
+        payload["expectedRp2Releases"] = min(result.active_load, expected_rp2_releases)
+    return payload
 
 
 def _capacity_resolution_context(semester, entries):
@@ -290,7 +293,7 @@ def _capacity_resolution_context(semester, entries):
         "publishedPlan": published_plan,
         "publishedLimits": published_limits,
         "unavailableUntil": unavailable_until,
-        **capacity_workload_counts(user_ids),
+        **capacity_plan_workloads(semester, user_ids),
     }
 
 
@@ -329,11 +332,13 @@ def _capacity_entry_payload(entry, context):
     panel = None
     if hasattr(lecturer, "supervisor"):
         supervisor = _capacity_resolution_payload(
-            _entry_capacity_resolution(entry, CapacityRole.SUPERVISOR, context)
+            _entry_capacity_resolution(entry, CapacityRole.SUPERVISOR, context),
+            expected_rp2_releases=context["supervisorRp2Releases"].get(lecturer.user_id, 0),
         )
     if hasattr(lecturer, "panel"):
         panel = _capacity_resolution_payload(
-            _entry_capacity_resolution(entry, CapacityRole.PANEL, context)
+            _entry_capacity_resolution(entry, CapacityRole.PANEL, context),
+            expected_rp2_releases=context["panelRp2Releases"].get(lecturer.user_id, 0),
         )
     return {
         "id": entry.pk,

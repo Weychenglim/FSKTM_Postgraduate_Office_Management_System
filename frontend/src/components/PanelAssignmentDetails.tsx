@@ -17,7 +17,7 @@ export function PanelAssignmentDetails({record,contextAction,actions,academicTea
   const sourceAction=record.status==='APPROVED'&&record.id != null&&onViewRequest?<PortalButton variant="primary" icon={FileText} size="sm" disabled={busy} onClick={()=>onViewRequest(String(record.id))}>View approved application</PortalButton>:null;
   const changes=(lifecycle?.lifecycle??[]).filter(event=>event.action!=='ACTIVATED');
   return <div data-panel-assignment-detail className="space-y-7">
-    <PanelStudentOverview record={record} actions={contextAction} assignment={academicTeam !== undefined}/>
+    <PanelStudentOverview record={record} actions={contextAction} assignment={academicTeam !== undefined} appointmentDetails/>
     <div data-panel-assignment-columns className="grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-7">{academicTeam !== undefined ? <SupervisionDetailSection title="Academic team" icon={UsersRound} contentClassName="mt-4 min-w-0">
         <div className="space-y-6">
@@ -33,7 +33,7 @@ export function PanelAssignmentDetails({record,contextAction,actions,academicTea
         <PanelResearchDetails record={record}/>
       </div>
       <aside aria-label="Appointment information" className="min-w-0 space-y-7">
-        {lifecycle?<PanelAppointmentRecordCard markingAction={markingAction} compact showHistory={false} record={record} sourceAction={sourceAction} actions={actions}/>:<SupervisionDetailSection title="Appointment record" icon={ClipboardList}><p className={body}>No appointment lifecycle record is available.</p>{sourceAction?<RequestDetailActions>{sourceAction}</RequestDetailActions>:null}</SupervisionDetailSection>}
+        {lifecycle?<PanelAppointmentRecordCard markingAction={markingAction} compact showHistory={false} record={record} appointmentSemester={record.semester} sourceAction={sourceAction} actions={actions}/>:<SupervisionDetailSection title="Appointment record" icon={ClipboardList}><p className={body}>No appointment lifecycle record is available.</p>{sourceAction?<RequestDetailActions>{sourceAction}</RequestDetailActions>:null}</SupervisionDetailSection>}
 
       </aside>
     </div>

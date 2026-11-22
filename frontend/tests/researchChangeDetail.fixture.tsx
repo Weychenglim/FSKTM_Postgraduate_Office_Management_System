@@ -93,17 +93,12 @@ await scenario('Student form previews only changed fields and submits the existi
   const preview=container.querySelector<HTMLDetailsElement>('[data-change-preview]')!;preview.querySelector('summary')!.click();check(preview.open&&preview.textContent?.includes('Revised title'),'Preview failed');check(!preview.textContent?.includes('Proposed abstract'),'Unchanged abstract in preview');
   await click('Submit request');check(JSON.stringify(saves)===JSON.stringify([{kind:'RESEARCH',values:{title:'Revised title',abstract:before.abstract,destinationProgramme:'',reason:'Clarify the research title.'}}]),'Payload contract changed');geometry();
 });
-await scenario('Correction and transfer keep distinct capabilities and existing confirmations',async()=>{
+await scenario('Audited correction requires confirmation and omits transfer creation',async()=>{
   const staff={...options,canSubmitResearch:false,canCorrect:true,canTransfer:true};let saved='';
   await direct(<ResearchAmendmentForm options={staff} initialKind="CORRECTION" busy={false} onSave={kind=>saved=kind}/>);
   await setValue(field('Research title')!,'Corrected title');await setValue(field('Reason for change')!,'Correct spelling only.');check(button('Save audited correction')?.disabled,'Correction bypassed meaning confirmation');
   container.querySelector<HTMLInputElement>('input[type="checkbox"]')!.click();await until(()=>!button('Save audited correction')?.disabled);await click('Save audited correction');check(saved==='CORRECTION','Wrong correction kind');
-  await setValue(field('Change type')!,'TRANSFER');await setValue(field('Destination programme')!,'Cybersecurity');
-  const switchedPreview=container.querySelector<HTMLElement>('[data-change-preview]')!;
-  check(switchedPreview.textContent?.includes('Proposed programme')&&!switchedPreview.textContent?.includes('Corrected title'),'Transfer preview includes unsent correction edits');
-  await setValue(field('Change type')!,'CORRECTION');check(field('Research title')?.value==='Corrected title','Switching intent lost the correction draft');
-  await direct(<ResearchAmendmentForm options={staff} initialKind="TRANSFER" busy={false} onSave={kind=>saved=kind}/>);
-  check(!field('Research title'),'Transfer form contains research edits');await setValue(field('Destination programme')!,'Cybersecurity');await setValue(field('Reason for change')!,'Move to the destination programme.');await click('Submit request');check(saved==='TRANSFER','Wrong transfer kind');geometry();
+  check(!container.querySelector('option[value="TRANSFER"]')&&!field('Destination programme'),'Legacy transfer capability exposes a creation form');geometry();
 });
 await scenario('Busy form prevents editing and duplicate submissions',async()=>{
   await direct(<ResearchAmendmentForm options={options} studentView busy onSave={()=>{throw Error('Busy submission fired');}}/>);

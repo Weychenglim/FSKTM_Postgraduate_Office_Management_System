@@ -25,7 +25,6 @@ from .models import (
     EvaluationTask,
     EvaluationTaskHandoverAudit,
     EvaluationTaskLifecycleAudit,
-    EvaluationTaskOverrideAudit,
     MarkCorrectionAudit,
     MarkEntry,
     MarkScore,
@@ -33,7 +32,8 @@ from .models import (
     Rubric,
     RubricComponent,
 )
-from .targeting import normalize_period_targeting, period_recipients, profile_in_scope
+from .targeting import normalize_period_targeting, official_assignment_paused, period_recipients, profile_in_scope
+from .stage_eligibility import profile_stage_eligibility
 
 
 User = get_user_model()
@@ -44,6 +44,8 @@ class MarksStateConflict(Exception):
 
 
 def _assert_period_allows_task_creation(period):
+    if period.assessment not in {'P1', 'P2'}:
+        raise MarksStateConflict('Configure the evaluation period as P1 or P2 before creating tasks.')
     if (
         period.lifecycle_status != EvaluationPeriod.Lifecycle.PUBLISHED
         or (period.closes_at and period.closes_at < timezone.now())
@@ -64,6 +66,7 @@ def _assert_office_admin(actor):
 def _active_periods():
     now = timezone.now()
     return EvaluationPeriod.objects.filter(
+        assessment__in=['P1', 'P2'],
         lifecycle_status=EvaluationPeriod.Lifecycle.PUBLISHED,
         academic_semester__lifecycle_status=AcademicSemester.Lifecycle.ACTIVE,
         academic_semester__starts_on__lte=timezone.localdate(),
@@ -835,6 +838,8 @@ def ensure_period_tasks(period, *, actor=None):
         if row.key not in initial_keys:
             # A new candidate outside this lock set is picked up on the next run.
             continue
+        if official_assignment_paused(period, row.profile, row.role):
+            continue
         _, was_created = EvaluationTask.objects.get_or_create(
             profile=row.profile,
             evaluator=row.evaluator,
@@ -858,84 +863,6 @@ def ensure_active_period_tasks():
         ensure_period_tasks(period)
 
 
-@transaction.atomic
-def create_backup_evaluation_task(
-    *,
-    period,
-    profile,
-    evaluator,
-    actor,
-    reason,
-    original_task=None,
-):
-    _assert_office_admin(actor)
-    period = EvaluationPeriod.objects.select_for_update(no_key=True).get(pk=period.pk)
-    _assert_period_allows_task_creation(period)
-    reason = str(reason).strip()
-    if not reason:
-        raise ValidationError("A manual override reason is required.")
-    if evaluator.role != User.Role.LECTURER:
-        raise ValidationError("Backup evaluator must be a lecturer.")
-    from accounts.eligibility import (
-        profile_student_is_workflow_eligible,
-        user_is_assignable_lecturer,
-    )
-    if not user_is_assignable_lecturer(evaluator):
-        raise ValidationError("Backup evaluator is not available for new assignments.")
-    if not profile_student_is_workflow_eligible(profile):
-        raise ValidationError(
-            "The student's lifecycle status does not permit a new evaluation task."
-        )
-    if profile.student_id:
-        student = Student.objects.select_for_update().get(pk=profile.student_id)
-        if student.status != Student.Status.ACTIVE:
-            raise ValidationError(
-                "The student's lifecycle status does not permit a new evaluation task."
-            )
-    profile = StudentResearchProfile.objects.select_related("student__student").get(pk=profile.pk)
-    if not profile_in_scope(period, profile):
-        raise ValidationError("Student is outside the evaluation period's selected programmes.")
-    if original_task and (
-        original_task.period_id != period.pk
-        or original_task.profile_id != profile.pk
-        or original_task.evaluator_role not in period.evaluator_roles
-        or original_task.evaluator_role not in {"SUPERVISOR", "PANEL"}
-    ):
-        raise ValidationError("Original task must match this period, student, and an included official evaluator role.")
-    lecturer = Lecturer.objects.select_for_update().get(pk=evaluator.pk)
-    if lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE:
-        raise ValidationError("Backup evaluator is no longer available.")
-    # Historical assignments are retained, but must never be returned as a new
-    # usable assignment. Period/Student/Lecturer locks serialize this decision.
-    existing = EvaluationTask.objects.filter(
-        profile=profile,
-        evaluator=evaluator,
-        period=period,
-        evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
-    ).exclude(lifecycle_status=EvaluationTask.Lifecycle.RETIRED)
-    if existing.exists():
-        raise MarksStateConflict(
-            "This evaluator already has a backup assignment for this student and period. "
-            "Review the existing task instead of assigning it again."
-        )
-    task = EvaluationTask.objects.create(
-        profile=profile,
-        evaluator=evaluator,
-        period=period,
-        evaluator_role=EvaluationTask.EvaluatorRole.BACKUP,
-        lifecycle_status=EvaluationTask.Lifecycle.ACTIVE,
-        assigned_by=actor,
-    )
-    EvaluationTaskOverrideAudit.objects.create(
-        task=task,
-        actor=actor,
-        original_evaluator=original_task.evaluator if original_task else None,
-        new_evaluator=evaluator,
-        reason=reason,
-    )
-    return task
-
-
 def _draft_snapshot(task):
     try:
         entry = task.mark_entry
@@ -956,6 +883,8 @@ def retire_official_evaluation_tasks(
     reason,
     replacement_evaluator=None,
 ):
+    if replacement_evaluator is not None and profile.student_id:
+        Student.objects.select_for_update().get(pk=profile.student_id)
     tasks = (
         EvaluationTask.objects.select_for_update(of=("self",))
         .filter(
@@ -990,7 +919,10 @@ def retire_official_evaluation_tasks(
             ]
         )
         replacement_task = None
-        if replacement_evaluator is not None and task.period.accepts_submissions and profile_in_scope(task.period, profile, evaluator_role):
+        if (replacement_evaluator is not None and task.period.accepts_submissions
+                and profile_in_scope(task.period, profile, evaluator_role)
+                and not official_assignment_paused(task.period, profile, evaluator_role)
+                and profile_stage_eligibility(task.period, profile).eligible):
             replacement_task, _ = EvaluationTask.objects.get_or_create(
                 profile=profile,
                 evaluator=replacement_evaluator,
@@ -1017,6 +949,7 @@ def retire_official_evaluation_tasks(
     return retired
 
 
+@transaction.atomic
 def ensure_replacement_evaluation_tasks(
     *, old_appointment, replacement_appointment, actor, reason
 ):
@@ -1061,6 +994,10 @@ def ensure_replacement_evaluation_tasks(
             continue
         if not profile_in_scope(old_task.period, profile, evaluator_role):
             continue
+        if not profile_stage_eligibility(old_task.period, profile).eligible:
+            continue
+        if official_assignment_paused(old_task.period, profile, evaluator_role):
+            continue
         replacement_task, created = EvaluationTask.objects.get_or_create(
             profile=profile,
             evaluator=replacement_evaluator,
@@ -1086,12 +1023,12 @@ def ensure_replacement_evaluation_tasks(
     return retired
 
 
-def entry_snapshot(entry):
+def entry_snapshot(entry, *, include_feedback=False):
     entry.refresh_from_db()
     scores = entry.scores.select_related("component").order_by(
         "component__display_order", "component_id"
     )
-    return {
+    snapshot = {
         "status": entry.status,
         "totalMark": f"{entry.total_mark:.2f}",
         "comments": entry.comments,
@@ -1100,6 +1037,9 @@ def entry_snapshot(entry):
             for score in scores
         },
     }
+    if include_feedback:
+        snapshot["feedback"] = {str(score.component_id): score.feedback for score in scores}
+    return snapshot
 
 
 def _task_entry_snapshot(task):
@@ -1165,16 +1105,18 @@ def _task_appointment_is_active(task):
             panel_member=task.evaluator,
             status=PanelAppointment.Status.ACTIVE,
         ).exists()
-    lecturer = getattr(task.evaluator, "lecturer", None)
-    return bool(
-        task.evaluator.is_active
-        and lecturer
-        and lecturer.lifecycle_status == lecturer.Lifecycle.ACTIVE
-    )
+
+    return False
 
 
 @transaction.atomic
 def resume_student_evaluation_tasks(*, profile, actor, reason):
+    locked_student_id = profile.student_id
+    if locked_student_id:
+        Student.objects.select_for_update().get(pk=locked_student_id)
+    profile = StudentResearchProfile.objects.select_related('student__student').get(pk=profile.pk)
+    if profile.student_id != locked_student_id:
+        raise MarksStateConflict('The research profile link changed. Reload and retry the resume.')
     tasks = EvaluationTask.objects.select_for_update(of=("self",)).filter(
         profile=profile,
         lifecycle_status=EvaluationTask.Lifecycle.PAUSED,
@@ -1182,8 +1124,18 @@ def resume_student_evaluation_tasks(*, profile, actor, reason):
     resumed = []
     retired = []
     for task in tasks:
+        from .stage_corrections import stage_review_pending
+        if stage_review_pending(task):
+            continue
+        if not profile_stage_eligibility(task.period, profile).eligible:
+            # Stage correction handling belongs to the coordinated correction flow.
+            # Keep the paused work intact rather than resuming or retiring it here.
+            continue
         snapshot = _task_entry_snapshot(task)
-        if task.period.accepts_submissions and _task_appointment_is_active(task):
+        from accounts.eligibility import profile_student_is_workflow_eligible
+        if (task.period.accepts_submissions and _task_appointment_is_active(task)
+                and profile_student_is_workflow_eligible(profile)
+                and profile_in_scope(task.period, profile, task.evaluator_role)):
             task.lifecycle_status = EvaluationTask.Lifecycle.ACTIVE
             action = EvaluationTaskLifecycleAudit.Action.RESUMED
             task.paused_at = None
@@ -1266,16 +1218,42 @@ def retire_participant_evaluation_tasks(*, tasks, actor, reason):
 
 
 @transaction.atomic
-def reconcile_evaluation_task(*, task_id, action, actor, reason):
+def reconcile_evaluation_task(*, task_id, action, actor, reason, expected_stage_review=None, retire_overdue=False):
     """Apply one audited repair without widening it to other profile tasks."""
-    task = (
-        EvaluationTask.objects.select_for_update(of=("self",))
-        .select_related("profile", "profile__student", "period", "mark_entry")
-        .get(pk=task_id)
-    )
+    if retire_overdue:
+        from .completion_windows import task_eligible, task_window_active
+
+        task = next(iter(lock_tasks([task_id])), None)
+        now = timezone.now()
+        if (task is None or task.period.status_at(now) != 'CLOSED'
+                or not task_eligible(task, now) or task_window_active(task, now)):
+            raise MarksStateConflict('This task can no longer be retired as overdue. Recheck its status and deadline.')
+    else:
+        student_id = EvaluationTask.objects.values_list('profile__student_id', flat=True).get(pk=task_id)
+        if student_id:
+            Student.objects.select_for_update().get(pk=student_id)
+        task = (
+            EvaluationTask.objects.select_for_update(of=("self",))
+            .select_related("profile", "profile__student", "period", "mark_entry")
+            .get(pk=task_id)
+        )
+        if task.profile.student_id != student_id:
+            raise MarksStateConflict('The research profile link changed. Reload and retry reconciliation.')
     if _task_is_submitted(task):
         raise MarksStateConflict("Submitted Marks are immutable and cannot be reconciled.")
     snapshot = _task_entry_snapshot(task)
+    from .stage_corrections import stage_review_pending, stage_review_resolution
+    held = stage_review_pending(task)
+    if action in ('RESUMED', 'RETIRED', 'STAGE_RESOLVED') and held:
+        review = task.lifecycle_audits.filter(action='STAGE_REVIEW').first()
+        if not reason.strip() or expected_stage_review != review.pk:
+            raise MarksStateConflict('Review the current registration issue before resolving this task.')
+    if action == 'STAGE_RESOLVED':
+        if not held or stage_review_resolution(task) != 'RELEASE_STAGE_REVIEW':
+            raise MarksStateConflict('This stage review cannot be released in the current workflow.')
+        EvaluationTaskLifecycleAudit.objects.create(task=task, actor=actor,
+            action='STAGE_RESOLVED', reason=reason, entry_snapshot=snapshot)
+        return task
     if action == EvaluationTaskLifecycleAudit.Action.RETIRED:
         if task.lifecycle_status not in {
             EvaluationTask.Lifecycle.ACTIVE,
@@ -1314,6 +1292,8 @@ def reconcile_evaluation_task(*, task_id, action, actor, reason):
 
         if (
             not profile_student_is_workflow_eligible(task.profile)
+            or not profile_stage_eligibility(task.period, task.profile).eligible
+            or not profile_in_scope(task.period, task.profile, task.evaluator_role)
             or not task.period.accepts_submissions
             or not _task_appointment_is_active(task)
         ):
@@ -1345,6 +1325,7 @@ def reconcile_evaluation_task(*, task_id, action, actor, reason):
 
 def submitted_marks_version(entry):
     """Bind a reviewed form to its exact entry state without exposing audit data."""
+    scores = list(entry.scores.all())
     values = {
         "entryId": entry.pk,
         "status": entry.status,
@@ -1352,7 +1333,8 @@ def submitted_marks_version(entry):
         "submittedAt": entry.submitted_at.isoformat() if entry.submitted_at else None,
         "totalMark": str(entry.total_mark),
         "comments": entry.comments,
-        "scores": {str(score.component_id): str(score.marks_awarded) for score in entry.scores.all()},
+        "scores": {str(score.component_id): str(score.marks_awarded) for score in scores},
+        "feedback": {str(score.component_id): score.feedback for score in scores},
     }
     return salted_hmac("marks.submitted-edit", json.dumps(values, sort_keys=True), algorithm="sha256").hexdigest()
 
@@ -1374,6 +1356,7 @@ def correct_submitted_marks(
     score_values,
     reason,
     comments=None,
+    feedback_values=None,
     expected_version=None,
 ):
     if not can_correct_marks(actor):
@@ -1384,28 +1367,34 @@ def correct_submitted_marks(
     entry = _lock_reviewed_mark_entry(entry, expected_version)
     if entry.status != MarkEntry.Status.SUBMITTED:
         raise ValidationError("Only submitted marks can be corrected.")
-    before = entry_snapshot(entry)
+    before = entry_snapshot(entry, include_feedback=True)
     scores = {
         score.component_id: score
         for score in entry.scores.select_related("component")
     }
+    feedback_values = feedback_values or {}
+    if (score_values.keys() | feedback_values.keys()) - scores.keys():
+        raise ValidationError("The selected rubric component is not part of this entry.")
     if expected_version is not None and not (
-        any(component_id not in scores or scores[component_id].marks_awarded != Decimal(value) for component_id, value in score_values.items())
+        any(scores[component_id].marks_awarded != Decimal(value) for component_id, value in score_values.items())
+        or any(scores[component_id].feedback != value for component_id, value in feedback_values.items())
         or (comments is not None and entry.comments != str(comments))
     ):
-        raise ValidationError("Change at least one score or the overall comments before saving a correction.")
+        raise ValidationError("Change a score, component feedback or the overall comments before saving a correction.")
     for component_id, value in score_values.items():
-        if component_id not in scores:
-            raise ValidationError("The selected rubric component is not part of this entry.")
         score = scores[component_id]
         score.marks_awarded = Decimal(value)
         score.full_clean()
         score.save(update_fields=["marks_awarded"])
+    for component_id, value in feedback_values.items():
+        score = scores[component_id]
+        score.feedback = value
+        score.save(update_fields=["feedback"])
     if comments is not None:
         entry.comments = str(comments)
         entry.save(update_fields=["comments", "updated_at"])
     entry.recalculate_total()
-    after = entry_snapshot(entry)
+    after = entry_snapshot(entry, include_feedback=True)
     MarkCorrectionAudit.objects.create(
         entry=entry,
         actor=actor,

@@ -5,7 +5,6 @@ const destinations = {
   'supervisor-pending': APP_ROUTES.supervisorAppointmentRequests,
   'panel-pending': APP_ROUTES.panelAppointments,
   incomplete: APP_ROUTES.marksRecords,
-  backup: APP_ROUTES.marksRecords,
   'panel-capacity': APP_ROUTES.panelAppointmentWorkload,
 } as const;
 export type OfficeMonitoringView = keyof typeof destinations;
@@ -23,7 +22,8 @@ export function officeMonitoringView(pathname: string, search: string): OfficeMo
 }
 
 export function filterMonitoringMarks(records: MarkRecord[], view: OfficeMonitoringView | null): MarkRecord[] {
-  if (view !== 'incomplete' && view !== 'backup') return records;
+  if (view !== 'incomplete') return records;
   return records.filter(record => record.taskLifecycleStatus === 'ACTIVE'
-    && (view === 'backup' ? record.evaluatorRole === 'BACKUP' : record.status !== 'Submitted'));
+    && record.status !== 'Review Required'
+    && record.status !== 'Submitted');
 }

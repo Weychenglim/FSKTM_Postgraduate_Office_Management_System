@@ -53,7 +53,7 @@ function recordedDate(value?:string|null):string {
   return date==='Not recorded'?'Date unavailable':formatMalaysiaDate(value!);
 }
 
-export function SupervisorAppointmentRecordCard({record,onEnd,actions,compact=false,showHistory=true,markingAction,sourceAction}:{record:SupervisorAppointmentPresentation;onEnd?:React.ComponentProps<typeof AppointmentEndControl>['onSubmit'];actions?:React.ReactNode;compact?:boolean;showHistory?:boolean;markingAction?:React.ReactNode;sourceAction?:React.ReactNode}) {
+export function SupervisorAppointmentRecordCard({record,onEnd,actions,compact=false,showHistory=true,markingAction,sourceAction,appointmentSemester}:{record:SupervisorAppointmentPresentation;onEnd?:React.ComponentProps<typeof AppointmentEndControl>['onSubmit'];actions?:React.ReactNode;compact?:boolean;showHistory?:boolean;markingAction?:React.ReactNode;sourceAction?:React.ReactNode;appointmentSemester?:string}) {
   const active=record.status==='ACTIVE';
   const events=record.events.filter(event=>event.action!=='ACTIVATED');
   const label=compact ? supervisionDetailLabel : appointmentDetailTypography.label;
@@ -63,6 +63,7 @@ export function SupervisorAppointmentRecordCard({record,onEnd,actions,compact=fa
     <dl className="space-y-5">
       <div className="space-y-2"><dt className={label}>Appointment status</dt><dd><StatusBadge tone={active?'success':'neutral'}>{readableRecordStatus(record.status)}</StatusBadge></dd></div>
       <div className="space-y-2"><dt className={label}>Approved on</dt><dd className={body}>{recordedDate(record.approvedAt)}</dd></div>
+      {appointmentSemester ? <div className="space-y-2"><dt className={label}>Appointment semester</dt><dd className={body}>{appointmentSemester}</dd></div> : null}
       {!active?<>
         <div className="space-y-2"><dt className={label}>Ended on</dt><dd className={body}>{recordedDate(record.endedAt)}</dd></div>
         {record.endOutcome?<div className="space-y-2"><dt className={label}>Outcome</dt><dd className={body}>{readableRecordStatus(record.endOutcome)}</dd></div>:null}

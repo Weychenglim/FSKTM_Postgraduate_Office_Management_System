@@ -32,7 +32,12 @@ function geometry(){
   if(cols.children.length===2){const main=cols.children[0].getBoundingClientRect(),aside=cols.children[1].getBoundingClientRect();if(innerWidth>=1280)check(aside.left-main.right>=27&&Math.abs(aside.top-main.top)<2,'Desktop aside alignment');else if(cols.hasAttribute('data-panel-supervisee-columns'))check(main.top-aside.bottom>=27,'Mobile nomination-first spacing');else check(aside.top-main.bottom>=27,'Mobile spacing');}
   for(const dd of container.querySelectorAll('dl dd')){check(getComputedStyle(dd).fontWeight==='400','Bold answer');check(parseFloat(getComputedStyle(dd).fontSize)>=14,'Small answer');}
   for(const region of container.querySelectorAll<HTMLElement>('[role="region"]')){const r=region.getBoundingClientRect();check(r.left>=-1&&r.right<=innerWidth+1,'Card overflow');}
-  for(const b of container.querySelectorAll<HTMLButtonElement>('[data-detail-actions] button'))check(b.getBoundingClientRect().height>=44,'Small lifecycle action');
+  for (const action of container.querySelectorAll<HTMLButtonElement>('[data-detail-actions] button')) {
+    if (!action.getClientRects().length) continue;
+    const style = getComputedStyle(action);
+    const small = action.classList.contains('text-[10px]');
+    check(style.fontSize === (small ? '10px' : '11px') && style.textTransform === 'uppercase' && action.getBoundingClientRect().height >= (small ? 30 : 36), `Unexpected button styling for ${action.textContent}: ${style.fontSize}, ${style.textTransform}, ${action.getBoundingClientRect().height}px tall`);
+  }
 }
 async function scenario(name:string,run:()=>Promise<void>){try{await run();results.push({name,error:null});}catch(error){results.push({name,error:String(error)});}}
 const markingTask={id:801,studentId:recommendation.studentId,studentName:recommendation.studentName,initials:'AS',researchTitle:recommendation.proposedTopic,semester:'S1',deadline:'',status:'DRAFT SAVED' as const,evaluatorRole:'PANEL' as const,canEdit:true,taskLifecycleStatus:'ACTIVE' as const,components:[]};

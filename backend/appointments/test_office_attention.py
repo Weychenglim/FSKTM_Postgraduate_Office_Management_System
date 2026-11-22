@@ -10,7 +10,7 @@ from rest_framework.test import APITestCase
 from academics.capacity import CapacityRole, resolve_lecturer_capacity
 from academics.models import AcademicSemester, LecturerAvailabilityWindow
 from academics.test_capacity_helpers import publish_test_capacity_plan
-from accounts.models import Student, Supervisor, User
+from accounts.models import ProjectRegistration, StudentSemester, Student, Supervisor, User
 from . import test_coordinator_workspace as cw, test_research_paging as rp
 from .models import (AppointmentWorkflowEvent, CoSupervisorAppointment, ResearchAmendment,
                      ResearchAmendmentEvent, SupervisorApplication, SupervisorAppointment)
@@ -73,6 +73,28 @@ class OfficeAttentionTests(APITestCase):
         self.supervisor_appointment.save(update_fields=['status'])
         self.assertEqual(self.get().data['results'][0]['id'], self.student.pk)
         self.assertEqual(self.summary().data['withoutSupervisor'], 1)
+
+    def test_rp1_count_matches_filtered_coverage_and_prioritizes_no_application(self):
+        pending = self.application_for(1)
+        no_request = self.never_applied(1)
+        unknown = self.never_applied(2)
+        for student in (pending.student, no_request, self.student):
+            StudentSemester.objects.get_or_create(student=student,
+                session=self.semester.academic_session, term=self.semester.term)
+            ProjectRegistration.objects.update_or_create(student=student, academic_semester=self.semester,
+                                                         defaults={'stage': 'P1'})
+        page = self.get(projectStage='P1').data
+        self.assertEqual([(row['id'], row['projectStage']) for row in page['results']],
+                         [(no_request.pk, 'P1'), (pending.student_id, 'P1')])
+        self.assertEqual(self.summary().data['withoutSupervisorRp1'], page['total'])
+        self.assertEqual(self.get(projectStage='NOT_CONFIRMED').data['results'][0]['id'], unknown.pk)
+
+    def test_saved_stage_filter_preserves_coverage_without_active_semester(self):
+        student = self.never_applied(1)
+        with patch('appointments.office_attention.current_effective_semester', return_value=None):
+            page = self.get(projectStage='P1').data
+        self.assertIsNone(page['projectSemester'])
+        self.assertEqual([(row['id'], row['projectStage']) for row in page['results']], [(student.pk, None)])
 
     def test_disabled_and_nonactive_students_are_excluded_from_both_categories(self):
         for n, status in enumerate([Student.Status.DEFERRED, Student.Status.GRADUATED, Student.Status.WITHDRAWN], 1):

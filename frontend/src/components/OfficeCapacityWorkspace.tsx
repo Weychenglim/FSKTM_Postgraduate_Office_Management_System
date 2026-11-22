@@ -1,6 +1,6 @@
 import {AlertMessage} from './AlertMessage';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Eye, Gauge, History, Save, ShieldCheck, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, Eye, Gauge, History, Save, ShieldCheck, SlidersHorizontal } from 'lucide-react';
 import { cloneSemesterCapacityPlan, createSemesterCapacityPlan, discardSemesterCapacityPlan, getSemesterCapacityPlans, getWorkingCapacityPlans, publishSemesterCapacityPlan, updateLecturerCapacityEntry, updateLecturerCapacityEntriesBulk } from '../services/lecturerCapacityApi';
 import { getAcademicSemesters as readSemesters } from '../services/academicSemestersApi';
 import { getCapacityWorkspace, type CapacityWorkspace, type CapacityWorkspaceLecturer } from '../services/capacityWorkspaceApi';
@@ -36,6 +36,62 @@ const date = (value: string | null | undefined) => value ? new Date(`${value.sli
 const stamp = (value: string) => new Date(value).toLocaleString('en-MY');
 const display = (value: number | null | undefined) => value == null ? 'Unavailable' : value;
 
+function CapacityRoleLine({label, value, muted = false}: {label: string; value: number | string; muted?: boolean}) {
+  return <p className="capacity-role-line">
+    <span>{label}</span>
+    <span className="capacity-role-colon">:</span>
+    <strong className={muted ? 'capacity-roster-muted' : 'capacity-roster-value'}>{value}</strong>
+  </p>;
+}
+
+function CapacityRosterWorkload({row}: {row: CapacityWorkspaceLecturer}) {
+  const {primaryStudentCount, supportingStudentCount, panelStudentCount} = row;
+  const supervised = primaryStudentCount == null || supportingStudentCount == null
+    ? null : primaryStudentCount + supportingStudentCount;
+
+  return <div className="capacity-roster-workload">
+    {row.supervisor && <CapacityRoleLine label="Supervision" value={display(supervised)} muted={supervised == null}/>}
+    {row.panel && <CapacityRoleLine label="Panel" value={display(panelStudentCount)} muted={panelStudentCount == null}/>}
+    {!row.supervisor && !row.panel && <p className="capacity-roster-muted">No capacity roles</p>}
+    {row.workloadIdentityIncomplete && <p className="text-xs text-amber-800">Student links need review</p>}
+  </div>;
+}
+
+function CapacityCommitmentDetails({row, role, editing = false}: {row: CapacityWorkspaceLecturer; role: CapacityRole; editing?: boolean}) {
+  const supervisor = role === 'SUPERVISOR';
+  const resolution = supervisor ? row.supervisor : row.panel;
+  const projected = committedCapacityLoad(row, role);
+  if (!resolution || projected === null) return null;
+  const {activeLoad, reservedLoad} = resolution;
+  const releases = Math.min(activeLoad, resolution.expectedRp2Releases ?? 0);
+  if (!editing && !releases) return null;
+
+  const stages = supervisor ? row.workloadStages?.supervisor : row.workloadStages?.panel;
+  const today = stages && activeLoad
+    ? [stages.rp1 ? `${stages.rp1} RP1` : '', stages.rp2 ? `${stages.rp2} RP2` : '',
+      stages.withoutStage ? `${stages.withoutStage} without an RP stage` : ''].filter(Boolean).join(' · ')
+    : `${activeLoad} active ${activeLoad === 1 ? 'appointment' : 'appointments'}`;
+  const content = <dl className="capacity-forecast-breakdown">
+    <dt>Today</dt>
+    <dd>{today}
+      {reservedLoad > 0 && <p>{reservedLoad} {reservedLoad === 1 ? 'slot held' : 'slots held'} for coordinator review</p>}
+    </dd>
+    <dt>{releases ? 'Next semester' : 'In use today'}</dt>
+    <dd>
+      <strong>{projected}</strong> {projected === 1 ? 'slot' : 'slots'} {releases ? 'expected in use' : 'in use'}
+      {releases > 0 && <p>{releases} RP2 {releases === 1 ? 'slot' : 'slots'} expected to free up</p>}
+    </dd>
+  </dl>;
+
+  return editing ? <details className="capacity-commitment-details">
+    <summary aria-label={`Why is the ${supervisor ? 'supervision' : 'panel'} minimum ${projected}?`}><ChevronDown size={14} aria-hidden="true" />Why {projected}?</summary>
+    {content}
+  </details> : <section className="space-y-2">
+    <h3 className="capacity-roster-value">{supervisor ? 'Supervision' : 'Panel'} forecast</h3>
+    {content}
+  </section>;
+}
+
 export function OfficeCapacityWorkspace({ onBack, backLabel = 'Back to Dashboard' }: { onBack: () => void; backLabel?: string }) {
   return <DecisionFeedbackProvider scopeKey="office-capacity-workspace"><OfficeCapacityWorkspaceContent onBack={onBack} backLabel={backLabel}/></DecisionFeedbackProvider>;
 }
@@ -46,7 +102,10 @@ function OfficeCapacityWorkspaceContent({ onBack, backLabel }: { onBack: () => v
   const [revision, setRevision] = useState(0);
   const [activityVersion, setActivityVersion] = useState<number | undefined>();
   const [availabilityLecturer, setAvailabilityLecturer] = useState<{id:number;name:string} | null>(null);
-  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null), [view, setView] = useState<View>('overview');
+  const [requestedView] = useState(() => new URLSearchParams(window.location.search).get('view'));
+  const [selectedPlanId, setSelectedPlanId] = useState<number | null>(null), [view, setView] = useState<View>(
+    requestedView === 'availability' || requestedView === 'history' ? requestedView : 'overview',
+  );
   const [drawer, setDrawer] = useState<Drawer>(null), [entry, setEntry] = useState<CapacityWorkspaceLecturer | null>(null);
   const [selectedLecturers, setSelectedLecturers] = useState<number[]>([]);
   const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('lecturer') ?? '');
@@ -194,11 +253,27 @@ function OfficeCapacityWorkspaceContent({ onBack, backLabel }: { onBack: () => v
     finally { if (token === copyGeneration.current) setCompareLoading(false); }
   };
   const compare = plans.find(plan => plan.id === comparePlanId) ?? null;
-  const roleValues = (row: CapacityWorkspaceLecturer, proposed = false) => <div className="space-y-2">{(['SUPERVISOR', 'PANEL'] as const).map(value => { const resolution = value === 'SUPERVISOR' ? row.supervisor : row.panel; const savedLimit = value === 'SUPERVISOR' ? row.supervisorLimit : row.panelLimit; if (!resolution && (!proposed || savedLimit === null)) return null; const limit = proposed ? savedLimit : resolution!.limit; return <p key={value}><span className="capacity-role-name">{value === 'SUPERVISOR' ? 'Supervisor' : 'Panel'}</span><strong className={limit === null ? 'text-amber-800' : 'text-brand-navy'}>{limit ?? 'Not set'}</strong>{proposed && <span className="capacity-current-value">Current: {resolution ? resolution.limit ?? 'Not set' : 'Role not held'}</span>}</p>; })}</div>;
-  const availability = (row: CapacityWorkspaceLecturer) => {
+  const roleValues = (row: CapacityWorkspaceLecturer) => {
+    const limits = ([
+      {label: 'Supervision', resolution: row.supervisor, saved: row.supervisorLimit},
+      {label: 'Panel', resolution: row.panel, saved: row.panelLimit},
+    ]).filter(({resolution, saved}) => resolution || (inspecting && saved !== null))
+      .map(({label, resolution, saved}) => ({label, limit: inspecting ? saved : resolution?.limit ?? null}));
+
+    return <div className="capacity-roster-limits">
+      {limits.map(({label, limit}) => <CapacityRoleLine key={label} label={label} value={limit ?? 'Not set'} muted={limit === null}/>)}
+      {limits.length === 0 && <p className="capacity-roster-muted">No capacity roles</p>}
+    </div>;
+  };
+  const availability = (row: CapacityWorkspaceLecturer, inDetails = false) => {
     const current = row.availabilitySummary?.current ?? Number(row.supervisor?.state === 'TEMPORARILY_UNAVAILABLE' || row.panel?.state === 'TEMPORARILY_UNAVAILABLE');
     const scheduled = row.availabilitySummary?.scheduled ?? 0;
-    return current || scheduled ? <div className="space-y-1">{current > 0 && <StatusBadge tone="warning">Unavailable</StatusBadge>}{scheduled > 0 && <p className="text-slate-600">{scheduled} scheduled</p>}</div> : <span className="text-slate-700">No restriction</span>;
+    const label = current ? 'Restricted' : scheduled ? 'No restriction now' : 'No restriction';
+    return <div>
+      {current || inDetails ? <StatusBadge tone={current ? 'warning' : 'success'} dot>{label}</StatusBadge>
+        : <p className="capacity-roster-muted">{label}</p>}
+      {scheduled > 0 && <p className="capacity-roster-muted">{scheduled} scheduled</p>}
+    </div>;
   };
   const entryPublicationIssues = entry ? (['SUPERVISOR', 'PANEL'] as const).flatMap(role => {
     const value = role === 'SUPERVISOR' ? supervisorLimit : panelLimit;
@@ -234,7 +309,9 @@ function OfficeCapacityWorkspaceContent({ onBack, backLabel }: { onBack: () => v
           <p className="text-sm text-slate-700">Created by {selected.createdBy.name} · {stamp(selected.createdAt)}{selected.publicationReason ? ` · ${selected.publicationReason}` : ''}</p>
           {view === 'version' && selected.lifecycleStatus === 'DRAFT' && mutable && <PortalButton size="sm" onClick={() => changeView('editor')}>Continue editing this draft</PortalButton>}
         </div></OfficeToolSection>}
-      {(view === 'overview' || inspecting) && <OfficeToolSection className={editing ? 'capacity-editor' : ''} title={editing ? `Editing draft v${selected!.version}` : view === 'version' ? 'Version limits' : 'Lecturer workload'} icon={editing || view === 'version' ? SlidersHorizontal : Gauge} description={editing ? undefined : 'Includes active appointments across semesters.'} actions={editing ? <PortalButton size="sm" variant="primary" icon={Eye} disabled={!ready || saving} onClick={() => void openCompare()}>Compare versions</PortalButton> : view === 'overview' ? <PortalButton size="sm" onClick={() => {setAvailabilityLecturer(null);changeView('availability');}}>View availability</PortalButton> : undefined}>
+      {(view === 'overview' || inspecting) && <OfficeToolSection className={editing ? 'capacity-editor' : ''} title={editing ? `Editing draft v${selected!.version}` : view === 'version' ? 'Version limits' : 'Lecturer workload'} icon={editing || view === 'version' ? SlidersHorizontal : Gauge} description={semester.lifecycleStatus === 'DRAFT'
+        ? 'Next-semester limits use projected commitments. Expected RP2 releases stay occupied until rollover.'
+        : editing ? 'Limits use live appointments and reservations.' : 'Includes active appointments across semesters.'} actions={editing ? <PortalButton size="sm" variant="primary" icon={Eye} disabled={!ready || saving} onClick={() => void openCompare()}>Compare versions</PortalButton> : view === 'overview' ? <PortalButton size="sm" onClick={() => {setAvailabilityLecturer(null);changeView('availability');}}>View availability</PortalButton> : undefined}>
         <div className="p-4 sm:p-5"><WorkspaceFilterCard fieldsClassName={editing ? 'grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3' : 'grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[2fr_1fr]'} onReset={() => { setSearch(''); setRole('ALL'); setNeedsSetup(false); setPage(1); }}><label className="form-label">Find a lecturer<input type="search" className="form-control form-control-sm mt-1" placeholder="Name or staff number" value={search} onChange={event => setSearch(event.target.value)} /></label><label className="form-label">Role<PortalSelect id="capacity-roster-role" className="form-control form-control-sm mt-1" value={role} onChange={event => setRole(event.target.value as typeof role)}><option value="ALL">All roles</option><option value="SUPERVISOR">Supervisor</option><option value="PANEL">Panel</option></PortalSelect></label>{editing && <label className="form-label">Show<PortalSelect id="capacity-roster-show" className="form-control form-control-sm mt-1" value={needsSetup ? 'issues' : 'all'} onChange={event => setNeedsSetup(event.target.value === 'issues')}><option value="all">All lecturers</option><option value="issues">Lecturers needing attention</option></PortalSelect></label>}</WorkspaceFilterCard></div>
         {editing && <div className="capacity-roster-toolbar" role="group" aria-label="Lecturer selection">
           <div className="capacity-roster-selection">
@@ -247,13 +324,23 @@ function OfficeCapacityWorkspaceContent({ onBack, backLabel }: { onBack: () => v
           </div>
           <PortalButton size="sm" variant="primary" disabled={!ready || saving || !mutable || !eligibleMatching.length} onClick={() => setDrawer('bulk')}>Set limits in bulk</PortalButton>
         </div>}
-        <div className="capacity-table p-4 sm:p-5">{!visible.length ? <EmptyState title="No matching lecturers" description="Adjust the search or filters." /> : <CoordinatorDataTable label="Lecturer capacity roster" columns={['Lecturer', 'Active students', editing ? 'Proposed limits' : inspecting ? 'Version limits' : 'Published limits', 'Availability', 'Action']} rows={shown.map(row => ({
-key: row.lecturerId, cells: [
-            <div><div className="flex items-start gap-2">{editing && <input className="mt-1 shrink-0" type="checkbox" aria-label={`Select ${row.staffNo}`} disabled={saving || !canBulkConfigure(row)} checked={selectedLecturers.includes(row.lecturerId)} onChange={event => setSelectedLecturers(current => event.target.checked ? [...new Set([...current, row.lecturerId])] : current.filter(id => id !== row.lecturerId))} />}<p className="font-semibold text-brand-navy">{row.lecturerName}</p></div><p className="text-slate-600 mt-1">{row.staffNo}</p>{row.userEnabled === false && <p className="text-slate-600 mt-1">Account disabled</p>}{row.participantLifecycle !== 'ACTIVE' && <StatusBadge tone="neutral">{row.participantLifecycle}</StatusBadge>}{editing && capacityRowIssues(row, selected).map(message => <p className="capacity-row-issue" key={message}>{message}</p>)}</div>,
-            <div className="space-y-1"><strong className="text-base text-brand-navy tabular-nums">{display(row.activeStudentCount)}</strong><p>Supervisor: {display(row.primaryStudentCount == null || row.supportingStudentCount == null ? null : row.primaryStudentCount + row.supportingStudentCount)}</p><p>Panel: {display(row.panelStudentCount)}</p>{row.workloadIdentityIncomplete && <p className="text-amber-800">Student links need review</p>}{!!row.panel?.reservedLoad && <p className="text-slate-600">+ {row.panel.reservedLoad} pending Panel</p>}</div>, roleValues(row, inspecting), availability(row),
+        <div className="capacity-table p-4 sm:p-5">{!visible.length ? <EmptyState title="No matching lecturers" description="Adjust the search or filters." /> : <CoordinatorDataTable label="Lecturer capacity roster" columns={['Lecturer', 'Current workload', editing ? 'Draft limits' : inspecting ? 'Version limits' : 'Published limits', 'Availability', 'Action']} rows={shown.map(row => ({
+          key: row.lecturerId, cells: [
+            <div className="flex items-start gap-3">
+              {editing && <input className="mt-1 shrink-0" type="checkbox" aria-label={`Select ${row.staffNo}`} disabled={saving || !canBulkConfigure(row)} checked={selectedLecturers.includes(row.lecturerId)} onChange={event => setSelectedLecturers(current => event.target.checked ? [...new Set([...current, row.lecturerId])] : current.filter(id => id !== row.lecturerId))} />}
+              <div className="min-w-0">
+                <p className="capacity-roster-value">{row.lecturerName}</p>
+                {row.userEnabled === false && <p className="mt-1 text-xs text-slate-600">Account disabled</p>}
+                {row.participantLifecycle !== 'ACTIVE' && <StatusBadge tone="neutral">{row.participantLifecycle}</StatusBadge>}
+                {editing && capacityRowIssues(row, selected).filter(message => message !== 'Capacity limits not set.').map(message =>
+                  <p className="capacity-row-issue" key={message}>{message}</p>
+                )}
+              </div>
+            </div>,
+            <CapacityRosterWorkload row={row}/>, roleValues(row), availability(row),
             editing ? <PortalButton size="sm" disabled={!ready || !mutable || row.participantLifecycle !== 'ACTIVE' || row.canConfigure === false || saving} onClick={() => editEntry(row)}>Edit limits</PortalButton> : <PortalButton size="sm" onClick={() => { setEntry(row); setDrawer('details'); }}>View</PortalButton>,
           ]
-}))} />}<div className="mt-4">{footer(visible.length, Math.min(page, pages), setPage, 'lecturers')}</div></div>
+        }))} />}<div className="mt-4">{footer(visible.length, Math.min(page, pages), setPage, 'lecturers')}</div></div>
         {editing && selected && <footer className="capacity-publication-footer" aria-label="Publication readiness">
           {selected.readinessErrors.length > 0 ? <details className="capacity-readiness min-w-0">
             <summary>{selected.readinessErrors.length} {selected.readinessErrors.length === 1 ? 'issue prevents' : 'issues prevent'} publication</summary>
@@ -263,7 +350,7 @@ key: row.lecturerId, cells: [
           <PortalButton size="sm" variant="primary" icon={ShieldCheck} disabled={!ready || saving || !mutable || !selected.isComplete || selected.readinessErrors.length > 0} onClick={() => { setPublishSession(value => value + 1); setPublishReason(''); setPublishConfirmed(false); setDrawerError(null); setDrawer('publish'); }}>Review and publish</PortalButton>
         </footer>}
       </OfficeToolSection>}
-        {(view === 'history' || view === 'availability' || view === 'activity') && <CapacityCollectionPage key={`${semesterId}-${view}`} collection={view === 'history' ? 'capacity-plans' : view === 'availability' ? 'availability' : 'capacity-audits'} semesterId={semesterId!} revision={revision} initialStatus={view === 'history' && draftsOnly ? 'DRAFT' : undefined} initialVersion={view==='activity'?activityVersion:undefined} mutable={mutable} busy={!ready || saving} lecturer={availabilityLecturer} onClearLecturer={() => setAvailabilityLecturer(null)}
+        {(view === 'history' || view === 'availability' || view === 'activity') && <CapacityCollectionPage key={`${semesterId}-${view}`} collection={view === 'history' ? 'capacity-plans' : view === 'availability' ? 'availability' : 'capacity-audits'} semesterId={semesterId!} revision={revision} initialStatus={view === 'history' && draftsOnly ? 'DRAFT' : view === 'availability' && requestedView === 'availability' ? 'ALL' : undefined} initialSearch={view === 'availability' && requestedView === 'availability' ? search : undefined} initialVersion={view==='activity'?activityVersion:undefined} mutable={mutable} busy={!ready || saving} lecturer={availabilityLecturer} onClearLecturer={() => setAvailabilityLecturer(null)}
           onPlan={plan => openPlan(plan, plan.lifecycleStatus === 'DRAFT' && mutable ? 'editor' : 'version')} onDiscard={plan => {setDiscardReason('');setDiscardPlan(plan);}} onPrepare={openPreparation} onActivity={version => {setActivityVersion(version);changeView('activity');}} />}
 
     </>}
@@ -291,14 +378,74 @@ key: row.lecturerId, cells: [
       footer={requestClose => <><PortalButton disabled={saving} onClick={requestClose}>{drawer === 'entry' ? 'Cancel' : 'Close'}</PortalButton>{drawer === 'entry' && <PortalButton type="submit" form="capacity-entry-form" variant="primary" icon={Save} disabled={!ready || !editing || !mutable || entry.canConfigure === false || saving} isLoading={saving}>Save limits</PortalButton>}</>}>
       {drawerError && <AlertMessage type="error" title="Changes weren’t saved" message={drawerError}/>}
       {drawer === 'entry' ? <form id="capacity-entry-form" className="space-y-5" onSubmit={event => { event.preventDefault(); void saveEntry(); }}>
-        <p className="text-sm text-slate-600">Draft v{selected?.version}</p>
+        <p className="text-sm text-slate-600">{semester?.label} · Draft v{selected?.version}</p>
         {!editing && <AlertMessage type="warning" title="This version is now read-only" message="Your unsaved values are retained; review the latest version before continuing."/>}
         <fieldset disabled={saving || !editing || !mutable || entry.canConfigure === false} className="grid gap-5 sm:grid-cols-2">
-          {entry.supervisor && <label className="block capacity-field-label">Supervisor limit<input className="form-control form-control-md mt-2" type="number" autoFocus min="0" step="1" value={supervisorLimit} onChange={event => setSupervisorLimit(event.target.value)} /><span className="mt-2 block text-xs font-normal text-slate-600">Published: {entry.supervisor.limit ?? 'Not set'} · Minimum: {committedCapacityLoad(entry, 'SUPERVISOR')}</span></label>}
-          {entry.panel && <label className="block capacity-field-label">Panel limit<input className="form-control form-control-md mt-2" type="number" autoFocus={!entry.supervisor} min="0" step="1" value={panelLimit} onChange={event => setPanelLimit(event.target.value)} /><span className="mt-2 block text-xs font-normal text-slate-600">Published: {entry.panel.limit ?? 'Not set'} · Minimum: {committedCapacityLoad(entry, 'PANEL')}</span></label>}
+          {([
+            {role: 'SUPERVISOR', label: 'Supervisor limit', resolution: entry.supervisor, value: supervisorLimit, setValue: setSupervisorLimit},
+            {role: 'PANEL', label: 'Panel limit', resolution: entry.panel, value: panelLimit, setValue: setPanelLimit},
+          ] as const).map(({role, label, resolution, value, setValue}) => resolution && <div key={role}>
+            <label className="block capacity-field-label">{label}
+              <input className="form-control form-control-md mt-2" type="number" autoFocus={role === 'SUPERVISOR' || !entry.supervisor}
+                min="0" step="1" value={value} onChange={event => setValue(event.target.value)}/>
+            </label>
+            <p className="mt-2 text-xs font-semibold text-brand-navy">Minimum to publish: {committedCapacityLoad(entry, role)}</p>
+            <p className="mt-1 text-xs text-slate-600">Published: {resolution.limit ?? 'Not set'}</p>
+            <CapacityCommitmentDetails row={entry} role={role} editing/>
+          </div>)}
         </fieldset>
         {entryPublicationIssues.length > 0 && <AlertMessage type="warning" title="Draft cannot be published yet" message={entryPublicationIssues.join(' ')} />}
-      </form> : <div className="space-y-6 text-sm text-slate-700"><dl className="capacity-detail-counts"><div><dt>Total active students</dt><dd>{display(entry.activeStudentCount)}</dd></div><div><dt>Primary supervision</dt><dd>{display(entry.primaryStudentCount)}</dd></div><div><dt>Supporting supervision</dt><dd>{display(entry.supportingStudentCount)}</dd></div><div><dt>Active Panel students</dt><dd>{display(entry.panelStudentCount)}</dd></div><div><dt>Reserved Supervisor places</dt><dd>{entry.supervisor?.reservedLoad ?? 0}</dd></div><div><dt>Pending Panel recommendations</dt><dd>{entry.panel?.reservedLoad ?? 0}</dd></div></dl>{entry.workloadIdentityIncomplete && <p className="text-amber-800">Some active Panel records have no linked student. Unique student totals are unavailable until those records are linked.</p>}<section><h3 className="section-label mb-3">Published limits</h3><div className="grid gap-3 sm:grid-cols-2">{(['SUPERVISOR', 'PANEL'] as const).map(value => { const resolution = value === 'SUPERVISOR' ? entry.supervisor : entry.panel; return resolution ? <div className="rounded-xl border border-slate-200 bg-slate-50 p-3" key={value}><p className="font-semibold text-brand-navy">{value === 'SUPERVISOR' ? 'Supervisor' : 'Panel'}</p><p className="mt-1">Limit: <strong>{resolution.limit ?? 'Not set'}</strong></p><p className="mt-1">{capacityStateLabel(resolution.state)}</p><p>{resolution.availableSlots ?? 'Unavailable'} remaining places</p></div> : null; })}</div></section>{inspecting && <section><h3 className="section-label mb-3">Version {selected?.version} limits</h3>{roleValues(entry, true)}</section>}<section><h3 className="section-label mb-2">Availability</h3><p className="mb-3">Lecturers manage their own availability. Existing appointments remain active.</p>{availability(entry)}<button className="capacity-text-link mt-4 block" onClick={() => { const lecturer = {id:entry.lecturerId,name:entry.lecturerName}; close(); setAvailabilityLecturer(lecturer); changeView('availability'); }}>View availability</button></section></div>}
+      </form> : <div className="space-y-8">
+        <section>
+          <dl className="flex items-baseline justify-between gap-3 border-b border-slate-200 pb-2">
+            <dt className="font-semibold text-brand-navy">Total active students</dt>
+            <dd className="text-xl font-bold text-brand-navy tabular-nums">{display(entry.activeStudentCount)}</dd>
+          </dl>
+          <dl className="mt-5 grid grid-cols-3 gap-2 text-xs text-slate-600">
+            <div><dt>Primary supervision</dt><dd className="mt-1 text-sm font-semibold text-brand-navy tabular-nums">{display(entry.primaryStudentCount)}</dd></div>
+            <div><dt>Supporting supervision</dt><dd className="mt-1 text-sm font-semibold text-brand-navy tabular-nums">{display(entry.supportingStudentCount)}</dd></div>
+            <div><dt>Panel students</dt><dd className="mt-1 text-sm font-semibold text-brand-navy tabular-nums">{display(entry.panelStudentCount)}</dd></div>
+          </dl>
+          {entry.workloadIdentityIncomplete && <p className="mt-2 text-amber-800">Some active Panel records have no linked student. Unique student totals are unavailable until those records are linked.</p>}
+        </section>
+        {(entry.supervisor || entry.panel) && <section>
+          <h3 className="mb-4 font-semibold text-brand-navy">Published capacity</h3>
+          <div className="capacity-detail-limits">
+            {([['Supervisor', entry.supervisor], ['Panel', entry.panel]] as const).map(([label, resolution]) => {
+              if (!resolution) return null;
+            const {activeLoad, availableSlots, limit, reservedLoad, state, expectedRp2Releases} = resolution;
+              return <div key={label} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <h4 className="text-xs font-semibold text-slate-600">{label}</h4>
+                <p className="mt-1 font-semibold text-brand-navy">
+                  {state === 'AVAILABLE' ? `${availableSlots} ${availableSlots === 1 ? 'place' : 'places'} available` : capacityStateLabel(state)}
+                </p>
+                {limit !== null && <p className="mt-1 text-xs text-slate-600">Published limit: {limit}</p>}
+                {reservedLoad > 0 && !(activeLoad && expectedRp2Releases) && <p className="mt-3 border-t border-slate-200 pt-2 text-xs text-slate-700">
+                  <strong className="text-brand-navy">{reservedLoad} {reservedLoad === 1 ? 'place held' : 'places held'}</strong>
+                  <span className="mt-0.5 block">Awaiting coordinator review</span>
+                </p>}
+              </div>;
+            })}
+          </div>
+        </section>}
+        <CapacityCommitmentDetails row={entry} role="SUPERVISOR"/>
+        <CapacityCommitmentDetails row={entry} role="PANEL"/>
+        {inspecting && <section>
+          <h3 className="mb-2 font-semibold text-brand-navy">Version {selected?.version} limits</h3>
+          {roleValues(entry)}
+        </section>}
+        <section className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-slate-200 pt-5">
+          <div>
+            <h3 className="mb-1 font-semibold text-brand-navy">Availability</h3>
+            {availability(entry, true)}
+          </div>
+          <button type="button" className="capacity-text-link" onClick={() => {
+            setAvailabilityLecturer({id: entry.lecturerId, name: entry.lecturerName});
+            close();
+            changeView('availability');
+          }}>View availability</button>
+        </section>
+      </div>}
     </CapacityLecturerDialog>}
     <DecisionDialog isOpen={discardPlan !== null} decisionKey={discardPlan?.id} title="Discard capacity draft?" kind="confirmation" tone="danger" context={discardPlan ? `${discardPlan.semesterLabel} · Version ${discardPlan.version}` : undefined} message="This removes the draft from active work. Its limits and audit history are retained, but the draft cannot be edited or published. Published limits stay unchanged." confirmLabel="Discard draft" successMessage={`Draft v${discardPlan?.version} discarded.`} busy={saving} dirty={!!discardReason.trim()} canConfirm={ready && mutable && !!discardReason.trim()} onClose={() => { setDiscardPlan(null); setDiscardReason(''); }} onReload={async () => { if (semesterId === null || !await load(semesterId)) throw new Error('Could not reload capacity versions. Try again.'); }} onConfirm={async () => {
       if (!ready || !mutable || !discardPlan || !discardReason.trim() || writing.current) return false;

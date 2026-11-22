@@ -247,6 +247,11 @@ try {
     check(audits.results.length === 1 && audits.results[0].reason === 'A05 verified browser repair', 'Exact real repair audit records the Office reason once');
     const repaired = await request<WorkflowReport>(`/dashboard/reports/?semester=${config.semesterCode}`);
     check(repaired.supervisor?.records.some(row => String(row.recordId) === String(config.legacyId)), 'Repair immediately reconciles the source-semester report');
+    await click('Back to Workflow Reconciliation');
+    await until(() => button('Recheck records') && !button('Recheck records')!.disabled);
+    await click('Recheck records');
+    await until(() => button('Recheck records') && !button('Recheck records')!.disabled);
+    check(!text().includes('Academic semester is unassigned'), 'Recheck removes the repaired semester finding from the Office list');
     geometry();
     await mount('office', <TimelineManagement onBack={() => {}} onManageSemesters={() => {}} />);
     await until(() => button('Entries'));

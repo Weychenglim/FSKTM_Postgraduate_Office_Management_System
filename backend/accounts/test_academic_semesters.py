@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase, TransactionTestCase
+from django.db import IntegrityError, transaction
 from django.urls import reverse
 from rest_framework.test import APIClient
 
@@ -156,6 +157,35 @@ class AcademicSemesterApiTests(TestCase):
             role=User.Role.STUDENT,
         )
         self.client.force_authenticate(self.office)
+
+    def test_archived_identity_can_be_reused_without_changing_archived_record(self):
+        archived = AcademicSemester.objects.create(code='2026-2027-S2', academic_session='2026/2027', term='SEMESTER_II', starts_on=date(2027, 8, 1), ends_on=date(2028, 1, 1), lifecycle_status='ARCHIVED', created_by=self.office)
+        audit = AcademicSemesterAudit.objects.create(semester=archived, actor=self.office, action='ARCHIVE')
+        response = self.client.post('/api/academics/semesters/', {'academicSession': '2026/2027', 'term': 'SEMESTER_II', 'startsOn': '2027-02-01', 'endsOn': '2027-07-01'}, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertNotEqual(response.data['id'], archived.pk)
+        archived.refresh_from_db()
+        self.assertEqual(archived.lifecycle_status, 'ARCHIVED')
+        self.assertEqual(archived.code, '2026-2027-S2')
+        audit.refresh_from_db()
+        self.assertEqual(audit.semester_id, archived.pk)
+
+    def test_database_rejects_two_non_archived_records_for_one_term(self):
+        values = dict(code='2026-2027-S2', academic_session='2026/2027', term='SEMESTER_II', starts_on=date(2027, 8, 1), ends_on=date(2028, 1, 1), created_by=self.office)
+        AcademicSemester.objects.create(**values)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            AcademicSemester.objects.create(**values)
+
+    def test_duplicate_and_overlap_are_both_field_errors(self):
+        AcademicSemester.objects.create(code='2026-2027-S2', academic_session='2026/2027', term='SEMESTER_II', starts_on=date(2027, 8, 1), ends_on=date(2028, 1, 1), created_by=self.office)
+        AcademicSemester.objects.create(code='2026-2027-S1', academic_session='2026/2027', term='SEMESTER_I', starts_on=date(2026, 10, 30), ends_on=date(2027, 6, 1), lifecycle_status='ACTIVE', created_by=self.office)
+        response = self.client.post('/api/academics/semesters/', {'academicSession': '2026/2027', 'term': 'SEMESTER_II', 'startsOn': '2027-02-01', 'endsOn': '2027-07-01'}, format='json')
+        self.assertEqual(response.status_code, 409)
+        self.assertIn('Semester II', str(response.data['term']))
+        self.assertIn('Semester I 2026/2027', str(response.data['starts_on']))
+        self.assertIn('1 Jun 2027', str(response.data['starts_on']))
+        self.assertNotIn('__all__', response.data)
+        self.assertNotIn('code', response.data)
 
     def test_office_creates_draft_and_all_roles_read_active_context(self):
         today = date.today()

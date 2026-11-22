@@ -20,6 +20,7 @@ export interface OperationalAvailability {
   opensAt: string | null; closesAt: string | null; effectiveDueAt: string | null; message: string;
 }
 export interface OperationalException {
+  matricNo?:string; programme?:string;
   id: number; studentId: number; studentName?: string; participantId: number; participantName?: string;
   deadline: string; reason: string; status: string; createdAt: string;
   grantedBy?: {id:number;name:string}; revokedAt?: string | null; revocationReason?: string; canRevoke?: boolean;

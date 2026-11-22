@@ -74,7 +74,7 @@ assert.ok(!placeholdersFor().some((p) => p.tag === '{{RESEARCH_TITLE}}'));
 
 // the server's hint wording is the same
 const views = readFileSync(resolve('../backend/letters/placeholders.py'), 'utf8');
-assert.match(views, /kinds = "appointment letters" if purposes == _APPOINTMENTS else " and "\.join\(PURPOSE_LABELS\[purpose\] for purpose in purposes\)\n\s+return f"\{tag\} works only in \{kinds\}\."/);
+assert.match(views, /kinds = "appointment letters" if purposes == _APPOINTMENTS else " and "\.join\(PURPOSE_LABELS\[purpose\] for purpose in purposes\)\r?\n\s+return f"\{tag\} works only in \{kinds\}\."/);
 
 // each letter closes with its own signatory, and appointment letters with the office wording
 assert.deepEqual(letterClosing({ purpose: 'REQUEST' }), {

@@ -76,11 +76,20 @@ export async function getActiveTimeline(semesterId?: number): Promise<ActiveSeme
   return request<ActiveSemesterTimeline>(`/dashboard/timeline/active/${query}`);
 }
 
-export async function previewTimelineFile(file: File, semesterId: number, mode: 'ADD' | 'REPLACE' = 'ADD'): Promise<TimelineUploadPreview> {
+export async function previewTimelineFile(
+  file: File,
+  semesterId: number,
+  mode: 'ADD' | 'REPLACE' = 'ADD',
+  linkReview?: { token: string; choices: Record<number, string> },
+): Promise<TimelineUploadPreview> {
   const body = new FormData();
   body.append('semesterId', String(semesterId));
   body.append('file', file);
   body.append('mode', mode);
+  if (linkReview) {
+    body.append('linkReviewToken', linkReview.token);
+    body.append('linkChoices', JSON.stringify(linkReview.choices));
+  }
   return request<TimelineUploadPreview>('/dashboard/timeline/upload/preview/', { method: 'POST', body });
 }
 

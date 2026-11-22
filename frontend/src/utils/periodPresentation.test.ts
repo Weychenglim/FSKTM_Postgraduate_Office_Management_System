@@ -11,7 +11,7 @@ test('restriction review reports actual published coverage without treating draf
 test('overview distinguishes no setup, drafts and published window states',()=>{
  assert.equal(helpers.windowScheduleLabel([]),'Not configured');
  assert.equal(helpers.windowScheduleLabel([period({lifecycleStatus:'DRAFT',effectiveStatus:'DRAFT'})]),'Draft only');
- assert.equal(helpers.windowScheduleLabel([period()]),'Ended');
+ assert.equal(helpers.windowScheduleLabel([period()]),'Deadline passed');
  assert.equal(helpers.windowScheduleLabel([period({effectiveStatus:'OPEN'}),period({id:2,effectiveStatus:'UPCOMING'})]),'Open · Upcoming');
 });
 test('Marks links retain exact semester and optional record and reject malformed scope',()=>{

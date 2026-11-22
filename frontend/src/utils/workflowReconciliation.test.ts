@@ -45,7 +45,7 @@ const workspace = readFileSync(
 assert.match(app, /WorkflowReconciliationCentre/);
 assert.match(app, /currentUser\.role !== 'Office Staff\/Admin'/);
 assert.match(workspace, /repairability === 'REPAIRABLE'/);
-assert.match(workspace, /Review required/);
+assert.match(workspace, /Refer for review/);
 assert.match(workspace, /expectedFingerprint/);
 assert.match(workspace, /I confirm this individual repair/);
 

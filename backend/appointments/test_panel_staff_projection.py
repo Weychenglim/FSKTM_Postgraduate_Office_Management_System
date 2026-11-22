@@ -1,4 +1,5 @@
 from django.test import override_settings
+from accounts.models import ProjectRegistration, StudentSemester
 from rest_framework.test import APITestCase
 from . import test_coordinator_delegation as fixture
 
@@ -30,6 +31,31 @@ class PanelStaffProjectionTests(APITestCase):
         self.assertEqual(shared['panelMemberEmail'],self.panel.email)
         self.assertEqual(shared['appointmentLifecycle']['appointmentId'],appointment.pk)
         self.assertEqual(assignment['appointmentLifecycle']['appointmentId'],appointment.pk)
+
+    def test_current_panel_stage_is_projected_for_authorised_roles_only(self):
+        appointment = self._panel_appointment()
+        StudentSemester.objects.get_or_create(student=self.student,
+            session=self.semester.academic_session, term=self.semester.term)
+        ProjectRegistration.objects.update_or_create(student=self.student, academic_semester=self.semester,
+            defaults={"stage": "P2"})
+
+        office_url = '/api/appointments/panel/'
+        lecturer_url = '/api/appointments/panel/assignments/'
+        coordinator_url = '/api/appointments/panel/coordinator-workspace/'
+        for actor, url in ((self.office, office_url), (self.panel, lecturer_url),
+                           (self.coordinator, coordinator_url)):
+            self.client.force_authenticate(actor)
+            data = self.client.get(url).data
+            rows = data['records'] if url == coordinator_url else data
+            row = next(row for row in rows if (row.get('appointmentLifecycle') or {}).get('appointmentId') == appointment.pk)
+            self.assertEqual((row['projectStage'], row['projectSemester']), ('P2', self.semester.label))
+
+        self.client.force_authenticate(self.other_coordinator)
+        self.assertEqual(self.client.get(coordinator_url).data['records'], [])
+        appointment.status = 'ENDED'
+        appointment.save(update_fields=['status'])
+        self.client.force_authenticate(self.panel)
+        self.assertNotIn('projectStage', self.client.get(lecturer_url).data[0])
 
     def test_exact_authorised_read_matches_office_and_rejects_unrelated_staff(self):
         appointment=self._panel_appointment()

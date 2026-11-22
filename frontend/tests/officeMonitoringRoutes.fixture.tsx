@@ -19,13 +19,13 @@ const until = async (condition: () => unknown) => { for (let i = 0; i < 250; i++
 let root: Root | undefined;
 let supervisorQueries: URLSearchParams[] = [];
 const mark = (id: string, status: string, role = 'SUPERVISOR', lifecycle = 'ACTIVE') => ({ id, studentId: id, studentName: id, studentInitials: 'ST', researchTitle: 'Research', panelMember: 'Evaluator', semester: '2026-S1', programme: 'Computing', totalMark: null, submittedDate: '-', status, evaluatorRole: role, taskLifecycleStatus: lifecycle });
-const marks = [mark('Draft student', 'Draft'), mark('Not started student', 'Not Started'), mark('Submitted student', 'Submitted'), mark('Backup submitted student', 'Submitted', 'BACKUP'), mark('Backup draft student', 'Draft', 'BACKUP'), mark('Paused student', 'Draft', 'BACKUP', 'PAUSED')];
+const marks = [mark('Draft student', 'Draft'), mark('Not started student', 'Not Started'), mark('Submitted student', 'Submitted'), mark('Panel submitted student', 'Submitted', 'PANEL'), mark('Panel draft student', 'Draft', 'PANEL'), mark('Paused student', 'Draft', 'PANEL', 'PAUSED')];
 const panels = ['Pending', 'Recommendation', 'Approved'].map((status, i) => ({ recordId: String(i), id: `ST${i}`, studentName: `Panel ${status} student`, programme: 'Computing', semester: '2026-S1', supervisor: 'Supervisor', panelMember: 'Panel lecturer', status, updatedDate: '-', recommendationId: i + 1 }));
 const workloads = ['AVAILABLE', 'FULL', 'OVER_CAPACITY', 'NOT_CONFIGURED'].map((capacityState, i) => ({ id: `L${i}`, name: `Lecturer ${capacityState}`, department: 'Computing', initials: 'LE', currentStudents: 2, workloadLimit: 3, confirmedAppointments: 1, pendingNominations: 1, availability: 'Available', semesterCode: '2026-S1', capacityPlanVersion: 1, capacityState, workloadItems: [] }));
 const response = (data: unknown) => new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } });
 window.fetch = async input => {
   const url = new URL(String(input), location.origin), path = url.pathname;
-  if (path.endsWith('/dashboard/summary/')) return response({ pendingSupervisorRequests: 2, pendingPanelApprovals: 1, incompleteMarkEntries: 3, backupMarkTasks: 2 });
+  if (path.endsWith('/dashboard/summary/')) return response({ pendingSupervisorRequests: 2, pendingPanelApprovals: 1, incompleteMarkEntries: 3 });
   if (path.endsWith('/dashboard/attention/')) return response({ summary: [], results: [] });
   if (path.endsWith('/academics/semesters/active/')) return response(null);
   if (path.endsWith('/timeline/active/')) return response({ available: false });
@@ -62,9 +62,9 @@ const mount = async () => {
   ]);
   root = createRoot(document.getElementById('root')!);
   root.render(<MemoryRouter initialEntries={['/dashboard']}><ListState.Provider value={memory}><Harness /></ListState.Provider></MemoryRouter>);
-  await until(() => document.querySelectorAll('.home-monitoring-item').length === 5);
+  await until(() => document.querySelectorAll('.home-monitoring-item').length === 4);
 };
-const names: Record<OfficeMonitoringView, string> = { 'supervisor-pending': 'Pending Supervisor requests', 'panel-pending': 'Pending Panel approvals', incomplete: 'Incomplete evaluations', backup: 'Backup evaluator assignments', 'panel-capacity': 'Lecturers at or over' };
+const names: Record<OfficeMonitoringView, string> = { 'supervisor-pending': 'Pending Supervisor requests', 'panel-pending': 'Pending Panel approvals', incomplete: 'Incomplete evaluations', 'panel-capacity': 'Lecturers at or over' };
 for (const view of Object.keys(names) as OfficeMonitoringView[]) {
   try {
     await mount();
@@ -86,10 +86,10 @@ for (const view of Object.keys(names) as OfficeMonitoringView[]) {
       check(table.includes('Lecturer FULL') && !table.includes('Lecturer AVAILABLE') && !table.includes('Lecturer NOT_CONFIGURED'), 'Workload scope incorrect');
       check(document.body.textContent?.includes('Back to Dashboard'), 'Dashboard workload return context lost');
     } else {
-      await until(() => document.querySelector('tbody')?.textContent?.includes('Backup draft student'));
+      await until(() => document.querySelector('tbody')?.textContent?.includes('Panel draft student'));
       const table = document.querySelector('tbody')!.textContent!;
       check(!table.includes('Paused student'), 'Inactive tasks included');
-      check(view === 'backup' ? table.includes('Backup submitted student') && !table.includes('Draft student') : table.includes('Draft student') && !table.includes('Backup submitted student'), 'Marks scope or initial status tab incorrect');
+      check(table.includes('Draft student') && !table.includes('Panel submitted student'), 'Marks scope or initial status tab incorrect');
     }
     [...document.querySelectorAll<HTMLButtonElement>('button')].find(node => node.textContent?.trim() === 'Clear monitoring view')!.click();
     await until(() => !document.querySelector('#current-route')?.textContent?.includes('monitor='));

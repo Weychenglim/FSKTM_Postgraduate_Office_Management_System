@@ -17,13 +17,18 @@ const period = (id: number, role: 'PANEL'|'SUPERVISOR' = 'SUPERVISOR', status = 
   id, name: `${role === 'PANEL' ? 'Panel' : 'Supervisor'} assessment ${id}`, semester, semesterId: 1,
   rubricId: id, rubricName: `Rubric ${id}`, evaluatorRoles: [role], lifecycleStatus: status === 'DRAFT' ? 'DRAFT' : status === 'ARCHIVED' ? 'ARCHIVED' : status === 'CLOSED' ? 'CLOSED' : 'PUBLISHED',
   effectiveStatus: status, opensAt: '2026-11-01T09:00:00+08:00', closesAt: '2026-11-20T17:00:00+08:00',
-  taskTotals: {total: 10, submitted: 4, overdue: 2, incomplete: 6, supervisor: role === 'SUPERVISOR' ? 10 : 0, panel: role === 'PANEL' ? 10 : 0, backup: 0},
+  taskTotals: {total: 10, submitted: 4, overdue: 2, incomplete: 6, supervisor: role === 'SUPERVISOR' ? 10 : 0, panel: role === 'PANEL' ? 10 : 0},
 }) as EvaluationPeriodOption;
 let periods = [period(1), period(2, 'PANEL')];
+let olderPeriods: EvaluationPeriodOption[] = [];
 const record = (id: number, periodId: number) => ({ id: `MRK-${id}`, periodId, periodName: `Assessment ${periodId}`, periodLifecycleStatus: 'PUBLISHED', studentId: `S${id}`, studentName: `Student ${id}`, studentInitials: 'S', researchTitle: 'Research', panelMember: 'Lecturer', evaluatorRole: 'SUPERVISOR', semester: 'Semester I', programme: 'Computing', status: 'Not Started', totalMark: null, submittedDate: '-', taskLifecycleStatus: 'ACTIVE' }) as MarkRecord;
 window.fetch = async url => {
-  const path = new URL(String(url), location.origin).pathname;
-  const data = path.endsWith('/semesters/') ? [{id:1,label:'Semester I',startsOn:'2026-10-30',endsOn:'2027-06-01'}] : path.endsWith('/periods/') ? periods : path.endsWith('/rubrics/') ? [] : path.endsWith('/marks/') ? [record(1,1), record(2,2)] : {};
+  const { pathname: path, searchParams } = new URL(String(url), location.origin);
+  const semesters = [
+    {id:1,label:'Semester I',startsOn:'2026-10-30',endsOn:'2027-06-01',isActive:true},
+    {id:2,label:'Semester II',startsOn:'2026-04-01',endsOn:'2026-09-30',isActive:false},
+  ];
+  const data = path.endsWith('/semesters/') ? semesters : path.endsWith('/periods/') ? searchParams.get('semester') === 'Semester II' ? olderPeriods : periods : path.endsWith('/rubrics/') ? [] : path.endsWith('/marks/') ? [record(1,1), record(2,2)] : {};
   return new Response(JSON.stringify(data), {status: 200, headers: {'Content-Type':'application/json'}});
 };
 let root: Root | null = null;
@@ -55,11 +60,30 @@ await scenario('semester totals include simultaneous roles and exclude draft arc
 await scenario('period monitoring paginates and closed periods are accessible', async () => {
   periods = [...Array.from({length:25}, (_,i) => period(i+1,i%2?'PANEL':'SUPERVISOR')), period(30,'PANEL','CLOSED')];
   await mount(<MarkSubmissionMonitoring periods={periods}/>);
+  check(button('Open & scheduled (25)')?.getAttribute('aria-selected') === 'true', 'Current periods not selected');
   check(document.querySelectorAll('tbody tr').length === 10, 'Unbounded rows');
   button('Next')!.click(); await wait(); check(document.body.innerText.includes('Page 2 of 3'), 'Pagination failed');
-  const select = document.querySelector('select')!;
-  select.value='CLOSED'; select.dispatchEvent(new Event('change',{bubbles:true})); await wait();
+  button('Closed (1)')!.click(); await wait();
   check(document.querySelectorAll('tbody tr').length === 1 && document.body.innerText.includes('assessment 30'), 'Closed filter failed');
+  periods = [period(30,'PANEL','CLOSED')]; await mount(<MarkSubmissionMonitoring periods={periods}/>);
+  check(button('Closed (1)')?.getAttribute('aria-selected') === 'true', 'Closed periods not selected by default');
+  check(document.body.innerText.includes('assessment 30'), 'Closed records not shown by default');
+  button('Open & scheduled (0)')!.click(); await wait();
+  check(document.body.innerText.includes('No open or scheduled periods.'), 'Missing current empty state');
+});
+await scenario('an older semester loads periods absent from the overview list', async () => {
+  periods = [period(1)];
+  olderPeriods = [{...period(40, 'PANEL', 'CLOSED', 'Semester II'), assessment: 'P2'}];
+  await mount();
+  await until(() => document.querySelector('#monitoring-card tbody tr'));
+  const picker = document.querySelector<HTMLSelectElement>('select')!;
+  check(picker.value === 'Semester I', 'Active semester did not default');
+  picker.value = 'Semester II';
+  picker.dispatchEvent(new Event('change', {bubbles: true}));
+  await until(() => document.querySelector('[aria-label="View records for Panel assessment 40"]'));
+  const row = document.querySelector('#monitoring-card tbody tr')!;
+  check(row.children[1].textContent === 'RP2' && !row.children[0].textContent?.includes('RP2'), 'Assessment is not a separate column');
+  check(row.textContent?.includes('6 unsubmitted') && !row.textContent?.includes('Overdue'), 'Closed period status is misleading');
 });
 await scenario('period link filters records and survives detail return', async () => {
   periods=[period(1),period(2,'PANEL')]; await mount();
@@ -74,7 +98,19 @@ await scenario('period link filters records and survives detail return', async (
   await until(() => document.querySelector('#mark-entry-records-dashboard tbody tr'));
   check(router.state.location.search.includes('period=2') && !document.body.innerText.includes('Student 1'), 'Return lost scope');
 });
+await scenario('an empty period says No tasks and opens its records', async () => {
+  const empty = period(30, 'PANEL', 'CLOSED');
+  periods = [{...empty, taskTotals: {...empty.taskTotals, total: 0, submitted: 0, overdue: 0, incomplete: 0, panel: 0}}];
+  await mount();
+  await until(() => button('View records'));
+  const link = button('View records')!;
+  check(document.querySelector('#monitoring-card tbody')?.textContent?.includes('No tasks'), 'Empty period label does not explain the missing count');
+  link.click();
+  await until(() => document.body.textContent?.includes('No mark records yet'));
+  check(new URLSearchParams(router.state.location.search).get('period') === '30', 'Empty period did not open its own records');
+});
 await scenario('overdue metric routes status and semester and clear removes scope', async () => {
+  periods = [period(1), period(2, 'PANEL')];
   await mount(); await until(() => document.querySelector('[aria-label="Overdue: 4"]'));
   (document.querySelector('[aria-label="Overdue: 4"]') as HTMLButtonElement).click();
   await until(() => document.querySelector('#mark-entry-records-dashboard'));

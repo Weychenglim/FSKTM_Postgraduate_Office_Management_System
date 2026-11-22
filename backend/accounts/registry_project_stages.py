@@ -184,11 +184,16 @@ def project_stage_change_view(request):
     return Response(result)
 
 
-def _question(student):
-    question = question_for(student)
+def _student_project(student):
+    semester = current_semester()
+    if semester is None or student.status not in (Student.Status.ACTIVE, Student.Status.DEFERRED):
+        return {"question": None, "projectStatus": None}
+    answer = project_stages(semester, [student.pk])[student.pk]
+    project_status = {"semesterId": semester.pk, "state": answer.state, "stage": answer.stage}
+    question = question_for(student, semester, answer=answer)
     if question is None:
-        return {"question": None}
-    return {"question": {
+        return {"question": None, "projectStatus": project_status}
+    return {"projectStatus": project_status, "question": {
         "semester": question["semester"].label,
         "code": question["code"],
         "name": question["name"],
@@ -205,21 +210,21 @@ class AnswerSerializer(serializers.Serializer):
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def my_project_stage_view(request):
-    """The student's own Research Project question for this semester."""
+    """The student's own Research Project status and declaration for this semester."""
     if getattr(request.user, "role", None) != User.Role.STUDENT:
         raise PermissionDenied("Only students answer this.")
     student = Student.objects.filter(pk=request.user.pk).first()
     if student is None:
-        return Response({"question": None})
+        return Response({"question": None, "projectStatus": None})
     if request.method == "GET":
-        return Response(_question(student))
+        return Response(_student_project(student))
     serializer = AnswerSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     try:
         answer_question(student, serializer.validated_data["answer"], request.user)
     except StageConflict as exc:
         return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
-    return Response(_question(Student.objects.get(pk=student.pk)))
+    return Response(_student_project(Student.objects.get(pk=student.pk)))
 
 
 class CorrectionSerializer(serializers.Serializer):
@@ -241,7 +246,7 @@ def my_project_stage_correction_view(request):
         request_correction(student, serializer.validated_data["note"], request.user)
     except StageConflict as exc:
         return Response({"error": str(exc)}, status=status.HTTP_409_CONFLICT)
-    return Response(_question(Student.objects.get(pk=student.pk)))
+    return Response(_student_project(Student.objects.get(pk=student.pk)))
 
 
 class KeepSerializer(serializers.Serializer):

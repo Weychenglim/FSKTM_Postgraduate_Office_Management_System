@@ -219,9 +219,14 @@ def activate_semester(semester, *, actor, reason, preview_token=None, acknowledg
         before,
     )
     from accounts.semester_rules import move_everyone_on
+    from appointments.rp_rollover import release_completed_rp2_appointments
 
     # Runs after the commit so a failed move leaves the semester active. Registry still offers it.
-    transaction.on_commit(lambda: move_everyone_on(semester, actor), robust=True)
+    def advance_registry_and_release_appointments():
+        move_everyone_on(semester, actor)
+        release_completed_rp2_appointments(semester, actor=actor)
+
+    transaction.on_commit(advance_registry_and_release_appointments, robust=True)
     return semester
 
 

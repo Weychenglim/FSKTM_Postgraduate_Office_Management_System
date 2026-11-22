@@ -18,7 +18,9 @@ assert.equal(monitoringTaskStatus(period(3, 3), undefined).label, 'Checking task
 assert.equal(monitoringTaskStatus(period(3, 3), 1).label, 'Tasks needed');
 assert.equal(monitoringTaskStatus(period(3, 1, 1), 2).label, 'Overdue');
 assert.equal(monitoringTaskStatus(period(0, 0, 0, 'CLOSED'), 2).canGenerate, false);
-assert.equal(monitoringTaskStatus(period(3, 3, 0, 'CLOSED'), 0).label, 'Complete');
+assert.equal(monitoringTaskStatus(period(3, 3, 0, 'CLOSED'), 0).label, 'All submitted');
+assert.equal(monitoringTaskStatus(period(3, 1, 2, 'CLOSED'), 0).label, '2 unsubmitted');
+assert.equal(monitoringTaskStatus(period(0, 0, 0, 'CLOSED'), 0).label, 'No tasks');
 const empty = renderToStaticMarkup(React.createElement(MarkSubmissionMonitoring, {periods: [{
   ...period(0), id: 1, name: 'Panel period', evaluatorRoles: ['PANEL'], opensAt: null, closesAt: null,
 } as EvaluationPeriodOption]}));

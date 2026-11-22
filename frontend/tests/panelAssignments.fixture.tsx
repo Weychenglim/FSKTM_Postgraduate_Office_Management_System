@@ -340,7 +340,7 @@ await scenario('supervisees: dedicated nomination records retain history, filter
   button('Nomination records').click();await until(()=>!!table('Your nominations'));
   check(document.documentElement.scrollWidth<=innerWidth,'Workspace exceeds viewport');
 });
-await scenario('student Panel details: distinct page, contact fields, nomination action and compact exact history',async()=>{
+await scenario('student Panel details keep contact fields and the nomination action on a distinct page',async()=>{
   root.unmount();router?.dispose();root=createRoot(document.getElementById('root')!);
   router=createMemoryRouter([{path:'*',element:<ListState.Provider value={new Map()}><RecordPageProvider><Host role="office"/></RecordPageProvider></ListState.Provider>}],{initialEntries:['/personal-panel?panelSection=supervisees']});
   root.render(<RouterProvider router={router}/>);
@@ -351,32 +351,17 @@ await scenario('student Panel details: distinct page, contact fields, nomination
   const page=visible('[data-record-page]')[0];
   check(page.textContent?.includes('Computing')&&page.textContent?.includes('panel@example.test')&&page.textContent?.includes('02 Oct 2026'),'Current contact details missing');
   check(!page.textContent?.includes('Staff number')&&!visible('[data-workspace-filter-card]').length,'Detail page retains staff IDs or request filters');
-  const action=button('Request replacement');check(action.getBoundingClientRect().height>=44,'Main nomination action too small');
+  const action=button('Request replacement');const actionStyle=getComputedStyle(action);
+  check(actionStyle.fontSize==='11px' && actionStyle.textTransform==='uppercase' && action.getBoundingClientRect().height>=36,'Nomination action differs from the standard button');
   const sidebar=visible('aside[aria-label="Panel nomination"]')[0];
   if(innerWidth<1280)check(sidebar.getBoundingClientRect().top<visible('[data-research-details]')[0].getBoundingClientRect().top,'Nomination action buried below research on mobile');
   action.click();await until(()=>!!button('Back to student Panel details'));
   check(visible('[data-record-page]').length===1,'Nomination form competes with student detail');
   button('Back to student Panel details').click();await until(()=>visible('[data-record-page] h1')[0]?.textContent==='Student Panel details');
-  const history=visible<HTMLDetailsElement>('details').find(node=>node.querySelector('summary')?.textContent?.includes('Nomination history'))!;
-  check(!!history&&!history.open,'Nomination history should start collapsed');
-  const historySection=history.closest('[data-panel-nomination-history]')!,columns=historySection.closest('section[aria-label="Student Panel details"]')!.querySelector('[data-panel-supervisee-columns]')!;
-  check(!!historySection&&!history.closest('aside'),'History is still inside the nomination sidebar');
-  check(!sidebar.textContent?.includes('View request'),'History action remained in current nomination controls');
-  const columnsBox=columns.getBoundingClientRect(),historyBox=historySection.getBoundingClientRect();
-  check(historyBox.top>=columnsBox.bottom+27&&Math.abs(historyBox.width-columnsBox.width)<2,'History does not span the workspace below its columns');
-  history.querySelector('summary')!.click();await until(()=>!!button('View request'));
-  const historyTable=history.querySelector('table[aria-label="Completed Panel nominations"]')!;check(!!historyTable,'History rows missing');
-  const historyRow=historyTable.querySelector('tbody tr')!,historyButton=historyRow.querySelector('button')!;
-  check(historyButton.getBoundingClientRect().height>=44,'History action is too small');
-  if(innerWidth>=1024)check(getComputedStyle(historyButton.parentElement!).justifyContent==='flex-end','History action is not aligned at the end of its row');
-  else check(historyButton.closest('td')!.getBoundingClientRect().top>=historyRow.querySelector('td')!.getBoundingClientRect().bottom,'Phone action is not below its request information');
-  button('View request').click();await until(()=>!!button('Back to student Panel details'));
-  check(visible('[data-record-page]').length===1,'History record competes with student details');
-  button('Back to student Panel details').click();await until(()=>visible('[data-record-page] h1')[0]?.textContent==='Student Panel details');
+  check(!visible('[data-panel-nomination-history]').length,'Nomination history belongs in the separate records view');
   button('Back to My supervisees').click();await until(()=>!!table('Supervisees and their Panel members'));
   check(search().value==='Aisha','Detail return lost roster filter');
   button('View student').click();await until(()=>visible('[data-record-page] h1')[0]?.textContent==='Student Panel details');
-  const returnedHistory=visible<HTMLDetailsElement>('[data-panel-nomination-history] details')[0];returnedHistory.querySelector('summary')!.click();await until(()=>returnedHistory.open);returnedHistory.closest('[data-panel-nomination-history]')!.scrollIntoView({block:'end'});
   check(document.documentElement.scrollWidth<=innerWidth,'Student details overflow viewport');
 });
 parent.postMessage({type:'panel-assignment-results',width:innerWidth,results},location.origin);

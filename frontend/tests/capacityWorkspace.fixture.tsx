@@ -33,7 +33,7 @@ const input=(node:HTMLInputElement,value:string)=>{Object.getOwnPropertyDescript
 const scenario=async(name:string,work:()=>Promise<void>)=>{try{await work();results.push({name});}catch(error){results.push({name,error:String(error)});}};
 const semester={id:9,label:'Semester I 2026/2027',code:'2026-S1',startsOn:'2026-09-01',endsOn:'2027-02-28',lifecycleStatus:'ACTIVE',isActive:true};
 const archivedSemester={...semester,id:77,label:'Archived semester',code:'2028-S1',startsOn:'2028-09-01',endsOn:'2029-02-28',lifecycleStatus:'ARCHIVED',isActive:false};
-let archiveCurrentSemester=false;
+let archiveCurrentSemester=false, upcomingSemester=false;
 const role={semesterId:9,planId:1,planVersion:1,limit:5,activeLoad:2,reservedLoad:0,availableSlots:3,state:'AVAILABLE',unavailableUntil:null};
 const roster=Array.from({length:27},(_,index)=>({id:index+1,lecturerId:index+1,staffNo:`STAFF-${String(index+1).padStart(2,'0')}`,lecturerName:`Synthetic Lecturer ${String(index+1).padStart(2,'0')}`,participantLifecycle:'ACTIVE',supervisorLimit:5,panelLimit:5,supervisor:role,panel:{...role,activeLoad:1,reservedLoad:1},activeStudentCount:3,primaryStudentCount:1,supportingStudentCount:1,panelStudentCount:1}));
 const reassessment={id:7,kind:'SUPERVISOR',status:'PENDING_OFFICE',latestEventId:3,student:{id:8,name:'Student One',matricNo:'PG001',programme:'Computing'},candidate:{id:9,name:'Dr Candidate'},originalSemester:{id:1,label:'Previous semester',lifecycleStatus:'CLOSED'},originalCapacity:null,currentCapacity:null,authorization:null,history:[],canAuthorize:true,canRevoke:false};
@@ -71,8 +71,8 @@ window.fetch=async(inputValue,init)=>{
   }
   reads.push(url);
   if(path==='/api/appointments/capacity-reassessments/')return Response.json({activeSemester:{id:9,label:semester.label,lifecycleStatus:'ACTIVE'},requests:[reassessment]});
-  if(path==='/api/academics/semesters/')return Response.json([{...semester,...(archiveCurrentSemester?{lifecycleStatus:'ARCHIVED',isActive:false}:{})},archivedSemester]);
-  if(path.endsWith('/capacity-workspace/'))return failRoster?Response.json({error:'Synthetic roster unavailable'},{status:503}):Response.json({lecturers:roster,baseline:{activeStudents:54,eligibleLecturers:27,studentsPerLecturer:2}});
+  if(path==='/api/academics/semesters/')return Response.json([{...semester,...(archiveCurrentSemester?{lifecycleStatus:'ARCHIVED',isActive:false}:upcomingSemester?{lifecycleStatus:'DRAFT',isActive:false}:{})},archivedSemester]);
+  if(path.endsWith('/capacity-workspace/'))return failRoster?Response.json({error:'Synthetic roster unavailable'},{status:503}):Response.json({lecturers:upcomingSemester?[{...roster[0],supervisor:{...role,reservedLoad:1,expectedRp2Releases:1},workloadStages:{supervisor:{rp1:1,rp2:1,withoutStage:0},panel:{rp1:0,rp2:0,withoutStage:1}}},...roster.slice(1)]:roster,baseline:{activeStudents:54,eligibleLecturers:27,studentsPerLecturer:2}});
   const collection=path.endsWith('/capacity-plans/')?'plans':path.endsWith('/availability/')?'availability':path.endsWith('/capacity-audits/')?'audits':null;
   if(collection){
    if(collection==='availability'&&failAvailability)return Response.json({error:'Synthetic availability failure'},{status:503});
@@ -131,7 +131,7 @@ await scenario('continue draft opens explicit editing view and missing rows rema
  check(compare.closest('.office-tool-section-heading')?.textContent?.includes('Editing draft v2'),'Comparison action is detached from the version header');
  const blockers=document.querySelector<HTMLDetailsElement>('details.capacity-readiness');check(blockers&&!blockers.open,'Issue details should start collapsed');
  check(!text().includes('Workload and current limits are live reference values')&&!text().includes('The original draft and its history are retained'),'Repeated policy hints remain');
- check(document.querySelectorAll('.back-link').length===1&&!text().includes('Back to Dashboard')&&!text().includes('Back to capacity overview'),'Draft has duplicate back navigation');check(document.querySelector('.back-link')?.textContent?.includes('Back to Lecturer capacity'),'Draft back destination unclear');check(text().includes('Proposed limits'),'Draft values not labelled');await choose('capacity-roster-show','Lecturers needing attention');await until(()=>!document.querySelector('tbody tr')?.textContent?.includes('Synthetic Lecturer 01'));await click('Back to Lecturer capacity');await until(()=>text().includes('Capacity limits'));check(document.querySelector('.back-link')?.textContent?.includes('Back to Dashboard'),'Overview back destination not restored');
+ check(document.querySelectorAll('.back-link').length===1&&!text().includes('Back to Dashboard')&&!text().includes('Back to capacity overview'),'Draft has duplicate back navigation');check(document.querySelector('.back-link')?.textContent?.includes('Back to Lecturer capacity'),'Draft back destination unclear');check(text().includes('Draft limits'),'Draft values not labelled');await choose('capacity-roster-show','Lecturers needing attention');await until(()=>!document.querySelector('tbody tr')?.textContent?.includes('Synthetic Lecturer 01'));await click('Back to Lecturer capacity');await until(()=>text().includes('Capacity limits'));check(document.querySelector('.back-link')?.textContent?.includes('Back to Dashboard'),'Overview back destination not restored');
 });
 await scenario('missing draft entry accepts zero without changing published limits',async()=>{
  await mount();await click('Continue draft v2');await until(()=>text().includes('Editing draft v2'));await choose('capacity-roster-show','Lecturers needing attention');await click('Edit limits');
@@ -148,7 +148,7 @@ await scenario('table attention filter preserves search and role and counts lect
   await choose('capacity-roster-show','Lecturers needing attention');check(document.querySelector('.capacity-result-summary')?.textContent==='Showing 10 of 25 lecturers needing attention','Issue count mistaken for lecturer count');
   const search=document.querySelector<HTMLInputElement>('input[type="search"]')!;input(search,'Lecturer 03');await choose('capacity-roster-role','Panel');
   await until(()=>document.querySelector('.capacity-result-summary')?.textContent==='Showing 1 of 1 lecturer needing attention matching your filters');
-  const row=document.querySelector('tbody tr')!;check(row.querySelectorAll('.capacity-row-issue').length===2,'Multiple issues not attached to lecturer');getComputedStyle(row).backgroundColor;row.getAnimations().forEach(animation=>animation.finish());check(getComputedStyle(row).backgroundColor==='rgb(255, 251, 235)','Affected row not highlighted');
+  const row=document.querySelector('tbody tr')!;check(row.querySelector('.capacity-row-issue')?.textContent==='Panel limit also needs review.'&&row.querySelector('.capacity-roster-limits')?.textContent?.includes('Panel:Not set'),'Specific blocker or missing limit is hidden');getComputedStyle(row).backgroundColor;row.getAnimations().forEach(animation=>animation.finish());check(getComputedStyle(row).backgroundColor==='rgb(255, 251, 235)','Affected row not highlighted');
   await choose('capacity-roster-show','All lecturers');check(search.value==='Lecturer 03','Show filter cleared search');check(document.getElementById('capacity-roster-role')?.textContent?.includes('Panel'),'Show filter reset role');
   await choose('capacity-roster-show','Lecturers needing attention');input(search,'No matching lecturer');await until(()=>text().includes('No matching lecturers'));check(document.querySelector('.capacity-result-summary')?.textContent==='Showing 0 of 0 lecturers needing attention matching your filters','Empty count unclear');
   await click('Clear filters');await until(()=>document.querySelector('.capacity-result-summary')?.textContent==='Showing 10 of 27 lecturers');
@@ -170,7 +170,14 @@ await scenario('previous semester source is validated before allowing creation',
 await scenario('Office lecturer details show counts and read-only availability',async()=>{
  await mount();await until(()=>text().includes('Synthetic Lecturer 01'));await click('View');await until(()=>text().includes('Lecturer details'));
  check(document.querySelector('dialog[open]'),'View must use a shared modal');check(!document.querySelector('[data-record-page]'),'View replaced the table');
- check(text().includes('Supporting supervision'),'Supporting student breakdown missing');check(text().includes('Lecturers manage their own availability'),'Ownership explanation missing');check(!buttons().some(button=>button.textContent?.trim()==='Record Availability'),'Office mutation still present');await click('View availability');await until(()=>text().includes('Availability restrictions'));check(text().includes('Lecturer: Synthetic Lecturer 01'),'Lecturer availability scope lost');check(!document.querySelector('dialog[open]'),'Availability history left modal open');await until(()=>scrollY===0);
+ const dialog=document.querySelector<HTMLDialogElement>('dialog[open]')!;
+ const details=dialog.textContent ?? '';
+ check(details.includes('Supporting supervision'),'Supporting student breakdown missing');
+ check(details.includes('3 places available')&&details.includes('Published limit: 5'),'Capacity summary missing');
+ check(details.includes('1 place held')&&details.includes('Awaiting coordinator review')&&!details.includes('How occupied places are counted'),'The capacity card should show the reservation once');
+ check(details.includes('No restriction')&&!details.includes('Lecturers manage their own availability'),'Availability should show the status without the hint');
+ check(dialog.scrollWidth<=dialog.clientWidth+1,'Lecturer details overflow');
+ check(!buttons().some(button=>button.textContent?.trim()==='Record Availability'),'Office mutation still present');await click('View availability');await until(()=>text().includes('Availability restrictions'));check(text().includes('Lecturer: Synthetic Lecturer 01'),'Lecturer availability scope lost');check(!document.querySelector('dialog[open]'),'Availability history left modal open');await until(()=>scrollY===0);
 });
 await scenario('lecturer view modal preserves filters page scroll and trigger focus',async()=>{
  await mount();const search=document.querySelector<HTMLInputElement>('input[type="search"]')!;input(search,'Lecturer');await choose('capacity-roster-role','Panel');await click('Next');await until(()=>document.querySelector('tbody tr')?.textContent?.includes('Lecturer 11'));
@@ -203,7 +210,7 @@ await scenario('versions and history retain read-only version inspection',async(
 });
 await scenario('limit editor explains the live publication minimum without blocking draft saves',async()=>{
  await mount();await click('Continue draft v3');await until(()=>text().includes('Editing draft v3'));await click('Edit limits');await until(()=>document.querySelector('dialog[open] input[type="number"]'));
- check(document.querySelector('dialog[open]')?.textContent?.includes('Minimum: 2'),'Live publication minimum is missing');
+ check(document.querySelector('dialog[open]')?.textContent?.includes('Minimum to publish: 2'),'Live publication minimum is missing');
  const fields=[...document.querySelectorAll<HTMLInputElement>('dialog input[type="number"]')];input(fields[0],'1');await until(()=>document.querySelector('dialog[open]')?.textContent?.includes('Supervisor limit 1 is below committed workload 2'));
  check(!buttons().find(node=>node.textContent?.trim()==='Save limits')?.disabled,'Planning draft edits should remain available');
  check(!document.querySelector('dialog[open]')?.textContent?.includes('temporary unavailability')&&!document.querySelector('dialog[open]')?.textContent?.includes('Drafts can be saved below this minimum'),'Edit modal still contains the policy manual');
@@ -282,6 +289,15 @@ await scenario('availability is separate lazy paginated and filterable with read
  await choose('capacity-availability-status','Cancelled');await until(()=>document.querySelectorAll('tbody tr').length===1);await click('View details');await until(()=>text().includes('Cancelled private reason'));await click('Close');
  await click('Back to Lecturer capacity');await until(()=>document.querySelector('[aria-label="Lecturer capacity roster"]'));check(document.querySelector<HTMLInputElement>('input[type="search"]')?.value==='Lecturer','Back lost roster search');check(document.querySelector('tbody tr')?.textContent?.includes('Lecturer 11'),'Back lost roster page');
 });
+await scenario('reconciliation opens availability for the affected semester and lecturer',async()=>{
+ const original=location.href;const target=new URL(original);target.searchParams.set('semester','9');target.searchParams.set('view','availability');target.searchParams.set('lecturer','L001');history.replaceState(null,'',target);const before=reads.length;
+ try {
+  await mount();await until(()=>reads.slice(before).some(url=>url.pathname.endsWith('/availability/')));
+  const request=reads.slice(before).find(url=>url.pathname.endsWith('/availability/'))!;
+  check(request.pathname.includes('/semesters/9/')&&request.searchParams.get('q')==='L001'&&request.searchParams.get('status')==='ALL','Deep link lost semester, lecturer or historical restrictions');
+  check(document.querySelector('h1')?.textContent==='Lecturer availability','Deep link opened a generic capacity page');
+ } finally {history.replaceState(null,'',original);}
+});
 await scenario('lecturer availability shortcut scopes before paging and can clear its scope',async()=>{
  await mount();await click('View');await until(()=>document.querySelector('dialog[open]'));await click('View availability');await until(()=>document.querySelector('[aria-label="Lecturer availability"]'));
  check(text().includes('Lecturer: Synthetic Lecturer 01'),'Shortcut lacks lecturer scope');check(!text().includes('Synthetic Lecturer 02'),'Another lecturer leaked into scope');
@@ -313,6 +329,47 @@ await scenario('multiple drafts use explicit selection and preparation opens new
 });
 const openBulk=async()=>{await click('Set limits in bulk');await until(()=>document.querySelector('dialog[open] input[type="number"]'));};
 const bulkValues=async(supervisor:string,panel:string)=>{const fields=document.querySelectorAll<HTMLInputElement>('dialog[open] input[type="number"]');input(fields[0],supervisor);input(fields[1],panel);await new Promise(resolve=>setTimeout(resolve,20));};
+await scenario('next-semester draft shows forecast releases beside live workload',async()=>{
+ const old=plans;upcomingSemester=true;
+ plans=[makePlan(97,'DRAFT',[]),...plans.filter(plan=>plan.lifecycleStatus!=='DRAFT')];
+ try {
+  await mount();await click('Continue draft v97');
+  await until(()=>text().includes('Editing draft v97'));
+  check(text().includes('stay occupied until rollover'),'Forecast explanation missing');
+  const row=document.querySelector('tbody tr')!;
+  check(row.querySelector('.capacity-roster-workload')?.textContent==='Supervision:2Panel:1','Live workload is not shown by role');
+  check(!row.textContent?.includes('STAFF-01')&&!row.querySelector('details'),'Staff number or forecast clutters the roster');
+  for (const cell of row.querySelectorAll('.capacity-roster-workload, .capacity-roster-limits')) {
+   const [first,second] = [...cell.querySelectorAll('strong')].map(number=>number.getBoundingClientRect());
+   const roleLabel = cell.querySelector<HTMLElement>('.capacity-role-line > span')!;
+   const label = roleLabel.getBoundingClientRect();
+   const [supervisionColon,panelColon] = [...cell.querySelectorAll('.capacity-role-colon')].map(colon=>colon.getBoundingClientRect());
+   const labelText = document.createRange();
+   labelText.selectNodeContents(roleLabel);
+   check(supervisionColon&&panelColon&&Math.abs(supervisionColon.left-panelColon.left)<1,'Role colons do not align');
+   check(supervisionColon.left-labelText.getBoundingClientRect().right>=2,'Supervision needs a gap before the colon');
+   check(first.left-supervisionColon.left>=16,'Role values need more space after the colon');
+   check(first&&second&&Math.abs(first.left-second.left)<1,'Role values do not align');
+   check(label.height<=parseFloat(getComputedStyle(roleLabel).lineHeight)+1&&Math.abs(first.top-label.top)<4,'Role label wraps away from its value');
+  }
+  check(row.querySelector('.capacity-roster-limits')?.textContent==='Supervision:Not setPanel:Not set','Blank draft does not clearly identify missing limits');
+  await click('Edit limits');
+  await until(()=>document.querySelector('dialog[open] .capacity-commitment-details'));
+  const dialog = document.querySelector<HTMLDialogElement>('dialog[open]')!;
+  const forecast = dialog.querySelector<HTMLDetailsElement>('.capacity-commitment-details')!;
+  check(forecast && !forecast.open,'Forecast should start collapsed');
+  check(forecast?.querySelector('summary')?.textContent?.includes('Why 2?')&&!dialog.innerText.includes('1 RP1'),'Forecast detail should be collapsed');
+  forecast.querySelector('summary')!.click();
+  const breakdown = forecast.querySelector('dl')?.textContent ?? '';
+  check(forecast.open&&['1 RP1 · 1 RP2','1 slot held for coordinator review','2 slots expected in use','1 RP2 slot expected to free up'].every(line=>breakdown.includes(line)),'Forecast does not explain projected places');
+  check(document.documentElement.scrollWidth<=innerWidth+1,'Expanded forecast overflows');
+  check(dialog.textContent?.includes('Minimum to publish: 2'),'Forecast minimum is missing');
+  await click('Cancel');
+  await click('Back to Lecturer capacity');
+  await click('View');
+  await until(()=>document.querySelector('dialog[open] .capacity-forecast-breakdown')?.textContent?.includes('1 RP2 slot expected to free up'));
+ } finally {upcomingSemester=false;plans=old;}
+});
 await scenario('draft editor groups selection with editing and puts publication after the roster',async()=>{
  const old=plans;plans=[makePlan(97,'DRAFT',[]),...plans];try{
   await mount();await click('Continue draft v97');await until(()=>text().includes('Editing draft v97'));
@@ -388,6 +445,13 @@ if(preview==='details') { await click('View'); await until(()=>document.querySel
 else if(preview==='bulk'||preview==='bulk-settings') { await click('Continue draft v2'); await until(()=>text().includes('Editing draft v2')); await click('Set limits in bulk'); await until(()=>document.querySelector('dialog[open] input[type="number"]')); const fields=document.querySelectorAll<HTMLInputElement>('dialog[open] input[type="number"]');input(fields[0],'5');input(fields[1],'8');await new Promise(resolve=>setTimeout(resolve,20));if(preview==='bulk')await click('Preview changes'); }
 else if(preview==='publish') { plans=[makePlan(88,'DRAFT',roster),...plans]; await mount(); await click('Continue draft v88'); await until(()=>text().includes('Editing draft v88')); await click('Review and publish'); await until(()=>document.querySelector('dialog[open] textarea')); }
 else if(preview==='edit') { await click('Continue draft v2'); await until(()=>text().includes('Editing draft v2')); await click('Edit limits'); await until(()=>document.querySelector('dialog[open]')); }
+else if(preview==='editor-forecast') {
+ upcomingSemester=true;plans=[makePlan(97,'DRAFT',[]),...plans.filter(plan=>plan.lifecycleStatus!=='DRAFT')];
+ await mount();await click('Continue draft v97');await until(()=>text().includes('Editing draft v97'));
+ await click('Edit limits');
+ const forecast = document.querySelector<HTMLDetailsElement>('.capacity-commitment-details')!;
+ forecast.open = true;
+}
 else if(preview==='editor'||preview==='editor-selected'||preview==='editor-footer') {
  await click('Continue draft v2'); await until(()=>text().includes('Editing draft v2'));
  if(preview==='editor-selected'){await click('Select lecturers');await click('Select this page (10)');}

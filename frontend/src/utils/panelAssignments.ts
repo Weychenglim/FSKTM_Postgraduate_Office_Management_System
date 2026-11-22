@@ -2,7 +2,7 @@ import {panelRecordedDate, type PanelPresentation} from './panelPresentation';
 
 export type PanelAssignmentView = 'current' | 'past';
 export type PanelAssignmentFilters = {view?: PanelAssignmentView; q?: string; programme?: string; semester?: string;
-  status?: string; from?: string; to?: string; sort?: string; lecturer?: string};
+  status?: string; projectStage?: string; from?: string; to?: string; sort?: string; lecturer?: string};
 
 export function panelLecturerKey(record: PanelPresentation): string {
   const staff = record.recommendedMemberId.trim();
@@ -22,6 +22,7 @@ export function filterPanelAssignments(records: PanelPresentation[], filters: Pa
     return (!filters.lecturer || panelLecturerKey(record) === filters.lecturer)
       && (!search || [record.studentName, record.studentId, record.recommendedMember, record.recommendedMemberId,
         record.supervisorName, record.proposedTopic].some(value => value?.toLowerCase().includes(search)))
+      && (filters.view === 'past' || !filters.projectStage || record.projectStage === filters.projectStage)
       && (!filters.programme || record.programme === filters.programme)
       && (!filters.semester || record.semester === filters.semester)
       && (!filters.status || appointment.status === filters.status)

@@ -37,7 +37,7 @@ def marks_notices(now, days, *, recipient_id=None, period_id=None):
     tasks = EvaluationTask.objects.filter(lifecycle_status='ACTIVE', evaluator__is_active=True,
         evaluator__deadline_reminders=True).exclude(mark_entry__status='SUBMITTED').select_related(
             'period__academic_semester', 'profile__student__student', 'evaluator__lecturer', 'mark_entry').prefetch_related(
-                'completion_windows__granted_by')
+                'completion_windows__granted_by', 'lifecycle_audits')
     if recipient_id is not None:
         tasks = tasks.filter(evaluator_id=recipient_id)
     if period_id is not None:

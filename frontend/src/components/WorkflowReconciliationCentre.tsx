@@ -6,8 +6,10 @@ import { RecordPage } from './RecordPage';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Archive,
   ArrowUpRight,
   ClipboardList,
+  Clock,
   FileSearch,
   Gauge,
   RefreshCw,
@@ -34,14 +36,14 @@ import {
   reconciliationExplanation,
   reconciliationIdentity,
   reconciliationListSummary,
+  reconciliationOwningRoute,
   reconciliationRepairDetails,
-  reconciliationRecordRoute,
   resolutionPayload,
 } from '../utils/workflowReconciliation';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
-import { APP_ROUTES } from '../constants/routes';
 import { OfficeToolSection } from './OfficeToolPrimitives';
+import { APP_ROUTES } from '../constants/routes';
 import { CoordinatorDataTable } from './CoordinatorBrowsePrimitives';
 import { AppointmentViewSwitch, WorkspaceFilterCard, WorkspacePagination } from './RequestWorkspacePrimitives';
 import { AppointmentSummaryCard } from './AppointmentPrimitives';
@@ -57,14 +59,7 @@ interface WorkflowReconciliationCentreProps {
 
 const humanize = humanizeReconciliationLabel;
 
-const capacityIssueTypes = new Set(['CAPACITY_PLAN_MISSING', 'CAPACITY_MULTIPLE_PUBLISHED', 'CAPACITY_PLAN_INCOMPLETE', 'CAPACITY_ENTRY_ROLE_MISMATCH', 'CAPACITY_LEGACY_LIMIT_DIVERGENCE', 'CAPACITY_AVAILABILITY_OVERLAP']);
-export function reconciliationOwningRoute(issue: ReconciliationIssue) {
-  if (capacityIssueTypes.has(issue.issueType)) {
-    const semesterId = issue.currentState?.semesterId;
-    return `${APP_ROUTES.dashboardLecturerCapacity}${typeof semesterId === 'number' && Number.isSafeInteger(semesterId) && semesterId > 0 ? `?semester=${semesterId}` : ''}`;
-  }
-  return reconciliationRecordRoute(issue.navigation.targetModule, issue.navigation.recordType, issue.navigation.recordId);
-}
+export { reconciliationOwningRoute } from '../utils/workflowReconciliation';
 
 export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentreProps> = ({
   onBack,
@@ -210,7 +205,10 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   const owningRoute = preview ? reconciliationOwningRoute(preview.issue) : null;
   const explanation = preview ? reconciliationExplanation(preview.issue) : null;
   const identity = preview ? reconciliationIdentity(preview.issue) : null;
+  const stageReview = preview?.issue.issueType === 'MARKS_STAGE_REVIEW';
   const repairDetails = preview ? reconciliationRepairDetails(preview.issue, selectedResolution, programme) : [];
+  const overdueRetirement = preview?.issue.currentState.closedWithUnfinishedWork === true && selectedResolution?.action === 'RETIRE_MARKS_TASK';
+  const confirmingRetirement = decisionMode === 'repair' && overdueRetirement;
   const changePage = (page: number) => updateFilters(current => ({ ...current, page }));
   const filterActive = Boolean(filters.search || filters.module || filters.severity || filters.repairability || filters.programme);
   const rows = data?.results.map(issue => {
@@ -219,9 +217,9 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
     const context = issue.studentId ? `${humanize(issue.recordType)} #${issue.recordId}` : identity.context;
     return { key: issue.issueId, cells: [
       <><p className="card-value">{summary.title}</p>{summary.fact && <p className="card-description mt-1">{summary.fact}</p>}</>,
-      <><p className="card-value">{identity.name}</p>{context && <p className="card-description mt-1">{context}</p>}{issue.module === 'WORKFLOW_TRACKING' && !capacityIssueTypes.has(issue.issueType) && <p className="card-description mt-1">{humanize(issue.module)}</p>}</>,
+      <><p className="card-value">{identity.name}</p>{context && <p className="card-description mt-1">{context}</p>}{issue.module === 'WORKFLOW_TRACKING' && !issue.issueType.startsWith('CAPACITY_') && <p className="card-description mt-1">{humanize(issue.module)}</p>}</>,
       <StatusBadge tone={issue.severity === 'BLOCKING' ? 'danger' : 'warning'}>{humanize(issue.severity)}</StatusBadge>,
-      issue.acceptance ? <StatusBadge tone="neutral">Accepted</StatusBadge> : <p className="card-description">{issue.repairability === 'REPAIRABLE' ? 'Repair available' : 'Source review'}</p>,
+      issue.acceptance ? <StatusBadge tone="neutral">Accepted</StatusBadge> : <p className="card-description">{issue.currentState.closedWithUnfinishedWork && issue.suggestion.action === 'RETIRE_MARKS_TASK' ? 'Grant extra time or retire task' : issue.repairability === 'REPAIRABLE' ? 'Repair available' : reconciliationOwningRoute(issue) ? reconciliationExplanation(issue).actionLabel : 'Refer for review'}</p>,
       <PortalButton size="sm" onClick={() => void openIssue(issue)} aria-label={`Review ${issue.title} for ${identity.name}`}>Review issue</PortalButton>,
     ] };
   }) ?? [];
@@ -229,16 +227,24 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
   return (
     <div className="reconciliation-workspace space-y-6 pb-16 text-left">
       <DecisionDialog isOpen={confirmOpen} kind="confirmation" decisionKey={`${preview?.issue.issueId}:${decisionMode}`}
-        title={decisionMode === 'accept' ? 'Accept this warning as intentional?' : 'Apply this audited repair?'} context={<div><p>{preview?.issue.title}</p>{decisionMode === 'accept' && <p className="card-description mt-1">{identity?.name}</p>}</div>}
-        message={decisionMode === 'accept' ? <><p>This records your review without correcting the underlying record. The warning returns if the evidence changes.</p></> : <><p>{selectedResolution?.label} will change this record and create permanent repair audit history.</p>
-          <ReconciliationRepairSummary details={repairDetails} /><p>Reason: {reason}</p></>}
-        confirmLabel={decisionMode === 'accept' ? 'Accept as intentional' : 'Apply audited repair'} successMessage={decisionMode === 'accept' ? 'Warning accepted and recorded in history.' : 'Repair completed and recorded in audit history.'}
-        canConfirm={decisionMode === 'accept' ? canAccept : canApply} busy={saving} dirty={decisionMode === 'accept' && (!!reason.trim() || confirmed)} onConfirm={decisionMode === 'accept' ? acceptWarning : applyRepair} onClose={() => {
+        tone={confirmingRetirement ? 'danger' : undefined}
+        title={confirmingRetirement ? 'Retire this evaluation task?' : decisionMode === 'accept' ? 'Accept this warning as intentional?' : 'Apply this audited repair?'}
+        context={confirmingRetirement && preview ? <div><p>{identity?.name} · Evaluation task #{preview.issue.recordId}</p><p className="card-description mt-1">{String(preview.issue.currentState.evaluator ?? '')}</p></div>
+          : <div><p>{preview?.issue.title}</p>{decisionMode === 'accept' && <p className="card-description mt-1">{identity?.name}</p>}</div>}
+        message={confirmingRetirement ? 'Retiring closes this task to submissions. Any saved draft and scores stay on record.'
+          : decisionMode === 'accept' ? <><p>This records your review without correcting the underlying record. The warning returns if the evidence changes.</p></> : <><p>{selectedResolution?.label} will change this record and create permanent repair audit history.</p>
+            <ReconciliationRepairSummary details={repairDetails} /><p>Reason: {reason}</p></>}
+        confirmLabel={confirmingRetirement ? 'Retire this task' : decisionMode === 'accept' ? 'Accept as intentional' : 'Apply audited repair'}
+        successMessage={confirmingRetirement ? 'Task retired and reason recorded.' : decisionMode === 'accept' ? 'Warning accepted and recorded in history.' : 'Repair completed and recorded in audit history.'}
+        canConfirm={decisionMode === 'accept' ? canAccept : canApply} busy={saving} dirty={(decisionMode === 'accept' || confirmingRetirement) && (!!reason.trim() || confirmed)} onConfirm={decisionMode === 'accept' ? acceptWarning : applyRepair} onClose={() => {
           setConfirmOpen(false);
-          if (decisionMode === 'accept') { setReason(''); setConfirmed(false); }
+          if (decisionMode === 'accept' || confirmingRetirement) { setReason(''); setConfirmed(false); }
         }}
         onReload={async () => { if (preview) await openIssue(preview.issue, true); }}>
-        {decisionMode === 'accept' && <div className="space-y-5">
+        {confirmingRetirement ? <div className="space-y-4">
+          <label className="form-label">Reason for retirement<textarea className="form-control form-control-md mt-2 min-h-24" placeholder="Explain why this evaluation is no longer required." value={reason} onChange={event => setReason(event.target.value)} /></label>
+          <label className="card-description flex items-start gap-3"><input type="checkbox" className="mt-0.5 shrink-0" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>I confirm this evaluation is no longer required.</span></label>
+        </div> : decisionMode === 'accept' && <div className="space-y-5">
           <label className="form-label">Reason for acceptance<textarea className="form-control form-control-md mt-2 min-h-24" placeholder="Explain what you verified and why no correction is needed." value={reason} onChange={event => setReason(event.target.value)} /></label>
           <label className="card-description flex items-start gap-3"><input type="checkbox" className="mt-0.5 shrink-0" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} /><span>I reviewed the evidence and accept this warning as an intentional exception.</span></label>
         </div>}
@@ -312,10 +318,12 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
             <div className="space-y-6 p-5">
               <div className="space-y-2"><h3 className="section-heading">Why this was flagged</h3><p className="card-description text-slate-700">{explanation.why}</p></div>
               <div className="reconciliation-effect"><h3 className="card-value">What this affects</h3><p className="card-description mt-2">{explanation.effect}</p></div>
-              <ReconciliationEvidence issue={preview.issue} />
             </div>
           </OfficeToolSection>}
-          {repairApplied ? <OfficeToolSection title="Repair completed" description={`${identity.name}: the change has been saved and recorded in repair history.`} actions={<StatusBadge tone="success">Saved</StatusBadge>}>
+          {!repairApplied && <OfficeToolSection title={preview.issue.issueType === 'CAPACITY_LEGACY_LIMIT_DIVERGENCE' ? 'Compare the saved limits' : 'Recorded evidence'}>
+            <div className="p-5"><ReconciliationEvidence issue={preview.issue} /></div>
+          </OfficeToolSection>}
+          {repairApplied ? <OfficeToolSection title={overdueRetirement ? 'Task retired' : 'Repair completed'} description={`${identity.name}: the change has been saved and recorded in repair history.`} actions={<StatusBadge tone="success">Saved</StatusBadge>}>
             <div className="p-5"><PortalButton onClick={closePreview}>Return to issues</PortalButton></div>
           </OfficeToolSection> : acceptance ? <OfficeToolSection title="Accepted as intentional" actions={<StatusBadge tone="neutral">Accepted</StatusBadge>}>
             <div className="space-y-4 p-5">
@@ -324,11 +332,37 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
               <p className="card-description">The underlying record was not changed. This warning returns to Open issues if the evidence changes.</p>
               <PortalButton onClick={closePreview}>Return to issues</PortalButton>
             </div>
+          </OfficeToolSection> : overdueRetirement ? <OfficeToolSection title="Choose how to handle this evaluation">
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+              <div className="flex min-w-0 flex-col items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <span className="rounded-lg bg-blue-50 p-2 text-blue-700"><Clock size={18} aria-hidden="true" /></span>
+                <h3 className="card-value">Allow a late submission</h3>
+                <p className="card-description">Set a new deadline if the evaluator still needs to submit marks.</p>
+                {owningRoute && <PortalButton className="mt-auto" icon={ArrowUpRight} disabled={saving || previewing || !!drawerError} onClick={() => onNavigateToRoute(owningRoute)}>{explanation.actionLabel}</PortalButton>}
+              </div>
+              <div className="flex min-w-0 flex-col items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                <span className="rounded-lg bg-slate-200/70 p-2 text-slate-700"><Archive size={18} aria-hidden="true" /></span>
+                <h3 className="card-value">Close the task</h3>
+                <p className="card-description">Use this when the evaluation is no longer required. Saved marks stay on record.</p>
+                <PortalButton className="mt-auto" disabled={saving || previewing || !!drawerError} onClick={() => { setDecisionMode('repair'); setConfirmOpen(true); }}>Retire this task</PortalButton>
+              </div>
+            </div>
           </OfficeToolSection> : <OfficeToolSection title={preview.issue.repairability === 'REPAIRABLE' ? 'Review the proposed repair' : 'Recommended next step'}>
             <div className="space-y-5 p-5">
               <p className="card-description">{explanation.next}</p>
               {preview.issue.dependencies.length > 0 && <ul className="card-description list-disc space-y-2 pl-5">{preview.issue.dependencies.map(item => <li key={item}>{item}</li>)}</ul>}
-              {owningRoute && <PortalButton icon={ArrowUpRight} disabled={saving} onClick={() => onNavigateToRoute(owningRoute)}>{explanation.actionLabel}</PortalButton>}
+              {stageReview && preview.issue.repairability === 'REVIEW_REQUIRED' && <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <h3 className="card-value">What to share with the Programme Coordinator</h3>
+                <ul className="card-description mt-2 list-disc space-y-1 pl-5">
+                  <li>{preview.issue.studentId ? <>Student ID <strong>{preview.issue.studentId}</strong>, the semester and confirmed RP stage.</> : 'The student ID, semester and confirmed RP stage.'}</li>
+                  <li>{owningRoute ? <>Marks record <strong>MRK-{preview.issue.recordId.padStart(5, '0')}</strong> and the task and entry status shown above.</> : 'The evaluation task reference and its recorded status.'}</li>
+                </ul>
+              </div>}
+              <div className="flex flex-wrap gap-2.5">
+                {stageReview && <PortalButton variant="primary" icon={ArrowUpRight} disabled={saving || previewing || !!drawerError}
+                  onClick={() => onNavigateToRoute(APP_ROUTES.registryProjectStages)}>Open RP Registration</PortalButton>}
+                {owningRoute && <PortalButton variant={stageReview || preview.allowedResolutions.length ? undefined : 'primary'} icon={ArrowUpRight} disabled={saving || previewing || !!drawerError} onClick={() => onNavigateToRoute(owningRoute)}>{explanation.actionLabel}</PortalButton>}
+              </div>
               {preview.issue.repairability === 'REPAIRABLE' && preview.allowedResolutions.length > 0 ? <fieldset disabled={saving || previewing || !!drawerError} className="min-w-0 space-y-5 border-t border-slate-200 pt-5">
                 <label className="form-label">Proposed change<PortalSelect className="form-control form-control-md mt-2" value={selectedResolution?.action ?? ''} onChange={event => setSelectedResolution(preview.allowedResolutions.find(item => item.action === event.target.value) ?? null)}>
                   {preview.allowedResolutions.map(item => <option key={item.action} value={item.action}>{item.label}</option>)}
@@ -342,7 +376,7 @@ export const WorkflowReconciliationCentre: React.FC<WorkflowReconciliationCentre
                 <PortalButton variant="primary" icon={Wrench} isLoading={saving} disabled={!canApply} onClick={() => { setDecisionMode('repair'); setConfirmOpen(true); }}>Review and confirm repair</PortalButton>
               </fieldset> : preview.canAccept ? <div className="flex justify-end border-t border-slate-200 pt-4">
                 <PortalButton size="sm" icon={ShieldCheck} className="w-full sm:w-auto" disabled={saving || previewing || !!drawerError} onClick={() => { setDecisionMode('accept'); setConfirmOpen(true); }}>Accept as intentional</PortalButton>
-              </div> : <p className="card-description flex items-center gap-2"><ShieldCheck className="h-4 w-4 shrink-0" aria-hidden="true" />Review required. No automatic repair is offered for this check.</p>}
+              </div> : null}
             </div>
           </OfficeToolSection>}
           <ReconciliationAuditHistory key={`${preview.issue.issueId}:${repairApplied}:${acceptance?.id ?? ''}`} issue={preview.issue} />

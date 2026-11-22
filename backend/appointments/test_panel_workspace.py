@@ -10,7 +10,7 @@ from rest_framework.test import APIRequestFactory, APITestCase, force_authentica
 from academics.capacity import CapacityRole, resolve_lecturer_capacity
 from academics.models import AcademicSemester, LecturerAvailabilityWindow
 from academics.test_capacity_helpers import publish_test_capacity_plan
-from accounts.models import Lecturer, Panel, Student, User
+from accounts.models import Lecturer, Panel, ProjectRegistration, StudentSemester, Student, User
 from . import test_appointment_lifecycle as fixtures
 from .models import (AppointmentWorkflowEvent, PanelAppointment, PanelRecommendation,
                      ResearchAmendment, StudentResearchProfile, SupervisorApplication,
@@ -108,6 +108,19 @@ class PanelWorkspaceTests(APITestCase):
         self.assertEqual([row['id'] for row in self.page()['results']], [self.student.pk])
         Lecturer.objects.filter(pk=self.supervisor.pk).update(lifecycle_status=Lecturer.Lifecycle.RETIRING)
         self.assertEqual(self.page()['total'], 0)
+
+    def test_project_stage_filter_is_applied_before_pagination(self):
+        for number in range(12):
+            self.student_profile(number)
+        target = self.student_profile(99)
+        StudentSemester.objects.get_or_create(student=target.student.student,
+            session=self.semester.academic_session, term=self.semester.term)
+        ProjectRegistration.objects.create(student_id=target.student_id, academic_semester=self.semester, stage='P2')
+        self.assertGreater(self.page()['total'], 10)
+        page = self.page(projectStage='P2')
+        self.assertEqual(page['total'], 1)
+        self.assertEqual(page['results'][0]['profileId'], target.pk)
+        self.assertEqual(page['results'][0]['projectStage'], 'P2')
 
     def test_students_use_authoritative_identity_and_trimmed_programme_agreement(self):
         self.profile.student_name = 'Outdated name'

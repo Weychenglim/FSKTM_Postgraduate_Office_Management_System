@@ -45,13 +45,12 @@ for (const kind of ['supervisor', 'panel'] as const) {
     check(!summary(), 'Loading displays false summary totals');
     release!();
     await until(() => summary());
-    check(metric('Lecturers in view') === '13', 'Summary only counted the visible page');
-    check(metric('Available lecturers') === '10', 'Incorrect available count');
+    check(metric('Lecturers') === '13', 'Summary only counted the visible page');
+    check(metric('Available') === '10', 'Incorrect available count');
     check(metric('At or over capacity') === '2', 'Incorrect capacity count');
-    check(metric(kind === 'panel' ? 'Occupied panel seats' : 'Active appointments') === '65', 'Incorrect occupied count');
-    check(summary()!.textContent?.includes('1 without published capacity'), 'Missing configuration hidden');
-    if (kind === 'panel') check(summary()!.textContent?.includes('26 active appointments; 39 pending reservations'), 'Reservations not distinguished');
+    check(metric('Active appointments') === (kind === 'panel' ? '26' : '65'), 'Incorrect active appointment count');
     const workspace = document.querySelector('[aria-label$="workload workspace"]')!;
+    if (kind === 'panel') check(workspace.textContent?.includes('2 active') && workspace.textContent?.includes('3 reserved'), 'Reservations not distinguished in workload rows');
     check(Boolean(summary()!.compareDocumentPosition(workspace) & Node.DOCUMENT_POSITION_FOLLOWING), 'Cards are not above the records');
     const cards = [...summary()!.querySelectorAll<HTMLElement>('article')];
     check(cards.length === 4, 'Expected four shared cards');
@@ -60,13 +59,13 @@ for (const kind of ['supervisor', 'panel'] as const) {
     check(innerWidth < 640 ? rects[1].top > rects[0].top : rects.every(rect => rect.top === rects[0].top), 'Unexpected card layout');
     check(document.documentElement.scrollWidth <= innerWidth + 1, 'Page overflows horizontally');
     search('Lecturer 11');
-    await until(() => metric('Lecturers in view') === '1');
-    check(metric('At or over capacity') === '1' && metric('Available lecturers') === '0', 'Summary ignores search');
+    await until(() => metric('Lecturers') === '1');
+    check(metric('At or over capacity') === '1' && metric('Available') === '0', 'Summary ignores search');
     search('No matching lecturer');
-    await until(() => metric('Lecturers in view') === '0');
+    await until(() => metric('Lecturers') === '0');
     check(document.body.textContent?.includes('No matching lecturers'), 'Empty results missing');
     button('Clear filters').click();
-    await until(() => metric('Lecturers in view') === '13');
+    await until(() => metric('Lecturers') === '13');
     check(requests === 1, 'Filtering unnecessarily refetched workload');
     // Remount with a failed request; old totals must never survive as valid data.
     root.unmount(); failing = true; release = undefined;
@@ -77,7 +76,7 @@ for (const kind of ['supervisor', 'panel'] as const) {
     check(!summary(), 'Failure displays false summary totals');
     failing = false; release = undefined; button('Retry').click();
     await until(() => release); release!();
-    await until(() => metric('Lecturers in view') === '13');
+    await until(() => metric('Lecturers') === '13');
     results.push({ name: `${kind}: cards, filtered totals, empty results, loading, retry and responsive layout` });
   } catch (error) { results.push({ name: kind, error: String(error) }); }
 }

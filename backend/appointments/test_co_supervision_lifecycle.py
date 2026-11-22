@@ -52,6 +52,7 @@ def submitted_marks(test):
         is_required=True,
     )
     period = EvaluationPeriod.objects.create(
+        assessment="P1",
         name="Historical period",
         semester=test.semester.label,
         academic_semester=test.semester,

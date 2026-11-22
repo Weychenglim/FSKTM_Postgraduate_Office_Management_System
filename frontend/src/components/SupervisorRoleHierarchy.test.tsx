@@ -13,8 +13,7 @@ for (const role of ['Office Staff/Admin', 'Programme Coordinator'] as const) {
   assert.equal(currentLinkText(html), 'Supervisory teams');
   assert.match(html, /Appointment requests/);
   assert.doesNotMatch(html, /Research changes/);
-  if (role === 'Programme Coordinator') assert.match(html, /Programme transfers/);
-  else assert.doesNotMatch(html, /Research records|Programme transfers/);
+  assert.doesNotMatch(html, /Research records|Programme transfers/);
   assert.doesNotMatch(html, /My supervisees/);
 }
 const studentTable = renderToStaticMarkup(<WorkspaceRecordTable identityLabel="Supervisor" label="Applications" rows={[{ key:1, studentName:'Dr Example', matricNo:'', status:'Awaiting Supervisor review', waitingDays:2, actionLabel:'View request' }]} />);

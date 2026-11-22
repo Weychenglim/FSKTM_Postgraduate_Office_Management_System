@@ -56,7 +56,7 @@ test('mounted research profile directory regressions', {timeout:120000}, async()
     console.log(checks.map(check=>`${check.error?'FAIL':'PASS'} ${width}px ${check.name}${check.error?`: ${check.error}`:''}`).join('\n'));
     assert.deepEqual(checks.filter(check=>check.error),[],'Mounted browser regression failures');
     }
-    const output = fileURLToPath(new URL('../../output/research-profile-directory-20261023/', import.meta.url));
+    const output = process.env.RESEARCH_DIRECTORY_OUTPUT || fileURLToPath(new URL('../../output/research-profile-directory-20261023/', import.meta.url));
     await mkdir(output, {recursive: true});
     for (const width of [1280, 390]) await promisify(execFile)(executable, [
       '--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check','--hide-scrollbars',

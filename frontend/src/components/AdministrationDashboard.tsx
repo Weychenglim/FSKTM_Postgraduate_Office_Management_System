@@ -79,7 +79,6 @@ export const AdministrationDashboard:React.FC<AdministrationDashboardProps>=({on
             {monitoringItem('Pending Supervisor requests',summary.data.pendingSupervisorRequests,officeMonitoringRoute('supervisor-pending'))}
             {monitoringItem('Pending Panel approvals',summary.data.pendingPanelApprovals,officeMonitoringRoute('panel-pending'))}
             {monitoringItem('Incomplete evaluations',summary.data.incompleteMarkEntries,officeMonitoringRoute('incomplete'))}
-            {monitoringItem('Backup evaluator assignments',summary.data.backupMarkTasks??0,officeMonitoringRoute('backup'))}
           </>}
           {workload.loading?<span role="status">Loading Panel workload summary…</span>:workload.error?<AlertMessage type="error" title="Panel workload summary unavailable" message="Reload the summary to view the current count." actions={<PortalButton size="sm" onClick={workload.reload}>Retry workload</PortalButton>}/>:monitoringItem('Lecturers at or over their configured Panel limit',workload.data?.filter(row=>row.capacityState==='OVER_CAPACITY'||row.capacityState==='FULL').length??0,officeMonitoringRoute('panel-capacity'))}
         </div>

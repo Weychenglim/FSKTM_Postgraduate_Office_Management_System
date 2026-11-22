@@ -129,6 +129,7 @@ class ReasonSerializer(serializers.Serializer):
 
 
 class EvaluationTaskSerializer(serializers.ModelSerializer):
+    assessment = serializers.CharField(source="period.assessment", read_only=True)
     periodName = serializers.CharField(source="period.name", read_only=True)
     rubricName = serializers.CharField(source="period.rubric.name", read_only=True)
     rubricVersion = serializers.IntegerField(source="period.rubric.version", read_only=True)
@@ -158,7 +159,7 @@ class EvaluationTaskSerializer(serializers.ModelSerializer):
         model = EvaluationTask
         fields = [
             "id",
-            "periodName", "rubricName", "rubricVersion", "opensAt", "closesAt", "assignedAt",
+            "periodName", "assessment", "rubricName", "rubricVersion", "opensAt", "closesAt", "assignedAt",
             "studentId",
             "studentName",
             "initials",
@@ -316,17 +317,29 @@ class SubmittedScoreCorrectionSerializer(serializers.Serializer):
         return super().to_internal_value(data)
 
 
+class SubmittedFeedbackCorrectionSerializer(serializers.Serializer):
+    componentId = serializers.IntegerField(min_value=1)
+    feedback = serializers.CharField(allow_blank=True, trim_whitespace=False)
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and set(data) - set(self.fields):
+            raise serializers.ValidationError("Only component feedback may be corrected here.")
+        return super().to_internal_value(data)
+
+
 class SubmittedMarksCorrectionSerializer(SubmittedMarksReasonSerializer):
     scores = SubmittedScoreCorrectionSerializer(many=True, required=False, default=list)
+    feedback = SubmittedFeedbackCorrectionSerializer(many=True, required=False, default=list)
     comments = serializers.CharField(required=False, allow_blank=True, trim_whitespace=False)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        ids = [score['componentId'] for score in attrs['scores']]
-        if len(ids) != len(set(ids)):
-            raise serializers.ValidationError("Each component may appear only once.")
-        if not ids and 'comments' not in attrs:
-            raise serializers.ValidationError("Supply a score or overall-comment correction.")
+        for field in ('scores', 'feedback'):
+            ids = [item['componentId'] for item in attrs[field]]
+            if len(ids) != len(set(ids)):
+                raise serializers.ValidationError({field: "Each component may appear only once."})
+        if not attrs['scores'] and not attrs['feedback'] and 'comments' not in attrs:
+            raise serializers.ValidationError("Supply a correction to a score, component feedback or overall comments.")
         return attrs
 
 
@@ -427,6 +440,10 @@ class MarkSubmissionSerializer(MarkDraftSerializer):
 
 
 def assert_task_accepts_marks(task):
+    from .stage_eligibility import profile_stage_eligibility
+    decision = profile_stage_eligibility(task.period, task.profile)
+    if not decision.eligible:
+        raise MarksStateConflict(f'This task is not eligible for the period stage ({decision.reason}). Ask Office to review Project stages.')
     if not task_access(task)["canEdit"]:
         raise MarksStateConflict(
             "Marks can only be saved while the evaluation period is open."

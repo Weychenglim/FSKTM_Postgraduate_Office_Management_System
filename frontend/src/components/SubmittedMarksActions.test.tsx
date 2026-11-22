@@ -22,6 +22,15 @@ const audit = renderToStaticMarkup(<MarkCorrectionHistoryView events={history} c
 assert.match(audit, /Office Reviewer/); assert.match(audit, /Verified error/);
 assert.match(audit, /Before/); assert.match(audit, /After/); assert.match(audit, /Problem/);
 assert.match(audit, /80.00/); assert.match(audit, /85.00/); assert.match(audit, /Reviewed &lt;text&gt;/);
+assert.doesNotMatch(audit, /Problem feedback/);
+const feedbackAudit = renderToStaticMarkup(<MarkCorrectionHistoryView events={[{
+  ...history[0],
+  beforeValues: {...history[0].beforeValues, feedback: {'1': 'Original feedback'}},
+  afterValues: {...history[0].afterValues, feedback: {'1': 'Updated <feedback>'}},
+}]} components={record.rubric.components}/>);
+assert.match(feedbackAudit, /Problem feedback before and after/);
+assert.match(feedbackAudit, /Original feedback/);
+assert.match(feedbackAudit, /Updated &lt;feedback&gt;/);
 console.log('Submitted Marks action authority and readable before/after audit rendering passed');
 
 const actionsSource = readFileSync(new URL('./SubmittedMarksActions.tsx', import.meta.url), 'utf8');

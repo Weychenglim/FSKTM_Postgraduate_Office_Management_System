@@ -92,8 +92,8 @@ for (const token of [
   'getOwnSupervisorWorkload',
   'getOwnPanelWorkload',
   'capacityStateLabel',
-  'capacityPlanVersion',
-  'unavailableUntil',
+  'capacityUtilization',
+  'AppointmentWorkloadDetails',
 ]) {
   if (!lecturerDashboardSource.includes(token)) {
     throw new Error(`Lecturer Dashboard must render persisted ${token} capacity metadata.`);
@@ -115,7 +115,7 @@ const lecturerSupervisorSource = readFileSync(
   resolve('src/components/LecturerAppointmentRequests.tsx'),
   'utf8',
 );
-for (const token of ['capacityState', 'capacityPlanVersion', 'unavailableUntil']) {
+for (const token of ['capacityState', 'workloadLimit', 'unavailableUntil']) {
   if (!lecturerSupervisorSource.includes(token)) {
     throw new Error(`Lecturer Supervisor Appointments must show ${token}.`);
   }

@@ -4,6 +4,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {MemoryRouter} from 'react-router';
 import {ListState} from './ListState';
 import {PanelAssignmentsWorkspace} from './PanelAssignmentsWorkspace';
+import {PanelBrowse} from './PanelBrowse';
 import {CoordinatorTeamViewSwitch} from './CoordinatorSupervisorWorkspace';
 import type {PanelPresentation} from '../utils/panelPresentation';
 
@@ -24,6 +25,33 @@ for (const role of ['office','coordinator'] as const) {
   assert.doesNotMatch(html,/aria-label="Appointments"|<option value="past">/);
 
 }
+const stageRecords: PanelPresentation[] = [
+  {...record, projectStage:'P1', projectSemester:'Semester I'},
+  {...record, studentId:'PG002', studentName:'Student Two', projectStage:'P2', projectSemester:'Semester I',
+    appointmentLifecycle:{...record.appointmentLifecycle!, appointmentId:12}},
+];
+for (const role of ['office','coordinator'] as const) {
+  const scope = `PanelAssignments:${role}`;
+  const memory = new Map<string, unknown>([[`${scope}:source`, {projectStage:'P2'}]]);
+  const html = renderToStaticMarkup(<MemoryRouter initialEntries={['/panel-appointments?panelLecturer=staff%3Al001']}>
+    <ListState.Provider value={memory}><PanelAssignmentsWorkspace role={role} records={stageRecords} onOpen={()=>{}}/></ListState.Provider>
+  </MemoryRouter>);
+  assert.match(html,/aria-label="Project stage"/);
+  assert.match(html,/Student Two/);
+  assert.doesNotMatch(html,/Student One/);
+}
+const lecturer = (view: string, rows: PanelPresentation[]) => renderToStaticMarkup(
+  <ListState.Provider value={new Map<string, unknown>([['PanelBrowse:lecturer:view',view],['PanelBrowse:lecturer:projectStage','P1']])}>
+    <PanelBrowse scope="lecturer" title="My Panel students" appointments records={rows} onOpen={()=>{}}/>
+  </ListState.Provider>);
+const current = lecturer('requests',stageRecords);
+assert.match(current,/aria-label="Project stage"/);
+assert.match(current,/Student One/);
+assert.doesNotMatch(current,/Student Two/);
+const past = lecturer('history', [{...stageRecords[1],appointmentLifecycle:{...stageRecords[1].appointmentLifecycle!,status:'ENDED'}}]);
+assert.match(past,/Student Two/);
+assert.doesNotMatch(past,/Project stage|RP2/);
+
 const supervisor = renderToStaticMarkup(<CoordinatorTeamViewSwitch view="requests" onChange={()=>{}}/>);
 assert.match(supervisor,/>Current</);assert.match(supervisor,/>Past</);
 assert.match(supervisor,/aria-label="Supervision views"/);assert.match(supervisor,/aria-pressed="true"/);

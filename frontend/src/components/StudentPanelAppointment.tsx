@@ -19,7 +19,7 @@ import { SupervisionDetailSection, supervisionDetailBody as body } from './Super
 import { PanelDetailFact } from './PanelDetailLayout';
 import { RecordPage } from './RecordPage';
 import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
-import { StudentAppointmentCard, StudentAppointmentLayout, StudentAppointmentNextStep } from './StudentAppointmentLayout';
+import { StudentAppointmentAcademicFields, StudentAppointmentCard, StudentAppointmentLayout, StudentAppointmentNextStep } from './StudentAppointmentLayout';
 
 interface StudentPanelAppointmentProps { onShowFAQChatbot?: () => void }
 
@@ -48,10 +48,13 @@ export function StudentPanelAppointmentOverview({ appointment, onShowFAQChatbot 
   return <div data-student-panel-overview>
     <StudentAppointmentLayout guidance={<StudentAppointmentNextStep cards={[guidance]} onShowFAQChatbot={onShowFAQChatbot}/>}>
         {confirmed ? <StudentAppointmentCard title="My panel" memberLabel="Panel member" name={appointment.panelMemberName?.trim() || 'Panel member not recorded'} status="Confirmed" tone="success"
+          projectStage={appointment.projectStage} projectSemester={appointment.projectSemester}
           programme={appointment.programme} semester={appointment.semester} department={appointment.panelMemberDepartment} email={appointment.panelMemberEmail} appointmentDate={appointment.appointmentDate}/>
         : <SupervisionDetailSection title="My panel" icon={UsersRound}>
           <div className="space-y-4"><p className={body}>{getPanelReadinessCopy(appointment.readinessState).title}</p>{waiting !== 'Not waiting' ? <p className="text-xs leading-6 text-slate-500">{waiting}</p> : null}</div>
-          <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2"><PanelDetailFact title="Programme" value={appointment.programme}/><PanelDetailFact title="Semester" value={appointment.semester}/>
+          <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2">
+          <StudentAppointmentAcademicFields programme={appointment.programme} stage={appointment.projectStage} projectSemester={appointment.projectSemester} displayedSemester={appointment.semester}/>
+          <PanelDetailFact title="Semester" value={appointment.semester}/>
           {appointment.readinessState !== 'SUPERVISOR_REQUIRED' ? <PanelDetailFact title={supervisorPending ? 'Proposed supervisor' : 'Primary supervisor'} value={appointment.supervisorName}/> : null}</dl>
         </SupervisionDetailSection>}
         {appointment.researchProfile ? <StudentResearchProfileSection standalone profile={appointment.researchProfile}/> : null}

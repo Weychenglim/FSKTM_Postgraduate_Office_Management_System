@@ -25,9 +25,9 @@ test('Capacity workspace interactions and responsive layout',{timeout:420000},as
     const encoded=stdout.match(/<pre id="test-results"[^>]*>([\s\S]*?)<\/pre>/)?.[1];assert.ok(encoded&&encoded!=='RUNNING',stdout.slice(-2000));
     const result=JSON.parse(encoded.replaceAll('&quot;','"').replaceAll('&lt;','<').replaceAll('&gt;','>').replaceAll('&amp;','&'));
     console.log(result.results.map(row=>`${row.error?'FAIL':'PASS'} ${width}px ${row.name}${row.error?`: ${row.error}`:''}`).join('\n'));
-    assert.equal(result.results.length,46);assert.deepEqual(result.results.filter(row=>row.error),[]);
+    assert.equal(result.results.length,48);assert.deepEqual(result.results.filter(row=>row.error),[]);
   }
-  for(const width of [1440,390]) for(const view of ['overview','availability','history','editor','editor-selected','editor-footer','details','edit','publish','bulk','bulk-settings']) {
+  for(const width of [1440,390]) for(const view of ['overview','availability','history','editor','editor-forecast','editor-selected','editor-footer','details','edit','publish','bulk','bulk-settings']) {
     await promisify(execFile)(executable,['--headless=new','--disable-gpu','--no-first-run','--no-default-browser-check',`--user-data-dir=${join(directory,`preview-${view}-${width}`)}`,'--window-size=1400,1250','--dump-dom','--virtual-time-budget=10000',`--screenshot=${join(tmpdir(),`capacity-${view==='history'?'versions':view}-${width}.png`)}`,`${server.resolvedUrls.local[0]}capacity-workspace-test?width=${width}&preview=${view}`],{timeout:30000,maxBuffer:3*1024*1024,windowsHide:true});
   }
   }finally{await server.close();const resolved=await realpath(directory),within=relative(await realpath(tmpdir()),resolved);assert.ok(!isAbsolute(within)&&!within.startsWith('..')&&basename(resolved).startsWith('capacity-workspace-'));await rm(resolved,{recursive:true,force:true,maxRetries:5,retryDelay:200});}

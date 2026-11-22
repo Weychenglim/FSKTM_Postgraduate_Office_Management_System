@@ -133,6 +133,8 @@ export type PanelAppointmentStatus =
   | 'Cancelled';
 
 export interface PanelRecord extends WorkflowAgeingMetadata {
+  projectStage?: string | null;
+  projectSemester?: string | null;
   recommendation?: PanelRecommendationDraft;
   recordId: string;
   id: string; // student ID, e.g. "MEA2301184"
@@ -236,6 +238,8 @@ export interface AcademicTeamContact {name:string;email:string;department:string
 export interface PanelAcademicTeam {primary:AcademicTeamContact|null;supporting:AcademicTeamContact[]}
 
 export interface PanelAssignment extends WorkflowAgeingMetadata {
+  projectStage?: string | null;
+  projectSemester?: string | null;
   academicTeam?: PanelAcademicTeam | null;
   recommendation?: PanelRecommendationDraft;
   appointmentLifecycle?: AppointmentLifecycle | null;
@@ -278,6 +282,8 @@ export type PanelRecommendationStatus =
 
 // A panel-member recommendation a lecturer drafts/submits for a supervisee.
 export interface PanelRecommendationDraft extends WorkflowAgeingMetadata {
+  projectStage?: string | null;
+  projectSemester?: string | null;
   acceptanceCapacity?: SupervisorAcceptanceCapacity | null;
   studentEmail?: string;
   supervisorEmail?: string;
@@ -389,6 +395,8 @@ export interface StudentResearchProfileSummary {
 }
 
 export interface StudentPanelAppointmentView extends WorkflowAgeingMetadata {
+  projectStage?: string | null;
+  projectSemester?: string | null;
   approvedRequest?: {id: number; nominatedBy: string; submittedAt: string | null; panelAcceptedAt: string | null; approvedAt: string | null} | null;
   status: 'PENDING' | 'CONFIRMED';
   readinessState:

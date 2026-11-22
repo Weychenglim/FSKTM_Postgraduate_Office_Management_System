@@ -199,6 +199,8 @@ def semester_list_view(request):
             actor=request.user,
             **serializer.service_values(),
         )
+    except IntegrityError:
+        return Response({"term": ["This session and term already have a semester. Refresh and review the existing record."]}, status=status.HTTP_409_CONFLICT)
     except DjangoValidationError as exc:
         return _validation_response(exc)
     return Response(semester_payload(semester), status=status.HTTP_201_CREATED)
