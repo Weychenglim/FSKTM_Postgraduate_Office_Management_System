@@ -78,7 +78,7 @@ export function PanelSuperviseeDetails({ student, pendingRequest, onRecommend, o
           {appointed ? <SupervisionPerson role="Panel member" name={student.currentPanelMember||'Not recorded'} department={student.currentPanelDepartment} email={student.currentPanelEmail}
             appointedOn={student.currentPanelAppointmentDate?formatRequestDisplayDate(student.currentPanelAppointmentDate):undefined}/> : <p className={supervisionDetailBody}>Not appointed</p>}
         </SupervisionDetailSection>
-        <PanelResearchDetails record={student}/>
+        <PanelResearchDetails record={student} returnLabel="student Panel details"/>
       </div>
       <aside className="order-first min-w-0 xl:order-last" aria-label="Panel nomination">
         <SupervisionDetailSection title="Panel nomination" icon={ClipboardList} contentClassName="mt-4 min-w-0 space-y-5">

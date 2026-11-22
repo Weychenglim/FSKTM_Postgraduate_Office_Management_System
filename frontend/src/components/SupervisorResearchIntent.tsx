@@ -33,7 +33,7 @@ export function SupervisorResearchIntentEditor({ value, onChange, disabled = fal
     </fieldset></section>)}</>;
 }
 
-export function SupervisorResearchIntentText({ record }: { record: SupervisorResearchIntent }) {
+export function SupervisorResearchIntentText({ record }: { record: Partial<SupervisorResearchIntent> }) {
   return <dl className="space-y-6">{RESEARCH_INTENT_FIELDS.map(({ key, label }) => <div key={key} className="min-w-0">
     <dt className={typography.label}>{label}</dt>
     <dd className={`${typography.body} mt-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere]`}>{record[key] || 'Not recorded'}</dd>
@@ -42,32 +42,49 @@ export function SupervisorResearchIntentText({ record }: { record: SupervisorRes
 
 const intentGroups = ['Background and purpose', 'Questions and objectives', 'Research plan'] as const;
 
-function SubmittedResearchIntentGroups({record, titleId, headingAs}: {record: SupervisorResearchIntent; titleId: string; headingAs: 'h2' | 'h3'}) {
+function SubmittedResearchIntentGroups({record, titleId, headingAs, profileView}: {
+  record: Partial<SupervisorResearchIntent>; titleId: string; headingAs: 'h2' | 'h3'; profileView?: boolean;
+}) {
   const Heading=headingAs;
-  const [openGroups, setOpenGroups] = useState<string[]>([intentGroups[0]]);
+  const [openGroups, setOpenGroups] = useState<string[]>(profileView ? [] : [intentGroups[0]]);
   const allOpen = openGroups.length === intentGroups.length;
   return <div>
-    <div className="mb-2 flex items-center justify-between gap-3"><IconHeading as={Heading} titleId={titleId} title="Research Intent" titleClassName={headingAs==='h2' ? 'text-base font-semibold text-brand-navy' : 'text-sm font-semibold text-brand-navy'} icon={headingAs==='h2' ? <AppointmentIcon icon={BookOpenText} tone="info"/> : undefined}/><button type="button" className="min-h-11 rounded px-2 text-xs font-medium text-blue-700 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600" onClick={()=>setOpenGroups(allOpen ? [] : [...intentGroups])}>{allOpen ? 'Collapse all' : 'Expand all'}</button></div>
-    {intentGroups.map(group=><SupervisorRequestDisclosure key={group} title={group} open={openGroups.includes(group)} onToggle={event=>{
-      const open=event.currentTarget.open;
-      setOpenGroups(current=>current.includes(group)===open ? current : open ? [...current,group] : current.filter(value=>value!==group));
-    }}>
-      <dl className="space-y-5">{RESEARCH_INTENT_FIELDS.filter(field=>field.group===group).map(({key,label})=><div key={key} className="min-w-0 space-y-1">
-        <dt className="text-xs font-medium leading-6 text-slate-600">{label}</dt>
-        <dd className="whitespace-pre-wrap text-sm font-normal leading-7 text-slate-900 [overflow-wrap:anywhere]">{record[key] || 'Not recorded'}</dd>
-      </div>)}</dl>
-    </SupervisorRequestDisclosure>)}
+    <div className={`${profileView ? 'mb-6' : 'mb-2'} flex flex-wrap items-center justify-between gap-2`}>
+      <IconHeading as={Heading} titleId={titleId} title={profileView ? 'Current research plan' : 'Research Intent'} titleClassName={headingAs==='h2' ? 'text-base font-semibold text-brand-navy' : 'text-sm font-semibold text-brand-navy'} icon={headingAs==='h2' ? <AppointmentIcon icon={BookOpenText} tone="info"/> : undefined}/>
+      <button type="button" className={`min-h-11 text-xs font-semibold text-blue-700 focus-visible:outline-2 focus-visible:outline-blue-600 ${profileView
+        ? 'rounded-lg border border-slate-200 px-3 hover:border-blue-200 hover:bg-blue-50' : 'rounded px-2 hover:underline'}`}
+        onClick={()=>setOpenGroups(allOpen ? [] : [...intentGroups])}>{allOpen ? 'Collapse all' : 'Expand all'}</button>
+    </div>
+    <div className={profileView ? 'space-y-3' : undefined}>
+      {intentGroups.map(group => <SupervisorRequestDisclosure key={group} title={group} variant={profileView ? 'panel' : 'plain'}
+        open={openGroups.includes(group)} onToggle={event => {
+          const open = event.currentTarget.open;
+          setOpenGroups(current => {
+            if (current.includes(group) === open) return current;
+            return open ? [...current, group] : current.filter(value => value !== group);
+          });
+        }}>
+        <dl className={profileView ? 'divide-y divide-slate-200' : 'space-y-5'}>
+          {RESEARCH_INTENT_FIELDS.filter(field => field.group === group).map(({key,label}) =>
+            <div key={key} className={profileView ? 'min-w-0 space-y-2.5 py-5' : 'min-w-0 space-y-1'}>
+              <dt className={profileView ? 'text-base font-semibold leading-6 text-brand-navy' : 'text-xs font-medium leading-6 text-slate-600'}>{profileView && key === 'timeline' ? 'Research timeline' : label}</dt>
+              <dd className={`whitespace-pre-wrap ${profileView ? 'text-[15px] font-normal leading-7 text-slate-700' : 'text-sm font-normal leading-7 text-slate-900'} [overflow-wrap:anywhere]`}>{record[key] || 'Not recorded'}</dd>
+            </div>)}
+        </dl>
+      </SupervisorRequestDisclosure>)}
+    </div>
   </div>;
 }
 
-export function SupervisorResearchIntentSection({ record, loading, error, onRetry, embedded = false, headingAs = 'h3' }: {
-  record: SupervisorResearchIntent | null; loading: boolean; error: string | null; onRetry: () => void; embedded?: boolean; headingAs?: 'h2' | 'h3';
+export function SupervisorResearchIntentSection({ record, loading, error, onRetry, embedded = false, headingAs = 'h3', profileView }: {
+  record: Partial<SupervisorResearchIntent> | null; loading?: boolean; error?: string | null; onRetry?: () => void; embedded?: boolean; headingAs?: 'h2' | 'h3';
+  profileView?: boolean;
 }) {
   const titleId=useId();
   const Heading=headingAs;
   const content=<section aria-labelledby={titleId} className="space-y-3">
     {!embedded || !record || loading || error ? <Heading id={titleId} className={embedded ? 'text-sm font-semibold text-brand-navy' : typography.heading}>Research Intent</Heading> : null}
-    {loading ? <LoadingState message="Loading submitted Research Intent…" className="py-4" /> : error ? <ErrorState message={error} onRetry={onRetry} className="py-4" /> : record ? embedded ? <SubmittedResearchIntentGroups record={record} titleId={titleId} headingAs={headingAs}/> : <SupervisorResearchIntentText record={record} /> : <p className="text-xs leading-relaxed text-slate-600">No Research Intent was recorded for this application. This information is unavailable for historical applications and Office-initiated replacements.</p>}
+    {loading ? <LoadingState message="Loading submitted Research Intent…" className="py-4" /> : error ? <ErrorState message={error} onRetry={onRetry} className="py-4" /> : record ? embedded ? <SubmittedResearchIntentGroups record={record} titleId={titleId} headingAs={headingAs} profileView={profileView}/> : <SupervisorResearchIntentText record={record} /> : <p className="text-xs leading-relaxed text-slate-600">No Research Intent was recorded for this application. This information is unavailable for historical applications and Office-initiated replacements.</p>}
   </section>;
   return embedded ? content : <PortalCard padding="lg">{content}</PortalCard>;
 }

@@ -1,10 +1,10 @@
 import React from 'react';
-import { RequestSummaryCard, ResearchDetailsCard } from './AppointmentRequestSections';
+import { RequestSummaryCard } from './AppointmentRequestSections';
 import { PortalButton, PortalCard, StatusBadge } from './PortalPrimitives';
 import { RequestSection, ViewStudentRecordAction } from './RequestDetailPrimitives';
 import { RequestStatusBadge } from './RequestStatusBadge';
 import { appointmentDetailTypography as text } from './AppointmentPrimitives';
-import { AppointmentProjectStageField } from './SupervisionDetailLayout';
+import { AppointmentProjectStageField, SupervisionResearchCard } from './SupervisionDetailLayout';
 
 export function AppointmentAttentionOverview({ module, studentName, studentId, programme, projectStage, projectSemester, active, supervisor, research, pendingRequest, onOpenStudent, onOpenAppointment }: {
   module: 'Supervisor' | 'Panel'; studentName: string; studentId: string; programme: string; active: boolean; supervisor?: string;
@@ -31,6 +31,6 @@ export function AppointmentAttentionOverview({ module, studentName, studentId, p
         </> : <p className={text.body}>No ongoing request.</p>}
       </div>
     </RequestSection></PortalCard>
-    {research && (research.title || research.area || research.abstract) ? <ResearchDetailsCard {...research} source="profile" /> : null}
+    {research && (research.title || research.area || research.abstract) ? <SupervisionResearchCard profile={research} matricNo={studentId} returnLabel="Supervisor appointment overview" showProgramme={false} /> : null}
   </div>;
 }

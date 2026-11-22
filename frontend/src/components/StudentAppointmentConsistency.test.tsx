@@ -13,10 +13,10 @@ const panel: StudentPanelAppointmentView = {
 };
 const renderPanel = (value: StudentPanelAppointmentView) => renderToStaticMarkup(<MemoryRouter><StudentPanelAppointmentOverview appointment={value} /></MemoryRouter>);
 const confirmed = renderPanel(panel);
-assert.match(confirmed, /aria-label="Research profile"/);
+assert.match(confirmed, /aria-label="Research summary"/);
 assert.match(confirmed, /Explainable AI|Current saved abstract/);
 assert.equal((confirmed.match(/>Recorded title</g) ?? []).length, 1, 'The title belongs to the shared profile, without another title block');
-assert.doesNotMatch(renderPanel({...panel,researchProfile:null}), /aria-label="Research profile"|Current saved abstract/, 'No approved profile is invented from a pending request title');
+assert.doesNotMatch(renderPanel({...panel,researchProfile:null}), /aria-label="Research summary"|Current saved abstract/, 'No approved profile is invented from a pending request title');
 assert.match(confirmed, /My panel|Dr Panel|panel@example.test|10 Oct 2026|Recorded title/);
 assert.match(confirmed, /aria-label="Appointment guidance"/);
 assert.doesNotMatch(confirmed, /<details[^>]*>[\s\S]*Appointment guidance|What Happens Next|Something looks incorrect|Panel Appointment Progress/);

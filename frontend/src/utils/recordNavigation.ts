@@ -30,6 +30,10 @@ export function recordBackSteps(currentIndex: unknown, source: RecordReturn): nu
     ? Number(currentIndex) - source.historyIndex! : 0;
 }
 
+export function researchProfileRecordReturn(value: unknown, fallback: RecordReturn): RecordReturn {
+  return recordReturn(value, recordReturn(value, fallback, APP_ROUTES.panelAppointments), APP_ROUTES.supervisorAppointments);
+}
+
 /** Student requests can be opened from the supervisory overview or the Applications list. */
 export function studentSupervisorRequestReturn(pathname: string, search: string, value: unknown, historyIndex?: unknown): RecordReturn {
   const fallback = { path: APP_ROUTES.supervisorAppointmentApplications + search, label: 'Applications' };

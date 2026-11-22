@@ -30,7 +30,7 @@ export function PanelAssignmentDetails({record,contextAction,actions,academicTea
         <div className="mt-6 border-t border-slate-200 pt-6"><SupervisionPerson name={record.recommendedMember?.trim() || 'Panel member not recorded'} role="Panel member for this assignment" email={record.panelMemberEmail} department={record.panelMemberDepartment} appointedOn={record.appointmentDate ? formatRequestDisplayDate(record.appointmentDate) : null} status={record.appointmentLifecycle?.status === 'ACTIVE' ? 'Active' : record.appointmentLifecycle ? panelStatusLabel(record.appointmentLifecycle.status) : 'Status not recorded'}/></div>
       </SupervisionDetailSection> : <PanelMemberDetails record={record}/>}
         {record.unavailableUntil?<p className="text-sm leading-6 text-amber-800">Unavailable for new appointments until {formatRequestDisplayDate(record.unavailableUntil)}. This recorded appointment remains available.</p>:null}
-        <PanelResearchDetails record={record}/>
+        <PanelResearchDetails record={record} returnLabel="Panel assignment"/>
       </div>
       <aside aria-label="Appointment information" className="min-w-0 space-y-7">
         {lifecycle?<PanelAppointmentRecordCard markingAction={markingAction} compact showHistory={false} record={record} appointmentSemester={record.semester} sourceAction={sourceAction} actions={actions}/>:<SupervisionDetailSection title="Appointment record" icon={ClipboardList}><p className={body}>No appointment lifecycle record is available.</p>{sourceAction?<RequestDetailActions>{sourceAction}</RequestDetailActions>:null}</SupervisionDetailSection>}
@@ -49,7 +49,7 @@ export function PanelAppointmentOverview({record,onOpenStudent,onViewRequest,onV
     <div data-panel-assignment-columns className="grid min-w-0 items-start gap-7 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-7">
         {active?<PanelMemberDetails record={record}/>:null}
-        <PanelResearchDetails record={record}/>
+        <PanelResearchDetails record={record} returnLabel="Panel appointment overview"/>
       </div>
       <aside className="min-w-0" aria-label="Panel appointment status"><SupervisionDetailSection title="Appointment status" icon={ClipboardList}>
         <StatusBadge tone={active?'success':'neutral'}>{active?'Active Panel appointment':'No active Panel appointment'}</StatusBadge>

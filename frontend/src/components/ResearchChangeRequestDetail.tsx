@@ -28,7 +28,7 @@ export function ResearchChangeRequestDetail({row, changeLabel, steps, actions, p
             <dt className={supervisionDetailLabel}>Reason for change</dt>
             <dd className={`${supervisionDetailBody} whitespace-pre-wrap`}>{row.reason?.trim() || 'Not recorded'}</dd>
           </div></dl>
-          <RequestedChangesComparison before={row.before} after={row.after} applied={row.status==='APPROVED'}/>
+          <RequestedChangesComparison key={row.id} before={row.before} after={row.after} applied={row.status==='APPROVED'} disclosure={row.kind === 'RESEARCH' ? 'review' : undefined}/>
         </SupervisionDetailSection>
         {transferTeam ? <SupervisionDetailSection title="Supervisory team at submission" icon={UsersRound}>{transferTeam}</SupervisionDetailSection> : null}
       </div>

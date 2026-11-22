@@ -1,6 +1,11 @@
 import { request } from './apiClient';
+import type { SupervisorResearchIntent } from '../types/supervisorResearchIntent';
 
-export type ResearchSnapshot = { title: string; abstract: string; programme: string };
+export type ResearchPlanChanges = Partial<
+  Pick<SupervisorResearchIntent, 'aim' | 'researchQuestions' | 'researchObjectives' | 'methodology' | 'timeline'>
+  & { researchArea: string }
+>;
+export type ResearchSnapshot = { title: string; abstract: string; programme: string } & ResearchPlanChanges;
 export type AmendmentKind = 'RESEARCH' | 'TRANSFER';
 export type AmendmentStatus = 'PENDING_SUPERVISOR' | 'PENDING_SOURCE_COORDINATOR' | 'PENDING_COORDINATOR' | 'PENDING_DESTINATION_COORDINATOR' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 type TeamMember = { appointmentId: number; userId: number; name: string };
@@ -17,7 +22,11 @@ export interface ResearchRevision {
 }
 export interface ResearchAmendmentOptions {
   students: { id: number; name: string; matricNo: string; programme: string }[]; programmes: string[];
-  profile: (ResearchSnapshot & { studentId: number; revision: number }) | null;
+  profile: (ResearchSnapshot & {
+    studentId: number; revision: number; researchArea?: string;
+    submittedIntent?: { record: SupervisorResearchIntent; submittedAt: string; titleOrAbstractChanged: boolean } | null;
+    currentIntent?: Partial<SupervisorResearchIntent> | null;
+  }) | null;
   canSubmitResearch: boolean; canCorrect: boolean; canTransfer: boolean;
 }
 export interface ResearchPageQuery {
@@ -40,11 +49,23 @@ export interface ResearchProfileDirectory {
   programmes: string[];
   pagination: {total: number; page: number; pageSize: number; pageCount: number};
 }
-export type AmendmentInput = { studentId?: number; kind: AmendmentKind; title?: string; abstract?: string; destinationProgramme?: string; reason: string };
+export type AmendmentInput = { studentId?: number; kind: AmendmentKind; title?: string; abstract?: string; planChanges?: ResearchPlanChanges; destinationProgramme?: string; reason: string; expectedRevision?: number };
 export type CorrectionInput = { studentId: number; title?: string; abstract?: string; reason: string; meaningUnchanged: true; expectedRevision: number };
 const base = '/appointments/research-amendments';
 const query = (studentId?: number) => studentId === undefined ? '' : `?studentId=${studentId}`;
-export const getResearchAmendmentOptions = (studentId?: number, minimal = false, selectedOnly = false) => request<ResearchAmendmentOptions>(`${base}/options/${minimal ? '?minimal=true' : query(studentId)}${selectedOnly && studentId !== undefined ? '&selectedOnly=true' : ''}`);
+export function getResearchProfileLink(matricNo: string) {
+  return request<{studentId: number | null}>(`${base}/profile-link/?${new URLSearchParams({matricNo})}`);
+}
+export function getResearchAmendmentOptions(studentId?: number, minimal = false, selectedOnly = false, includeResearchIntent = false) {
+  const params = new URLSearchParams();
+  if (minimal) params.set('minimal', 'true');
+  else if (studentId !== undefined) {
+    params.set('studentId', String(studentId));
+    if (selectedOnly) params.set('selectedOnly', 'true');
+  }
+  if (includeResearchIntent) params.set('includeResearchIntent', 'true');
+  return request<ResearchAmendmentOptions>(`${base}/options/${params.size ? `?${params}` : ''}`);
+}
 export function getResearchProfiles(filters: ResearchProfileQuery) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') params.set(key, String(value));
@@ -76,8 +97,8 @@ export async function getNextResearchAmendment(filters: ResearchPageQuery, curre
   const nextRow = nextPage.requests.find(row => row.id !== currentId);
   return nextRow && nextPage.pagination ? {id:nextRow.id,page:nextPage.pagination.page} : null;
 }
-export async function loadResearchAmendmentWorkspace({coordinator, office=false, routeView, requestId, studentId, pageQuery}: {
-  coordinator: boolean; office?:boolean; routeView?: 'list' | 'detail' | 'profile' | 'new'; requestId?: string; studentId?: number; pageQuery?: ResearchPageQuery;
+export async function loadResearchAmendmentWorkspace({coordinator, office=false, student=false, routeView, requestId, studentId, pageQuery}: {
+  coordinator: boolean; office?:boolean; student?: boolean; routeView?: 'list' | 'detail' | 'profile' | 'new'; requestId?: string; studentId?: number; pageQuery?: ResearchPageQuery;
 }): Promise<ResearchAmendmentCollection & {options: ResearchAmendmentOptions}> {
   if ((coordinator||office) && routeView === 'detail') {
     const id = Number(requestId);
@@ -87,7 +108,8 @@ export async function loadResearchAmendmentWorkspace({coordinator, office=false,
   }
   const paged = (coordinator||office) && routeView === 'list';
   const [options, data] = await Promise.all([
-    getResearchAmendmentOptions(paged ? undefined : studentId, paged, routeView === 'profile' && studentId !== undefined),
+    getResearchAmendmentOptions(paged ? undefined : studentId, paged, routeView === 'profile' && studentId !== undefined,
+      routeView === 'profile' || (student && (routeView === 'new' || routeView === undefined))),
     paged ? getResearchAmendmentsPage(pageQuery ?? {},office) : getResearchAmendments(studentId),
   ]);
   return {options, ...data};

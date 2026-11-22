@@ -5,8 +5,10 @@ import { ResearchAbstract } from './ResearchAbstract';
 import {SupervisionResearchCard} from './SupervisionDetailLayout';
 
 /** The student's current saved profile, shared by both appointment overviews. */
-export function StudentResearchProfileSection({ profile, standalone = false }: { profile: StudentResearchProfileSummary; standalone?:boolean }) {
-  if (standalone) return <SupervisionResearchCard profile={profile}/>;
+export function StudentResearchProfileSection({ profile, standalone = false, actions }: {
+  profile: StudentResearchProfileSummary; standalone?:boolean; actions?:React.ReactNode;
+}) {
+  if (standalone) return <SupervisionResearchCard profile={profile} actions={actions}/>;
   return <section aria-label="Research profile" className="space-y-6 border-t border-slate-200 pt-6">
     <h3 className={typography.heading}>Research profile</h3>
     <dl className="space-y-6">

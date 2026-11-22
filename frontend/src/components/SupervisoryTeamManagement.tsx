@@ -6,7 +6,7 @@ import type {AppointmentMarkingTarget} from '../utils/appointmentMarking';
 import { IconHeading } from './IconHeading';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { UsersRound, History, FileText, UserPlus, ArrowRightLeft, Send, X, Search, ChevronDown, CheckCircle, ListChecks } from 'lucide-react';
-import {SupervisionDetailSection, SupervisionOverview, SupervisionMember, SupervisionContactDetails, SupervisionPerson, supervisionDetailLabel, supervisionDetailBody} from './SupervisionDetailLayout';
+import {SupervisionDetailSection, SupervisionOverview, SupervisionMember, SupervisionContactDetails, SupervisionPerson, SupervisionResearchCard, supervisionDetailLabel, supervisionDetailBody} from './SupervisionDetailLayout';
 import {SupervisorRequestDisclosure} from './SupervisorRequestFields';
 import { PortalSelect } from './PortalSelect';
 import { CandidateCapacity } from './CandidateCapacity';
@@ -302,7 +302,7 @@ type EditAction = { kind: 'nominate'; team: SupervisoryTeam; replacement: CoSupe
   | { kind: 'decision'; nomination: CoSupervisorNomination; action: CoSupervisorAction }
   | { kind: 'end'; appointment: CoSupervisorAppointment };
 
-type StudentSupervisionContent = {requests?: React.ReactNode; onShowFAQChatbot?: () => void};
+type StudentSupervisionContent = {requests?: React.ReactNode; researchActions?: React.ReactNode; onShowFAQChatbot?: () => void};
 
 export function StudentSupervisorsOverview({ workspace, actions, content }: { workspace: SupervisoryWorkspace; actions?: React.ReactNode; content?: StudentSupervisionContent }) {
   const team = workspace.teams[0];
@@ -319,7 +319,7 @@ export function StudentSupervisorsOverview({ workspace, actions, content }: { wo
         </section>
     </StudentAppointmentCard>
     {content?.requests}
-    {team && Object.values(team.research).some(value=>value.trim()) ? <StudentResearchProfileSection standalone profile={{...team.research,programme:team.programme}}/> : null}
+    {team && Object.values(team.research).some(value=>value.trim()) ? <StudentResearchProfileSection standalone profile={{...team.research,programme:team.programme}} actions={content?.researchActions}/> : null}
     {previous.length ? <SupervisionDetailSection title="Appointment history" icon={History}><SupervisorRequestDisclosure title="Previous supporting supervisors"><div className="space-y-5">{previous.map(row=><article key={row.id} className="space-y-2"><p className={supervisionDetailBody}>{row.supervisor.name}</p><p className="text-sm leading-6 text-slate-600">Supporting supervisor · {displayDate(row.appointmentDate)}{row.endedAt ? ` – ${displayDate(row.endedAt)}` : ''}</p><StatusBadge tone="neutral">Ended</StatusBadge></article>)}</div></SupervisorRequestDisclosure></SupervisionDetailSection> : null}
     </StudentAppointmentLayout>
   </div>;
@@ -399,7 +399,7 @@ export function SupervisoryStudentDetailCard({ team, busy, initiallyOpen = false
             </div>
             <div className="mt-6 border-t border-slate-200 pt-6"><SupervisionPanelSummary plain panel={team.panel} busy={busy} onRecommend={onRecommendPanel} onViewRequest={onViewPanelRequest}/></div>
           </SupervisionDetailSection>
-          <StudentResearchProfileSection standalone profile={{...team.research,programme:team.programme}}/>
+          <SupervisionResearchCard profile={{...team.research,programme:team.programme}} matricNo={team.matricNo} returnLabel="supervisee"/>
         </div>
         {management ? <aside aria-label="Appointment information" className="min-w-0">{management}</aside> : null}
       </div>

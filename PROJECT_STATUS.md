@@ -5216,3 +5216,57 @@ Scoped assignment rows and controls to the selected period and linked the empty 
 ## Evaluation period recipient preview views (20 November 2026)
 
 Added tabs for marking tasks, missing requirements and excluded students. Exclusions show counts and shared guidance by reason. The mounted period-draft and publication-safeguards suites passed at 1440, 390 and 320 pixels. The large-preview regression covers 125 tasks and 24 exclusions, keyboard tab switching, search and independent pagination.
+
+## Student research profile
+
+Added a View research profile action to My supervisors. The full page shows current research, the original Research Intent in three expandable groups, and saved revision history. The intent includes its submission date and flags later differences in title or abstract. Older profiles without a reliable source show an empty state.
+
+Verified the profile layout and expand and collapse controls in a browser at 1440, 390 and 320 pixels with long research text. Focused frontend and Django suites cover layout, record visibility, and preservation of the original intent.
+
+The My supervisors profile button now uses the portal's filled primary style. Restarted the local UAT backend and verified that UAT-S01's live profile returns its saved research area and all nine submitted Research Intent fields. The existing record needed no seed data.
+
+Refined the Student profile reading layout with a prominent research title, a compact identity card and version metadata below the abstract. Research Intent panels have tinted headers, stronger field labels, separators and a narrower reading column. Reviewed desktop and mobile screenshots and exercised individual and bulk disclosure controls at 1440, 390 and 320 pixels.
+
+Follow-up feedback removed the width caps from the Student title, abstract and Research Intent answers. Saved versions remain available in Revision history.
+
+The Research changes profile card uses a light-blue View research profile action and a filled Request research change action. Both have icons and compact sentence-case labels. They stack on phones with taller tap targets.
+
+## Research plan amendment foundation
+
+Implemented scoped plan changes through the amendment service, current-plan display on the student profile, and field-level comparisons for supervisor review and revision history. Pending requests leave the approved plan visible. The student request form still offers title and abstract. Field selection and entry for the wider set are the next design phase.
+
+Verified 39 amendment, intent and reconciliation tests; 15 focused frontend checks; the frontend type check; and the migration consistency check. Applied migration 0022 to the local UAT sandbox and verified that UAT-S01's live profile reads the current plan from its original submission.
+
+## Student research change form
+
+The request page now starts with grouped field choices. Selecting a field opens a prefilled editor. Students enter one reason and can preview the changed values before submission. Deselected fields stay out of the request, and stale profile revisions trigger the existing latest-record recovery flow.
+
+Verified 34 backend tests, 12 focused frontend checks, the TypeScript check, and the mounted browser suites at 1440, 1024 and 390 pixels. Restarted the local UAT backend and confirmed that the portal serves the field picker and the current plan for UAT-S01.
+
+The student form preview now lists only the changed fields with comparisons collapsed. Opening one shows the full current and proposed values and closes the previous comparison.
+
+A saved Student research request automatically returns to its source page with the existing confirmation toast. Failed saves keep the draft in place.
+
+The research change request detail now lists changed fields as collapsed comparisons. The reason and review actions remain visible while reviewers open individual fields.
+
+Removed the comparison instructions from request details and the student preview.
+
+Restored the panel style on research request details. One or two changed fields start open. Three or more start collapsed and open one at a time.
+
+## Shared research profile and revision history
+
+Student, Lecturer, Programme Coordinator and Office Staff profiles now share the same current research layout and approved plan. Revision history shows changed-field summaries with collapsed before-and-after comparisons. The initial record has its own disclosure. Existing access scopes, role actions and application records are preserved.
+
+Verified 20 Django research amendment tests, the TypeScript check, nine focused frontend checks and the mounted browser suites at 1440, 1024 and 390 pixels. Restarted the local UAT backend on port 8003 and verified that the student and active lecturer receive the same saved research area and approved plan for UAT-S01 through the portal.
+
+Removed the submission note from the current research plan card and gave the heading and Expand all button a consistent gap above the first row. Verified the spacing for all four roles at desktop and mobile widths.
+
+Standardised appointment research summaries and added scope-checked View research profile actions. Long abstracts are available in full from the summary. Profile navigation preserves the originating supervision or Panel record.
+
+Restarted the local UAT backend and verified the profile link for UAT-S01 as the student, active primary supervisor, programme coordinator and office staff. The assigned Panel-only lecturer receives no profile link. The research amendment API tests, focused component tests and Panel request and assignment browser checks passed. The broader supervision browser fixture still reports failures in appointment history and action styling checks.
+
+Follow-up verification (22 November 2026). Updated the supervision browser fixture to match the approved history placement and shared button style. The busy-state check now uses a team eligible for a new nomination, while separate coverage confirms pending nominations suppress duplicate actions. All 14 scenarios passed at 1440, 1024 and 390 px. Reviewed requirements and architecture. This follow-up changes test coverage only.
+
+Added a responsive pending-review notice to the student research profile. It explains when approved content updates and opens the matching request. The mounted profile suite verified the action, approved content and student-only notice at 1440, 1024 and 390 px.
+
+Promoted the Office Research profiles button to a navy header action with a book icon and a larger target. The production build and staff navigation checks passed. All eight directory browser scenarios passed at 1280 and 390 px, including header alignment and opening the directory from Research records history.

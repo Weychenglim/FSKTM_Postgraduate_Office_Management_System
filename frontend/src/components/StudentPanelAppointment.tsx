@@ -6,8 +6,8 @@ import { useReturnToFocusReload } from '../utils/returnToFocus';
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
-import { FileText, UsersRound } from 'lucide-react';
-import { PageHeader } from './PortalPrimitives';
+import { BookOpen, FileText, UsersRound } from 'lucide-react';
+import { PageHeader, PortalButton } from './PortalPrimitives';
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import { getStudentPanelAppointment } from '../services/appointmentsApi';
 import type { StudentPanelAppointmentView } from '../types';
@@ -21,7 +21,10 @@ import { RecordPage } from './RecordPage';
 import { formatMalaysiaDateTime } from '../utils/malaysiaDateTime';
 import { StudentAppointmentAcademicFields, StudentAppointmentCard, StudentAppointmentLayout, StudentAppointmentNextStep } from './StudentAppointmentLayout';
 
-interface StudentPanelAppointmentProps { onShowFAQChatbot?: () => void }
+interface StudentPanelAppointmentProps {
+  onShowFAQChatbot?: () => void;
+  onNavigateToResearchProfile?: () => void;
+}
 
 function panelGuidance(appointment: StudentPanelAppointmentView) {
   switch (appointment.readinessState) {
@@ -38,7 +41,7 @@ function panelGuidance(appointment: StudentPanelAppointmentView) {
   }
 }
 
-export function StudentPanelAppointmentOverview({ appointment, onShowFAQChatbot }: StudentPanelAppointmentProps & {
+export function StudentPanelAppointmentOverview({ appointment, onShowFAQChatbot, onNavigateToResearchProfile }: StudentPanelAppointmentProps & {
   appointment: StudentPanelAppointmentView;
 }) {
   const confirmed = appointment.status === 'CONFIRMED' && appointment.readinessState === 'CONFIRMED';
@@ -57,12 +60,13 @@ export function StudentPanelAppointmentOverview({ appointment, onShowFAQChatbot 
           <PanelDetailFact title="Semester" value={appointment.semester}/>
           {appointment.readinessState !== 'SUPERVISOR_REQUIRED' ? <PanelDetailFact title={supervisorPending ? 'Proposed supervisor' : 'Primary supervisor'} value={appointment.supervisorName}/> : null}</dl>
         </SupervisionDetailSection>}
-        {appointment.researchProfile ? <StudentResearchProfileSection standalone profile={appointment.researchProfile}/> : null}
+        {appointment.researchProfile ? <StudentResearchProfileSection standalone profile={appointment.researchProfile}
+          actions={onNavigateToResearchProfile && <PortalButton size="sm" variant="primary" icon={BookOpen} onClick={onNavigateToResearchProfile}>View research profile</PortalButton>}/> : null}
     </StudentAppointmentLayout>
   </div>;
 }
 
-export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = ({ onShowFAQChatbot }) => {
+export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = ({ onShowFAQChatbot, onNavigateToResearchProfile }) => {
   const [params, setParams] = useSearchParams();
   const [appointment, setAppointment] = useState<StudentPanelAppointmentView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -91,6 +95,6 @@ export const StudentPanelAppointment: React.FC<StudentPanelAppointmentProps> = (
   }
   return <div id="student-panel-app-workspace" className="space-y-7 text-left font-sans pb-12">
     <PageHeader title="Panel Appointment" subtitle="See your Panel appointment and the next step for your current status." />
-    {loading ? <LoadingState message="Loading your panel appointment..." /> : error || !appointment ? <ErrorState message={error || 'Panel appointment record was not available.'} onRetry={loadAppointment} /> : <StudentPanelAppointmentOverview appointment={appointment} onShowFAQChatbot={onShowFAQChatbot} />}
+    {loading ? <LoadingState message="Loading your panel appointment..." /> : error || !appointment ? <ErrorState message={error || 'Panel appointment record was not available.'} onRetry={loadAppointment} /> : <StudentPanelAppointmentOverview appointment={appointment} onShowFAQChatbot={onShowFAQChatbot} onNavigateToResearchProfile={onNavigateToResearchProfile} />}
   </div>;
 };

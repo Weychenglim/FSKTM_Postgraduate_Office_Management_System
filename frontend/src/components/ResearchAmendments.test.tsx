@@ -42,7 +42,11 @@ assert.match(renderToStaticMarkup(<ResearchAmendmentCard row={historyRow} studen
 assert.doesNotMatch(renderToStaticMarkup(<ResearchAmendmentCard row={historyRow} studentView busy={false} onAction={() => {}} />), />Cancel request</);
 const formOptions = { students:[],programmes:[],profile:{studentId:7,revision:1,title:'Current title',abstract:'Current abstract',programme:'Current programme'},canSubmitResearch:true,canCorrect:false,canTransfer:false };
 const studentForm = renderToStaticMarkup(<ResearchAmendmentForm options={formOptions} busy={false} studentView onSave={() => {}} />);
-assert.match(studentForm, /Research title|Research abstract|Submit request/);
+for (const field of ['Research title','Research abstract','Research area','Statement of aim','Research questions','Research objectives','Methodology','Research timeline']) {
+  assert.ok(studentForm.includes(field), `Student can select ${field}`);
+}
+assert.doesNotMatch(studentForm, /value="Current title"|>Current abstract<|data-change-preview/);
+assert.match(studentForm, /Choose fields to change|Submit request/);
 assert.doesNotMatch(studentForm, /<select|Change type/);
 assert.match(studentForm, /primary supervisor makes the final decision/i);
 assert.doesNotMatch(studentForm, /programme coordinator makes the final decision/i);
@@ -182,7 +186,7 @@ assert.doesNotMatch(renderRoute({ role: 'Office Staff/Admin', rows: researchQueu
 const snapshotRequest = {...historyRow, canDecide:false, canCancel:false, status:'APPROVED', before:{programme:'Same programme',title:'Saved original title',abstract:'Saved original abstract'},after:{programme:'Same programme',title:'Saved requested title',abstract:'Saved requested abstract'},events:[{...historyRow.events[0],action:'SUBMIT',actorName:'Office Transfer Initiator',actorRole:'Office Staff/Admin'}, {id:4,action:'APPROVE',actorName:'Primary Supervisor',actorRole:'Lecturer',previousStatus:'PENDING_SUPERVISOR',newStatus:'APPROVED',createdAt:'2026-10-10T08:00:00Z',reason:'Approval decision note',retainTeam:false}]};
 const approvedSnapshot = renderRoute({routeView:'detail',routeRequestId:'1',rows:[snapshotRequest],options:{...formOptions,profile:{...formOptions.profile,title:'Later live profile title'}}});
 for (const text of ['Saved original title','Saved requested title','Before this request','Approved title','Applied on approval','Approval decision note']) assert.ok(approvedSnapshot.includes(text));
-assert.equal(approvedSnapshot.split('<details')[0].split('Approval decision note').length - 1,1,'The approval note appears once in visible progress, with its complete audit copy collapsed');
+assert.equal(approvedSnapshot.split(/Audit history/i)[0].split('Approval decision note').length - 1,1,'The approval note appears once in visible progress, with its complete audit copy collapsed');
 assert.doesNotMatch(approvedSnapshot,/Later live profile title|>Approved<|>Proposed</);
 for (const status of ['PENDING_SUPERVISOR','REJECTED','CANCELLED'] as const) {
   const html=renderRoute({routeView:'detail',routeRequestId:'1',rows:[{...snapshotRequest,status,events:[snapshotRequest.events[0],...(status.startsWith('PENDING')?[]:[{...snapshotRequest.events[1],action:status==='REJECTED'?'REJECT':'CANCEL',newStatus:status,reason:`${status} decision reason`}])]}]});
@@ -191,8 +195,7 @@ for (const status of ['PENDING_SUPERVISOR','REJECTED','CANCELLED'] as const) {
   assert.match(html,/Saved original title|Saved requested title/);
   assert.doesNotMatch(html,/>Approve request<|>Reject request<|>Cancel request</,'Presentation preserves server capabilities for read-only records');
   if (!status.startsWith('PENDING')) {
-    assert.ok(html.indexOf(`${status} decision reason`) < html.indexOf('<details'), 'Terminal reason remains visible before the collapsed audit');
-    assert.equal(html.split('<details')[0].split(`${status} decision reason`).length - 1,1,'A rejection or cancellation reason appears once in visible progress');
+    assert.equal(html.split(/Audit history/i)[0].split(`${status} decision reason`).length - 1,1,'A rejection or cancellation reason appears once in visible progress');
   }
 }
 assert.deepEqual(research.researchRequestMetadata(snapshotRequest),{reference:'Research request #1',submittedAt:'2026-10-09T08:00:00Z',submittedBy:'Office Transfer Initiator · Office Staff/Admin',statusLabel:historyRow.stageLabel,statusTone:'success'});
@@ -203,7 +206,7 @@ assert.equal(research.researchRequestMetadata({...snapshotRequest,kind:'TRANSFER
 const legacyResearch = renderRoute({role:'Lecturer',routeView:'detail',routeRequestId:'1',rows:[{...snapshotRequest,status:'REJECTED',events:[snapshotRequest.events[0],{id:8,action:'ENDORSE',actorName:'Earlier Supervisor',actorRole:'Lecturer',previousStatus:'PENDING_SUPERVISOR',newStatus:'PENDING_COORDINATOR',reason:'Earlier endorsement',createdAt:'2026-10-10T08:00:00Z',retainTeam:false},{id:9,action:'REJECT',actorName:'Legacy Coordinator',actorRole:'Programme Coordinator',previousStatus:'PENDING_COORDINATOR',newStatus:'REJECTED',reason:'Legacy rejection reason',createdAt:'2026-10-11T08:00:00Z',retainTeam:false}]}]});
 assert.match(legacyResearch,/Historical recorded review/,'Legacy research decisions preserve the stored review without inferring authority from account role');
 assert.match(legacyResearch,/Legacy Coordinator · Programme Coordinator/);
-assert.ok(legacyResearch.indexOf('Legacy rejection reason')<legacyResearch.indexOf('<details'));
+assert.match(legacyResearch.split(/Audit history/i)[0], /Legacy rejection reason/);
 
 const correction=renderToStaticMarkup(<ResearchRevisionCard revision={{...initialRevision,id:9,revision:2,kind:'CORRECTION',before:initialRevision.after,after:{...initialRevision.after,title:'Typographical correction'},actorName:'Office Editor',reason:'Meaning unchanged'}} />);
 assert.match(correction,/Correction|Recorded before this revision|Recorded after revision|Office Editor|Typographical correction/);

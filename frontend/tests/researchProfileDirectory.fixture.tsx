@@ -2,6 +2,7 @@ import React from 'react';
 import {createRoot, type Root} from 'react-dom/client';
 import {MemoryRouter, useLocation, useNavigate} from 'react-router';
 import {LecturerResearchWorkspace} from '../src/components/LecturerResearchWorkspace';
+import {StaffResearchWorkspace} from '../src/components/StaffResearchWorkspace';
 
 const container = document.getElementById('root')!;
 const results: {name: string; error: string | null}[] = [];
@@ -20,10 +21,14 @@ students[0].title = 'An explainable artificial intelligence framework for evalua
 function Fixture({role}: {role: 'Lecturer' | 'Office Staff/Admin' | 'Programme Coordinator'}) {
   const navigate = useNavigate();
   browserBack = () => { void navigate(-1); };
-  currentSearch = useLocation().search;
+  const {pathname, search} = useLocation();
+  currentSearch = search;
+  if (pathname === '/supervisor-appointments/research-changes') {
+    return <StaffResearchWorkspace role={role} routeView="list" onNavigateToProfile={() => navigate(pathname + '/profile' + search)} />;
+  }
   return <LecturerResearchWorkspace role={role} routeView="profile" hideHeader />;
 }
-async function mount(query = '', role: 'Lecturer' | 'Office Staff/Admin' | 'Programme Coordinator' = 'Office Staff/Admin') {
+async function mount(query = '', role: 'Lecturer' | 'Office Staff/Admin' | 'Programme Coordinator' = 'Office Staff/Admin', fromRecords = false) {
   root?.unmount(); calls = []; fail = false;
   window.fetch = async input => {
     const url = new URL(String(input), location.origin); calls.push(url);
@@ -41,8 +46,8 @@ async function mount(query = '', role: 'Lecturer' | 'Office Staff/Admin' | 'Prog
     return Response.json(url.pathname.endsWith('/options/') ? {students: student ? [student] : students, programmes: [], profile: student ? {studentId: id, title: student.title, abstract: 'Saved abstract', programme: student.programme, revision: 0} : null, canSubmitResearch: false, canCorrect: false, canTransfer: false} : {requests: [], revisions: []});
   };
   root = createRoot(container);
-  root.render(<MemoryRouter initialEntries={['/supervisor-appointments/research-changes/profile' + query]}><Fixture role={role}/></MemoryRouter>);
-  await until(() => !!container.querySelector('table') || container.textContent?.includes('Select a student'));
+  root.render(<MemoryRouter initialEntries={['/supervisor-appointments/research-changes' + (fromRecords ? '' : '/profile') + query]}><Fixture role={role}/></MemoryRouter>);
+  await until(() => fromRecords ? button('Research profiles')?.matches(':enabled') : !!container.querySelector('table') || container.textContent?.includes('Select a student'));
 }
 const button = (text: string) => Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(node => node.textContent === text)!;
 function input(value: string) {
@@ -60,6 +65,18 @@ if (new URLSearchParams(location.search).has('preview')) {
   students[2].name = 'Tan Wei Ming';
   await mount();
 } else {
+await scenario('Office Research records has a readable directory action aligned with the heading', async () => {
+  await mount('?view=history&sort=newest', 'Office Staff/Admin', true);
+  const action = button('Research profiles');
+  const rect = action.getBoundingClientRect();
+  const heading = container.querySelector('h1')!.getBoundingClientRect();
+  check(rect.height >= 44 && rect.right <= innerWidth && action.querySelector('svg'), 'Directory action is cramped or clipped');
+  check(getComputedStyle(action).textTransform === 'none', 'Directory action label must use sentence case');
+  check(innerWidth >= 768 ? Math.abs(heading.bottom - rect.bottom) <= 1 : rect.top > heading.bottom, 'Directory action is detached from the heading');
+  action.click();
+  await until(() => container.querySelector('table[aria-label="Student research profiles"]'));
+  check(new URLSearchParams(currentSearch).get('view') === 'history', 'Directory action lost request history context');
+});
 await scenario('directory uses bounded reads and explicit student actions for every staff role', async () => {
   for (const role of ['Office Staff/Admin', 'Programme Coordinator', 'Lecturer'] as const) {
     await mount('', role);

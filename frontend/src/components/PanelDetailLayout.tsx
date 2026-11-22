@@ -1,8 +1,7 @@
 import React from 'react';
-import {BookOpen,UserRound} from 'lucide-react';
+import {UserRound} from 'lucide-react';
 import {PortalCard} from './PortalPrimitives';
-import {ResearchAbstract} from './ResearchAbstract';
-import {AppointmentProjectStageField,SupervisionDetailSection,supervisionDetailLabel as label,supervisionDetailBody as body} from './SupervisionDetailLayout';
+import {AppointmentProjectStageField,SupervisionDetailSection,SupervisionResearchCard,supervisionDetailLabel as label,supervisionDetailBody as body} from './SupervisionDetailLayout';
 import type {PanelPresentation} from '../utils/panelPresentation';
 
 export function PanelDetailFact({title,value}:{title:string;value?:string|null}) {
@@ -23,12 +22,10 @@ export function PanelStudentOverview({record,actions,assignment=false,appointmen
   </PortalCard>;
 }
 
-export function PanelResearchDetails({record}:{record:Pick<PanelPresentation,'proposedTopic'|'researchArea'|'abstract'>}) {
-  return <div data-research-details><SupervisionDetailSection title="Current research" icon={BookOpen}>
-    <p className="text-xs leading-6 text-slate-500">Current saved student research profile</p>
-    <dl className="space-y-6"><div className="space-y-2"><dt className={label}>Research title</dt><dd className="text-lg font-normal leading-8 text-slate-900 [overflow-wrap:anywhere]">{record.proposedTopic?.trim()||'Not recorded'}</dd></div><PanelDetailFact title="Research area" value={record.researchArea}/></dl>
-    <dl className="border-t border-slate-100 pt-6"><div className="space-y-3"><dt className={label}>Abstract</dt><dd><ResearchAbstract value={record.abstract} inset={false}/></dd></div></dl>
-  </SupervisionDetailSection></div>;
+export function PanelResearchDetails({record, returnLabel}:{record:Pick<PanelPresentation,'studentId'|'proposedTopic'|'researchArea'|'abstract'>;returnLabel:string}) {
+  return <div data-research-details><SupervisionResearchCard showProgramme={false}
+    profile={{title:record.proposedTopic,area:record.researchArea ?? undefined,abstract:record.abstract ?? undefined}}
+    matricNo={record.studentId} returnLabel={returnLabel}/></div>;
 }
 
 export function PanelMemberDetails({record,title='Appointed Panel member',actions}:{record:Pick<PanelPresentation,'recommendedMember'|'recommendedMemberId'|'panelMemberDepartment'|'panelMemberEmail'>;title?:string;actions?:React.ReactNode}) {

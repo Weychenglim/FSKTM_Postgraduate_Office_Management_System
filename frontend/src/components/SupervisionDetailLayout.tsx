@@ -4,6 +4,7 @@ import {IconHeading} from './IconHeading';
 import {AppointmentIcon} from './AppointmentPrimitives';
 import {PortalCard, StatusBadge} from './PortalPrimitives';
 import {ResearchAbstract} from './ResearchAbstract';
+import {ResearchSummaryProfileAction} from './ResearchSummaryProfileAction';
 import {projectStageLabel} from './AttentionProjectStage';
 import type {SupervisoryTeam} from '../types/coSupervision';
 import type {StudentResearchProfileSummary} from '../types/appointment';
@@ -87,14 +88,31 @@ export function SupervisionMember({label,name,status,tone,children,actions}: {
   </section>;
 }
 
-export function SupervisionResearchCard({profile}: {profile:StudentResearchProfileSummary}) {
+export function SupervisionResearchCard({profile, actions, matricNo, returnLabel, showProgramme = true}: {
+  profile:Partial<StudentResearchProfileSummary>; actions?:React.ReactNode; matricNo?:string; returnLabel?:string; showProgramme?:boolean;
+}) {
   const hasResearch=!!(profile.title?.trim() || profile.area?.trim() || profile.abstract?.trim());
-  return <section aria-label="Research profile" data-supervision-research>
-    <SupervisionDetailSection title="Research profile" icon={BookOpen}>
+  const abstract = profile.abstract?.trim() ?? '';
+  const compactAbstract = abstract.replace(/\s+/g, ' ');
+  const limit = 280;
+  const preview = compactAbstract.length > limit
+    ? compactAbstract.slice(0, limit).replace(/\s+\S*$/, '') + '…'
+    : abstract;
+  return <section aria-label="Research summary" data-supervision-research>
+    <SupervisionDetailSection title="Research summary" icon={BookOpen} actions={actions ?? (returnLabel && <ResearchSummaryProfileAction matricNo={matricNo} returnLabel={returnLabel}/>)}>
       {hasResearch ? <dl className="space-y-6">
         <div className="space-y-2"><dt className={supervisionDetailLabel}>Current research title</dt><dd className="text-lg font-normal leading-8 text-slate-900 [overflow-wrap:anywhere]">{profile.title?.trim() || 'Not recorded'}</dd></div>
-        <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">{([['Programme',profile.programme],['Research area',profile.area]] as const).map(([label,value])=><div key={label} className="min-w-0 space-y-2"><dt className={supervisionDetailLabel}>{label}</dt><dd className={supervisionDetailBody}>{value?.trim() || 'Not recorded'}</dd></div>)}</div>
-        <div className="space-y-3 border-t border-slate-100 pt-6"><dt className={supervisionDetailLabel}>Abstract</dt><dd><ResearchAbstract value={profile.abstract} inset={false}/></dd></div>
+        <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2">{([...(showProgramme ? [['Programme',profile.programme]] : []), ['Research area',profile.area]]).map(([label,value])=><div key={label} className="min-w-0 space-y-2"><dt className={supervisionDetailLabel}>{label}</dt><dd className={supervisionDetailBody}>{value?.trim() || 'Not recorded'}</dd></div>)}</div>
+        <div className="space-y-3 border-t border-slate-100 pt-6"><dt className={supervisionDetailLabel}>Abstract</dt><dd>
+          {compactAbstract.length > limit ? <details className="group/abstract">
+            <summary className="list-none cursor-pointer rounded focus-visible:outline-2 focus-visible:outline-blue-600 [&::-webkit-details-marker]:hidden">
+              <span className="block text-sm leading-7 text-slate-700 [overflow-wrap:anywhere] group-open/abstract:hidden">{preview}</span>
+              <span className="mt-2 inline-block text-sm font-medium text-blue-700 group-open/abstract:hidden">Read full abstract</span>
+              <span className="hidden text-sm font-medium text-blue-700 group-open/abstract:inline-block">Show less</span>
+            </summary>
+            <div className="mt-2"><ResearchAbstract value={abstract} inset={false}/></div>
+          </details> : <ResearchAbstract value={abstract} inset={false}/>}
+        </dd></div>
       </dl> : <p className={supervisionDetailBody}>No current research profile is available.</p>}
     </SupervisionDetailSection>
   </section>;

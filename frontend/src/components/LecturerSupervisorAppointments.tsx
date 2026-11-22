@@ -514,6 +514,7 @@ interface LecturerSupervisorAppointmentsProps {
   onNavigateToMarks?:(target?:AppointmentMarkingTarget)=>void;
   researchView?: 'list' | 'detail' | 'profile' | 'new';
   researchRequestId?: string;
+  researchBackLabel?: string;
   onNavigateToResearchRequest?: (id: string) => void;
   onNavigateToResearchList?: () => void;
   onNavigateToResearchProfile?: () => void;
@@ -524,7 +525,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   initialApplicationId, initialSupportingId, onNavigateToRequest, requestBackLabel, routeView = 'list', routeSuperviseeStudentId,
   onNavigateToList, onNavigateToSupervisee, onNavigateToDossier,
   onNavigateToPanelRequest, onNavigateToPanelRecommendation, onNavigateToSupervisees, onNavigateToMarks,
-  researchView = 'list', researchRequestId, onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile,
+  researchView = 'list', researchRequestId, researchBackLabel, onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile,
 }) => {
   const [capacity, setCapacity] = useState<SupervisorWorkloadSummary | null>(null);
   const [requestsList, setRequestsList] = useState<SupervisorRequest[]>([]);
@@ -556,7 +557,7 @@ export const LecturerSupervisorAppointments: React.FC<LecturerSupervisorAppointm
   const refresh = () => { void loadData(); setResearchRefresh(value => value + 1); setTeamRefresh(value => value + 1); };
   if (initialApplicationId || initialSupportingId) return <LecturerAppointmentRequests primaryRequests={requestsList} primaryLoading={loading} primaryError={error} refreshVersion={teamRefresh}
     onChanged={loadData} initialApplicationId={initialApplicationId} initialSupportingId={initialSupportingId} onCloseRoute={onNavigateToList} backLabel={requestBackLabel} onNavigateToDossier={onNavigateToDossier} />;
-  if (researchPage) return <RecordPage metadata={researchMetadata} title={researchView === 'detail' ? researchDetailTitle ?? researchPage.title : researchPage.title} subtitle={researchPage.subtitle} backLabel="Back to research changes" onBack={onNavigateToResearchList ?? (() => {})}>
+  if (researchPage) return <RecordPage metadata={researchMetadata} title={researchView === 'detail' ? researchDetailTitle ?? researchPage.title : researchPage.title} subtitle={researchPage.subtitle} backLabel={researchBackLabel ?? 'Back to research changes'} onBack={onNavigateToResearchList ?? (() => {})}>
     <LecturerResearchWorkspace onDetailMetadata={setResearchMetadata} onDetailTitle={setResearchDetailTitle} hideHeader showRefresh={false} onBusyChange={setWorkspaceBusy} routeView={researchView} routeRequestId={researchRequestId}
       onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile}
       refreshVersion={researchRefresh} onChanged={() => { void loadData(); setTeamRefresh(value => value + 1); }} />

@@ -70,7 +70,7 @@ import { correctionLabel, useStageCorrections } from './context/stageCorrections
 import { defaultLandingPageForUser } from './utils/landingPage';
 import { returnPathAfterSignIn, type SignInReturnState } from './utils/signInReturn';
 import { MarkRecordStatusTab } from './utils/markRecords';
-import { recordBackSteps, recordReturn, recordSourceLabel, studentSupervisorRequestReturn } from './utils/recordNavigation';
+import { recordBackSteps, recordReturn, recordSourceLabel, researchProfileRecordReturn, studentSupervisorRequestReturn } from './utils/recordNavigation';
 
 
 const lazyNamed = (
@@ -336,7 +336,13 @@ export default function App() {
   const openIndividualDeadline = (route:string,label:string) => navigate(route, {state:{periodsReturn:{
     path:pathname+location.search,label,historyIndex:window.history.state?.idx,
   }}});
-  const supervisorReturn = (parent: string, label: string) => attentionSource ?? recordReturn(location.state?.recordReturn, { path: parent + location.search, label }, APP_ROUTES.supervisorAppointments);
+  const supervisorReturn = (parent: string, label: string) => {
+    const fallback = {path: parent + location.search, label};
+    if (pathname === APP_ROUTES.supervisorResearchProfile && location.state?.researchProfileReturn) {
+      return researchProfileRecordReturn(location.state.researchProfileReturn, {path: APP_ROUTES.supervisorResearchChanges, label});
+    }
+    return attentionSource ?? recordReturn(location.state?.recordReturn, fallback, APP_ROUTES.supervisorAppointments);
+  };
   const studentSupervisorSource = studentSupervisorRequestReturn(pathname, location.search, location.state?.recordReturn, window.history.state?.idx);
   const officeSupervisorParent = isSupervisorSuperviseesRoute ? APP_ROUTES.supervisorAppointmentSupervisees : isSupervisorRequestsRoute ? APP_ROUTES.supervisorAppointmentRequests : APP_ROUTES.supervisorAppointments;
   const officeSupervisorLabel = isSupervisorSuperviseesRoute ? 'Supervisory teams' : isSupervisorRequestsRoute ? 'Appointment requests' : 'Needs attention';
@@ -606,7 +612,10 @@ export default function App() {
               isStudentWorkspace && isPanelNestedRoute ? (
                 <Navigate to={APP_ROUTES.panelAppointments} replace />
               ) : isStudentWorkspace ? (
-                <StudentPanelAppointment onShowFAQChatbot={() => navigate(APP_ROUTES.faq)} />
+                <StudentPanelAppointment onShowFAQChatbot={() => navigate(APP_ROUTES.faq)} onNavigateToResearchProfile={() =>
+                  navigate(APP_ROUTES.supervisorResearchProfile, {state:{researchProfileReturn:{
+                    path: pathname + location.search, label: 'My panel', historyIndex: window.history.state?.idx,
+                  }}})} />
               ) : isCoordinatorUnsupportedPanelRoute ? (
                 <Navigate to={APP_ROUTES.panelAppointments} replace />
               ) : isLecturerWorkspace || isCoordinatorWorkspace ? (
@@ -682,9 +691,19 @@ export default function App() {
                   researchView={supervisorResearchView}
                   researchRequestId={supervisorResearchRequestId}
                   onNavigateToResearchList={() => returnToSupervisorList(APP_ROUTES.supervisorResearchChanges, 'Research changes')}
-                  onNavigateToResearchProfile={() => openSupervisorRecord(APP_ROUTES.supervisorResearchProfile, APP_ROUTES.supervisorResearchChanges, 'Research changes')}
-                  onNavigateToResearchNew={() => openSupervisorRecord(APP_ROUTES.supervisorResearchNew, APP_ROUTES.supervisorResearchChanges, 'Research changes')}
-                  onNavigateToResearchRequest={(id) => openSupervisorRecord(routeForSupervisorResearchRequest(id), APP_ROUTES.supervisorResearchChanges, 'Research changes')}
+                  researchBackLabel={`Back to ${supervisorReturn(APP_ROUTES.supervisorResearchChanges, 'Research changes').label}`}
+                  onNavigateToResearchProfile={() => {
+                    const fromOverview = pathname === APP_ROUTES.supervisorAppointments;
+                    openSupervisorRecord(APP_ROUTES.supervisorResearchProfile, fromOverview ? APP_ROUTES.supervisorAppointments : APP_ROUTES.supervisorResearchChanges, fromOverview ? 'My supervisors' : 'Research changes');
+                  }}
+                  onNavigateToResearchNew={() => {
+                    const fromProfile = pathname === APP_ROUTES.supervisorResearchProfile;
+                    openSupervisorRecord(APP_ROUTES.supervisorResearchNew, fromProfile ? APP_ROUTES.supervisorResearchProfile : APP_ROUTES.supervisorResearchChanges, fromProfile ? 'Research profile' : 'Research changes');
+                  }}
+                  onNavigateToResearchRequest={(id) => {
+                    const fromProfile = pathname === APP_ROUTES.supervisorResearchProfile;
+                    openSupervisorRecord(routeForSupervisorResearchRequest(id), fromProfile ? APP_ROUTES.supervisorResearchProfile : APP_ROUTES.supervisorResearchChanges, fromProfile ? 'Research profile' : 'Research changes');
+                  }}
                 />
               ) : isCoordinatorUnsupportedSupervisorRoute ? (
                 <Navigate to={APP_ROUTES.supervisorAppointments} replace />
@@ -729,6 +748,7 @@ export default function App() {
                   onNavigateToSupervisees={() => returnToSupervisorList(APP_ROUTES.supervisorAppointmentSupervisees, 'My supervisees')}
                   researchView={supervisorResearchView}
                   researchRequestId={supervisorResearchRequestId}
+                  researchBackLabel={`Back to ${supervisorReturn(APP_ROUTES.supervisorResearchChanges, 'Research changes').label}`}
                   onNavigateToResearchList={() => returnToSupervisorList(APP_ROUTES.supervisorResearchChanges, 'Research changes')}
                   onNavigateToResearchProfile={() => openSupervisorRecord(APP_ROUTES.supervisorResearchProfile, APP_ROUTES.supervisorResearchChanges, 'Research changes')}
                   onNavigateToResearchRequest={(id) => openSupervisorRecord(routeForSupervisorResearchRequest(id), APP_ROUTES.supervisorResearchChanges, 'Research changes')}

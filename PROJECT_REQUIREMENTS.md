@@ -290,7 +290,7 @@ Keep the existing title/abstract amendment scope and approval permissions. Prese
 
 ## Phase 2 research profile and Registry handoff (26 October 2026)
 
-Phase 2 research profiles must separate student identity/programme, readable current title/abstract and visible compact saved-version history. Only exact current-version metadata may describe the current record. Preserve role capabilities, immutable revision comparisons, missing-data honesty and existing URLs. Programme transfer belongs in Registry; the current entry stays reachable until the replacement passes cutover acceptance. See docs/PROGRAMME_TRANSFER_REGISTRY_HANDOFF_2026-10-26.md.
+Phase 2 research profiles separate student identity and programme, the readable current research record, and compact revision history. Preserve role capabilities, immutable revision comparisons, missing-data handling and existing URLs. Programme transfer belongs in Registry. See docs/PROGRAMME_TRANSFER_REGISTRY_HANDOFF_2026-10-26.md.
 
 ## Record navigation button consistency (26 October 2026)
 
@@ -2261,3 +2261,27 @@ Office Staff and Admin see assignments for the selected open or scheduled evalua
 ## Evaluation period recipient preview views
 
 The preview opens on Marking tasks and shows counts on the Missing requirements and Excluded students tabs. Missing requirements identifies eligible students who need an appointment or research profile. Excluded students groups names and matric numbers by reason, with shared guidance, searchable results and up to ten students per page. Project Stages opens for the period’s semester.
+
+## Student research profile and submitted Research Intent
+
+Students can open View research profile directly from the Research profile card under My supervisors. The full profile places the current title, area and abstract above the current research plan and saved revision history. Group the plan into expandable Background and purpose, Questions and objectives, and Research plan sections. Use the same header spacing across roles and explain when no intent is on record. The approved application remains accessible from My supervisors. Existing research change permissions and editable fields continue to apply.
+
+On the Student profile, keep identity compact and give each Research Intent group a distinct expandable header. Use stronger field labels and separators. Let the title, abstract and answers use the card width. Keep the original paragraph breaks and allow all groups to expand or collapse together. Show saved versions in Revision history.
+
+## Versioned research plan amendments
+
+The research amendment service accepts changes to title, abstract, research area, aim, research questions, research objectives, methodology and research timeline. Students select the fields to change, edit their prefilled values, and enter one reason. The preview and request include only changed values from selected fields. The current primary supervisor decides the request as a whole. A pending request leaves the approved plan visible. An approval applies the reviewed values and creates a saved revision together. Reviewers see only changed fields, with long values stacked at full width. The student profile shows the current research plan and revision history, including approved values for fields that were previously unrecorded. The approved application preserves the submitted intent.
+
+The student preview lists changed field names. Each comparison starts collapsed, and opening a field closes the previous one. The expanded comparison shows both complete values.
+
+Research change request details show comparisons expanded by default for one or two changed fields. For three or more, comparisons start collapsed and open one at a time. The reason for change, approval progress and available decision actions stay outside the comparisons.
+
+After a successful submission, return the student to the page that opened the form and show the success toast. For a direct form link, return to Research changes. A failed submission keeps the draft on the form.
+
+On the student research profile, show a pending review notice for the student's open research change. Explain when the approved profile updates and provide a View request action. The request can return to the profile.
+
+Office staff can open Research profiles from a prominent action in the Research records header on both the Requests and History views.
+
+Students and authorised lecturers, programme coordinators and office staff use the same current research layout with the title, area, abstract and grouped approved plan. Existing role actions and application access rules apply. Revision history shows the fields changed by each revision, newest first. Each entry starts collapsed and opens to show the complete recorded before and after values for those fields. Show an empty state when there are no changes and keep any saved initial record available through a separate disclosure.
+
+My supervisors, My panel, staff supervision details, Panel recommendations and Panel assignment details use the shared Research summary card. Show the title, area and a short preview of long abstracts, with the full abstract available on demand. Include the programme when useful alongside the other research details. View research profile opens the student's approved plan and history for the student, active primary supervisor, in-scope programme coordinator or authorised office staff. Panel-only and supporting-only lecturers retain the summary. The profile back action returns to the originating record and its browse context. Submitted Supervisor application research keeps its original presentation.

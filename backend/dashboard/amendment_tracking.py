@@ -81,7 +81,7 @@ def amendment_dossier(actor, student, now=None):
 def amendment_reconciliation_issues():
     from accounts.models import Student
     from appointments.models import ResearchAmendment, ResearchProfileRevision, StudentResearchProfile
-    from appointments.research_amendments import snapshot, team_identity, team_snapshot
+    from appointments.research_amendments import revision_chain_matches, snapshot, team_identity, team_snapshot
     from .reconciliation import ReconciliationIssue, _issue_id, _normalized
 
     issues = []
@@ -107,17 +107,14 @@ def amendment_reconciliation_issues():
         revisions = list(ResearchProfileRevision.objects.filter(profile=profile).order_by('revision', 'id'))
         broken = bool(profile.revision and not revisions)
         if revisions:
-            broken = ([row.revision for row in revisions] != list(range(profile.revision + 1))
-                      or revisions[-1].after_values != snapshot(profile)
-                      or any(previous.after_values != following.before_values
-                             for previous, following in zip(revisions, revisions[1:])))
+            broken = not revision_chain_matches(profile, revisions)
         if broken:
             issue('RESEARCH_REVISION_CHAIN_BROKEN', 'RESEARCH_PROFILE', profile.pk, student,
                   'Approved research revision history is inconsistent',
                   {'currentRevision': profile.revision, 'revisions': [row.revision for row in revisions]})
     for row in ResearchAmendment.objects.filter(status__in=ResearchAmendment.PENDING_STATUSES).select_related('student', 'profile'):
         if (row.baseline_revision != row.profile.revision
-            or row.before_values != snapshot(row.profile)
+            or row.before_values != snapshot(row.profile, row.before_values)
             or (row.kind == 'TRANSFER' and team_identity(row.team_snapshot) != team_identity(team_snapshot(row.student_id)))):
             issue('RESEARCH_AMENDMENT_STALE', 'RESEARCH_AMENDMENT', row.pk, row.student,
                   'Pending amendment uses an outdated approved research revision',

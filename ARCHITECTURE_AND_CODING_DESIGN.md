@@ -2340,3 +2340,27 @@ The period options response includes the configured closing timestamp. The lectu
 ## Evaluation period recipient preview views
 
 `MarkEntryRecipientPreview` uses the existing preview response for three keyboard-operable tabs. The missing-requirements count is the sum of affected supervisor and panel tasks. Tabs retain their filters when switching. Exclusions are grouped by backend reason and paginated within each group after filtering. The backend applies semester and assessment-stage eligibility before counting missing appointments.
+
+## Student research profile and submitted Research Intent
+
+The existing student profile route opts in to Research Intent on the authenticated research amendment options endpoint. The server reads from the student's unique original approved application linked to a confirmed appointment. It excludes replacements and returns no intent for missing or ambiguous sources. The response includes the original submission date and whether the saved title or abstract differs from the application. The frontend reuses the application detail disclosures and the existing profile and history components. The route records My supervisors as the return destination when opened there. No migration or copy of the submitted text is required.
+
+The shared profile uses a panel style on the native disclosure component. It retains the same open-state handling and field definitions as the submitted application. The profile style starts collapsed and uses divided fields that span the panel. The heading and expand control share a consistent gap above the disclosure rows across roles. Submission provenance remains available in the original application. Revision metadata appears in history.
+
+## Versioned research plan amendments
+
+Migration 0022 adds approved intent overrides to StudentResearchProfile. Its current intent combines the original application snapshot with approved overrides. Research area uses the existing profile field. The optional `planChanges` input is restricted to research area, aim, research questions, research objectives, methodology and timeline. New snapshots add the changed plan fields alongside the established title, abstract and programme keys. The existing locked decision checks project the live profile onto the reviewed fields, so legacy requests retain their original contract. Reconciliation carries forward the latest audited value for each field and validates the saved revision sequence. Office corrections still accept title and abstract. The student profile options expose the current plan alongside the existing submitted intent metadata. The request and revision views render comparisons from immutable snapshots.
+
+The student request route loads the same scoped current plan and uses the shared comparison for its preview. The form keeps selections and edits local, posts only changed values from selected fields and includes the reviewed profile revision. The service checks that revision under the existing lock. A conflict keeps the draft blocked until the student explicitly loads the latest profile. Older request clients can omit the revision. The staff correction form continues to use its separate attestation and permission checks.
+
+The student preview and research change request detail use the same comparison panels. Student previews and requests with three or more changed fields share a unique disclosure name so one panel can open at a time. Request details with one or two changes render open panels without a shared name, so each can close independently. Switching requests mounts a fresh comparison group.
+
+The Student request route publishes the confirmed save through the workspace toast owner, marks record navigation complete, and returns through the captured source entry. The destination loads its own data. The list is the fallback for direct entry.
+
+All research profile routes opt in to the current plan through the existing scoped options endpoint. The endpoint resolves a student within the caller's existing profile access before constructing the current plan. Student responses retain the submitted intent snapshot separately. Staff responses contain the current plan, and the original application endpoint keeps its own access rules. Profile history shares the field comparison logic with request detail and reads the saved revision snapshots. The initial snapshot remains available through its own disclosure.
+
+The student profile uses the already-loaded amendment records to find the pending research change for the displayed student. Its review notice opens the existing request detail route and uses the captured profile history entry for return navigation.
+
+The Office Research records header aligns its primary directory action with the page title using an optional RecordPage header class. The action uses the existing profile navigation callback and record busy guard.
+
+The shared appointment research summary uses a native disclosure for long abstracts. Staff summaries resolve the exact matric number through the research profile link endpoint, which returns only a student ID inside the existing current-profile scope. An unavailable link leaves the summary usable. The profile route enforces its existing access independently. Return navigation records the source path, query and history entry. Panel detail workspaces restore local request selection from the existing record history key and preserve the selected source request in the query when returning.

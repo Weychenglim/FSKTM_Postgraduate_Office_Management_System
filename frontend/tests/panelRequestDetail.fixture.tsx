@@ -1,5 +1,8 @@
 import React from 'react';
 import {createRoot,type Root} from 'react-dom/client';
+import {MemoryRouter,useLocation,useNavigate} from 'react-router';
+import {APP_ROUTES,routeForPanelRecommendation} from '../src/constants/routes';
+import {researchProfileRecordReturn} from '../src/utils/recordNavigation';
 import {PanelRecommendationDetail,PanelAppointmentRecordCard} from '../src/components/PanelRecordDetails';
 import {PanelRecommendationReviewDrawer} from '../src/components/LecturerPanelAppointments';
 import {PanelAppointmentDetail} from '../src/components/PanelAppointmentDetail';
@@ -30,10 +33,50 @@ async function scenario(name:string,run:()=>Promise<void>){try{await run();resul
 await scenario('Reviewer and Coordinator use the same detail layout and stage-specific controls',async()=>{
   for(const coordinator of [false,true]){let opened='';const row={...record,status:coordinator?'PENDING_COORDINATOR' as const:record.status,canReview:true};
     await mount(<PanelRecommendationReviewDrawer isOpen routed recommendation={row} reviewerRole={coordinator?'PROGRAMME_COORDINATOR':'SELECTED_PANEL'} onClose={()=>{}} onOpenStudent={id=>opened=id}/>);
-    for(const title of ['Nomination details','Current research','Review and outcome'])check([...container.querySelectorAll('h2')].some(h=>h.textContent===title),title);
+    for(const title of ['Nomination details','Research summary','Review and outcome'])check([...container.querySelectorAll('h2')].some(h=>h.textContent===title),title);
     check(button(coordinator?'Approve request':'Accept request')&&button('Reject request'),'Missing decisions');
-    check(container.textContent!.indexOf(record.justification!)<container.textContent!.indexOf('Current research'),'Wrong reading order');
+    check(container.textContent!.indexOf(record.justification!)<container.textContent!.indexOf('Research summary'),'Wrong reading order');
     await click('View student record');check(opened===record.studentId,'Student target changed');geometry();
+  }
+});
+await scenario('Research summary opens the authorised student profile and retains the exact Panel source',async()=>{
+  const source = routeForPanelRecommendation(String(record.id))+'?panelSection=requests';
+  let allowed = false;
+  let lookup: URL | undefined;
+  const originalFetch = window.fetch;
+  window.fetch = async input => {
+    lookup = new URL(String(input), location.origin);
+    check(lookup.pathname.endsWith('/profile-link/'),'Unexpected research profile lookup');
+    return Response.json({studentId:allowed ? 15 : null});
+  };
+  function Workspace() {
+    const location = useLocation();
+    const navigate = useNavigate();
+    if (location.pathname === APP_ROUTES.supervisorResearchProfile) {
+      const target = researchProfileRecordReturn(location.state?.researchProfileReturn, {path:APP_ROUTES.supervisorResearchChanges,label:'Research changes'});
+      check(location.search === '?profileStudent=15','Wrong student profile');
+      return <button onClick={() => navigate(target.path)}>Back to {target.label}</button>;
+    }
+    return <PanelRecommendationDetail record={record}/>;
+  }
+  const route = <MemoryRouter initialEntries={[source]}><Workspace/></MemoryRouter>;
+  try {
+    await mount(route);
+    await until(()=>lookup?.searchParams.get('matricNo') === record.studentId);
+    await pause();
+    check(!button('View research profile'),'Panel-only lecturer received a full-profile link');
+    const abstract = container.querySelector<HTMLDetailsElement>('[data-research-details] details')!;
+    check(!abstract.open&&abstract.querySelector('summary')?.textContent?.includes('Read full abstract'),'Long abstract is not compact by default');
+    abstract.querySelector('summary')!.click();
+    check(abstract.open&&abstract.textContent?.includes(record.abstract!),'Panel-only lecturer lost the full abstract');
+    allowed = true;
+    await mount(route);
+    await until(()=>button('View research profile'));
+    await click('View research profile');
+    await click('Back to Panel recommendation');
+    await until(()=>container.textContent?.includes(record.justification!));
+  } finally {
+    window.fetch = originalFetch;
   }
 });
 await scenario('Review confirmation and rejection retain exact targets and required reasons',async()=>{
@@ -41,7 +84,7 @@ await scenario('Review confirmation and rejection retain exact targets and requi
   const available={...record,acceptanceCapacity:{state:'AVAILABLE' as const,activeLoad:1,reservedLoad:0,limit:4,availableSlots:3,pendingRequests:1}};
   await mount(<PanelRecommendationReviewDrawer isOpen routed recommendation={available} reviewerRole="SELECTED_PANEL" onClose={()=>{}} onAccept={async row=>{decisions.push(`${row.id}:accept`);return false as const;}} onReject={async(row,reason)=>{decisions.push(`${row.id}:${reason}`);return false as const;}}/>);
   await click('Accept request');await until(()=>!!document.querySelector('dialog[open]'));let dialog=document.querySelector('dialog[open]')!;
-  check(dialog.textContent?.includes('Acceptance sends this nomination to the Programme Coordinator'),'Workflow copy changed');await click('Accept nomination',dialog);check(decisions.join()==='71:accept','Wrong acceptance callback');await click('Cancel',dialog);await until(()=>!document.querySelector('dialog[open]'));
+  check(dialog.textContent?.includes('Acceptance reserves a place while the Programme Coordinator makes the final decision.'),'Workflow copy changed');await click('Accept nomination',dialog);check(decisions.join()==='71:accept','Wrong acceptance callback');await click('Cancel',dialog);await until(()=>!document.querySelector('dialog[open]'));
   await click('Reject request');await until(()=>!!document.querySelector('dialog[open]'));dialog=document.querySelector('dialog[open]')!;check(button('Reject recommendation',dialog)?.disabled,'Missing required reason guard');
   await value(dialog.querySelector('textarea')!,' Unavailable this semester. ');await click('Reject recommendation',dialog);check(decisions.at(-1)==='71:Unavailable this semester.','Wrong rejection target or reason');
   await mount(<PanelRecommendationReviewDrawer isOpen routed recommendation={{...record,status:'PENDING_COORDINATOR',canReview:true}} reviewerRole="PROGRAMME_COORDINATOR" onClose={()=>{}} onAccept={async row=>{decisions.push(`${row.id}:approve`);return false as const;}}/>);

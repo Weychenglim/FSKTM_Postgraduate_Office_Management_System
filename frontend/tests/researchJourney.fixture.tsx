@@ -27,7 +27,8 @@ const enter = async (node: HTMLInputElement | HTMLTextAreaElement, value: string
   Object.getOwnPropertyDescriptor(node instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype, 'value')!.set!.call(node, value);
   node.dispatchEvent(new Event('input', { bubbles: true })); await pause();
 };
-const field = (name: string, parent: ParentNode = document) => [...parent.querySelectorAll('label')].find(node => node.textContent?.trim().startsWith(name))?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input:not([type="checkbox"]), textarea')!;
+const field = (name: string, parent: ParentNode = document) => [...parent.querySelectorAll('label')].filter(node => node.textContent?.trim().startsWith(name))
+  .map(node=>node.control).find(control=>control?.matches('input:not([type="checkbox"]),textarea')) as HTMLInputElement|HTMLTextAreaElement;
 let root: Root | null = null;
 const report = (result: { checks: string[]; viewportWidth?: number; error?: string }) => {
   document.getElementById('journey-results')!.textContent = JSON.stringify(result);
@@ -61,6 +62,12 @@ try {
   const profile = async () => (await getResearchAmendmentOptions(config.studentId)).profile!;
   const createResearch = async (title = 'Accepted journey research title') => {
     await mount('student', 'new');
+    for (const name of ['Research title', 'Research abstract']) {
+      const choice = [...document.querySelectorAll('label')].find(node => node.textContent?.trim() === name && node.control?.matches('input[type="checkbox"]'))?.control;
+      check(choice, `Missing field choice: ${name}`);
+      choice!.click();
+      await until(() => !!field(name));
+    }
     await enter(field('Research title'), title);
     await enter(field('Research abstract'), 'Accepted journey research abstract.');
     await enter(field('Reason'), '   ');

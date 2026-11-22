@@ -12,12 +12,12 @@ const render=(row:PanelPresentation=record)=>renderToStaticMarkup(<PanelRecommen
 
 test('Panel requests separate overview, nomination, current research and review in reading order',()=>{
   const html=render();
-  for(const title of ['Nomination details','Current research','Review and outcome'])assert.ok(html.includes(`>${title}</h2>`),title);
+  for(const title of ['Nomination details','Research summary','Review and outcome'])assert.ok(html.includes(`>${title}</h2>`),title);
   assert.match(html,/aria-label="Request overview"/);
   assert.match(html,/data-panel-request-columns/);
-  assert.ok(html.indexOf('Nomination justification')<html.indexOf('Current research'));
+  assert.ok(html.indexOf('Nomination justification')<html.indexOf('Research summary'));
   assert.ok(html.indexOf('Dr Amir')>html.indexOf('Nomination details'),'Candidate belongs to nomination');
-  assert.match(html,/Current saved student research profile/);
+  assert.match(html,/aria-label="Research summary"/);
   assert.match(html,/Full first paragraph\.\n\nFull second paragraph\./);
   assert.doesNotMatch(html,/Research submitted with this request|data-detail-actions/);
 });

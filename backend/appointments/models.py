@@ -27,6 +27,7 @@ class StudentResearchProfile(models.Model):
     proposed_topic = models.CharField(max_length=500)
     research_area = models.CharField(max_length=255, blank=True)
     abstract = models.TextField(blank=True)
+    approved_intent_changes = models.JSONField(default=dict, blank=True, editable=False)
     revision = models.PositiveIntegerField(default=0)
     supervisor = models.ForeignKey(
         settings.AUTH_USER_MODEL,

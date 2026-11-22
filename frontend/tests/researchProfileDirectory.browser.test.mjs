@@ -52,7 +52,7 @@ test('mounted research profile directory regressions', {timeout:120000}, async()
     const output=JSON.parse(decoded);
     assert.equal(output.width,width,'Use an actual viewport at the requested width');
     const checks=output.results;
-    assert.equal(checks.length,7,'Every mounted scenario must finish');
+    assert.equal(checks.length,8,'Every mounted scenario must finish');
     console.log(checks.map(check=>`${check.error?'FAIL':'PASS'} ${width}px ${check.name}${check.error?`: ${check.error}`:''}`).join('\n'));
     assert.deepEqual(checks.filter(check=>check.error),[],'Mounted browser regression failures');
     }

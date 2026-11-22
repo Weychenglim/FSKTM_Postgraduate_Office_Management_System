@@ -12,6 +12,11 @@ from .models import (CoSupervisorAppointment, CoSupervisorNomination, PanelAppoi
                      PanelRecommendation, ResearchAmendment, ResearchAmendmentEvent,
                      ResearchProfileRevision, StudentResearchProfile, SupervisorApplication,
                      SupervisorAppointment)
+from .research_intent import INTENT_TEXT_LIMIT, is_plain_text
+
+
+PLAN_INTENT_FIELDS = ('aim', 'researchQuestions', 'researchObjectives', 'methodology', 'timeline')
+PLAN_FIELDS = ('researchArea', *PLAN_INTENT_FIELDS)
 
 
 class AmendmentConflict(Exception):
@@ -26,8 +31,58 @@ def office(actor):
     return office_actor(actor)
 
 
-def snapshot(profile):
-    return {'title': profile.proposed_topic, 'abstract': profile.abstract, 'programme': profile.programme}
+def snapshot(profile, fields=()):
+    values = {'title': profile.proposed_topic, 'abstract': profile.abstract, 'programme': profile.programme}
+    if 'researchArea' in fields:
+        values['researchArea'] = profile.research_area
+    intent_fields = [key for key in PLAN_INTENT_FIELDS if key in fields]
+    if intent_fields:
+        intent = current_profile_intent(profile, submitted_profile_intent(profile))
+        values.update({key: intent.get(key, '') for key in intent_fields})
+    return values
+
+
+def current_profile_intent(profile, submitted):
+    return {**(submitted['record'] if submitted else {}), **profile.approved_intent_changes}
+
+
+def revision_chain_matches(profile, revisions):
+    if [row.revision for row in revisions] != list(range(profile.revision + 1)):
+        return False
+    base_fields = {'title', 'abstract', 'programme'}
+    recorded = {}
+    for row in revisions:
+        if not base_fields <= row.after_values.keys():
+            return False
+        if row.revision and row.before_values.keys() != row.after_values.keys():
+            return False
+        if any(value != recorded[key] for key, value in row.before_values.items() if key in recorded):
+            return False
+        recorded.update(row.after_values)
+    return recorded == snapshot(profile, recorded)
+
+
+def submitted_profile_intent(profile):
+    # Replacements preserve the original research record. Ambiguous legacy records
+    # do not identify a reliable original submission.
+    originals = list(SupervisorApplication.objects.filter(
+        student__user_id=profile.student_id,
+        status=SupervisorApplication.Status.APPROVED,
+        replaces_appointment__isnull=True,
+        appointment__student__user_id=profile.student_id,
+        appointment__supersedes__isnull=True,
+    ).values('research_intent', 'submitted_at', 'research_title', 'research_abstract')[:2])
+    if len(originals) != 1 or not originals[0]['research_intent']:
+        return None
+    original = originals[0]
+    return {
+        'record': original['research_intent'],
+        'submittedAt': original['submitted_at'].isoformat(),
+        'titleOrAbstractChanged': (
+            profile.proposed_topic != original['research_title']
+            or profile.abstract != original['research_abstract']
+        ),
+    }
 
 
 def team_snapshot(student_id):
@@ -121,21 +176,36 @@ def _transition(row, actor, status, action, reason='', retain_team=False):
 
 def _apply(student, profile, values, actor, kind, reason, request=None):
     _baseline(profile)
-    before = snapshot(profile)
+    before = snapshot(profile, values)
     profile.proposed_topic = values['title']
     profile.abstract = values['abstract']
     profile.programme = values['programme']
+    if 'researchArea' in values:
+        profile.research_area = values['researchArea']
+    profile.approved_intent_changes = {
+        **profile.approved_intent_changes,
+        **{key: values[key] for key in PLAN_INTENT_FIELDS if key in values},
+    }
     profile.revision += 1
-    profile.save(update_fields=['proposed_topic', 'abstract', 'programme', 'revision', 'updated_at'])
+    profile.save(update_fields=[
+        'proposed_topic', 'abstract', 'programme', 'research_area',
+        'approved_intent_changes', 'revision', 'updated_at',
+    ])
     if kind == 'TRANSFER':
         student.programme = profile.programme
         student.save(update_fields=['programme'])
     return ResearchProfileRevision.objects.create(profile=profile, revision=profile.revision,
-        kind=kind, request=request, actor=actor, before_values=before, after_values=snapshot(profile), reason=reason)
+        kind=kind, request=request, actor=actor, before_values=before, after_values=values, reason=reason)
 
 
-def _research_values(profile, data):
-    result = snapshot(profile)
+def _research_values(profile, data, *, allow_plan=False):
+    plan = data.get('planChanges', {})
+    if not isinstance(plan, dict) or any(key not in PLAN_FIELDS for key in plan):
+        raise ValueError('Select supported research plan fields.')
+    if plan and not allow_plan:
+        raise ValueError('Office corrections support only title and abstract.')
+    before = snapshot(profile, plan)
+    result = before.copy()
     for key in ('title', 'abstract'):
         if key in data:
             if not isinstance(data[key], str) or not data[key].strip():
@@ -143,8 +213,17 @@ def _research_values(profile, data):
             result[key] = data[key].strip()
     if len(result['title']) > 500:
         raise ValueError('Title cannot exceed 500 characters.')
-    if result == snapshot(profile):
-        raise ValueError('Provide a change to the title or abstract.')
+    for key, value in plan.items():
+        limit = 255 if key == 'researchArea' else INTENT_TEXT_LIMIT
+        if not is_plain_text(value) or not value.strip() or len(value.strip()) > limit:
+            raise ValueError(f'Enter nonblank text of at most {limit:,} characters for {key}.')
+        value = value.strip()
+        if value != before[key]:
+            result[key] = value
+        else:
+            del result[key]
+    if not any(result[key] != before[key] for key in result):
+        raise ValueError('Provide at least one research change.')
     return result
 
 
@@ -162,13 +241,15 @@ def submit(*, actor, data):
     student, profile = _lock_student(student_id)
     _eligible(student)
     _no_pending(student_id)
+    if 'expectedRevision' in data and data['expectedRevision'] != profile.revision:
+        raise AmendmentConflict('The research record changed. Review the latest profile before submitting.')
     if student.programme.strip().casefold() != profile.programme.strip().casefold():
         raise AmendmentConflict('Student and research programmes differ; Office must resolve the existing integrity issue.')
     reason = _reason(data.get('reason'))
     destination = ''
     if kind == 'RESEARCH':
         _primary(student, profile)
-        after = _research_values(profile, data)
+        after = _research_values(profile, data, allow_plan=True)
         status = 'PENDING_SUPERVISOR'
     else:
         _no_nominations(student_id)
@@ -189,7 +270,7 @@ def submit(*, actor, data):
     _baseline(profile)
     row = ResearchAmendment.objects.create(student=student, profile=profile,
         initiated_by=actor, kind=kind, status=status, source_programme=student.programme,
-        destination_programme=destination, before_values=snapshot(profile), after_values=after,
+        destination_programme=destination, before_values=snapshot(profile, after), after_values=after,
         baseline_revision=profile.revision, team_snapshot=team_snapshot(student_id),
         academic_semester=semester, semester_snapshot={'id': semester.pk, 'label': semester.label},
         reason=reason, student_name=student.user.full_name, matric_no=student.matric_no)
@@ -224,7 +305,7 @@ def can_cancel(row, actor):
 
 
 def _fresh(row, student, profile):
-    if (row.baseline_revision != profile.revision or row.before_values != snapshot(profile)
+    if (row.baseline_revision != profile.revision or row.before_values != snapshot(profile, row.before_values)
         or student.programme.strip().casefold() != row.source_programme.strip().casefold()):
         raise AmendmentConflict('The research record changed. Cancel and resubmit this request.')
     if row.kind == 'TRANSFER' and team_identity(row.team_snapshot) != team_identity(team_snapshot(student.pk)):

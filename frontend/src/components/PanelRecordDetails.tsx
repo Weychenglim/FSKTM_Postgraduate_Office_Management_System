@@ -1,13 +1,12 @@
 import {AppointmentRecordSection} from './AppointmentSidebar';
 import React from 'react';
-import {BookOpen, ListChecks, UserRound} from 'lucide-react';
+import {ListChecks, UserRound} from 'lucide-react';
 import {ApprovalProcess,formatRequestDisplayDate} from './ApprovalProcess';
 import {RequestAuditHistory,RequestDetailActions,RequestDetailCard,RequestSection} from './RequestDetailPrimitives';
 import {appointmentDetailTypography as text} from './AppointmentPrimitives';
 import {PortalCard,StatusBadge} from './PortalPrimitives';
 import {RequestSummaryField as Fact} from './AppointmentRequestSections';
-import {ResearchAbstract} from './ResearchAbstract';
-import {PanelDetailFact} from './PanelDetailLayout';
+import {PanelDetailFact, PanelResearchDetails} from './PanelDetailLayout';
 import {SupervisionDetailSection,supervisionDetailLabel as label,supervisionDetailBody as body} from './SupervisionDetailLayout';
 import {buildPanelApprovalSteps,panelRecordedDate,panelStatusLabel,panelStatusTone,type PanelPresentation} from '../utils/panelPresentation';
 
@@ -55,11 +54,7 @@ export function PanelRecommendationDetail({record,actions,administration,context
           </section>:null}
           {record.unavailableUntil?<p className="text-sm leading-6 text-amber-800">Unavailable for new appointments until {formatRequestDisplayDate(record.unavailableUntil)}. This recorded recommendation remains available.</p>:null}
         </SupervisionDetailSection>:null}
-        <div data-research-details><SupervisionDetailSection title="Current research" icon={BookOpen}>
-          <p className="text-xs leading-6 text-slate-500">Current saved student research profile</p>
-          <dl className="space-y-6"><div className="space-y-2"><dt className={label}>Research title</dt><dd className="text-lg font-normal leading-8 text-slate-900 [overflow-wrap:anywhere]">{record.proposedTopic?.trim()||'Not recorded'}</dd></div>{fact('Research area',record.researchArea)}</dl>
-          <dl className="border-t border-slate-100 pt-6"><div className="space-y-3"><dt className={label}>Abstract</dt><dd><ResearchAbstract value={record.abstract} inset={false}/></dd></div></dl>
-        </SupervisionDetailSection></div>
+        <PanelResearchDetails record={record} returnLabel="Panel recommendation"/>
       </div>
       {hasSidebar?<aside data-panel-review aria-label="Recommendation review and appointment" className="min-w-0 space-y-7">{hasReview?<SupervisionDetailSection title="Review and outcome" icon={ListChecks}>
         {started?<ApprovalProcess steps={progress} headingAs="h3"/>:null}

@@ -50,7 +50,7 @@ test('faculty processing is generic and renders no accidental internal nominatio
 test('absent confirmed data is honest and a mismatched readiness never releases member fields',()=>{
   const missing=render({...appointment,panelMemberName:null,panelMemberId:null,panelMemberDepartment:null,panelMemberEmail:null,appointmentDate:null,researchProfile:null});
   assert.match(missing,/Panel member not recorded/);
-  assert.doesNotMatch(missing,/mailto:|Outdated request title|aria-label="Research profile"/);
+  assert.doesNotMatch(missing,/mailto:|Outdated request title|aria-label="Research summary"/);
   const mismatch=render({...appointment,readinessState:'FACULTY_PROCESSING'});
   assert.doesNotMatch(mismatch,/Dr Confirmed|confirmed@example.test|L071|20 Oct 2026/);
 });

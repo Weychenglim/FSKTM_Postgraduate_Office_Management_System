@@ -69,12 +69,12 @@ assert.doesNotMatch(render('detail', { routeStudentId: 'PG999' }), /Primary full
 
 const overview = render('studentOverview', { studentActions: <button>View appointment</button> });
 for (const text of ['Primary Lecturer', 'Supporting Lecturer', 'Primary research title', 'View appointment']) assert.ok(overview.includes(text), `Overview missing ${text}`);
-for (const text of ['Research profile','Research area','Primary full abstract','Computing MSc']) assert.ok(overview.includes(text),`Student overview research profile missing ${text}`);
-assert.match(overview, /<section aria-label="Research profile"/,'Current research is visible in the shared profile section');
-assert.doesNotMatch(overview, /<summary[^>]*>Research profile/,'The profile no longer has a nested disclosure');
+for (const text of ['Research summary','Research area','Primary full abstract','Computing MSc']) assert.ok(overview.includes(text),`Student overview research profile missing ${text}`);
+assert.match(overview, /<section aria-label="Research summary"/,'Current research is visible in the shared profile section');
+assert.doesNotMatch(overview, /<summary[^>]*>Research summary/,'The profile no longer has a nested disclosure');
 assert.doesNotMatch(overview, /Current team ended appointment|Closed current team nomination|Supporting appointment history|Supporting full abstract/);
 const noProfile = render('studentOverview',{workspace:{...workspace,teams:[{...workspace.teams[0],research:{title:'',area:'',abstract:''}}]}});
-assert.doesNotMatch(noProfile,/Research profile|Primary full abstract/,'A Student without a saved profile must not see invented research');
+assert.doesNotMatch(noProfile,/Research summary|Primary full abstract/,'A Student without a saved profile must not see invented research');
 assert.doesNotMatch(overview, /Actionable nomination justification|Pending Candidate|Supporting supervisor requests/);
 assert.match(overview, /Previous supporting supervisors/);
 assert.doesNotMatch(overview, />Accept<|>Reject</);

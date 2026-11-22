@@ -28,6 +28,169 @@ class ResearchAmendmentTests(APITestCase):
         self.assertEqual(result.status_code, 201, result.data)
         return result.data['id']
 
+    def test_profile_link_resolves_only_existing_profile_access(self):
+        fixture.AppointmentLifecycleTests._panel_appointment(self)
+        endpoint = self.base + 'profile-link/'
+        for actor, expected in (
+            (self.student_user, self.student_user.pk),
+            (self.supervisor, self.student_user.pk),
+            (self.coordinator, self.student_user.pk),
+            (self.office, self.student_user.pk),
+            (self.panel, None),
+            (self.new_supervisor, None),
+            (self.other_coordinator, None),
+        ):
+            with self.subTest(actor=actor.pk):
+                self.client.force_authenticate(user=actor)
+                response = self.client.get(endpoint, {'matricNo': self.student.matric_no})
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data, {'studentId': expected})
+                self.assertIn('no-store', response['Cache-Control'])
+        self.client.force_authenticate(user=self.office)
+        response = self.client.get(endpoint, {'matricNo': self.student.matric_no + '-missing'})
+        self.assertEqual(response.data, {'studentId': None})
+
+    def test_scoped_profiles_share_the_approved_plan_and_keep_the_original_separate(self):
+        from .models import SupervisorApplication
+        from .research_intent_test_helpers import valid_research_intent
+
+        intent = valid_research_intent()
+        SupervisorApplication.objects.filter(pk=self.application.pk).update(research_intent=intent)
+        request_id = self.post(
+            self.student_user, kind='RESEARCH', title='Revised research',
+            planChanges={'methodology': 'Use an approved survey.'}, reason='Changed scope',
+        ).data['id']
+        self.assertEqual(self.post(self.supervisor, f'{request_id}/decision/', decision='APPROVE').status_code, 200)
+
+        endpoint = self.base + 'options/'
+        self.client.force_authenticate(user=self.student_user)
+        self.assertNotIn('submittedIntent', self.client.get(endpoint).data['profile'])
+        profile = self.client.get(endpoint, {'includeResearchIntent': 'true'}).data['profile']
+        self.assertEqual(profile['title'], 'Revised research')
+        self.assertEqual(profile['researchArea'], self.profile.research_area)
+        self.assertEqual(profile['submittedIntent'], {
+            'record': intent, 'submittedAt': self.application.submitted_at.isoformat(),
+            'titleOrAbstractChanged': True,
+        })
+        self.assertEqual(profile['currentIntent'], {**intent, 'methodology': 'Use an approved survey.'})
+        for actor in (self.supervisor, self.coordinator, self.office):
+            with self.subTest(role=actor.role):
+                self.client.force_authenticate(user=actor)
+                response = self.client.get(endpoint, {'studentId': self.student_user.pk})
+                self.assertNotIn('currentIntent', response.data['profile'])
+                response = self.client.get(endpoint, {
+                    'studentId': self.student_user.pk, 'includeResearchIntent': 'true',
+                })
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.data['profile'], {
+                    key: value for key, value in profile.items() if key != 'submittedIntent'
+                })
+        self.client.force_authenticate(user=self.new_supervisor)
+        self.assertEqual(self.client.get(endpoint, {
+            'studentId': self.student_user.pk, 'includeResearchIntent': 'true',
+        }).status_code, 404)
+
+    def test_student_profile_keeps_original_intent_after_supervisor_handover(self):
+        from .models import SupervisorApplication
+        from .research_intent_test_helpers import valid_research_intent
+
+        original_intent = valid_research_intent()
+        SupervisorApplication.objects.filter(pk=self.application.pk).update(research_intent=original_intent)
+        replacement = SupervisorApplication.objects.create(
+            student=self.student,
+            academic_semester=self.semester,
+            proposed_supervisor=self.new_supervisor,
+            research_title=self.profile.proposed_topic,
+            research_abstract=self.profile.abstract,
+            research_intent=valid_research_intent(introduction='Replacement submission'),
+            replaces_appointment=self.supervisor_appointment,
+            status=SupervisorApplication.Status.PENDING_COORDINATOR,
+        )
+        self.client.force_authenticate(user=self.coordinator)
+        response = self.client.post(f'/api/appointments/supervisor/applications/{replacement.pk}/coordinator-approve/')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        self.client.force_authenticate(user=self.student_user)
+        response = self.client.get(self.base + 'options/', {'includeResearchIntent': 'true'})
+        self.assertEqual(response.data['profile']['submittedIntent']['record'], original_intent)
+
+    def test_student_profile_can_have_no_submitted_intent(self):
+        self.client.force_authenticate(user=self.student_user)
+        response = self.client.get(self.base + 'options/', {'includeResearchIntent': 'true'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data['profile']['submittedIntent'])
+
+    def test_plan_amendment_updates_current_plan_and_preserves_submitted_intent(self):
+        from .models import ResearchProfileRevision, SupervisorApplication
+        from .research_intent_test_helpers import valid_research_intent
+        from dashboard.amendment_tracking import amendment_reconciliation_issues
+
+        original = valid_research_intent()
+        SupervisorApplication.objects.filter(pk=self.application.pk).update(research_intent=original)
+        response = self.post(self.student_user, kind='RESEARCH', reason='Switch to a survey',
+            planChanges={'methodology': 'Survey postgraduate students.', 'researchArea': 'Human-computer interaction'})
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data['before']['methodology'], original['methodology'])
+        self.assertNotIn('timeline', response.data['after'])
+        self.assertEqual(response.data['after']['methodology'], 'Survey postgraduate students.')
+        endpoint = self.base + 'options/'
+        self.assertEqual(self.client.get(endpoint, {'includeResearchIntent': 'true'}).data['profile']['currentIntent'], original)
+
+        request_id = response.data['id']
+        self.assertEqual(self.post(self.supervisor, f'{request_id}/decision/', decision='APPROVE').status_code, 200)
+        revision = ResearchProfileRevision.objects.get(request_id=request_id)
+        self.assertEqual(revision.before_values['methodology'], original['methodology'])
+        self.assertEqual(revision.after_values['methodology'], 'Survey postgraduate students.')
+        self.client.force_authenticate(user=self.student_user)
+        profile = self.client.get(endpoint, {'includeResearchIntent': 'true'}).data['profile']
+        self.assertEqual(profile['researchArea'], 'Human-computer interaction')
+        self.assertEqual(profile['currentIntent'], {**original, 'methodology': 'Survey postgraduate students.'})
+        self.assertEqual(profile['submittedIntent']['record'], original)
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.research_intent, original)
+
+        title_change = self.research()
+        self.assertEqual(self.post(self.supervisor, f'{title_change}/decision/', decision='APPROVE').status_code, 200)
+        self.assertFalse(any(issue.issue_type.startswith('RESEARCH_') for issue in amendment_reconciliation_issues()))
+
+    def test_missing_intent_can_gain_its_first_value_and_rejects_unsupported_fields(self):
+        invalid = self.post(self.student_user, kind='RESEARCH', reason='Set the plan',
+            planChanges={'introduction': 'Not an editable field.'})
+        self.assertEqual(invalid.status_code, 400)
+        blank = self.post(self.student_user, kind='RESEARCH', title='Also changed', reason='Set the plan',
+            planChanges={'methodology': ' '})
+        self.assertEqual(blank.status_code, 400)
+        response = self.post(self.student_user, kind='RESEARCH', reason='Set the plan',
+            planChanges={'methodology': 'Survey postgraduate students.'})
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data['before']['methodology'], '')
+        self.assertEqual(self.post(self.supervisor, f"{response.data['id']}/decision/", decision='APPROVE').status_code, 200)
+        self.client.force_authenticate(user=self.student_user)
+        profile = self.client.get(self.base + 'options/', {'includeResearchIntent': 'true'}).data['profile']
+        self.assertIsNone(profile['submittedIntent'])
+        self.assertEqual(profile['currentIntent'], {'methodology': 'Survey postgraduate students.'})
+
+    def test_reviewer_cannot_approve_stale_plan_values(self):
+        from .models import ResearchProfileRevision, StudentResearchProfile
+
+        response = self.post(self.student_user, kind='RESEARCH', reason='Set the plan',
+            planChanges={'timeline': 'Analyse surveys in May.'})
+        self.assertEqual(response.status_code, 201, response.data)
+        StudentResearchProfile.objects.filter(pk=self.profile.pk).update(
+            approved_intent_changes={'timeline': 'Analyse surveys in June.'})
+        request_id = response.data['id']
+        result = self.post(self.supervisor, f'{request_id}/decision/', decision='APPROVE')
+        self.assertEqual(result.status_code, 409, result.data)
+        self.assertFalse(ResearchProfileRevision.objects.filter(request_id=request_id).exists())
+
+    def test_student_cannot_submit_against_a_stale_form_revision(self):
+        from .models import ResearchAmendment
+
+        response = self.post(self.student_user, kind='RESEARCH', reason='Use a different method',
+            expectedRevision=self.profile.revision + 1, planChanges={'methodology': 'Run a survey'})
+        self.assertEqual(response.status_code, 409, response.data)
+        self.assertFalse(ResearchAmendment.objects.exists())
+
     def test_programme_transfer_creation_is_unavailable(self):
         from .models import ResearchAmendment
         self.client.force_authenticate(user=self.office)

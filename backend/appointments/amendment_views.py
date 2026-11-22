@@ -17,6 +17,7 @@ class AmendmentInput(serializers.Serializer):
     kind = serializers.ChoiceField(choices=['RESEARCH', 'TRANSFER'], required=False)
     title = serializers.CharField(max_length=500, required=False)
     abstract = serializers.CharField(required=False)
+    planChanges = serializers.JSONField(required=False)
     destinationProgramme = serializers.CharField(max_length=255, required=False)
     reason = serializers.CharField(required=False, allow_blank=True)
     meaningUnchanged = serializers.BooleanField(required=False)
@@ -95,11 +96,20 @@ def options(request):
         except service.AmendmentConflict:
             pass
     student_rows = ([selected] if selected else []) if request.query_params.get('selectedOnly') == 'true' else profiles
+    profile = None
+    if selected:
+        profile = {**service.snapshot(selected), 'studentId': selected.student_id, 'revision': selected.revision}
+        if request.query_params.get('includeResearchIntent') == 'true':
+            profile['researchArea'] = selected.research_area
+            submitted_intent = service.submitted_profile_intent(selected)
+            profile['currentIntent'] = service.current_profile_intent(selected, submitted_intent) or None
+            if request.user.role == User.Role.STUDENT:
+                profile['submittedIntent'] = submitted_intent
     return Response({
         'students': [{'id': row.student_id, 'name': row.student.full_name,
                       'matricNo': row.student.student.matric_no, 'programme': row.student.student.programme} for row in student_rows],
         'programmes': service.programme_options() if service.office(request.user) else [],
-        'profile': {**service.snapshot(selected), 'studentId': selected.student_id, 'revision': selected.revision} if selected else None,
+        'profile': profile,
         'canSubmitResearch': eligible and not pending and primary and request.user.role == User.Role.STUDENT,
         'canCorrect': eligible and not pending and service.office(request.user),
         'canTransfer': False,
@@ -114,6 +124,18 @@ def profiles(request):
         return Response({'error': 'Research profile browsing is available to authorised staff.'}, status=403)
     from .research_profiles import profile_page
     return Response(profile_page(actor, request.query_params))
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def profile_link(request):
+    matric_no = request.query_params.get('matricNo', '').strip()
+    student_id = None
+    if matric_no:
+        student_id = service.current_profiles(request.user).filter(
+            student__student__matric_no=matric_no,
+        ).values_list('student_id', flat=True).first()
+    return Response({'studentId': student_id}, headers={'Cache-Control': 'private, no-store'})
 
 
 @api_view(['GET'])

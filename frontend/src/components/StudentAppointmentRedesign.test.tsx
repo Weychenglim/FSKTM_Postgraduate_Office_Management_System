@@ -11,9 +11,12 @@ test('Supervisor puts the source action in its card header and shows useful appo
   const team={studentId:1,matricNo:'PG1',studentName:'Student',programme:'Computing',studentStatus:'ACTIVE',primarySupervisor:{id:2,name:'Dr Primary'},primaryAppointmentId:3,
     primaryAppointmentDetails:{email:'primary@example.test',department:'Computing department',appointmentDate:'2026-10-01',semester:'Semester I'},
     research:{title:'Saved title',area:'AI',abstract:'Saved abstract'},appointments:[],nominations:[],canNominate:false};
-  const html=renderToStaticMarkup(<StudentSupervisorsOverview workspace={{teams:[team],appointments:[],nominations:[]}} actions={<button>View approved application</button>}/>);
+  const html=renderToStaticMarkup(<StudentSupervisorsOverview workspace={{teams:[team],appointments:[],nominations:[]}} actions={<button>View approved application</button>}
+    content={{researchActions:<button>View research profile</button>}}/>);
   for(const value of ['primary@example.test','Computing department','Semester I','01 Oct 2026'])assert.ok(html.includes(value),value);
   assert.ok(html.indexOf('View approved application')<html.indexOf('Primary supervisor'),'Source action belongs in the appointment card header');
+  assert.ok(html.indexOf('data-supervision-research') < html.indexOf('View research profile')
+    && html.indexOf('View research profile') < html.indexOf('Current research title'),'Profile action belongs in the research card header');
   assert.doesNotMatch(html,/aria-label="Academic context"/,'Metadata must be inside the card');
 });
 

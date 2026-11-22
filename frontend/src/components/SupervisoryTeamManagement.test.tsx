@@ -52,7 +52,7 @@ const workspace: import('../types/coSupervision').SupervisoryWorkspace = {
 };
 const studentTeam = renderToStaticMarkup(<StudentSupervisorsOverview workspace={workspace} actions={<button>View appointment</button>} />);
 assert.match(studentTeam, /Dr Primary|Current approved title|No supporting supervisors assigned/);
-assert.match(studentTeam, /<section aria-label="Research profile"/);
+assert.match(studentTeam, /<section aria-label="Research summary"/);
 assert.doesNotMatch(studentTeam, /<summary[^>]*>Research profile/);
 assert.match(studentTeam, /Full current abstract|Previous supporting supervisors/);
 assert.doesNotMatch(studentTeam, /Research changed|Complementary research expertise|Audit history|Ended reason/);

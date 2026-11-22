@@ -9,6 +9,7 @@ import { RecordPage } from './RecordPage';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  BookOpen,
   FileText,
   Plus, 
 } from 'lucide-react';
@@ -46,6 +47,7 @@ interface StudentSupervisorAppointmentProps {
   onNavigateToResearchRequest?: (id: string) => void;
   onNavigateToResearchList?: () => void;
   onNavigateToResearchProfile?: () => void;
+  researchBackLabel?: string;
   onNavigateToResearchNew?: () => void;
 }
 
@@ -78,7 +80,7 @@ const StudentSupervisorAppointmentContent: React.FC<StudentSupervisorAppointment
   onNavigateToApplication,
   backLabel = 'Back to Applications',
   lifecycleStatus,
-  researchView = 'list', researchRequestId,
+  researchView = 'list', researchRequestId, researchBackLabel,
   onNavigateToResearchRequest, onNavigateToResearchList, onNavigateToResearchProfile, onNavigateToResearchNew,
 }) => {
   const workflowEligible = !lifecycleStatus || lifecycleStatus === 'ACTIVE';
@@ -132,6 +134,8 @@ const StudentSupervisorAppointmentContent: React.FC<StudentSupervisorAppointment
   const [cancellationError, setCancellationError] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
   const navigationComplete = useRef(false);
+  const researchNavigationComplete = useRef(false);
+  useEffect(() => { researchNavigationComplete.current = false; }, [routeView, researchView]);
   const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
   useReturnToFocusReload(loadApplications, !loadingApplications && !workspaceBusy && !isCancelling && !isCancelConfirmOpen && !activeDetailAp && !initialApplicationId && routeView !== 'newApplication' && routeView !== 'research');
@@ -236,10 +240,15 @@ const StudentSupervisorAppointmentContent: React.FC<StudentSupervisorAppointment
   </>;
 
   if (initialApplicationId && !activeDetailAp) return <div className="space-y-6">{pageHeader}{loadingApplications ? <LoadingState message="Loading request details…" /> : applicationsError ? <ErrorState message={applicationsError} onRetry={loadApplications} /> : <EmptyState title="Application not found" description="This application does not exist or is outside your access." />}</div>;
-  if (researchPage) return <RecordPage metadata={researchMetadata} title={researchView === 'detail' ? researchDetailTitle ?? researchPage.title : researchPage.title} subtitle={researchPage.subtitle} backLabel="Back to research changes" onBack={onNavigateToResearchList ?? (() => {})}>
+  if (researchPage) return <RecordPage metadata={researchMetadata} title={researchView === 'detail' ? researchDetailTitle ?? researchPage.title : researchPage.title} subtitle={researchView === 'profile' ? undefined : researchPage.subtitle}
+    navigationComplete={researchNavigationComplete} backLabel={researchBackLabel ?? 'Back to Research changes'} onBack={onNavigateToResearchList ?? (() => {})}>
     <LecturerResearchWorkspace onDetailMetadata={setResearchMetadata} onDetailTitle={setResearchDetailTitle} role="Student" hideHeader routeView={researchView} routeRequestId={researchRequestId} showRefresh={false}
       onNavigateToRequest={onNavigateToResearchRequest} onNavigateToList={onNavigateToResearchList} onNavigateToProfile={onNavigateToResearchProfile} onNavigateToNew={onNavigateToResearchNew}
-      onChanged={() => setResearchRefreshVersion(value => value + 1)} />
+      onChanged={() => setResearchRefreshVersion(value => value + 1)}
+      onCreationSaved={researchView === 'new' && onNavigateToResearchList ? () => {
+        researchNavigationComplete.current = true;
+        onNavigateToResearchList();
+      } : undefined} />
   </RecordPage>;
 
   if (routeView !== 'research' && (loadingApplications || applicationsError)) {
@@ -267,7 +276,11 @@ const StudentSupervisorAppointmentContent: React.FC<StudentSupervisorAppointment
       {routeView === 'overview' && <>
         <SupervisoryTeamManagement role="Student" view="studentOverview" showRefresh={false} onBusyChange={setWorkspaceBusy} refreshVersion={researchRefreshVersion} studentActions={approvedApplication && onNavigateToApplication ? <>
           <PortalButton size="sm" className="min-h-11" variant="primary" icon={FileText} onClick={() => onNavigateToApplication(String(approvedApplication.id))}>View approved application</PortalButton>
-        </> : undefined} studentContent={{onShowFAQChatbot, requests: pending.length > 0 ? <StudentSupervisorApplications applications={applications} compact onViewApplication={onNavigateToApplication}/> : undefined}} />
+        </> : undefined} studentContent={{
+          onShowFAQChatbot,
+          researchActions: onNavigateToResearchProfile ? <PortalButton size="sm" variant="primary" icon={BookOpen} onClick={onNavigateToResearchProfile}>View research profile</PortalButton> : undefined,
+          requests: pending.length > 0 ? <StudentSupervisorApplications applications={applications} compact onViewApplication={onNavigateToApplication}/> : undefined,
+        }} />
       </>}
       {routeView === 'applications' && !initialApplicationId && <>
         <StudentSupervisorApplications applications={applications} onViewApplication={onNavigateToApplication} />

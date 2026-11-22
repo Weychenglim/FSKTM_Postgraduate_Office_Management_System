@@ -17,7 +17,7 @@ export function RecordPageProvider({ children }: { children: React.ReactNode }) 
 
 export type RecordPageProps = {
   title: string; subtitle?: string; backLabel: string; onBack: () => void; children: React.ReactNode | ((requestBack: () => void) => React.ReactNode);
-  actions?: React.ReactNode; metadata?: React.ReactNode; pageKey?: string; dirty?: boolean; busy?: boolean;
+  actions?: React.ReactNode; headerClassName?: string; metadata?: React.ReactNode; pageKey?: string; dirty?: boolean; busy?: boolean;
   /** Set synchronously only after a successful mutation, before its redirect. */
   navigationComplete?: React.RefObject<boolean>;
   /** After a completed write, close the local page only when no blocked route remains. */
@@ -37,7 +37,7 @@ function NavigationGuard({ dirty, busy, allow, pageKey, onNavigationSettled }: {
     onConfirm={() => { if (!busy && blocker.state === 'blocked') blocker.proceed(); }} />;
 }
 
-function RecordPageContent({ title, subtitle, backLabel, onBack, children, actions, metadata, pageKey, navigationComplete, onNavigationSettled, dirty: ownDirty = false, busy: ownBusy = false }: RecordPageProps) {
+function RecordPageContent({ title, subtitle, backLabel, onBack, children, actions, headerClassName, metadata, pageKey, navigationComplete, onNavigationSettled, dirty: ownDirty = false, busy: ownBusy = false }: RecordPageProps) {
   const host = useContext(RecordHost);
   const page = useRef<HTMLDivElement>(null);
   const origin = useRef<{ focused: HTMLElement | null; top: number } | null>(null);
@@ -84,7 +84,7 @@ function RecordPageContent({ title, subtitle, backLabel, onBack, children, actio
   const leave = () => { allow.current = true; onBack(); };
   const requestBack = () => { if (busy) return; if (dirty) setConfirmLeave(true); else leave(); };
   const content = <div ref={page} data-record-page className="space-y-6 pb-12 text-left font-sans">
-    <PageHeader title={title} subtitle={subtitle} backLabel={backLabel} onBack={requestBack} backDisabled={busy} actions={actions ? <fieldset disabled={dirty || busy} className="contents">{actions}</fieldset> : undefined} />
+    <PageHeader title={title} subtitle={subtitle} backLabel={backLabel} onBack={requestBack} backDisabled={busy} className={headerClassName} actions={actions ? <fieldset disabled={dirty || busy} className="contents">{actions}</fieldset> : undefined} />
     {metadata ? <div data-record-metadata>{metadata}</div> : null}
     <RecordDraft.Provider value={reportDraft}><div className="space-y-5">{typeof children === 'function' ? children(requestBack) : children}</div></RecordDraft.Provider>
     {dataRouter ? <NavigationGuard dirty={dirty} busy={busy} allow={allow} pageKey={pageKey} onNavigationSettled={onNavigationSettled} /> : null}

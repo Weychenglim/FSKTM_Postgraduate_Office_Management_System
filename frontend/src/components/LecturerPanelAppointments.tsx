@@ -17,7 +17,7 @@ import { PanelAssignmentsWorkspace } from './PanelAssignmentsWorkspace';
 import { completeDecision, type DecisionOutcome } from '../utils/decisionSubmission';
 import { useReturnToFocusReload } from '../utils/returnToFocus';
 import { RecordPage } from './RecordPage';
-import { useSearchParams } from 'react-router';
+import { useLocation, useSearchParams } from 'react-router';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -311,6 +311,8 @@ interface PanelRecommendationReviewDrawerProps {
   onOpenStudent?: (id: string) => void;
   onAppointmentEnded?: () => Promise<unknown>;
   onReload?: () => Promise<unknown>;
+  sourceRequestOpen?: boolean;
+  onSourceRequestChange?: (open: boolean) => void;
 }
 
 export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReviewDrawerProps> = ({
@@ -325,8 +327,11 @@ export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReview
   busy = false,
   onOpenStudent, onAppointmentEnded, onReload, backLabel = 'Back to Panel Appointments',
   presentation = 'request',
+  sourceRequestOpen, onSourceRequestChange,
 }) => {
-  const [sourceRequest,setSourceRequest]=useState(false);
+  const [localSourceRequest,setLocalSourceRequest]=useState(false);
+  const sourceRequest=sourceRequestOpen ?? localSourceRequest;
+  const setSourceRequest=onSourceRequestChange ?? setLocalSourceRequest;
   const appointmentView=presentation==='appointment'&&!sourceRequest;
   const [rejecting, setRejecting] = useState(false);
   const [confirmingAcceptance, setConfirmingAcceptance] = useState(false);
@@ -334,7 +339,7 @@ export const PanelRecommendationReviewDrawer: React.FC<PanelRecommendationReview
   const [rejectionError, setRejectionError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSourceRequest(false);
+    setLocalSourceRequest(false);
     setRejecting(false);
     setConfirmingAcceptance(false);
     setRejectionReason('');
@@ -444,10 +449,19 @@ const LecturerPanelContent: React.FC<LecturerPanelAppointmentsProps> = ({
   const [ownPanelCapacity, setOwnPanelCapacity] = useState<PanelWorkloadSummary | null>(null);
   const [eligibleSupervisees, setEligibleSupervisees] = useState<PanelRecommendationSupervisee[]>([]);
   const [listParams, setListParams] = useSearchParams();
+  const {state: panelLocationState} = useLocation();
+  const mountedRecordKey = useRef(typeof panelLocationState?.portalRecordPage === 'string' ? panelLocationState.portalRecordPage : '');
+  const restoredReviewId = useRef(/^panel-review:(\d+)$/.exec(mountedRecordKey.current)?.[1] ?? null);
+  const setPanelSource = (key: string | null) => setListParams(current => {
+    const next = new URLSearchParams(current);
+    if (key) next.set('panelSource', key);
+    else next.delete('panelSource');
+    return next;
+  }, {replace: true, state: panelLocationState});
   const selectedSuperviseeId = initialSuperviseeId ?? listParams.get('panelStudent');
   const workspaceRole=isCoordinator?'coordinator':'lecturer';
   const section=panelWorkspaceSection(workspaceRole,initialSuperviseeId&&!isCoordinator?'supervisees':listParams.get('panelSection'),routeView);
-  const [selectedSubmittedId,setSelectedSubmittedId]=useState<string|null>(null);
+  const [selectedSubmittedId,setSelectedSubmittedId]=useState<string|null>(() => /^panel-history:(\d+)$/.exec(mountedRecordKey.current)?.[1] ?? null);
   const changeSection=(value:string)=>setListParams(current=>{const next=new URLSearchParams(current);next.set('panelSection',value);next.delete('student');next.delete('panelStudent');next.delete('panelLecturer');return next;},{replace:true});
   const nominationRecordsOpen=!isCoordinator&&section==='supervisees'&&!selectedSuperviseeId&&(listParams.get('panelRecords')==='1'||routeView==='submitted');
   const openNominationRecords=()=>setListParams(current=>{const next=new URLSearchParams(current);next.set('panelRecords','1');return next;});
@@ -529,15 +543,17 @@ const LecturerPanelContent: React.FC<LecturerPanelAppointmentsProps> = ({
   }, [loadData]);
 
   useEffect(() => {
-    if (!initialRecommendationId) return;
+    const recommendationId = initialRecommendationId ?? restoredReviewId.current;
+    if (!recommendationId) return;
     const recommendation = [
       ...submittedRecs,
       ...panelReviewQueue,
       ...coordinatorReviewQueue,
       ...reviewedRequests,
       ...(coordinatorWorkspace?.records ?? []),
-    ].find((item) => String(item.id) === String(initialRecommendationId));
+    ].find((item) => String(item.id) === String(recommendationId));
     if (!recommendation) return;
+    restoredReviewId.current = null;
     setSelectedRecommendation(recommendation);
     const isSelectedPanel =
       recommendation.recommendedMemberId === currentUser?.staffId;
@@ -548,7 +564,7 @@ const LecturerPanelContent: React.FC<LecturerPanelAppointmentsProps> = ({
       : 'SUPERVISOR';
     setSelectedReviewerRole(role);
     setSelectedRecommendationReadOnly(
-      !canActOnPanelRecord(recommendation, role),
+      (isCoordinator && section === 'appointments') || !canActOnPanelRecord(recommendation, role),
     );
   }, [
     initialRecommendationId,
@@ -558,6 +574,7 @@ const LecturerPanelContent: React.FC<LecturerPanelAppointmentsProps> = ({
     reviewedRequests,
     coordinatorWorkspace,
     isCoordinator,
+    section,
     currentUser?.staffId,
   ]);
 
@@ -805,7 +822,9 @@ const LecturerPanelContent: React.FC<LecturerPanelAppointmentsProps> = ({
           </>:null}
         </>}
         {!isCoordinator&&section!=='supervisees'?<LecturerAppointmentGuidance module="panel" panelContext={section==='requests'?'reviews':'appointments'}/>:null}
-      </div>:loading?<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><LoadingState message="Loading Panel assignment…"/></RecordPage>:error?<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><ErrorState message={error} onRetry={loadData}/></RecordPage>:selectedAssignment?<PanelAssignmentDetail assignment={selectedAssignment} onBack={navigateToList} onOpenMarksEntry={onNavigateToMarks} onOpenStudent={onNavigateToDossier}/>:<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><EmptyState title="Panel assignment not found" description="The requested appointment does not exist or is outside your access."/></RecordPage>}
+      </div>:loading?<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><LoadingState message="Loading Panel assignment…"/></RecordPage>:error?<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><ErrorState message={error} onRetry={loadData}/></RecordPage>:selectedAssignment?<PanelAssignmentDetail assignment={selectedAssignment} onBack={navigateToList} onOpenMarksEntry={onNavigateToMarks} onOpenStudent={onNavigateToDossier}
+        sourceRequestOpen={listParams.get('panelSource') === `assignment-${selectedAssignment.appointmentId}`}
+        onSourceRequestChange={open => setPanelSource(open ? `assignment-${selectedAssignment.appointmentId}` : null)}/>:<RecordPage title="Panel assignment" backLabel={detailBackLabel} onBack={navigateToList}><EmptyState title="Panel assignment not found" description="The requested appointment does not exist or is outside your access."/></RecordPage>}
       <RecommendationDetailsDrawer backLabel={selectedSuperviseeId?'Back to student Panel details':nominationRecordsOpen?'Back to Nomination records':undefined} isOpen={selectedSubmittedId!==null} onClose={()=>setSelectedSubmittedId(null)} recommendation={combinedRecommendations.find(r=>String(r.recommendationId)===selectedSubmittedId)??null} onCancelRecommendation={handleCancelRecommendation} onOpenStudent={onNavigateToDossier}/>
 
       {/* RIGHT SLIDING DRAWER: RECOMMEND PANEL MEMBER DRAWER */}
@@ -830,6 +849,8 @@ const LecturerPanelContent: React.FC<LecturerPanelAppointmentsProps> = ({
 
       <PanelRecommendationReviewDrawer backLabel={!initialRecommendationId&&isCoordinator&&section==='appointments'?(listParams.has('panelLecturer')?'Back to Panel students':'Back to Panel assignments'):detailBackLabel} onOpenStudent={onNavigateToDossier}
         presentation={!initialRecommendationId&&isCoordinator&&section==='appointments'?'appointment':'request'}
+        sourceRequestOpen={!!selectedRecommendation && listParams.get('panelSource') === `review-${selectedRecommendation.id}`}
+        onSourceRequestChange={open => setPanelSource(open && selectedRecommendation ? `review-${selectedRecommendation.id}` : null)}
         isOpen={selectedRecommendation !== null}
         routed={!!initialRecommendationId}
         busy={mutationBusy}

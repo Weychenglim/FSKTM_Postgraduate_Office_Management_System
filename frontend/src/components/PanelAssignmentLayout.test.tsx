@@ -17,7 +17,7 @@ const student:PanelRecommendationSupervisee={studentId:'PG071',studentName:recom
 test('Assignments prioritise appointed member and current research with compact lifecycle beside content',()=>{
   const html=render(<PanelAssignmentDetail assignment={assignment} onBack={()=>{}} onOpenMarksEntry={()=>{}} onOpenStudent={()=>{}}/>);
   assert.match(html,/data-panel-assignment-columns/);
-  for(const title of ['Academic team','Current research','Appointment record'])assert.ok(html.includes(`>${title}</h2>`),title);
+  for(const title of ['Academic team','Research summary','Appointment record'])assert.ok(html.includes(`>${title}</h2>`),title);
   assert.match(html,/View approved application/);
   assert.doesNotMatch(html,/Approval progress/);
   assert.doesNotMatch(html,/Open Marks Entry/);
@@ -35,7 +35,7 @@ test('Supervisee details keep appointed and proposed members in independent surf
   const html=render(<PanelSuperviseeDetails student={{...student,canRecommend:false}} pendingRequest={{...recommendation,status:'PENDING_COORDINATOR',recommendedMember:'Dr Proposed'}} onRecommend={()=>{}} onOpenRequest={()=>{}}/>);
   assert.match(html,/data-panel-supervisee-columns/);
   assert.match(html,/Current appointed panel member/);
-  for(const text of ['Dr Appointed','Dr Proposed','Proposed replacement','Current research','First paragraph.','Second paragraph.','View pending request'])assert.ok(html.includes(text),text);
+  for(const text of ['Dr Appointed','Dr Proposed','Proposed replacement','Research summary','First paragraph.','Second paragraph.','View pending request'])assert.ok(html.includes(text),text);
   assert.doesNotMatch(html,/>Request replacement<|>Nominate panel member</);
 });
 
