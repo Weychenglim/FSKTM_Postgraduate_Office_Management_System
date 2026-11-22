@@ -46,7 +46,9 @@ def participant_list_view(request):
     programme = request.query_params.get("programme", "").strip()
     search = request.query_params.get("search", "").strip()
     students = Student.objects.select_related("user", "status_changed_by")
-    lecturers = Lecturer.objects.select_related("user", "lifecycle_changed_by")
+    lecturers = Lecturer.objects.select_related("user", "lifecycle_changed_by").exclude(
+        coordinator__lecturer_account__isnull=False
+    )
     if programme:
         students = students.filter(programme__iexact=programme)
     if search:
@@ -72,15 +74,16 @@ def participant_list_view(request):
     if participant_type in {"ALL", "LECTURER"}:
         rows.extend(serialize_lecturer(row, include_audits=False) for row in lecturers)
     rows.sort(key=lambda row: (row["participantType"], row["name"].casefold()))
+    people = Lecturer.objects.exclude(coordinator__lecturer_account__isnull=False)
     summary = {
         "activeStudents": Student.objects.filter(status=Student.Status.ACTIVE).count(),
         "deferredStudents": Student.objects.filter(status=Student.Status.DEFERRED).count(),
         "graduatedStudents": Student.objects.filter(status=Student.Status.GRADUATED).count(),
         "withdrawnStudents": Student.objects.filter(status__in=[Student.Status.WITHDRAWN, Student.Status.TERMINATED, Student.Status.DECEASED]).count(),
-        "activeLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.ACTIVE).count(),
-        "retiringLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.RETIRING).count(),
-        "retiredLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.RETIRED).count(),
-        "resignedLecturers": Lecturer.objects.filter(lifecycle_status=Lecturer.Lifecycle.RESIGNED).count(),
+        "activeLecturers": people.filter(lifecycle_status=Lecturer.Lifecycle.ACTIVE).count(),
+        "retiringLecturers": people.filter(lifecycle_status=Lecturer.Lifecycle.RETIRING).count(),
+        "retiredLecturers": people.filter(lifecycle_status=Lecturer.Lifecycle.RETIRED).count(),
+        "resignedLecturers": people.filter(lifecycle_status=Lecturer.Lifecycle.RESIGNED).count(),
     }
     programmes = list(
         Student.objects.exclude(programme="")

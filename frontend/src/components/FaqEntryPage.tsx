@@ -397,7 +397,7 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
                 <label htmlFor={`${ids}-question`} className="form-label block">Question</label>
                 <input
                   id={`${ids}-question`}
-                  className={`form-control form-control-md text-[15px]${problems.question ? ' form-control-error' : ''}`}
+                  className={`form-control form-control-md text-[14px]${problems.question ? ' form-control-error' : ''}`}
                   maxLength={500}
                   value={form.question}
                   placeholder="For example: Can I pay the fees in instalments?"
@@ -511,7 +511,7 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
                   ))}
                 </ol>
                 {entry.history.length > HISTORY_SHOWN && (
-                  <button type="button" className="back-link py-2" onClick={() => setAllHistory(value => !value)}>
+                  <button type="button" className="back-link py-2 uppercase tracking-wider" onClick={() => setAllHistory(value => !value)}>
                     {allHistory ? 'Show less' : `Show all ${entry.history.length} changes`}
                   </button>
                 )}

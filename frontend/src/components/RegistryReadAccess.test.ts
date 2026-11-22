@@ -28,7 +28,8 @@ const staffForm = readFileSync(resolve('src/components/StaffAccountForm.tsx'), '
 const staffPage = readFileSync(resolve('src/components/StaffAccountPage.tsx'), 'utf8');
 const staffDialogs = readFileSync(resolve('src/components/StaffAccountDialogs.tsx'), 'utf8');
 assert.match(staffForm, /role === 'Lecturer' && \(\s*<Field id=\{id\('programme'\)\} label="Programme \(optional\)"/);
-assert.match(staffForm, /role === 'Programme Coordinator' \|\| \(role === 'Lecturer' && programme\) \? \{ programme \}/);
+assert.match(staffForm, /role === 'Lecturer' && programme \? \{ programme \}/);
+assert.match(staffForm, /\? \{ role, lecturerId, programme, sendActivation: sendNow \}/, 'a coordinator account is made from a lecturer');
 assert.match(staffPage, /\{lecturerLike && \(\s*<div[^>]*>\s*<div>\s*<p[^>]*>\{account\.role === 'Programme Coordinator' \? 'Programme they coordinate' : 'Programme'\}/);
 assert.match(staffDialogs, /if \(!coordinator\) return;/, 'a lecturer programme needs no approvals check');
 

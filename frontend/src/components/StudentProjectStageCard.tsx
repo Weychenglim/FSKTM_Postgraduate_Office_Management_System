@@ -39,7 +39,7 @@ export const StudentProjectStageCard: React.FC<{ matric: string }> = ({ matric }
     return (
       <p className="rounded-xl border border-slate-200 bg-white p-4 text-[13px] font-semibold text-slate-500">
         Could not load the RP registration.{' '}
-        <button type="button" className="font-bold text-blue-700 hover:text-blue-900 cursor-pointer" onClick={() => setReload(value => value + 1)}>Try again</button>
+        <button type="button" className="text-blue-700 hover:text-blue-900 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider" onClick={() => setReload(value => value + 1)}>Try again</button>
       </p>
     );
   }

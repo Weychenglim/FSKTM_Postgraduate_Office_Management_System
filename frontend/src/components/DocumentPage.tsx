@@ -243,7 +243,7 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
                         </span>
                         <span className="flex shrink-0 items-center gap-3 text-slate-500">
                           {historyTime(version.uploadedAt)}
-                          <button type="button" className="font-bold text-blue-700 hover:text-blue-900" onClick={() => void download(version.number)}>Download</button>
+                          <button type="button" className="text-blue-700 hover:text-blue-900 text-[11px] font-extrabold uppercase tracking-wider" onClick={() => void download(version.number)}>Download</button>
                         </span>
                       </li>
                     ))}

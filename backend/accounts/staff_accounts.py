@@ -28,6 +28,14 @@ from appointments.models import (
     SupervisorAppointment,
 )
 
+from .coordinator_alias import (
+    alias_email,
+    alias_staff_id,
+    coordinator_account_of,
+    is_alias_email,
+    lecturer_account_of,
+    shown_staff_id,
+)
 from .delegations import today
 from .models import (
     AccountChange,
@@ -93,6 +101,9 @@ STAFF_ID_TAKEN = "Another account already uses this Staff ID."
 STAFF_ID_IS_MATRIC = (
     "This is already a student's matric number. Sign-in accepts both, so they must differ."
 )
+ALIAS_EMAIL_TYPED = "Email addresses containing +coordinator are reserved for coordinator accounts."
+FROM_LECTURER = "These details come from the lecturer account. Change them there."
+CHOOSE_LECTURER = "Choose the lecturer."
 HISTORY_LIMIT = 200
 
 _LOCK_KEY = int.from_bytes(
@@ -129,9 +140,10 @@ def staff_id_problem(value):
 def staff_accounts():
     return User.objects.filter(role__in=STAFF_ROLES).select_related(
         "office_staff",
-        "lecturer__coordinator",
+        "lecturer__coordinator__lecturer_account",
         "lecturer__supervisor",
         "lecturer__panel",
+        "linked_coordinator__lecturer__user",
     )
 
 
@@ -166,11 +178,21 @@ def duties_of(user):
     ]
 
 
+def _linked(user):
+    if user is None:
+        return None
+    return {"id": str(user.pk), "name": user.full_name, "email": user.email, "status": account_status(user)}
+
+
 def to_staff_dict(user, viewer=None):
     office = user._related_or_none("office_staff")
     lecturer = user._related_or_none("lecturer")
     profile = office or lecturer
     coordinator = _part(lecturer, "coordinator")
+    lecturer_account = lecturer_account_of(user)
+    staff_id = profile.staff_no if profile else ""
+    if lecturer_account is not None:
+        staff_id = shown_staff_id(staff_id)
     signed_in = user.last_portal_login or user.last_login
     return {
         "id": str(user.pk),
@@ -178,7 +200,7 @@ def to_staff_dict(user, viewer=None):
         "email": user.email,
         "phone": user.phone,
         "role": user.role,
-        "staffId": profile.staff_no if profile else "",
+        "staffId": staff_id,
         "department": profile.department if profile else "",
         "title": lecturer.title if lecturer else "",
         "researchArea": lecturer.specialization if lecturer else "",
@@ -190,6 +212,8 @@ def to_staff_dict(user, viewer=None):
         "lastSignedIn": signed_in.isoformat() if signed_in else None,
         "createdAt": user.date_joined.isoformat(),
         "isYou": bool(viewer and viewer.pk == user.pk),
+        "lecturerAccount": _linked(lecturer_account),
+        "coordinatorAccount": _linked(coordinator_account_of(user)) if user.role == LECTURER else None,
     }
 
 
@@ -305,11 +329,11 @@ def create_account(*, actor, data):
     activation email once this has committed."""
     _lock_staff_accounts()
     role = data["role"]
-    _check_unique(
-        email=data["email"],
-        staff_id=data["staffId"],
-        programme=data.get("programme") if role == COORDINATOR else None,
-    )
+    if role == COORDINATOR:
+        raise StaffAccountError({"lecturerId": CHOOSE_LECTURER})
+    if is_alias_email(data["email"]):
+        raise StaffAccountError({"email": ALIAS_EMAIL_TYPED})
+    _check_unique(email=data["email"], staff_id=data["staffId"])
     user = User(
         email=data["email"],
         full_name=data["name"],
@@ -335,24 +359,99 @@ def create_account(*, actor, data):
             department=data.get("department", ""),
             title=data.get("title", ""),
             specialization=data.get("researchArea", ""),
-            programme=data.get("programme", "") if role == LECTURER else "",
+            programme=data.get("programme", ""),
         )
-        if role == COORDINATOR:
-            Coordinator.objects.create(
-                lecturer=lecturer, programme_managed=data["programme"], appointed_date=today()
-            )
+        duties = data.get("duties", [])
+        if SUPERVISOR in duties:
+            Supervisor.objects.create(lecturer=lecturer)
+        if PANEL in duties:
+            Panel.objects.create(lecturer=lecturer)
+        details["duties"] = duties
+        if data.get("programme"):
             details["programme"] = data["programme"]
-        else:
-            duties = data.get("duties", [])
-            if SUPERVISOR in duties:
-                Supervisor.objects.create(lecturer=lecturer)
-            if PANEL in duties:
-                Panel.objects.create(lecturer=lecturer)
-            details["duties"] = duties
-            if data.get("programme"):
-                details["programme"] = data["programme"]
     record(user, actor, AccountChange.Action.CREATED, details)
     return staff_accounts().get(pk=user.pk)
+
+
+def _clash_on_lecturer(exc, email, staff_id):
+    """Report a taken alias email or Staff ID against the lecturer picker."""
+    errors, existing = {}, {}
+    if "email" in exc.errors:
+        errors["lecturerId"] = f"The coordinator sign-in email {email} is already used by another account."
+        existing["lecturerId"] = exc.existing.get("email")
+    elif "staffId" in exc.errors:
+        errors["lecturerId"] = f"The Staff ID {staff_id} is already used by another account."
+        existing["lecturerId"] = exc.existing.get("staffId")
+    if "programme" in exc.errors:
+        errors["programme"] = exc.errors["programme"]
+        existing["programme"] = exc.existing.get("programme")
+    return StaffAccountError(errors, existing={key: value for key, value in existing.items() if value})
+
+
+def _reopen_coordinator(*, actor, account, programme):
+    _check_unique(programme=programme, account=account)
+    coordinator = Coordinator.objects.select_for_update().get(lecturer__user=account)
+    before = coordinator.programme_managed.strip()
+    coordinator.programme_managed = programme
+    coordinator.appointed_date = today()
+    coordinator.save(update_fields=["programme_managed", "appointed_date"])
+    if before.casefold() != programme.casefold():
+        record(account, actor, AccountChange.Action.PROGRAMME_CHANGED, {"from": before, "to": programme})
+    account.is_active = True
+    account.save(update_fields=["is_active"])
+    record(account, actor, AccountChange.Action.SIGN_IN_ON, {"reason": "Appointed Programme Coordinator again."})
+    return staff_accounts().get(pk=account.pk)
+
+
+@transaction.atomic
+def create_coordinator_account(*, actor, lecturer_id, programme):
+    """Give a lecturer their +coordinator account for ``programme``, or switch
+    their earlier one back on. Returns ``(account, reopened)``; the caller sends
+    the activation email for a new account."""
+    _lock_staff_accounts()
+    owner = find_account(lecturer_id, lock=True)
+    lecturer = Lecturer.objects.select_for_update().filter(user=owner).first() if owner else None
+    if owner is None or owner.role != LECTURER or lecturer is None:
+        raise StaffAccountError({"lecturerId": CHOOSE_LECTURER})
+    if not owner.is_active or lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE:
+        raise StaffAccountError(
+            {"lecturerId": "Only an active lecturer who can sign in can be made a coordinator."}
+        )
+    earlier = coordinator_account_of(owner)
+    if earlier is not None:
+        earlier = find_account(earlier.pk, lock=True)
+        if earlier.is_active:
+            raise StaffAccountError(
+                {"lecturerId": f"{owner.full_name} already has a coordinator account."},
+                existing={"lecturerId": _holder(earlier)},
+            )
+        return _reopen_coordinator(actor=actor, account=earlier, programme=programme), True
+
+    email, staff_id = alias_email(owner.email), alias_staff_id(lecturer.staff_no)
+    try:
+        _check_unique(email=email, staff_id=staff_id, programme=programme)
+    except StaffAccountError as exc:
+        raise _clash_on_lecturer(exc, email, staff_id) from None
+    user = User(email=email, full_name=owner.full_name, role=COORDINATOR, phone=owner.phone)
+    user.set_unusable_password()
+    user.save()
+    profile = Lecturer.objects.create(
+        user=user,
+        staff_no=staff_id,
+        department=lecturer.department,
+        title=lecturer.title,
+        specialization=lecturer.specialization,
+    )
+    Coordinator.objects.create(
+        lecturer=profile, programme_managed=programme, appointed_date=today(), lecturer_account=owner
+    )
+    record(
+        user,
+        actor,
+        AccountChange.Action.CREATED,
+        {"role": COORDINATOR, "staffId": staff_id, "programme": programme, "lecturerAccount": str(owner.pk)},
+    )
+    return staff_accounts().get(pk=user.pk), False
 
 
 @transaction.atomic
@@ -363,11 +462,15 @@ def edit_account(*, actor, account_id, data):
     user = find_account(account_id, lock=True)
     if user is None:
         raise StaffAccountError({"error": "No such account."}, status=404)
+    if lecturer_account_of(user) is not None:
+        raise StaffAccountError({"error": FROM_LECTURER}, status=409)
     office = OfficeStaff.objects.select_for_update().filter(user=user).first()
     lecturer = Lecturer.objects.select_for_update().filter(user=user).first()
     profile = office or lecturer
 
     refused = {}
+    if "email" in data and is_alias_email(data["email"]):
+        refused["email"] = ALIAS_EMAIL_TYPED
     for field in (*PROFILE_FIELDS, *LECTURER_FIELDS, *OFFICE_FIELDS):
         if field not in data:
             continue
@@ -416,7 +519,69 @@ def edit_account(*, actor, account_id, data):
         record(user, actor, AccountChange.Action.EMAIL_CHANGED, {"from": old_email, "to": user.email})
     else:
         old_email = None
+    if user.role == LECTURER and lecturer is not None:
+        _follow_lecturer(actor=actor, owner=user, lecturer=lecturer)
     return staff_accounts().get(pk=user.pk), old_email
+
+
+ALIAS_FIELDS = (
+    ("full_name", "name"),
+    ("phone", "phone"),
+    ("staff_no", "staffId"),
+    ("department", "department"),
+    ("title", "title"),
+    ("specialization", "researchArea"),
+)
+
+
+def _follow_lecturer(*, actor, owner, lecturer):
+    """Copy the lecturer's details to their coordinator account, if they have one."""
+    linked = coordinator_account_of(owner)
+    if linked is None:
+        return
+    account = find_account(linked.pk, lock=True)
+    profile = Lecturer.objects.select_for_update().get(user=account)
+    email, staff_id = alias_email(owner.email), alias_staff_id(lecturer.staff_no)
+    try:
+        _check_unique(
+            email=email if email != account.email else None,
+            staff_id=staff_id if staff_id != profile.staff_no else None,
+            account=account,
+        )
+    except StaffAccountError as exc:
+        field = "email" if "email" in exc.errors else "staffId"
+        clash = email if field == "email" else staff_id
+        raise StaffAccountError(
+            {field: f"Their coordinator account would become {clash}, which another account already uses."},
+            existing={field: exc.existing.get(field)} if exc.existing.get(field) else None,
+        ) from None
+    wanted = {
+        "full_name": owner.full_name,
+        "phone": owner.phone,
+        "staff_no": staff_id,
+        "department": lecturer.department,
+        "title": lecturer.title,
+        "specialization": lecturer.specialization,
+    }
+    changes, user_fields, profile_fields = [], [], []
+    for attribute, name in ALIAS_FIELDS:
+        row = account if attribute in ("full_name", "phone") else profile
+        if getattr(row, attribute) != wanted[attribute]:
+            changes.append({"field": name, "from": getattr(row, attribute), "to": wanted[attribute]})
+            setattr(row, attribute, wanted[attribute])
+            (user_fields if row is account else profile_fields).append(attribute)
+    old_email = account.email
+    if email != old_email:
+        account.email = email
+        user_fields.append("email")
+    if user_fields:
+        account.save(update_fields=user_fields)
+    if profile_fields:
+        profile.save(update_fields=profile_fields)
+    if changes:
+        record(account, actor, AccountChange.Action.DETAILS_EDITED, {"changes": changes})
+    if email != old_email:
+        record(account, actor, AccountChange.Action.EMAIL_CHANGED, {"from": old_email, "to": email})
 
 
 def link_kind(user):
@@ -465,8 +630,9 @@ def account_history(user):
 
 
 def staff_options():
-    """What the Add account form offers: the faculty's departments, and each
-    programme with the coordinator who manages it, if any."""
+    """What the Add account form offers: the faculty's departments, each
+    programme with the coordinator who manages it, if any, and the lecturers
+    who can be made a coordinator."""
     programmes = []
     for programme in APPROVED_PROGRAMMES:
         holder = programme_coordinator(programme)
@@ -476,9 +642,27 @@ def staff_options():
                 "coordinator": {"id": str(holder.pk), "name": holder.full_name} if holder else None,
             }
         )
+    lecturers = (
+        User.objects.filter(
+            role=LECTURER, is_active=True, lecturer__lifecycle_status=Lecturer.Lifecycle.ACTIVE
+        )
+        .exclude(linked_coordinator__lecturer__user__is_active=True)
+        .select_related("lecturer", "linked_coordinator__lecturer__user")
+        .order_by("full_name", "pk")
+    )
     return {
         "departments": FACULTY_DEPARTMENTS,
         "programmes": programmes,
+        "lecturers": [
+            {
+                "id": str(user.pk),
+                "name": user.full_name,
+                "staffId": user.lecturer.staff_no,
+                "programme": user.lecturer.programme,
+                "reopens": coordinator_account_of(user) is not None,
+            }
+            for user in lecturers
+        ],
     }
 
 
@@ -580,8 +764,8 @@ def set_duties(*, actor, account_id, duties):
     if user.role != LECTURER or lecturer is None:
         raise StaffAccountError(
             {
-                "error": "Only lecturer accounts have duties. A coordinator who also "
-                "supervises needs a separate lecturer account."
+                "error": "Only lecturer accounts have duties. Supervisor and panel work "
+                "stays on the lecturer account."
             },
             status=409,
         )
@@ -710,6 +894,13 @@ def set_sign_in(*, actor, account_id, on, reason=""):
             raise StaffAccountError(
                 {"error": "This lecturer has left. Use Returned to work to turn sign-in back on."}, status=409
             )
+        owner = lecturer_account_of(user)
+        if owner is not None and (
+            not owner.is_active or owner.lecturer.lifecycle_status != Lecturer.Lifecycle.ACTIVE
+        ):
+            raise StaffAccountError(
+                {"error": "Turn sign-in back on for the lecturer account first."}, status=409
+            )
         coordinator = _part(lecturer, "coordinator")
         if user.role == COORDINATOR and coordinator and coordinator.programme_managed.strip():
             holder = programme_coordinator(coordinator.programme_managed, user)
@@ -749,7 +940,23 @@ def set_sign_in(*, actor, account_id, on, reason=""):
     user.save(update_fields=["is_active"])
     blacklist_user_refresh_tokens(user)
     record(user, actor, AccountChange.Action.SIGN_IN_OFF, {"reason": reason})
+    if user.role == LECTURER:
+        close_coordinator_account(owner=user, actor=actor, reason=f"The lecturer account was turned off: {reason}")
     return staff_accounts().get(pk=user.pk)
+
+
+def close_coordinator_account(*, owner, actor, reason):
+    """Turn off the lecturer's coordinator account along with their own."""
+    linked = coordinator_account_of(owner)
+    if linked is None:
+        return
+    account = User.objects.select_for_update().get(pk=linked.pk)
+    if not account.is_active:
+        return
+    account.is_active = False
+    account.save(update_fields=["is_active"])
+    blacklist_user_refresh_tokens(account)
+    record(account, actor, AccountChange.Action.SIGN_IN_OFF, {"reason": reason})
 
 
 # Rows that belong to the account itself, or only tell it things, so they do
@@ -794,6 +1001,8 @@ def deletion_check(user, actor):
         reasons.append("This is your own account.")
     if user.last_portal_login or user.last_login:
         reasons.append("It has been used to sign in.")
+    if coordinator_account_of(user) is not None:
+        reasons.append("It has a Programme Coordinator account. Delete that account first.")
     linked = _linked_records(user)
     lecturer = user._related_or_none("lecturer")
     if lecturer is not None:

@@ -8,6 +8,7 @@
 // the printed letter previewed beside it as it is typed.
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { FeedbackTone } from './DecisionFeedback';
 import { Bold, ChevronDown, Italic, List, ListChecks, PenLine, Pencil, Plus, Trash2, Underline } from 'lucide-react';
 import { PortalButton, SegmentedControl } from './PortalPrimitives';
 import { AlertMessage } from './AlertMessage';
@@ -73,7 +74,7 @@ interface LetterWordingEditorProps {
   /** Problems found when saving or continuing, shown until the wording changes. */
   problems: { content?: string; contentMs?: string; customFields?: string };
   onEdited: (field: 'content' | 'contentMs' | 'customFields') => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
 }
 
 export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values, onChange, placeholders, problems, onEdited, onMessage }) => {
@@ -283,7 +284,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
     { title: 'From the appointment', tags: offeredTags.filter((p) => p.group === 'appointment').map((p) => ({ tag: p.tag, hint: p.source })) },
     { title: 'Student answers', tags: studentQuestions.map((q) => ({ tag: `{{${q.name}}}`, hint: 'The student answers it on the form' })) },
   ].filter((group) => group.tags.length > 0);
-  const menuButton = 'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:border-slate-300 cursor-pointer';
+  const menuButton = 'inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-700 hover:border-slate-300 cursor-pointer';
   const menuItem = 'flex w-full items-center rounded-lg px-2 py-1.5 text-left text-[12.5px] font-medium text-slate-700 hover:bg-slate-50 cursor-pointer';
 
   return (

@@ -10,8 +10,10 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from .coordinator_alias import alias_email, coordinator_account_of
 from .programmes import APPROVED_PROGRAMMES
 from .staff_accounts import (
+    CHOOSE_LECTURER,
     COORDINATOR,
     DUTIES,
     LECTURER,
@@ -26,6 +28,7 @@ from .staff_accounts import (
     change_programme,
     copy_activation_link,
     create_account,
+    create_coordinator_account,
     delete_account,
     deletion_check,
     edit_account,
@@ -131,6 +134,27 @@ class StaffAccountCreateSerializer(StaffDetailsMixin):
         return attrs
 
 
+class CoordinatorAccountCreateSerializer(serializers.Serializer):
+    """A coordinator account is made from a lecturer, so only who and which
+    programme are asked for."""
+
+    role = serializers.ChoiceField(choices=[COORDINATOR])
+    lecturerId = serializers.IntegerField(
+        min_value=1,
+        error_messages={"required": CHOOSE_LECTURER, "invalid": CHOOSE_LECTURER, "null": CHOOSE_LECTURER},
+    )
+    programme = serializers.ChoiceField(
+        choices=APPROVED_PROGRAMMES,
+        error_messages={"required": "Choose the programme this coordinator manages."},
+    )
+    sendActivation = serializers.BooleanField(required=False, default=True)
+
+    def validate(self, attrs):
+        if self.initial_data.get("duties"):
+            raise serializers.ValidationError({"duties": "Only lecturer accounts have duties."})
+        return attrs
+
+
 class StaffAccountUpdateSerializer(StaffDetailsMixin):
     ELSEWHERE = {
         "role": "The role cannot be changed. If this account was never used, delete it and add it again.",
@@ -217,7 +241,32 @@ def staff_accounts_view(request):
     )
 
 
+def _create_coordinator(request):
+    serializer = CoordinatorAccountCreateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    data = serializer.validated_data
+    try:
+        user, reopened = create_coordinator_account(
+            actor=request.user, lecturer_id=data["lecturerId"], programme=data["programme"]
+        )
+    except StaffAccountError as exc:
+        return _refused(exc)
+    except IntegrityError:
+        return Response({"error": CHANGED_ELSEWHERE}, status=status.HTTP_409_CONFLICT)
+
+    activation = "reopened" if reopened and user.has_usable_password() else "held"
+    if activation == "held" and data["sendActivation"]:
+        sent = send_access_link(actor=request.user, user=user, kind=ACTIVATION)
+        activation = "sent" if sent else "failed"
+    return Response(
+        {"account": to_staff_dict(user, request.user), "activation": activation, "reopened": reopened},
+        status=status.HTTP_200_OK if reopened else status.HTTP_201_CREATED,
+    )
+
+
 def _create(request):
+    if request.data.get("role") == COORDINATOR:
+        return _create_coordinator(request)
     serializer = StaffAccountCreateSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     try:
@@ -275,6 +324,9 @@ def staff_account_detail_view(request, account_id):
     told = None
     if old_email and user.has_usable_password():
         told = tell_old_address(user, old_email)
+    linked = coordinator_account_of(user) if old_email else None
+    if linked is not None and linked.has_usable_password():
+        tell_old_address(linked, alias_email(old_email))
     return Response({"account": account_page(user, request.user), "oldAddressTold": told})
 
 

@@ -10,6 +10,7 @@
 // office (see LetterFormFields); the student never sees the letter's wording.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { FeedbackTone } from './DecisionFeedback';
 import { AlertTriangle, Check, Send } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
@@ -47,7 +48,7 @@ interface StudentLetterRequestFormProps {
   onBlocked: (reason: string) => void;
   /** The letter was already asked for, or can no longer be requested. */
   onRefused: (message: string) => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
 }
 
 /** The server's field errors as the form shows them. */
@@ -186,7 +187,7 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
         const problems = serverErrors(err);
         setErrors(problems);
         if (Object.keys(problems).length) goToField(Object.keys(problems)[0]);
-        onMessage(message);
+        onMessage(message, 'danger');
       }
     } finally {
       setSending(false);
@@ -360,7 +361,7 @@ export const StudentLetterRequestForm: React.FC<StudentLetterRequestFormProps> =
                         type="button"
                         disabled={sending}
                         onClick={() => goToField(row.field)}
-                        className="text-[13px] font-semibold text-blue-700 hover:underline cursor-pointer"
+                        className="text-blue-700 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider"
                       >
                         Change<span className="sr-only"> {row.label.toLowerCase()}</span>
                       </button>

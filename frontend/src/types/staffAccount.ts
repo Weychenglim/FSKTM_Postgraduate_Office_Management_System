@@ -12,6 +12,13 @@ export type StaffDuty = 'Supervisor' | 'Panel';
 export type StaffAccountStatus = 'ACTIVE' | 'NOT_ACTIVATED' | 'SIGN_IN_OFF';
 export type StaffStatusFilter = '' | StaffAccountStatus;
 
+export interface LinkedStaffAccount {
+  id: string;
+  name: string;
+  email: string;
+  status: StaffAccountStatus;
+}
+
 export interface StaffAccount {
   id: string;
   name: string;
@@ -30,6 +37,8 @@ export interface StaffAccount {
   lastSignedIn: string | null;
   createdAt: string;
   isYou: boolean;
+  lecturerAccount: LinkedStaffAccount | null;
+  coordinatorAccount: LinkedStaffAccount | null;
 }
 
 export interface StaffWorkItem {
@@ -80,6 +89,13 @@ export interface StaffAccountInput {
   sendActivation: boolean;
 }
 
+export interface CoordinatorAccountInput {
+  role: 'Programme Coordinator';
+  lecturerId: string;
+  programme: string;
+  sendActivation: boolean;
+}
+
 export type StaffDetailsChange = Partial<
   Pick<StaffAccount, 'name' | 'email' | 'phone' | 'staffId' | 'department' | 'title' | 'researchArea' | 'position'>
 >;
@@ -102,6 +118,7 @@ export interface ExistingAccount {
 export interface StaffOptions {
   departments: string[];
   programmes: { programme: string; coordinator: { id: string; name: string } | null }[];
+  lecturers: { id: string; name: string; staffId: string; programme: string; reopens: boolean }[];
 }
 
 export interface WaitingApprovals {
@@ -117,4 +134,4 @@ export interface ProgrammeMoveCheck {
   to: { programme: string; waiting: WaitingApprovals };
 }
 
-export type ActivationOutcome = 'sent' | 'failed' | 'held';
+export type ActivationOutcome = 'sent' | 'failed' | 'held' | 'reopened';

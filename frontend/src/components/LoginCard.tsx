@@ -266,7 +266,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
               <button
                 type="button"
                 onClick={() => setActiveModal(null)}
-                className="mt-6 text-xs text-slate-500 font-bold hover:text-slate-800 transition cursor-pointer"
+                className="mt-6 text-slate-500 hover:text-slate-800 transition cursor-pointer text-[11px] font-extrabold uppercase tracking-wider"
               >
                 Close Guidance Window
               </button>

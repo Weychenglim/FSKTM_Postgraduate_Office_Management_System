@@ -181,7 +181,7 @@ export const LetterFormFields: React.FC<LetterFormFieldsProps> = ({
                 setTyping(false);
                 change({ organisation: '', organisationId: null, typedIn: false });
               }}
-              className="text-[12px] font-semibold text-blue-700 hover:underline cursor-pointer"
+              className="text-blue-700 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider"
             >
               Choose from the list instead
             </button>

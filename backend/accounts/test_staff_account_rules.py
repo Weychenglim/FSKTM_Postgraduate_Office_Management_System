@@ -179,7 +179,7 @@ class DutiesTests(StaffRulesBase):
     def test_coordinators_have_no_duties(self):
         response = self.set(self.coordinator, ["Supervisor"])
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertIn("separate lecturer account", response.data["error"])
+        self.assertIn("stays on the lecturer account", response.data["error"])
 
     def test_duties_are_not_added_to_someone_who_cannot_sign_in(self):
         user = self.make_lecturer("rules.retired", "Retired Lecturer")

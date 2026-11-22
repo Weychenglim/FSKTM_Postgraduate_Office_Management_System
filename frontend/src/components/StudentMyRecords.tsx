@@ -10,7 +10,8 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { ClipboardCheck, FolderOpen, MailOpen, Megaphone, Users } from 'lucide-react';
-import { PageHeader, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
+import { PageHeader, SegmentedControl, StatusBadge } from './PortalPrimitives';
+import { useDecisionFeedback, type FeedbackTone } from './DecisionFeedback';
 import { StatCard } from './StatCard';
 import { LoadingState, ErrorState } from './StateViews';
 import { StudentLetterRequests } from './IssuedLetters';
@@ -62,11 +63,8 @@ const ProfileField: React.FC<{ label: string; value: React.ReactNode }> = ({ lab
 export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser, onNavigate }) => {
   const { items: notifications } = useNotifications();
   const [tab, setTab] = useState<RecordCategory>('appointments');
-  const [toast, setToast] = useState<string | null>(null);
-  const showToast = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(null), 3500);
-  };
+  const feedback = useDecisionFeedback();
+  const showToast = (message: string, tone: FeedbackTone = 'success') => feedback?.(message, tone);
 
   const [dossier, setDossier] = useState<StudentProgressDossier | null>(null);
   const [dossierLoading, setDossierLoading] = useState(true);
@@ -124,7 +122,6 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
 
   return (
     <div id="student-my-records" className="space-y-8 animate-fade-in text-left font-sans text-xs pb-16">
-      <PortalToast message={toast} />
       <PageHeader
         title="My Profile"
         subtitle="Your profile and every record linked to it, in one place."

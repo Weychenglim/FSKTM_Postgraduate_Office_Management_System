@@ -34,8 +34,8 @@ import {
   PortalCard,
   PortalButton,
   StatusBadge,
-  PortalToast,
 } from './PortalPrimitives';
+import { useDecisionFeedback } from './DecisionFeedback';
 
 interface SettingsViewProps {
   currentUser: DemoUser;
@@ -44,7 +44,6 @@ interface SettingsViewProps {
   onPasswordChanged: () => void;
 }
 
-type Toast = { message: string; tone: 'success' | 'danger' | 'info' } | null;
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogout, onUserUpdated, onPasswordChanged }) => {
   const isStudent = currentUser.role === 'Student';
@@ -60,15 +59,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
       .map((p) => p[0]?.toUpperCase())
       .join('') || 'FS';
 
-  // Toast (auto-dismiss)
-  const [toast, setToast] = useState<Toast>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(toastTimer.current), []);
-  const showToast = (message: string, tone: 'success' | 'danger' | 'info' = 'success') => {
-    clearTimeout(toastTimer.current);
-    setToast({ message, tone });
-    if (tone !== 'danger') toastTimer.current = setTimeout(() => setToast(null), 5000);
-  };
+  const feedback = useDecisionFeedback();
+  const showToast = (message: string, tone: 'success' | 'danger' | 'info' = 'success') => feedback?.(message, tone);
 
   // Contact details
   const [phone, setPhone] = useState(currentUser.phone || '');
@@ -101,7 +93,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
     if (busy.current || loading || loadError) return;
     busy.current = true;
     setSaving(true);
-    setToast(null);
     try { await action(); }
     catch (error) {
       if (!onFieldErrors?.(fieldErrors(error))) showToast(error instanceof Error ? error.message : 'Unable to save settings.', 'danger');
@@ -363,7 +354,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
         </div>
       </fieldset>
 
-      {toast && <PortalToast message={toast.message} tone={toast.tone} />}
     </div>
   );
 };

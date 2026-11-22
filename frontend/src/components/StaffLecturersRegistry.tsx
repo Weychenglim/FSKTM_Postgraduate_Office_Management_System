@@ -19,6 +19,7 @@ import { useListState } from './ListState';
 import { RegistryModuleTabs } from './RegistryModuleTabs';
 import { StaffAccountForm } from './StaffAccountForm';
 import { StaffAccountPage } from './StaffAccountPage';
+import { toastDuration } from '../utils/toastDuration';
 
 export { RegistryModuleTabs, type RegistryModuleTab } from './RegistryModuleTabs';
 
@@ -202,7 +203,7 @@ const StaffAccountList: React.FC = () => {
           </>
         )}
       </section>
-      <PortalToast message={toast} tone="success" onClose={() => setToast(null)} />
+      <PortalToast message={toast} tone="success" durationMs={toastDuration()} onClose={() => setToast(null)} />
     </div>
   );
 };

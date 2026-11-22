@@ -301,7 +301,7 @@ export const DateField: React.FC<DateFieldProps> = ({
           {(todayAllowed || (clearable && chosen)) && (
             <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
               {todayAllowed ? (
-                <button type="button" onClick={() => choose(today)} className="rounded-lg px-2 py-1.5 text-[12px] font-bold text-blue-700 transition hover:bg-blue-50 cursor-pointer">Today</button>
+                <button type="button" onClick={() => choose(today)} className="rounded-lg px-2 py-1.5 text-blue-700 transition hover:bg-blue-50 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider">Today</button>
               ) : <span />}
               {clearable && chosen && (
                 <button
@@ -310,7 +310,7 @@ export const DateField: React.FC<DateFieldProps> = ({
                     close();
                     onChange('');
                   }}
-                  className="rounded-lg px-2 py-1.5 text-[12px] font-bold text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+                  className="rounded-lg px-2 py-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider"
                 >
                   Clear
                 </button>

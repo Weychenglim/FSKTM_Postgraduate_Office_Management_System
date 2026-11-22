@@ -282,6 +282,36 @@ interface SegmentedControlProps<T extends string> {
   variant?: 'segmented' | 'tabs';
 }
 
+const TAB_KEYS: Record<string, (index: number, count: number) => number> = {
+  ArrowRight: (index, count) => (index + 1) % count,
+  ArrowLeft: (index, count) => (index - 1 + count) % count,
+  Home: () => 0,
+  End: (_, count) => count - 1,
+};
+
+let tabFocusTurn = 0;
+
+const moveBetweenTabs = <T extends string>(options: readonly T[], value: T, onChange: (value: T) => void) =>
+  (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = TAB_KEYS[event.key];
+    if (!step || !options.length) return;
+    event.preventDefault();
+    const next = step(Math.max(options.indexOf(value), 0), options.length);
+    const list = event.currentTarget;
+    const turn = ++tabFocusTurn;
+    // A tab that changes the page re-mounts the list once the page has loaded.
+    const focusChosen = (tries: number) => {
+      if (turn !== tabFocusTurn) return;
+      const tab = list.isConnected
+        ? list.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]
+        : document.querySelector<HTMLButtonElement>(`[role="tab"][aria-selected="true"][data-tab="${CSS.escape(options[next])}"]`);
+      if (tab && document.activeElement !== tab) tab.focus();
+      if (tries > 0) window.setTimeout(() => focusChosen(tries - 1), 50);
+    };
+    onChange(options[next]);
+    focusChosen(12);
+  };
+
 export const SegmentedControl = <T extends string>({
   options,
   value,
@@ -290,7 +320,7 @@ export const SegmentedControl = <T extends string>({
   className = '',
   variant = 'segmented'
 }: SegmentedControlProps<T>) => variant === 'tabs' ? (
-  <div className={joinClasses('flex flex-wrap gap-2 border-b border-slate-200 pb-3', className)} role="tablist">
+  <div className={joinClasses('flex flex-wrap gap-2 border-b border-slate-200 pb-3', className)} role="tablist" onKeyDown={moveBetweenTabs(options, value, onChange)}>
     {options.map((option) => {
       const selected = value === option;
       return (
@@ -304,6 +334,8 @@ export const SegmentedControl = <T extends string>({
           )}
           role="tab"
           aria-selected={selected}
+          data-tab={option}
+          tabIndex={selected || (!options.includes(value) && option === options[0]) ? 0 : -1}
         >
           {labels[option] ?? option}
         </button>
@@ -311,7 +343,7 @@ export const SegmentedControl = <T extends string>({
     })}
   </div>
 ) : (
-  <div className={joinClasses('bg-slate-100 p-1 rounded-xl flex items-center border border-slate-100', className)} role="tablist">
+  <div className={joinClasses('bg-slate-100 p-1 rounded-xl flex items-center border border-slate-100', className)} role="tablist" onKeyDown={moveBetweenTabs(options, value, onChange)}>
     {options.map((option) => {
       const selected = value === option;
       return (
@@ -325,6 +357,8 @@ export const SegmentedControl = <T extends string>({
           )}
           role="tab"
           aria-selected={selected}
+          data-tab={option}
+          tabIndex={selected || (!options.includes(value) && option === options[0]) ? 0 : -1}
         >
           {labels[option] ?? option}
         </button>

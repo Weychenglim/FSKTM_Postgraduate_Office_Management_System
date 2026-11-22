@@ -61,7 +61,7 @@ export const SelectionBar: React.FC<{ count: number; label: string; onClear: () 
     <div role="region" aria-label="Selected students" className="fixed bottom-4 left-1/2 z-30 flex w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl bg-brand-navy px-5 py-3 text-[13.5px] font-bold text-white shadow-lg">
       <span>
         {studentCount(count)} selected
-        <button type="button" disabled={busy} className="ml-3 font-semibold text-slate-300 underline cursor-pointer" onClick={onClear}>Clear</button>
+        <button type="button" disabled={busy} className="ml-3 text-slate-300 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider" onClick={onClear}>Clear</button>
       </span>
       <PortalButton isLoading={busy} onClick={onAction}>{label}</PortalButton>
       {problem && <p role="alert" className="w-full text-[12.5px] font-semibold text-rose-200">{problem}</p>}

@@ -67,16 +67,17 @@ export const StaffAccountForm: React.FC = () => {
   const [details, setDetails] = useState<Details>(EMPTY);
   const [duties, setDuties] = useState<StaffDuty[]>([]);
   const [programme, setProgramme] = useState('');
+  const [lecturerId, setLecturerId] = useState('');
   const [sendNow, setSendNow] = useState(true);
   const [problems, setProblems] = useState<Record<string, string>>({});
   const [existing, setExisting] = useState<Record<string, ExistingAccount>>({});
   const [options, setOptions] = useState<StaffOptions | null>(null);
   const [saving, setSaving] = useState(false);
   const lecturerLike = role === 'Lecturer' || role === 'Programme Coordinator';
-  const dirty = role !== '' || Object.values(details).some(value => value.trim() !== '') || duties.length > 0 || programme !== '';
+  const dirty = role !== '' || Object.values(details).some(value => value.trim() !== '') || duties.length > 0 || programme !== '' || lecturerId !== '';
 
   useEffect(() => {
-    getStaffOptions().then(setOptions).catch(() => setOptions({ departments: [], programmes: [] }));
+    getStaffOptions().then(setOptions).catch(() => setOptions({ departments: [], programmes: [], lecturers: [] }));
   }, []);
 
   const set = (field: keyof Details) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,11 +88,15 @@ export const StaffAccountForm: React.FC = () => {
   const check = (): Record<string, string> => {
     const found: Record<string, string> = {};
     if (!role) found.role = 'Choose a role.';
+    if (role === 'Programme Coordinator') {
+      if (!lecturerId) found.lecturerId = 'Choose the lecturer.';
+      if (!programme) found.programme = 'Choose the programme this coordinator manages.';
+      return found;
+    }
     if (!details.name.trim()) found.name = 'Enter the full name.';
     if (!details.email.trim()) found.email = 'Enter the email they will sign in with.';
     if (!details.staffId.trim()) found.staffId = 'Enter the Staff ID.';
     if (lecturerLike && !details.department.trim()) found.department = 'Enter the department.';
-    if (role === 'Programme Coordinator' && !programme) found.programme = 'Choose the programme this coordinator manages.';
     return found;
   };
 
@@ -102,21 +107,25 @@ export const StaffAccountForm: React.FC = () => {
     if (Object.keys(found).length || !role) return;
     setSaving(true);
     try {
-      const { account, activation } = await createStaffAccount({
-        role,
-        name: details.name.trim(),
-        email: details.email.trim(),
-        staffId: details.staffId.trim(),
-        phone: details.phone.trim(),
-        department: details.department.trim(),
-        ...(lecturerLike ? { title: details.title.trim() } : {}),
-        ...(role === 'Lecturer' ? { researchArea: details.researchArea.trim(), duties } : {}),
-        ...(role === 'Office Staff/Admin' ? { position: details.position.trim() } : {}),
-        ...(role === 'Programme Coordinator' || (role === 'Lecturer' && programme) ? { programme } : {}),
-        sendActivation: sendNow,
-      });
+      const { account, activation, reopened } = await createStaffAccount(
+        role === 'Programme Coordinator'
+          ? { role, lecturerId, programme, sendActivation: sendNow }
+          : {
+            role,
+            name: details.name.trim(),
+            email: details.email.trim(),
+            staffId: details.staffId.trim(),
+            phone: details.phone.trim(),
+            department: details.department.trim(),
+            ...(lecturerLike ? { title: details.title.trim() } : {}),
+            ...(role === 'Lecturer' ? { researchArea: details.researchArea.trim(), duties } : {}),
+            ...(role === 'Office Staff/Admin' ? { position: details.position.trim() } : {}),
+            ...(role === 'Lecturer' && programme ? { programme } : {}),
+            sendActivation: sendNow,
+          },
+      );
       done.current = true;
-      navigate(routeForStaffAccount(account.id), { replace: true, state: { created: activation } });
+      navigate(routeForStaffAccount(account.id), { replace: true, state: { created: activation, reopened: Boolean(reopened) } });
     } catch (err) {
       const fields = fieldErrors(err);
       const body = err instanceof ApiError && err.body && typeof err.body === 'object' ? (err.body as { existing?: Record<string, ExistingAccount> }) : {};
@@ -189,6 +198,7 @@ export const StaffAccountForm: React.FC = () => {
 
           {role && (
             <>
+              {role !== 'Programme Coordinator' && (
               <section aria-labelledby={id('details-heading')} className="app-card space-y-4 p-5">
                 <h2 id={id('details-heading')} className="section-label">Details</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -243,6 +253,7 @@ export const StaffAccountForm: React.FC = () => {
                   )}
                 </div>
               </section>
+              )}
 
               {role === 'Lecturer' && (
                 <fieldset className="app-card space-y-3 p-5">
@@ -273,8 +284,28 @@ export const StaffAccountForm: React.FC = () => {
               )}
 
               {role === 'Programme Coordinator' && (
-                <section aria-labelledby={id('programme-heading')} className="app-card space-y-3 p-5">
-                  <h2 id={id('programme-heading')} className="section-label">Programme</h2>
+                <section aria-labelledby={id('programme-heading')} className="app-card space-y-4 p-5">
+                  <h2 id={id('programme-heading')} className="section-label">Details</h2>
+                  <Field id={id('lecturerId')} label="Lecturer" problem={problems.lecturerId} existing={existing.lecturerId}>
+                    <SelectMenu
+                      id={id('lecturerId')}
+                      value={lecturerId}
+                      placeholder={options ? 'Choose a lecturer' : 'Loading...'}
+                      disabled={!options}
+                      options={(options?.lecturers ?? []).map(row => ({
+                        value: row.id,
+                        label: row.name,
+                        description: [row.staffId, row.reopens ? 'Earlier coordinator account' : ''].filter(Boolean).join(' · '),
+                      }))}
+                      onChange={value => {
+                        setLecturerId(value);
+                        setProblems(current => ({ ...current, lecturerId: '' }));
+                      }}
+                    />
+                  </Field>
+                  {options && options.lecturers.length === 0 && (
+                    <p className="text-[12px] text-slate-500">Add their lecturer account first.</p>
+                  )}
                   <Field id={id('programme')} label="Programme they manage" problem={problems.programme} existing={existing.programme}>
                     <SelectMenu
                       id={id('programme')}

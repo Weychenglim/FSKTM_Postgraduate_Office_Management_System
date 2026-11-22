@@ -380,7 +380,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
               )}
 
               <div className="space-y-4">
-                <button type="button" aria-expanded={moreOpen} className="inline-flex items-center gap-1.5 text-[13.5px] font-bold text-blue-700 hover:text-blue-900" onClick={() => setMoreOpen(open => !open)}>
+                <button type="button" aria-expanded={moreOpen} className="inline-flex items-center gap-1.5 text-blue-700 hover:text-blue-900 text-[11px] font-extrabold uppercase tracking-wider" onClick={() => setMoreOpen(open => !open)}>
                   {moreOpen ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
                   Semester or a note
                 </button>

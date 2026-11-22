@@ -159,7 +159,7 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
               <span className="flex items-center gap-3">
                 <StatusBadge tone={OUTCOME_TONE[row.outcome]}>{row.outcomeLabel}</StatusBadge>
                 {!readOnly && (
-                  <button type="button" className="text-[12.5px] font-bold text-blue-700 hover:text-blue-900" aria-label={`Change ${row.label}`} onClick={() => open({ kind: 'change', row })}>
+                  <button type="button" className="text-blue-700 hover:text-blue-900 text-[11px] font-extrabold uppercase tracking-wider" aria-label={`Change ${row.label}`} onClick={() => open({ kind: 'change', row })}>
                     Change
                   </button>
                 )}

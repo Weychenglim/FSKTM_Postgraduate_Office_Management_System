@@ -229,7 +229,7 @@ export const StudentFileSubmission: React.FC = () => {
               aria-expanded={notesOpen}
               aria-controls={`notes-${slot.key}`}
               onClick={() => setNotesFor(notesOpen ? null : slot.key)}
-              className="mt-1 inline-flex items-center gap-1 text-[12.5px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer"
+              className="mt-1 inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider"
             >
               Instructions
               <ChevronDown aria-hidden="true" className={`h-3.5 w-3.5 transition-transform ${notesOpen ? 'rotate-180' : ''}`} />
@@ -339,7 +339,7 @@ export const StudentFileSubmission: React.FC = () => {
             <h2 id="letters-title" className="section-label">Letters from the office</h2>
           </div>
           {lettersError ? (
-            <p className="border-t border-slate-100 px-5 py-4 text-[13px] text-slate-600 sm:px-6">Could not load your letters. <button type="button" className="font-bold text-blue-700" onClick={() => setReload(value => value + 1)}>Try again</button></p>
+            <p className="border-t border-slate-100 px-5 py-4 text-[13px] text-slate-600 sm:px-6">Could not load your letters. <button type="button" className="text-blue-700 text-[11px] font-extrabold uppercase tracking-wider" onClick={() => setReload(value => value + 1)}>Try again</button></p>
           ) : !letters.length ? (
             <p className="border-t border-slate-100 px-5 py-4 text-[13px] text-slate-600 sm:px-6">No approved letters yet. <Link to={APP_ROUTES.letters} className="font-bold text-blue-700">Request a letter</Link></p>
           ) : (

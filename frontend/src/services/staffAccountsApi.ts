@@ -7,6 +7,7 @@
 
 import type {
   ActivationOutcome,
+  CoordinatorAccountInput,
   ProgrammeMoveCheck,
   StaffAccount,
   StaffAccountChange,
@@ -42,7 +43,9 @@ export function getStaffOptions(): Promise<StaffOptions> {
   return request<StaffOptions>(`${BASE}/options/`);
 }
 
-export function createStaffAccount(input: StaffAccountInput): Promise<{ account: StaffAccount; activation: ActivationOutcome }> {
+export function createStaffAccount(
+  input: StaffAccountInput | CoordinatorAccountInput,
+): Promise<{ account: StaffAccount; activation: ActivationOutcome; reopened?: boolean }> {
   return request(`${BASE}/`, json('POST', input));
 }
 

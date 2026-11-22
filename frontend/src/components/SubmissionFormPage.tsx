@@ -126,7 +126,7 @@ const Choices = <T extends string>({ label, value, options, disabled, onChange }
             <span aria-hidden="true" className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${on ? 'bg-brand-navy text-white' : 'bg-slate-100 text-slate-500'}`}>
               <Icon className="h-[18px] w-[18px]" />
             </span>
-            <span className={`min-w-0 flex-1 text-[13.5px] font-semibold ${on ? 'text-brand-navy' : 'text-slate-700'}`}>{option.label}</span>
+            <span className={`min-w-0 flex-1 text-[13px] font-semibold ${on ? 'text-brand-navy' : 'text-slate-700'}`}>{option.label}</span>
             <span aria-hidden="true" className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 ${on ? 'border-brand-navy' : 'border-slate-300'}`}>
               {on && <span className="h-2 w-2 rounded-full bg-brand-navy" />}
             </span>
@@ -153,12 +153,15 @@ const AFTER_DUE_CHOICES = [
 
 const Toggle: React.FC<{ label: string; on: boolean; disabled: boolean; onChange: (on: boolean) => void }> = ({ label, on, disabled, onChange }) => (
   <button type="button" role="switch" aria-checked={on} disabled={disabled} onClick={() => onChange(!on)} className="flex w-full items-center justify-between gap-4 text-left cursor-pointer disabled:cursor-not-allowed">
-    <span className="text-[13.5px] font-semibold text-slate-700">{label}</span>
+    <span className="text-[13px] font-semibold text-slate-700">{label}</span>
     <span aria-hidden="true" className={`relative h-6 w-11 shrink-0 rounded-full transition ${on ? 'bg-brand-navy' : 'bg-slate-300'}`}>
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${on ? 'left-[1.375rem]' : 'left-0.5'}`} />
     </span>
   </button>
 );
+
+const FieldProblem: React.FC<{ id: string; message?: string | false }> = ({ id, message }) =>
+  message ? <p id={id} role="alert" className="text-[12px] font-semibold text-rose-700">{message}</p> : null;
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <section className="space-y-5 px-5 py-6 sm:px-7">
@@ -167,9 +170,9 @@ const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title
   </section>
 );
 
-const When: React.FC<{ label: string; date: string; time: string; min?: string; disabled: boolean; invalid?: boolean; onDate: (value: string) => void; onTime: (value: string) => void }> = ({ label, date, time, min, disabled, invalid, onDate, onTime }) => (
+const When: React.FC<{ id?: string; label: string; date: string; time: string; min?: string; disabled: boolean; invalid?: boolean; onDate: (value: string) => void; onTime: (value: string) => void }> = ({ id, label, date, time, min, disabled, invalid, onDate, onTime }) => (
   <div className="grid gap-3 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-    <DateField aria-label={`${label} date`} aria-invalid={invalid || undefined} value={date} min={min} disabled={disabled} onChange={onDate} />
+    <DateField id={id} aria-label={`${label} date`} aria-invalid={invalid || undefined} value={date} min={min} disabled={disabled} onChange={onDate} />
     <TimeField aria-label={`${label} time`} value={time} disabled={disabled} onChange={onTime} />
   </div>
 );
@@ -189,6 +192,7 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
   const [problem, setProblem] = useState<string | null>(null);
   const [confirmCount, setConfirmCount] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [tried, setTried] = useState(false);
   const patch = (change: Partial<Draft>) => setDraft(current => ({ ...current, ...change }));
 
   const typeOptions = [
@@ -200,14 +204,28 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
   const dueAt = draft.dueDate ? fromMalaysia(draft.dueDate, draft.dueTime) : '';
   const opensTooLate = Boolean(opensAt && dueAt && new Date(opensAt).getTime() >= new Date(dueAt).getTime());
   const dirty = JSON.stringify(draft) !== JSON.stringify(start);
-  const canSave = Boolean(
-    draft.title.trim()
-    && (draft.type === NEW_TYPE ? draft.newType.trim().length > 1 : draft.type)
-    && draft.programmes.length
-    && draft.dueDate
-    && (!draft.opensLater || (draft.opensDate && !opensTooLate))
-    && (draft.afterDue === 'CLOSE' || !draft.limitLate || draft.lateDate),
-  );
+  const missing: Array<[string, string | false]> = [
+    ['title', !draft.title.trim() && 'Enter a title.'],
+    ['type', draft.type === NEW_TYPE
+      ? draft.newType.trim().length <= 1 && 'Enter a name for the new file type.'
+      : !draft.type && 'Choose a file type.'],
+    ['programmes', !draft.programmes.length && 'Choose at least one programme.'],
+    ['opens', draft.opensLater && (!draft.opensDate ? 'Choose the opening date.' : opensTooLate && 'Choose an opening date before the due date.')],
+    ['due', !draft.dueDate && 'Choose a due date.'],
+    ['late', draft.afterDue !== 'CLOSE' && draft.limitLate && !draft.lateDate && 'Choose the final cut-off date.'],
+  ];
+  const problems = Object.fromEntries(missing.filter(([, message]) => message)) as Record<string, string>;
+  const shown = (field: string) => (tried || (field === 'opens' && opensTooLate) ? problems[field] : undefined);
+
+  const create = () => {
+    const first = missing.find(([, message]) => message)?.[0];
+    if (!first) {
+      void save();
+      return;
+    }
+    setTried(true);
+    document.getElementById(`${id}-${first}`)?.focus();
+  };
 
   const save = async (confirm = false) => {
     setBusy(true);
@@ -242,14 +260,16 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
           <Section title="Details">
             <label className={`flex flex-col gap-1.5 ${LABEL}`}>
               Title
-              <input className="form-control form-control-md text-[13.5px]" maxLength={120} value={draft.title} placeholder="RP2 final report" disabled={busy} onChange={event => patch({ title: event.target.value })} />
+              <input id={`${id}-title`} className={`form-control form-control-md text-[14px]${shown('title') ? ' form-control-error' : ''}`} aria-invalid={Boolean(shown('title')) || undefined} aria-describedby={shown('title') ? `${id}-title-problem` : undefined} maxLength={120} value={draft.title} placeholder="RP2 final report" disabled={busy} onChange={event => patch({ title: event.target.value })} />
+              <FieldProblem id={`${id}-title-problem`} message={shown('title')} />
             </label>
             <div className={`flex flex-col gap-1.5 ${LABEL}`}>
-              <span id={`${id}-type`}>File type</span>
-              <SelectMenu aria-labelledby={`${id}-type`} value={draft.type} options={typeOptions} disabled={busy || Boolean(item && item.counts.ON_TIME + item.counts.LATE > 0)} onChange={value => patch({ type: value })} />
+              <span id={`${id}-type-label`}>File type</span>
+              <SelectMenu id={draft.type === NEW_TYPE ? undefined : `${id}-type`} aria-labelledby={`${id}-type-label`} value={draft.type} options={typeOptions} disabled={busy || Boolean(item && item.counts.ON_TIME + item.counts.LATE > 0)} onChange={value => patch({ type: value })} />
               {draft.type === NEW_TYPE && (
-                <input aria-label="Name of the new file type" className="form-control form-control-md text-[13.5px]" maxLength={80} autoFocus value={draft.newType} placeholder="Ethics approval form" disabled={busy} onChange={event => patch({ newType: event.target.value })} />
+                <input id={`${id}-type`} aria-label="Name of the new file type" className={`form-control form-control-md text-[14px]${shown('type') ? ' form-control-error' : ''}`} aria-invalid={Boolean(shown('type')) || undefined} maxLength={80} autoFocus value={draft.newType} placeholder="Ethics approval form" disabled={busy} onChange={event => patch({ newType: event.target.value })} />
               )}
+              <FieldProblem id={`${id}-type-problem`} message={shown('type')} />
             </div>
             <label className={`flex flex-col gap-1.5 ${LABEL}`}>
               <span className="flex items-baseline justify-between gap-3">
@@ -259,7 +279,7 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
                 )}
               </span>
               <textarea
-                className="form-control form-control-md min-h-36 resize-y text-[13.5px] font-medium leading-relaxed"
+                className="form-control form-control-md min-h-36 resize-y text-[14px] font-medium leading-relaxed"
                 maxLength={INSTRUCTIONS_LIMIT}
                 rows={6}
                 value={draft.instructions}
@@ -273,21 +293,22 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
           <Section title="Who must send it">
             {options.programmes.length > 1 && (
               <div className="space-y-2.5">
-                <p id={`${id}-programmes`} className={LABEL}>Programmes</p>
-                <div role="group" aria-labelledby={`${id}-programmes`} className="grid gap-3 sm:grid-cols-2">
-                  {options.programmes.map(programme => {
+                <p id={`${id}-programmes-label`} className={LABEL}>Programmes</p>
+                <div role="group" aria-labelledby={`${id}-programmes-label`} className="grid gap-3 sm:grid-cols-2">
+                  {options.programmes.map((programme, index) => {
                     const on = draft.programmes.includes(programme);
                     return (
                       <label key={programme} className={`flex items-center gap-3 rounded-xl border bg-white px-4 py-3.5 transition cursor-pointer ${on ? 'border-brand-navy ring-1 ring-brand-navy' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/60'} has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand-navy/30`}>
-                        <input type="checkbox" className="sr-only" checked={on} disabled={busy} onChange={() => patch({ programmes: on ? draft.programmes.filter(value => value !== programme) : [...draft.programmes, programme] })} />
+                        <input id={index === 0 ? `${id}-programmes` : undefined} type="checkbox" className="sr-only" checked={on} disabled={busy} onChange={() => patch({ programmes: on ? draft.programmes.filter(value => value !== programme) : [...draft.programmes, programme] })} />
                         <span aria-hidden="true" className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border-2 ${on ? 'border-brand-navy bg-brand-navy text-white' : 'border-slate-300'}`}>
                           {on && <Check className="h-3 w-3" strokeWidth={3.5} />}
                         </span>
-                        <span className={`text-[13.5px] font-semibold ${on ? 'text-brand-navy' : 'text-slate-700'}`}>{shortProgramme(programme)}</span>
+                        <span className={`text-[13px] font-semibold ${on ? 'text-brand-navy' : 'text-slate-700'}`}>{shortProgramme(programme)}</span>
                       </label>
                     );
                   })}
                 </div>
+                <FieldProblem id={`${id}-programmes-problem`} message={shown('programmes')} />
               </div>
             )}
             <div className="space-y-2.5">
@@ -308,15 +329,16 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
               />
               {draft.opensLater && (
                 <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                  <p className="text-[13.5px] font-semibold text-slate-700">Opening date and time</p>
-                  <When label="Opening" date={draft.opensDate} time={draft.opensTime} disabled={busy} invalid={opensTooLate} onDate={value => patch({ opensDate: value })} onTime={value => patch({ opensTime: value })} />
-                  {opensTooLate && <p role="alert" className="text-[12.5px] font-semibold text-rose-700">The opening date must be before the due date.</p>}
+                  <p className="text-[13px] font-semibold text-slate-700">Opening date and time</p>
+                  <When id={`${id}-opens`} label="Opening" date={draft.opensDate} time={draft.opensTime} disabled={busy} invalid={Boolean(shown('opens'))} onDate={value => patch({ opensDate: value })} onTime={value => patch({ opensTime: value })} />
+                  <FieldProblem id={`${id}-opens-problem`} message={shown('opens')} />
                 </div>
               )}
             </div>
             <div className="space-y-2.5">
               <p className={LABEL}>Due date</p>
-              <When label="Due" date={draft.dueDate} time={draft.dueTime} disabled={busy} onDate={value => patch({ dueDate: value })} onTime={value => patch({ dueTime: value })} />
+              <When id={`${id}-due`} label="Due" date={draft.dueDate} time={draft.dueTime} disabled={busy} invalid={Boolean(shown('due'))} onDate={value => patch({ dueDate: value })} onTime={value => patch({ dueTime: value })} />
+              <FieldProblem id={`${id}-due-problem`} message={shown('due')} />
             </div>
             <div className="space-y-2.5">
               <p className={LABEL}>After the due date</p>
@@ -331,8 +353,9 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
                 <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4">
                   <Toggle label="Set a final cut-off" on={draft.limitLate} disabled={busy} onChange={on => patch({ limitLate: on, lateDate: draft.lateDate || draft.dueDate })} />
                   {draft.limitLate && (
-                    <When label="Final cut-off" date={draft.lateDate} time={draft.lateTime} min={draft.dueDate || undefined} disabled={busy} onDate={value => patch({ lateDate: value })} onTime={value => patch({ lateTime: value })} />
+                    <When id={`${id}-late`} label="Final cut-off" date={draft.lateDate} time={draft.lateTime} min={draft.dueDate || undefined} disabled={busy} invalid={Boolean(shown('late'))} onDate={value => patch({ lateDate: value })} onTime={value => patch({ lateTime: value })} />
                   )}
+                  <FieldProblem id={`${id}-late-problem`} message={shown('late')} />
                 </div>
               )}
             </div>
@@ -342,7 +365,7 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
             {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}
             <div className="flex flex-wrap justify-end gap-2">
               <PortalButton disabled={busy} onClick={onClose}>Cancel</PortalButton>
-              <PortalButton variant="primary" isLoading={busy} disabled={!canSave || (item !== null && !dirty)} onClick={() => void save()}>
+              <PortalButton variant="primary" isLoading={busy} disabled={item !== null && !dirty} onClick={create}>
                 {item ? 'Save changes' : 'Create submission'}
               </PortalButton>
             </div>
@@ -358,10 +381,10 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
               </span>
               <div className="min-w-0">
                 <p className={`text-[14.5px] font-bold [overflow-wrap:anywhere] ${draft.title.trim() ? 'text-brand-navy' : 'text-slate-400'}`}>{draft.title.trim() || 'Title'}</p>
-                {typeLabel && <p className="text-[12.5px] text-slate-500 [overflow-wrap:anywhere]">{typeLabel}</p>}
+                {typeLabel && <p className="text-[12px] text-slate-500 [overflow-wrap:anywhere]">{typeLabel}</p>}
               </div>
             </div>
-            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[12.5px]">
+            <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 text-[12px]">
               <dt className="text-slate-500">Opens</dt>
               <dd className="font-semibold text-slate-800">{opensAt ? historyTime(opensAt) : 'Immediately'}</dd>
               <dt className="text-slate-500">Due</dt>
@@ -369,7 +392,7 @@ export const SubmissionFormPage: React.FC<SubmissionFormPageProps> = ({ options,
             </dl>
             {draft.instructions.trim() && (
               <div className="space-y-1.5 border-t border-slate-100 pt-3">
-                <p className="text-[12.5px] font-bold text-slate-700">Instructions</p>
+                <p className="text-[12px] font-bold text-slate-700">Instructions</p>
                 <p className="whitespace-pre-line text-[13px] leading-relaxed text-slate-700 [overflow-wrap:anywhere]">{draft.instructions.trim()}</p>
               </div>
             )}

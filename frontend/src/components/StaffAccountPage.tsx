@@ -6,10 +6,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { CheckCircle2, Mail, Pencil } from 'lucide-react';
-import type { ActivationOutcome, StaffAccountChange, StaffAccountPage as AccountPage, StaffDuty } from '../types';
+import type { ActivationOutcome, LinkedStaffAccount, StaffAccountChange, StaffAccountPage as AccountPage, StaffDuty } from '../types';
 import { ApiError } from '../services/apiClient';
 import { copyStaffActivationLink, getStaffAccount, getStaffHistory, sendStaffLink, setStaffDuties } from '../services/staffAccountsApi';
-import { APP_ROUTES } from '../constants/routes';
+import { APP_ROUTES, routeForStaffAccount } from '../constants/routes';
 import {
   DUTY_LABEL,
   ROLE_LABEL,
@@ -46,6 +46,17 @@ const Fact: React.FC<{ label: string; children: React.ReactNode }> = ({ label, c
 type Toast = { message: string; tone: 'success' | 'danger' };
 type Dialog = 'edit' | 'programme' | 'signIn' | 'delete' | null;
 
+const LinkedAccount: React.FC<{ label: string; account: LinkedStaffAccount; note?: string; onOpen: () => void }> = ({ label, account, note, onOpen }) => (
+  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-slate-50 px-4 py-3">
+    <div className="min-w-0">
+      <p className="text-[12px] text-slate-500">{label}</p>
+      <p className="break-words text-[14px] font-semibold text-slate-800">{account.email}</p>
+      <p className="text-[12px] text-slate-500">{STATUS_LABEL[account.status]}{note ? ` · ${note}` : ''}</p>
+    </div>
+    <PortalButton size="sm" onClick={onOpen}>Open</PortalButton>
+  </div>
+);
+
 export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -59,6 +70,7 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
   const [toast, setToast] = useState<Toast | null>(null);
   const [link, setLink] = useState<string | null>(null);
   const [created, setCreated] = useState<ActivationOutcome | null>(() => location.state?.created ?? null);
+  const [reopened] = useState<boolean>(() => Boolean(location.state?.reopened));
 
   useEffect(() => {
     if (location.state?.created) navigate(location.pathname, { replace: true, state: null });
@@ -100,7 +112,7 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
       const what = kind === 'activation' ? 'Activation email' : 'Password reset link';
       setToast(
         sent
-          ? { message: `${what} sent to ${account.email}.`, tone: 'success' }
+          ? { message: `${what} sent to ${account.lecturerAccount?.email ?? account.email}.`, tone: 'success' }
           : { message: `The ${what.toLowerCase()} could not be sent. Try again later${kind === 'activation' ? ', or copy the link and send it yourself' : ''}.`, tone: 'danger' },
       );
       if (sent) setCreated(null);
@@ -163,7 +175,7 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
       pageKey={`staff-account:${accountId}`}
       actions={account ? (
         <div className="flex items-center gap-2">
-          <PortalButton icon={Pencil} onClick={() => setDialog('edit')}>Edit details</PortalButton>
+          {!account.lecturerAccount && <PortalButton icon={Pencil} onClick={() => setDialog('edit')}>Edit details</PortalButton>}
           <OverflowMenu label="More account actions" actions={menu} />
         </div>
       ) : undefined}
@@ -174,20 +186,22 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
         <ErrorState message={error ?? 'This account is not available.'} onRetry={() => setReload(value => value + 1)} />
       ) : (
         <div className="space-y-5">
-          {created === 'sent' && (
+          {(created === 'sent' || created === 'reopened') && (
             <div role="status" className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-[14px] font-semibold text-emerald-900">
               <CheckCircle2 className="h-5 w-5 shrink-0" aria-hidden="true" />
-              Account created. The activation email was sent to {account.email}.
+              {reopened ? 'Coordinator account switched back on.' : 'Account created.'}
+              {created === 'sent' && ` The activation email was sent to ${account.lecturerAccount?.email ?? account.email}.`}
+              {account.lecturerAccount && ` ${account.name} signs in to it with ${account.email}.`}
             </div>
           )}
           {created === 'held' && (
             <div role="status" className="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-[14px] font-semibold text-blue-900">
-              Account created. Send the activation email when you are ready.
+              {reopened ? 'Coordinator account switched back on.' : 'Account created.'} Send the activation email when you are ready.
             </div>
           )}
           {created === 'failed' && (
             <div role="alert" className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
-              <p className="text-[14px] font-semibold text-amber-900">Account created, but the activation email could not be sent.</p>
+              <p className="text-[14px] font-semibold text-amber-900">{reopened ? 'Coordinator account switched back on' : 'Account created'}, but the activation email could not be sent.</p>
               <div className="flex flex-wrap gap-2">
                 <PortalButton isLoading={busy === 'copy'} onClick={() => void copyLink()}>Copy the link</PortalButton>
                 <PortalButton variant="primary" isLoading={busy === 'link'} onClick={() => void sendLink()}>Try again</PortalButton>
@@ -200,7 +214,7 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
               <section aria-label="Details" className="app-card space-y-4 p-5">
                 <h2 className="section-label">Details</h2>
                 <dl className="grid gap-4 sm:grid-cols-2">
-                  <Fact label="Email">{account.email}</Fact>
+                  <Fact label={account.lecturerAccount ? 'Sign-in email' : 'Email'}>{account.email}</Fact>
                   <Fact label="Phone">{account.phone}</Fact>
                   <Fact label="Staff ID">{account.staffId}</Fact>
                   <Fact label="Department">{account.department}</Fact>
@@ -216,6 +230,21 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
                     </div>
                     <PortalButton size="sm" onClick={() => setDialog('programme')}>Change programme</PortalButton>
                   </div>
+                )}
+                {account.lecturerAccount && (
+                  <LinkedAccount
+                    label="Lecturer account"
+                    account={account.lecturerAccount}
+                    note="Name, email and Staff ID follow this account"
+                    onOpen={() => navigate(routeForStaffAccount(account.lecturerAccount!.id))}
+                  />
+                )}
+                {account.coordinatorAccount && (
+                  <LinkedAccount
+                    label="Programme Coordinator account"
+                    account={account.coordinatorAccount}
+                    onOpen={() => navigate(routeForStaffAccount(account.coordinatorAccount!.id))}
+                  />
                 )}
               </section>
 
@@ -332,7 +361,7 @@ export const StaffAccountPage: React.FC<{ accountId: string }> = ({ accountId })
                   </>
                 )}
               </section>
-              {lecturerLike && account.lifecycle && (
+              {lecturerLike && account.lifecycle && !account.lecturerAccount && (
                 <LecturerStatusCards
                   staffId={account.staffId}
                   name={account.name}

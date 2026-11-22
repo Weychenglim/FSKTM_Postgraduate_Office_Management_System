@@ -13,6 +13,7 @@ import { X, Users, HelpCircle } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { RecordPageProvider } from './RecordPage';
 import {DecisionFeedbackProvider} from './DecisionFeedback';
+import { OFFICE_CONTACT } from '../constants/office';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -54,6 +55,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   return (
     <DecisionFeedbackProvider scopeKey={feedbackScopeKey ?? `${userName}:${userRole}`}>
     <div id="master-portal-viewport" className="min-h-screen w-full flex bg-[#f1f5f9] text-left">
+      <a
+        href="#portal-inner-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-white focus:px-4 focus:py-2 focus:text-[13px] focus:font-bold focus:text-brand-navy focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-navy"
+      >
+        Skip to main content
+      </a>
       {/* 1. Left navigation sidebar (collapsible drawer) */}
       <Sidebar
         activeItem={activeItem}
@@ -86,7 +93,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         />
 
         {/* Actionable page frame details scrollable box */}
-        <main id="portal-inner-content" className="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl w-full mx-auto">
+        <main id="portal-inner-content" tabIndex={-1} className="flex-1 overflow-y-auto p-4 md:p-8 max-w-7xl w-full mx-auto focus:outline-none">
           <ListState.Provider value={listState.current}><RecordPageProvider>{children}</RecordPageProvider></ListState.Provider>
         </main>
 
@@ -139,33 +146,19 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
               {activeModal === 'help' && (
                 <div className="flex flex-col">
-                  <div className="flex items-center gap-2.5 mb-4 text-brand-navy">
+                  <div className="flex items-center gap-2.5 mb-5 text-brand-navy">
                     <Users className="w-6 h-6 text-indigo-500" />
-                    <h3 id="portal-help-title" className="section-heading">FSKTM Office Contacts</h3>
+                    <h3 id="portal-help-title" className="section-heading">FSKTM Postgraduate Office</h3>
                   </div>
-                  <p className="card-description mb-6">
-                    Direct access portals for FSKTM administrative divisions, postgraduate supervision boards, development partners, and technical service counters.
-                  </p>
 
                   <div className="space-y-3 mb-6 bg-[#f8fafc] p-4.5 border border-slate-150 rounded-xl text-xs text-slate-700">
-                    <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="card-label text-slate-400">Academic Secretariat Desk</span>
-                      <span className="card-value text-slate-900">Block A Level 2, Desk Ext 4902</span>
+                    <div className="flex justify-between gap-4 py-1.5 border-b border-slate-200/50">
+                      <span className="card-label text-slate-400">Email</span>
+                      <a href={`mailto:${OFFICE_CONTACT.email}`} className="card-value break-all text-blue-600 hover:underline">{OFFICE_CONTACT.email}</a>
                     </div>
-
-                    <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="card-label text-slate-400">Postgraduate Office Email</span>
-                      <span className="card-value text-blue-600 hover:underline">postgrad.fsktm@edu.my</span>
-                    </div>
-
-                    <div className="flex justify-between py-1.5 border-b border-slate-200/50">
-                      <span className="card-label text-slate-400">Database Center System Ops</span>
-                      <span className="card-value text-slate-900">{userName}</span>
-                    </div>
-
-                    <div className="flex justify-between py-1.5">
-                      <span className="card-label text-slate-400">Host Counter Ingress</span>
-                      <span className="font-mono text-[10px] text-zinc-500 font-bold">PROD-INGRESS-3000</span>
+                    <div className="flex justify-between gap-4 py-1.5">
+                      <span className="card-label text-slate-400">Phone</span>
+                      <a href={`tel:${OFFICE_CONTACT.phone.replace(/[^+\d]/g, '')}`} className="card-value text-slate-900 hover:underline">{OFFICE_CONTACT.phone}</a>
                     </div>
                   </div>
 

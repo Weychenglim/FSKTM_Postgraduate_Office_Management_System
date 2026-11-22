@@ -111,14 +111,90 @@ class CreateAccountTests(StaffAccountsBase):
         self.assertTrue(user.has_perm("marks.change_markentry"))
         self.assertFalse(Lecturer.objects.filter(user=user).exists())
 
-    def test_coordinator_gets_a_lecturer_profile_and_the_programme(self):
-        response = self.create(role=User.Role.COORDINATOR, duties=[], programme=AI)
+    def coordinator_for(self, owner, programme=AI, **fields):
+        body = {"role": User.Role.COORDINATOR, "lecturerId": str(owner.pk), "programme": programme}
+        body.update(fields)
+        return self.client.post(STAFF, body, format="json")
+
+    def test_coordinator_account_is_made_from_a_lecturer(self):
+        owner = self.lecturer("aisyah", "Dr. Aisyah", staff_no="SMOKE-AIS-1")
+        response = self.coordinator_for(owner)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
-        coordinator = Coordinator.objects.get(lecturer__staff_no="SMOKE-LEC-100")
+        user = User.objects.get(email="aisyah+coordinator@example.test")
+        self.assertEqual(user.role, User.Role.COORDINATOR)
+        self.assertEqual(user.full_name, "Dr. Aisyah")
+        self.assertFalse(user.has_usable_password())
+        self.assertEqual(user.lecturer.staff_no, "SMOKE-AIS-1-PC")
+        coordinator = user.lecturer.coordinator
         self.assertEqual(coordinator.programme_managed, AI)
         self.assertEqual(coordinator.appointed_date, today())
-        self.assertEqual(response.data["account"]["programme"], AI)
-        self.assertEqual(response.data["account"]["duties"], [])
+        self.assertEqual(coordinator.lecturer_account, owner)
+        account = response.data["account"]
+        self.assertEqual(account["staffId"], "SMOKE-AIS-1")
+        self.assertEqual(account["programme"], AI)
+        self.assertEqual(account["duties"], [])
+        self.assertEqual(account["lecturerAccount"]["id"], str(owner.pk))
+        self.assertEqual(response.data["activation"], "sent")
+        self.assertFalse(response.data["reopened"])
+        self.assertEqual(self.client.get(detail(owner)).data["coordinatorAccount"]["email"], user.email)
+
+    def test_coordinator_account_needs_an_active_lecturer(self):
+        coordinator = self.lecturer("coordz", "Some Coordinator", role=User.Role.COORDINATOR)
+        retired = self.lecturer("gone", "Retired Lecturer")
+        Lecturer.objects.filter(user=retired).update(lifecycle_status=Lecturer.Lifecycle.RETIRED)
+        for owner in (coordinator, retired, self.office):
+            with self.subTest(owner=owner.email):
+                response = self.coordinator_for(owner)
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("lecturerId", response.data)
+        self.assertIn("lecturerId", self.client.post(STAFF, {"role": User.Role.COORDINATOR, "programme": AI}, format="json").data)
+        self.assertFalse(User.objects.filter(email__contains="+coordinator").exists())
+
+    def test_a_lecturer_has_one_coordinator_account(self):
+        owner = self.lecturer("once", "Once Lecturer")
+        self.assertEqual(self.coordinator_for(owner).status_code, status.HTTP_201_CREATED)
+        again = self.coordinator_for(owner, programme=DS)
+        self.assertEqual(again.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(again.data["lecturerId"], ["Once Lecturer already has a coordinator account."])
+        self.assertEqual(User.objects.filter(email="once+coordinator@example.test").count(), 1)
+
+    def test_an_earlier_coordinator_account_is_switched_back_on(self):
+        owner = self.lecturer("back", "Back Lecturer")
+        first = self.coordinator_for(owner, programme=AI)
+        alias = User.objects.get(pk=first.data["account"]["id"])
+        alias.set_password("pw-coord-5509")
+        alias.is_active = False
+        alias.save()
+        response = self.coordinator_for(owner, programme=DS)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(response.data["reopened"])
+        self.assertEqual(response.data["activation"], "reopened")
+        self.assertEqual(response.data["account"]["id"], str(alias.pk))
+        alias.refresh_from_db()
+        self.assertTrue(alias.is_active)
+        self.assertEqual(alias.lecturer.coordinator.programme_managed, DS)
+        actions = [row.action for row in self.history(alias)]
+        self.assertEqual(actions[-2:], [AccountChange.Action.PROGRAMME_CHANGED, AccountChange.Action.SIGN_IN_ON])
+
+    def test_a_coordinator_email_cannot_be_typed(self):
+        response = self.create(email="someone+coordinator@example.test")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("+coordinator", response.data["email"][0])
+        holder = self.lecturer("typed", "Typed Lecturer")
+        response = self.client.patch(detail(holder), {"email": "typed+coordinator@example.test"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
+    def test_a_taken_coordinator_email_is_reported_on_the_lecturer(self):
+        owner = self.lecturer("clash", "Clash Lecturer")
+        squatter = User.objects.create_user(
+            email="clash+coordinator@example.test", password="pw-sq-5510", full_name="Squatter", role=User.Role.STUDENT
+        )
+        response = self.coordinator_for(owner)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("clash+coordinator@example.test", response.data["lecturerId"][0])
+        self.assertEqual(response.data["existing"]["lecturerId"]["kind"], "other")
+        self.assertTrue(User.objects.filter(pk=squatter.pk).exists())
 
     def test_a_lecturer_can_be_given_a_programme(self):
         response = self.create(programme=DS)
@@ -134,7 +210,8 @@ class CreateAccountTests(StaffAccountsBase):
         cases = [
             ({"role": User.Role.COORDINATOR, "duties": []}, "programme"),
             ({"role": User.Role.OFFICE_ADMIN, "duties": [], "programme": DS}, "programme"),
-            ({"role": User.Role.COORDINATOR, "programme": DS, "duties": ["Panel"]}, "duties"),
+            ({"role": User.Role.COORDINATOR, "lecturerId": "1", "programme": DS, "duties": ["Panel"]}, "duties"),
+            ({"role": User.Role.COORDINATOR, "programme": DS}, "lecturerId"),
             ({"role": User.Role.OFFICE_ADMIN, "duties": ["Supervisor"]}, "duties"),
             ({"role": User.Role.OFFICE_ADMIN, "duties": [], "title": "Dr."}, "title"),
             ({"role": User.Role.LECTURER, "position": "Clerk"}, "position"),
@@ -190,14 +267,15 @@ class CreateAccountTests(StaffAccountsBase):
         holder = self.lecturer(
             "coord", "Current Coordinator", role=User.Role.COORDINATOR, programme=f" {DS.lower()} "
         )
-        response = self.create(role=User.Role.COORDINATOR, duties=[], programme=DS)
+        owner = self.lecturer("next", "Next Coordinator")
+        response = self.coordinator_for(owner, programme=DS)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["programme"], ["Current Coordinator already coordinates this programme."])
         self.assertEqual(response.data["existing"]["programme"]["id"], str(holder.pk))
 
         holder.is_active = False
         holder.save(update_fields=["is_active"])
-        response = self.create(role=User.Role.COORDINATOR, duties=[], programme=DS)
+        response = self.coordinator_for(owner, programme=DS)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
     def test_the_activation_email_is_sent_once(self):
