@@ -1,3 +1,21 @@
+## Coordinator accounts and portal consistency (22 November 2026)
+
+Two pieces of work on branch `Xiang-coordinator-consistency`. Wey Cheng's handoff, with his part and what to check in his modules, is `docs/HANDOFF_CONSISTENCY_AND_COORDINATOR_ACCOUNTS_2026-11-22.md`. The plan is `COORDINATOR_ACCOUNTS_AND_CONSISTENCY_PLAN_2026-11-22.md` (outside the repo).
+
+- **Coordinator accounts:** each account has one role, and a lecturer has one real UM email. The office now makes a coordinator from an existing lecturer. The new account signs in as `name+coordinator@um.edu.my`, and every email to it goes to the lecturer's real inbox (`accounts/mail_backend.py`). The two accounts are linked by `Coordinator.lecturer_account` (`accounts.0026`). Details follow the lecturer. Turning off, retiring or resigning the lecturer closes the coordinator account too, and appointing them again switches it back on. The staff ID is stored with `-PC` and shown without it. Existing coordinator accounts are unchanged.
+- **Consistency in Xiang's modules:**
+  - Five screens use the shared message queue instead of their own timers.
+  - Announcements no longer shows pop-ups for unsaved attachment changes or Cancel.
+  - New Submission names missing fields and moves to the first one.
+  - Form boxes are 14 px, Upload file has the Upload icon, and 28 action buttons are in capitals.
+  - The Support Desk pop-up shows only the real office email and phone.
+  - There is a skip link, and the shared tabs take arrow keys.
+- **Dev DB:** migrated to `accounts.0026`. Backup first: `db-backups/fsktm_pg_office_before_coordinator_accounts_2026-11-22.dump`. Main's `academics.0006`, `marks.0014` and `marks.0015` are still not applied to it (0015 removes backup evaluators).
+- **Checks:**
+  - Backend: 2,567 tests. 7 fail the same way on a clean `main` (reminders setUp, one RP stage handoff, one completion-tracking test).
+  - Frontend: TypeScript and build pass. Of 256 test files, only `DashboardActionCentre.test.ts` fails, as on `main`.
+  - Browser check on a database copy: 17 of 17 passed.
+
 ## QA fixes: the Low issues (20 November 2026)
 
 Xiang asked for the Low issues from the 13 November QA run to be fixed before the AP2 slides. 20 of 21 are closed (four were already fixed on 15 November). The full list with what changed is in `QA_2026-11-13/ISSUES.md` (outside the repo).
