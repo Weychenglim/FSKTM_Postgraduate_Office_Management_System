@@ -8,6 +8,7 @@
 // copy, so it always carries the original reference number and date.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { FeedbackTone } from './DecisionFeedback';
 import { Ban, BellRing, Eye, FileDown, FileText, Printer, RotateCcw, Undo2, X } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge, type BadgeTone } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
@@ -75,7 +76,7 @@ export function letterForLine(letter: Pick<GeneratedLetter, 'requestDetails' | '
 }
 
 /** View, print and PDF for issued letters, with a per-row busy flag. */
-export function useLetterOutput(onMessage: (message: string) => void) {
+export function useLetterOutput(onMessage: (message: string, tone?: FeedbackTone) => void) {
   const [busy, setBusy] = useState<string | null>(null);
   const [viewing, setViewing] = useState<GeneratedLetter | null>(null);
 
@@ -88,7 +89,7 @@ export function useLetterOutput(onMessage: (message: string) => void) {
     try {
       setViewing(await withWording(letter));
     } catch (err) {
-      onMessage(errorText(err, 'Could not open this letter.'));
+      onMessage(errorText(err, 'Could not open this letter.'), 'danger');
     } finally {
       setBusy(null);
     }
@@ -98,7 +99,7 @@ export function useLetterOutput(onMessage: (message: string) => void) {
     // Opened during the click so pop-up blockers allow it; filled once loaded.
     const win = openLetterWindow();
     if (!win) {
-      onMessage('Please allow pop-ups for this site to print the letter.');
+      onMessage('Please allow pop-ups for this site to print the letter.', 'warning');
       return;
     }
     setBusy(`${letter.id}:print`);
@@ -106,7 +107,7 @@ export function useLetterOutput(onMessage: (message: string) => void) {
       printLetterInWindow(win, letterDataFromIssued(await withWording(letter)));
     } catch (err) {
       win.close();
-      onMessage(errorText(err, 'Could not open this letter.'));
+      onMessage(errorText(err, 'Could not open this letter.'), 'danger');
     } finally {
       setBusy(null);
     }
@@ -117,7 +118,7 @@ export function useLetterOutput(onMessage: (message: string) => void) {
     try {
       await downloadLetterPdf(letter);
     } catch (err) {
-      onMessage(errorText(err, 'Could not download the PDF.'));
+      onMessage(errorText(err, 'Could not download the PDF.'), 'danger');
     } finally {
       setBusy(null);
     }
@@ -128,7 +129,7 @@ export function useLetterOutput(onMessage: (message: string) => void) {
     try {
       await downloadLetterWord(letter);
     } catch (err) {
-      onMessage(errorText(err, 'Could not download the Word file.'));
+      onMessage(errorText(err, 'Could not download the Word file.'), 'danger');
     } finally {
       setBusy(null);
     }
@@ -256,7 +257,7 @@ interface StudentLetterRequestsProps {
   loading: boolean;
   error: string | null;
   onRetry: () => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
   /** A request changed, e.g. withdrawn. */
   onLetterChange?: (letter: GeneratedLetter) => void;
   /** Ask for the same letter again, starting from this request's answers. */
@@ -292,7 +293,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
       onMessage(`Your request for a ${updated.templateName} was withdrawn.`);
       setWithdrawing(null);
     } catch (err) {
-      onMessage(errorText(err, 'Could not withdraw the request.'));
+      onMessage(errorText(err, 'Could not withdraw the request.'), 'danger');
     } finally {
       setWithdrawSaving(false);
     }
@@ -437,7 +438,7 @@ const MADE_BY_OPTIONS: SelectMenuOption<MadeBy>[] = [
 ];
 
 interface IssuedLettersRegisterProps {
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
   /** Opens the Templates tab, to set up a missing appointment template. */
   onOpenTemplates?: () => void;
 }
@@ -505,7 +506,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
       load();
     } catch (err) {
       setReissuing(null);
-      onMessage(errorText(err, 'Could not reissue this letter.'));
+      onMessage(errorText(err, 'Could not reissue this letter.'), 'danger');
     } finally {
       setReissueSaving(false);
     }
@@ -537,7 +538,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
       if (problem) setRevokeError(problem);
       else {
         setRevoking(null);
-        onMessage(errorText(err, 'Could not revoke this letter.'));
+        onMessage(errorText(err, 'Could not revoke this letter.'), 'danger');
       }
     } finally {
       setRevokeSaving(false);
@@ -549,7 +550,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
     try {
       onMessage((await resendLetterNotification(letter.id)).detail);
     } catch (err) {
-      onMessage(errorText(err, 'Could not send the notification again.'));
+      onMessage(errorText(err, 'Could not send the notification again.'), 'danger');
     } finally {
       setResending(false);
     }

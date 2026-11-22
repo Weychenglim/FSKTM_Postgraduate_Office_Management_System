@@ -46,6 +46,7 @@ import { FaqText } from './FaqText';
 import { FaqEntryPage } from './FaqEntryPage';
 import { FaqDocumentsTab } from './FaqDocumentsTab';
 import { FaqTestChat } from './FaqTestChat';
+import { toastDuration } from '../utils/toastDuration';
 
 type Tab = 'entries' | 'questions' | 'documents' | 'settings';
 const TAB_ROUTES: Record<Tab, string> = {
@@ -224,7 +225,7 @@ const AnswersTab: React.FC<{ view: FaqStatus; onView: (view: FaqStatus) => void;
           <WorkspacePagination page={Math.min(page, pageCount)} pageCount={pageCount} total={data?.count ?? 0} noun="answers" onPage={setPage} pageSize={PAGE_SIZE} />
         </>
       )}
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </section>
   );
 };
@@ -381,7 +382,7 @@ const QuestionsTab: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
         <WorkspacePagination page={Math.min(page, Math.ceil(groups.length / QUESTIONS_PAGE_SIZE))} pageCount={Math.ceil(groups.length / QUESTIONS_PAGE_SIZE)} total={groups.length} noun="questions" onPage={setPage} pageSize={QUESTIONS_PAGE_SIZE} />
         </>
       )}
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </section>
   );
 };
@@ -522,7 +523,7 @@ const SettingsTab: React.FC = () => {
         <span className="text-[12px] text-slate-500">{settings.updatedBy ? `Last changed by ${settings.updatedBy}, ${historyTime(settings.updatedAt)}` : ''}</span>
         <PortalButton variant="primary" isLoading={busy} disabled={!contact.trim()} onClick={() => void save()}>Save settings</PortalButton>
       </div>
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </div>
   );
 };

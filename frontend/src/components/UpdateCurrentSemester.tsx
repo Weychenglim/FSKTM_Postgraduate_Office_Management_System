@@ -224,7 +224,7 @@ export const UpdateCurrentSemester: React.FC = () => {
                     person={row}
                     muted={isNotRegistered(row)}
                     action={(
-                      <button type="button" disabled={busy} className={`text-[13px] font-bold ${isNotRegistered(row) ? 'text-slate-500 hover:text-slate-700' : 'text-blue-700 hover:text-blue-900'}`} onClick={() => void setOutcome(row, isNotRegistered(row) ? 'STUDIED' : 'NOT_REGISTERED')}>
+                      <button type="button" disabled={busy} className={`text-[11px] font-extrabold uppercase tracking-wider ${isNotRegistered(row) ? 'text-slate-500 hover:text-slate-700' : 'text-blue-700 hover:text-blue-900'}`} onClick={() => void setOutcome(row, isNotRegistered(row) ? 'STUDIED' : 'NOT_REGISTERED')}>
                         {isNotRegistered(row) ? 'Undo' : 'Mark not registered'}
                       </button>
                     )}
@@ -232,7 +232,7 @@ export const UpdateCurrentSemester: React.FC = () => {
                 ))}
               </ul>
               {!showAll && shown.length > FIRST_ROWS && (
-                <button type="button" className="text-[13px] font-bold text-blue-700 hover:text-blue-900" onClick={() => setShowAll(true)}>Show all {shown.length}</button>
+                <button type="button" className="text-blue-700 hover:text-blue-900 text-[11px] font-extrabold uppercase tracking-wider" onClick={() => setShowAll(true)}>Show all {shown.length}</button>
               )}
             </section>
           )}

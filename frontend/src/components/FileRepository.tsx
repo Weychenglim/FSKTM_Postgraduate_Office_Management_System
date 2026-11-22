@@ -8,7 +8,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, CalendarClock, FileSignature, FileStack, History, Plus, UsersRound, X } from 'lucide-react';
+import { ArrowLeft, CalendarClock, FileSignature, FileStack, History, Upload, UsersRound, X } from 'lucide-react';
 import type { DocumentAutoTag, DocumentFilters, DocumentOptions, DocumentSummary, GeneratedLetter, PortalDocument, StudentFileHeader } from '../types';
 import { downloadDocument, downloadDocumentsZip, getDocumentOptions, getDocuments, getDocumentSummary, getStudentFileHeader } from '../services/filesApi';
 import { getReceivedLetters } from '../services/lettersApi';
@@ -28,6 +28,7 @@ import { SubmissionsBoard } from './SubmissionsBoard';
 import { ReceivedAppointmentLetters } from './ReceivedAppointmentLetters';
 import { ListFiltersButton, ListSearch, ListToolbar, ListToolbarRow } from './ListToolbar';
 import { WORKSPACE_PAGE_SIZE, WorkspacePagination, workspacePageSize } from './RequestWorkspacePrimitives';
+import { toastDuration } from '../utils/toastDuration';
 
 const errorText = (err: unknown, fallback: string) => (err instanceof Error && err.message ? err.message : fallback);
 
@@ -223,7 +224,7 @@ export const FileRepository: React.FC = () => {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {isOffice && <PortalButton icon={History} onClick={() => navigate(APP_ROUTES.filesHistory)}>History</PortalButton>}
-            <PortalButton variant="primary" icon={Plus} onClick={() => navigate(uploadPath)}>Upload file</PortalButton>
+            <PortalButton variant="primary" icon={Upload} onClick={() => navigate(uploadPath)}>Upload file</PortalButton>
           </div>
         }
       />
@@ -393,7 +394,7 @@ export const FileRepository: React.FC = () => {
           {applied.length > 0 && (
             <ul aria-label="Filters in use" className="flex flex-wrap items-center gap-2">
               <li>
-                <button type="button" onClick={clearFilters} className="cursor-pointer rounded-full px-2 py-1 text-[12px] font-bold text-slate-600 underline decoration-slate-300 underline-offset-4 hover:text-brand-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy">
+                <button type="button" onClick={clearFilters} className="cursor-pointer rounded-full px-2 py-1 text-slate-600 decoration-slate-300 hover:text-brand-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-navy text-[11px] font-extrabold uppercase tracking-wider">
                   Clear filters
                 </button>
               </li>
@@ -506,7 +507,7 @@ export const FileRepository: React.FC = () => {
           )}
         </section>
       )}
-      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
+      <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} durationMs={toastDuration(toast?.tone)} onClose={() => setToast(null)} />
     </div>
   );
 };

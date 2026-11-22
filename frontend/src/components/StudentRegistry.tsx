@@ -35,7 +35,8 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { PageHeader, PortalButton, PortalConfirmModal, PortalToast, SegmentedControl, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, PortalConfirmModal, SegmentedControl, StatusBadge } from './PortalPrimitives';
+import { useDecisionFeedback, type FeedbackTone } from './DecisionFeedback';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
 import { RegistryImportResult } from './RegistryImportResult';
 import { ImportSteps, RegistryImportMatch } from './RegistryImportMatch';
@@ -283,7 +284,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     getSemesterMoveSummary().then((found) => { if (!cancelled) setMoveSummary(found); }).catch(() => undefined);
     return () => { cancelled = true; };
   }, [readOnly]);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const feedback = useDecisionFeedback();
   const legacyStudent = searchParams.get('student');
 
   useEffect(() => {
@@ -304,7 +305,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     let cancelled = false;
     const missing = () => {
       if (cancelled) return;
-      setToastMessage('This student record could not be found.');
+      feedback?.('This student record could not be found.', 'warning');
       navigate(APP_ROUTES.registry, { replace: true });
     };
     getStudentById(openStudent).then((row) => {
@@ -388,10 +389,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Actions trigger helper
-  const triggerToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3800);
-  };
+  const triggerToast = (msg: string, tone: FeedbackTone = 'success') => feedback?.(msg, tone);
 
 
   const [detailsDraft, setDetailsDraft] = useState({ name: '', email: '', phone: '', programme: '', programmeReason: '', intakeDate: '', expectedCompletion: '' });
@@ -512,7 +510,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           : `${student.name} can sign in again.`,
       );
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : 'Could not update this account.');
+      triggerToast(err instanceof Error ? err.message : 'Could not update this account.', 'danger');
     } finally {
       setSaving(false);
       setAccessChange(null);
@@ -532,9 +530,10 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
         result.sent
           ? `${link} emailed to ${student.email}.`
           : `${link} could not be sent. Check the mail settings and try again.`,
+        result.sent ? 'success' : 'danger',
       );
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : 'Could not send the access link.');
+      triggerToast(err instanceof Error ? err.message : 'Could not send the access link.', 'danger');
     } finally {
       setSendingAccessLink(false);
     }
@@ -566,7 +565,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const handleRegisterManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualFormData.name || !manualFormData.id || !manualFormData.email) {
-      triggerToast('Please fill in all required fields (Name, Student ID, and Email).');
+      triggerToast('Please fill in all required fields (Name, Student ID, and Email).', 'warning');
       return;
     }
 
@@ -574,7 +573,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     // default, registering the student on a programme nobody chose.
     const programme = normaliseProgramme(manualFormData.programme);
     if (!programme) {
-      triggerToast('Please select the student’s programme.');
+      triggerToast('Please select the student’s programme.', 'warning');
       return;
     }
 
@@ -595,7 +594,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     } catch (err) {
       setSaving(false);
       // Duplicate matric / duplicate email arrive here with the backend's wording.
-      triggerToast(err instanceof Error ? err.message : 'Could not register the student.');
+      triggerToast(err instanceof Error ? err.message : 'Could not register the student.', 'danger');
       return;
     }
     setSaving(false);
@@ -604,7 +603,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     registrationSaved.current = true;
     setCurrentView('list');
     if (invitationSent === false) {
-      triggerToast(`Registered "${manualFormData.name}", but the activation email could not be sent. Use Send Activation Link in their profile.`);
+      triggerToast(`Registered "${manualFormData.name}", but the activation email could not be sent. Use Send Activation Link in their profile.`, 'warning');
     } else {
       triggerToast(`Registered "${manualFormData.name}" and emailed their activation link.`);
     }
@@ -779,7 +778,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       const message = err instanceof Error ? err.message : 'That file could not be read.';
       clearImport();
       setCsvFatalError(message);
-      triggerToast(message);
+      triggerToast(message, 'danger');
     } finally {
       setIsProcessingCsv(false);
     }
@@ -846,7 +845,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
           : await previewStudentImport(reviewedFile(csvPreviewRecords), { ...reviewedOptions(), programmeMap: choices });
       showCheckedRows(response);
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : 'The rows could not be checked again.');
+      triggerToast(err instanceof Error ? err.message : 'The rows could not be checked again.', 'danger');
     } finally {
       setIsProcessingCsv(false);
     }
@@ -866,7 +865,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
 
   const handleSaveEditedRow = async () => {
     if (!editRowFields.name.trim() || !editRowFields.id.trim()) {
-      triggerToast('Name and ID are required.');
+      triggerToast('Name and ID are required.', 'warning');
       return;
     }
 
@@ -900,7 +899,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       setEditingCsvLine(null);
       triggerToast('Row updated and checked again.');
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : 'Could not check the edited rows.');
+      triggerToast(err instanceof Error ? err.message : 'Could not check the edited rows.', 'danger');
     } finally {
       setIsProcessingCsv(false);
     }
@@ -941,7 +940,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'The import could not be completed.';
       setCsvFatalError(message);
-      triggerToast(message);
+      triggerToast(message, 'danger');
     } finally {
       setSaving(false);
     }
@@ -970,7 +969,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
       window.URL.revokeObjectURL(url);
       triggerToast('Downloaded the Excel template.');
     } catch (err) {
-      triggerToast(err instanceof Error ? err.message : 'The Excel template could not be downloaded.');
+      triggerToast(err instanceof Error ? err.message : 'The Excel template could not be downloaded.', 'danger');
     }
   };
 
@@ -1035,7 +1034,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   return (
     <div id="student-registry-workspace" className="font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
       
-      <PortalToast message={toastMessage} />
 
       <>
           {/* ========================================================== */}
@@ -1534,7 +1532,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                             onClick={(e) => {
                               e.stopPropagation();
                               clearImport();
-                              triggerToast('Current file cleared.');
                             }}
                             className="px-3 py-1.5 bg-[#f8fafc] border border-slate-205 hover:bg-rose-50 hover:text-rose-600 rounded-lg text-[9.5px] font-extrabold uppercase tracking-wide transition-colors"
                           >
@@ -1820,7 +1817,6 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     onContinue={() => void continueFromMatch()}
                     onCancel={() => {
                       clearImport();
-                      triggerToast('Current file cleared.');
                     }}
                   />
                 ) : uploadedFile || isProcessingCsv || csvPreviewRecords.length > 0 ? (
@@ -1839,7 +1835,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                                 <button
                                   type="button"
                                   onClick={() => setImportStep('match')}
-                                  className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer"
+                                  className="text-blue-600 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider"
                                 >
                                   Change column matches
                                 </button>

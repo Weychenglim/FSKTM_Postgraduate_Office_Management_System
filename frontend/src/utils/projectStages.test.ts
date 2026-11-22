@@ -121,7 +121,7 @@ assert.match(app, /showProjectStages=\{currentUser\.role === 'Programme Coordina
 assert.match(registry, /\{showProjectStages && \(\s*<PortalButton onClick=\{\(\) => navigate\(APP_ROUTES\.registryProjectStages\)\}/);
 assert.match(dashboard, /<ProjectStageQuestion question=/);
 assert.ok(dashboard.indexOf('{stageAsking && stageCardNode}') < dashboard.indexOf('<DashboardTimeline'), 'an unanswered question sits above the timeline');
-assert.ok(dashboard.indexOf('{!stageAsking && stageCardNode}') > dashboard.indexOf('<DashboardTimeline'), 'a confirmed record sits with the appointment cards');
+assert.ok(dashboard.indexOf('!stageAsking && stageCardNode}') > dashboard.indexOf('<DashboardTimeline'), 'a confirmed record sits with the appointment cards');
 assert.match(api, /\/project-stages\/change\//);
 assert.match(api, /\/project-stages\/mine\//);
 assert.ok(!api.includes('confirmProjectStages'), 'the old confirm call is still there');

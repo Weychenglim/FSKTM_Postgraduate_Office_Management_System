@@ -8,6 +8,7 @@
 // only when there are some, with one button to make the letters.
 
 import React, { useCallback, useEffect, useState } from 'react';
+import type { FeedbackTone } from './DecisionFeedback';
 import { AlertTriangle } from 'lucide-react';
 import { PortalButton } from './PortalPrimitives';
 import { MissingAppointmentLetter } from '../types';
@@ -15,7 +16,7 @@ import { getMissingAppointmentLetters, makeMissingAppointmentLetters } from '../
 import { APPOINTMENT_ROLE, missingLettersSummary } from '../utils/appointmentLetters';
 
 interface MissingAppointmentLettersProps {
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
   /** Letters were made, so lists showing them are out of date. */
   onMade: () => void;
   onOpenTemplates?: () => void;
@@ -48,7 +49,7 @@ export const MissingAppointmentLetters: React.FC<MissingAppointmentLettersProps>
       onMade();
       load();
     } catch (err) {
-      onMessage(err instanceof Error ? err.message : 'Could not make the letters.');
+      onMessage(err instanceof Error ? err.message : 'Could not make the letters.', 'danger');
     } finally {
       setMaking(false);
     }

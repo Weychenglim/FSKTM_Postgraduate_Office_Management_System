@@ -9,6 +9,7 @@
 // through the steps in order; an existing one can be opened at any step.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { FeedbackTone } from './DecisionFeedback';
 import { ArrowLeft, ArrowRight, Check, FileSignature, Settings2, ShieldCheck, Trash2, UserCheck, UserPlus, UserRound, UsersRound, type LucideIcon } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 import { RecordPage } from './RecordPage';
@@ -139,7 +140,7 @@ interface LetterTypeEditorProps {
   onSaved: (template: LetterTemplate, created: boolean) => void;
   onDeleted: (template: LetterTemplate) => void;
   onOpenLists: () => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
 }
 
 export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, placeholders, onClose, onSaved, onDeleted, onOpenLists, onMessage }) => {
@@ -335,7 +336,7 @@ export const LetterTypeEditor: React.FC<LetterTypeEditorProps> = ({ template, pl
       finished.current = true;
       onDeleted(current);
     } catch (err) {
-      onMessage(err instanceof Error ? `Not deleted: ${err.message}` : 'Not deleted.');
+      onMessage(err instanceof Error ? `Not deleted: ${err.message}` : 'Not deleted.', 'danger');
       setSaving(false);
       setConfirmingDelete(false);
     }

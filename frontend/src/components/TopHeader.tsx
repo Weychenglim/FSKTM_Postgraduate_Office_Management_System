@@ -136,7 +136,7 @@ const TopHeaderContent: React.FC<TopHeaderProps> = ({
                       type="button"
                       disabled={unreadCount === 0}
                       onClick={() => void markAllRead().then(() => publish('All notifications are marked as read.', 'success')).catch(error => publish(error instanceof Error ? error.message : 'Unable to update notification read state.', 'danger'))}
-                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 disabled:text-slate-300 disabled:cursor-default cursor-pointer"
+                      className="text-blue-600 hover:text-blue-800 disabled:text-slate-300 disabled:cursor-default cursor-pointer text-[11px] font-extrabold uppercase tracking-wider"
                     >
                       Mark all as read
                     </button>

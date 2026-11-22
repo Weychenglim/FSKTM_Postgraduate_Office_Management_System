@@ -9,6 +9,7 @@
 // only be hidden, so issued letters keep what they said.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import type { FeedbackTone } from './DecisionFeedback';
 import { ArrowDownAZ, ClipboardPaste, GripVertical, Eye, EyeOff, ListChecks, Pencil, Plus, Search, Trash2, Users } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 import { PortalModal, useModalTitle } from './PortalModal';
@@ -47,7 +48,7 @@ const errorText = (err: unknown, fallback: string) => (err instanceof Error ? er
 const addressLine = (item: ChoiceItem) =>
   [item.addressLine1, item.addressLine2, [item.postcode, item.city].filter(Boolean).join(' '), item.state, item.country === MALAYSIA ? '' : item.country].filter(Boolean).join(', ');
 
-export const LetterListsManager: React.FC<{ onMessage: (message: string) => void }> = ({ onMessage }) => {
+export const LetterListsManager: React.FC<{ onMessage: (message: string, tone?: FeedbackTone) => void }> = ({ onMessage }) => {
   const [summaries, setSummaries] = useState<ChoiceListSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,7 +116,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
     try {
       setDetail(await getChoiceList(next.listId));
     } catch (err) {
-      onMessage(errorText(err, 'Could not open this list.'));
+      onMessage(errorText(err, 'Could not open this list.'), 'danger');
     }
   };
 
@@ -128,7 +129,7 @@ export const LetterListsManager: React.FC<{ onMessage: (message: string) => void
       return true;
     } catch (err) {
       setFormError(errorText(err, 'That change could not be saved.'));
-      onMessage(errorText(err, 'That change could not be saved.'));
+      onMessage(errorText(err, 'That change could not be saved.'), 'danger');
       return false;
     } finally {
       setBusy(false);

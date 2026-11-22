@@ -9,6 +9,7 @@
 // reason. Approval issues the reference number; either way the student is told.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FeedbackTone } from './DecisionFeedback';
 import { AlertTriangle, CheckCircle2, Download, Eye, FileText, MessageSquareText, Printer, Send, XCircle } from 'lucide-react';
 import { PortalButton, PortalConfirmModal, StatusBadge } from './PortalPrimitives';
 import { SelectMenu, type SelectMenuOption } from './SelectMenu';
@@ -56,7 +57,7 @@ interface OfficeLetterRequestsProps {
   counts: LetterRequestCounts | null;
   /** Ask the parent to reload the counts after a decision. */
   onCountsStale: () => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
   /** The letter types, for filtering the queue by letter. */
   templates?: LetterTemplate[];
 }
@@ -95,7 +96,7 @@ const LetterRequestQueue: React.FC<{
   counts: LetterRequestCounts | null;
   templates: LetterTemplate[];
   onOpenRequest: (id: string) => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
 }> = ({ counts, templates, onOpenRequest, onMessage }) => {
   const [filter, setFilter] = useState<QueueFilter>('Pending');
   const [search, setSearch] = useState('');
@@ -135,7 +136,7 @@ const LetterRequestQueue: React.FC<{
     try {
       setViewing(await getLetterRequest(row.id));
     } catch (err) {
-      onMessage(errorText(err, 'Could not open this letter.'));
+      onMessage(errorText(err, 'Could not open this letter.'), 'danger');
     } finally {
       setOpening(null);
     }
@@ -284,7 +285,7 @@ const LetterRequestReview: React.FC<{
   onClose: () => void;
   /** After a decision: the next waiting request to open, if the office asked for it. */
   onDecided: (nextId?: string) => void;
-  onMessage: (message: string) => void;
+  onMessage: (message: string, tone?: FeedbackTone) => void;
   /** How many requests are waiting, this one included. */
   waiting: number;
 }> = ({ requestId, onClose, onDecided, onMessage, waiting }) => {
@@ -401,7 +402,7 @@ const LetterRequestReview: React.FC<{
         setErrors(problems);
         onMessage('Some values need attention before this letter can be approved.');
       } else {
-        onMessage(errorText(err, 'Could not approve this request.'));
+        onMessage(errorText(err, 'Could not approve this request.'), 'danger');
         load();
       }
     } finally {
@@ -428,7 +429,7 @@ const LetterRequestReview: React.FC<{
       if (problem) setReasonError(problem);
       else {
         setRejecting(false);
-        onMessage(errorText(err, 'Could not reject this request.'));
+        onMessage(errorText(err, 'Could not reject this request.'), 'danger');
         load();
       }
     } finally {

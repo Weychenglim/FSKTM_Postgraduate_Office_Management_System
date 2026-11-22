@@ -13,7 +13,6 @@ import { ForgotPasswordFlow } from './components/ForgotPasswordFlow';
 import { AppLayout } from './components/AppLayout';
 import {SessionExitProvider} from './components/SessionExit';
 import { MarksOverview } from './components/MarksOverview';
-import { PortalToast } from './components/PortalPrimitives';
 import { OfficeDashboardLayout, isOfficeDashboardPresentation } from './components/OfficeDashboardLayout';
 import {ModuleFeedbackScope} from './components/ModuleFeedbackScope';
 import {OfficeMonitoringProvider} from './components/OfficeMonitoringContext';
@@ -218,7 +217,7 @@ export default function App() {
 
   // Trigger states for modals in the main dashboard workspace
   const [activePortalModal, setActivePortalModal] = useState<'help' | null>(null);
-  const [appToastMessage, setAppToastMessage] = useState<string | null>(null);
+  const [signInNotice, setSignInNotice] = useState<string | null>(null);
   const isLecturerWorkspace = currentUser?.role === 'Lecturer';
   const isCoordinatorWorkspace = currentUser?.role === 'Programme Coordinator';
   const isStudentWorkspace = currentUser?.role === 'Student';
@@ -401,16 +400,12 @@ export default function App() {
   const handleSuccessfulLogin = (user: DemoUser) => {
     signedOutOnPurpose.current = false;
     setSessionNotice(null);
+    setSignInNotice(null);
     setCurrentUser(user);
     // A page opened while signed out (an email link, or one a session ended
     // on) opens after sign-in; the route guards still apply to it. The
     // redirect off the sign-in page below makes the same choice.
     navigate(returnPathAfterSignIn(location.state) ?? routeForSidebarItem(defaultLandingPageForUser(user)), { replace: true });
-  };
-
-  const showAppToast = (message: string) => {
-    setAppToastMessage(message);
-    window.setTimeout(() => setAppToastMessage(null), 3500);
   };
 
   // Set when the person signs out themselves, so the next sign-in on this
@@ -494,7 +489,7 @@ export default function App() {
                 onLoginSuccess={handleSuccessfulLogin}
                 notice={sessionNotice}
               />
-              {appToastMessage && <p role="status" className="mt-4 text-sm text-slate-700">{appToastMessage}</p>}
+              {signInNotice && <p role="status" className="mt-4 text-sm text-slate-700">{signInNotice}</p>}
             </div>
           </div>
         </AuthLayout>
@@ -546,7 +541,6 @@ export default function App() {
     <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
       {/* ==================== FRONTEND: PORTAL DASHBOARD WORKSPACE ==================== */}
       <NotificationsProvider>
-        <PortalToast message={appToastMessage} />
         <AppLayout
           activeItem={pathname === APP_ROUTES.myProfile || pathname === APP_ROUTES.settings ? '' : activeSidebarItem}
           onNavigate={(target) => {
@@ -996,7 +990,7 @@ export default function App() {
                 signedOutOnPurpose.current = true;
                 setCurrentUser(null);
                 navigate(APP_ROUTES.login, { replace: true });
-                showAppToast('Password updated. Please sign in again.');
+                setSignInNotice('Password updated. Please sign in again.');
               }} />
             ) : (
               /* Placeholder message for other sidebar routes */

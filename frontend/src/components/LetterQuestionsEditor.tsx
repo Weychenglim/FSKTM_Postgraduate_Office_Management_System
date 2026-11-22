@@ -276,13 +276,13 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                         </div>
                       ))}
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 pl-5">
-                        <button type="button" className="text-[12.5px] font-semibold text-blue-700 hover:underline cursor-pointer" onClick={() => replace(index, { options: [...(question.options ?? []), ''] })}>
+                        <button type="button" className="text-blue-700 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider" onClick={() => replace(index, { options: [...(question.options ?? []), ''] })}>
                           + Add option
                         </button>
                         <span className="card-caption">Paste a list to add many at once.</span>
                       </div>
                       {simpleLists.length > 0 && (
-                        <button type="button" className="pl-5 text-[12px] font-semibold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer" onClick={() => replace(index, { options: undefined, listId: Number(simpleLists[0].id) })}>
+                        <button type="button" className="pl-5 text-slate-500 hover:text-slate-800 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider" onClick={() => replace(index, { options: undefined, listId: Number(simpleLists[0].id) })}>
                           Use a saved list instead
                         </button>
                       )}
@@ -301,8 +301,8 @@ export const LetterQuestionsEditor: React.FC<LetterQuestionsEditorProps> = ({
                         ))}
                       </PortalSelect>
                       <span className="mt-1 flex flex-wrap gap-x-4">
-                        <button type="button" className="text-[12px] font-semibold text-blue-700 hover:underline cursor-pointer" onClick={onOpenLists}>Edit saved lists</button>
-                        <button type="button" className="text-[12px] font-semibold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer" onClick={() => replace(index, { listId: undefined, options: ['', ''] })}>Type the options instead</button>
+                        <button type="button" className="text-blue-700 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider" onClick={onOpenLists}>Edit saved lists</button>
+                        <button type="button" className="text-slate-500 hover:text-slate-800 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider" onClick={() => replace(index, { listId: undefined, options: ['', ''] })}>Type the options instead</button>
                       </span>
                     </label>
                   )}

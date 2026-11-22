@@ -119,7 +119,7 @@ export const ProjectStages: React.FC = () => {
         <div role="status" className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] font-semibold text-amber-900">
           <div className="flex items-start justify-between gap-3">
             <p>Not changed:</p>
-            <button type="button" className="text-[12.5px] font-bold text-amber-900 underline cursor-pointer" onClick={() => setLeftOut([])}>Close</button>
+            <button type="button" className="text-amber-900 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider" onClick={() => setLeftOut([])}>Close</button>
           </div>
           <ul className="space-y-0.5">
             {leftOut.map(row => <li key={row.matric}>{row.name || row.matric}: {row.why}</li>)}

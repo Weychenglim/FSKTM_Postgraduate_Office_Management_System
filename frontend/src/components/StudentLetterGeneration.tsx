@@ -9,7 +9,8 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Clock, FilePlus2, FileText, Inbox, Info, Send } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast, StatusBadge } from './PortalPrimitives';
+import { PageHeader, PortalButton, StatusBadge } from './PortalPrimitives';
+import { useDecisionFeedback, type FeedbackTone } from './DecisionFeedback';
 import { OfficeToolViews } from './OfficeToolPrimitives';
 import { AppointmentIcon } from './AppointmentPrimitives';
 import { LoadingState, ErrorState, EmptyState } from './StateViews';
@@ -53,11 +54,8 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   // Last time's answers, when the student asks for the same letter again.
   const [start, setStart] = useState<(LetterRequestStart & { templateId: string }) | null>(null);
 
-  const [toast, setToast] = useState<string | null>(null);
-  const showToast = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(null), 3500);
-  };
+  const feedback = useDecisionFeedback();
+  const showToast = (message: string, tone: FeedbackTone = 'success') => feedback?.(message, tone);
 
   // Letters the student may ask for (Active templates, without their wording).
   const [templates, setTemplates] = useState<LetterTemplate[]>([]);
@@ -128,7 +126,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
   const requestAgain = (letter: GeneratedLetter) => {
     const template = templates.find((t) => t.id === letter.templateId);
     if (!template) {
-      showToast(`A ${letter.templateName} cannot be requested right now.`);
+      showToast(`A ${letter.templateName} cannot be requested right now.`, 'warning');
       return;
     }
     const details = letter.requestDetails ?? {};
@@ -155,7 +153,6 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
     const template = templates.find((t) => t.id === formTemplateId);
     return (
       <div id="student-letter-generation-workspace" className="text-left font-sans text-xs">
-        <PortalToast message={toast} />
         {templatesLoading || lettersLoading ? (
           <LoadingState message="Opening the form…" />
         ) : !template ? (
@@ -184,7 +181,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
               loadTemplates();
               loadLetters();
               closeForm();
-              showToast(message);
+              showToast(message, 'warning');
             }}
             onMessage={showToast}
           />
@@ -197,8 +194,6 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
 
   return (
     <div id="student-letter-generation-workspace" className="readable-list space-y-6 text-left font-sans text-xs pb-12">
-      <PortalToast message={toast} />
-
       <PageHeader title="Letter Generation" />
 
       <OfficeToolViews<StudentLetterView>

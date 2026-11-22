@@ -286,7 +286,7 @@ const SubmissionStudents: React.FC<{ id: number; refreshKey: number; onChanged: 
               <div className="flex shrink-0 flex-wrap items-center gap-3">
                 <StatusBadge tone={STATE_TONE[row.state]} dot>{STATE_LABEL[row.state]}</StatusBadge>
                 {row.documentId && <Link to={routeForDocument(row.documentId)} state={{ from }} className="text-[13px] font-bold text-blue-700 hover:text-blue-900">Open file</Link>}
-                {detail.canManage && <button type="button" className="text-[13px] font-bold text-blue-700 hover:text-blue-900 cursor-pointer" onClick={() => openExtension(row)}>Extension</button>}
+                {detail.canManage && <button type="button" className="text-blue-700 hover:text-blue-900 cursor-pointer text-[11px] font-extrabold uppercase tracking-wider" onClick={() => openExtension(row)}>Extension</button>}
               </div>
             </li>
           ))}

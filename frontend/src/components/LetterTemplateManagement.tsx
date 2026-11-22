@@ -9,7 +9,8 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { FileCheck2, FileText, Inbox, ListChecks, Plus } from 'lucide-react';
-import { PageHeader, PortalButton, PortalToast } from './PortalPrimitives';
+import { PageHeader, PortalButton } from './PortalPrimitives';
+import { useDecisionFeedback, type FeedbackTone } from './DecisionFeedback';
 import { OfficeToolViews } from './OfficeToolPrimitives';
 import { IssuedLettersRegister } from './IssuedLetters';
 import { OfficeLetterRequests } from './OfficeLetterRequests';
@@ -47,11 +48,8 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   const changeView = (next: OfficeLetterView) => (onViewChange ? onViewChange(next) : setLocalView(next));
   const openRequestId = onOpenRequest ? requestId ?? null : localRequestId;
 
-  const [toast, setToast] = useState<string | null>(null);
-  const showToast = (message: string) => {
-    setToast(message);
-    setTimeout(() => setToast(null), 3500);
-  };
+  const feedback = useDecisionFeedback();
+  const showToast = (message: string, tone: FeedbackTone = 'success') => feedback?.(message, tone);
 
   // How many requests wait for a decision, for the tab label.
   const [requestCounts, setRequestCounts] = useState<LetterRequestCounts | null>(null);
@@ -92,7 +90,6 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
   if (activeView === 'templates' && editing) {
     return (
       <div id="letter-template-management" className="text-left font-sans text-brand-navy text-xs">
-        <PortalToast message={toast} />
         <LetterTypeEditor
           key={editing === 'new' ? 'new' : editing.id}
           template={editing === 'new' ? null : editing}
@@ -118,8 +115,6 @@ export const LetterTemplateManagement: React.FC<LetterTemplateManagementProps> =
 
   return (
     <div id="letter-template-management" className="space-y-6 text-left font-sans text-brand-navy text-xs pb-12">
-      <PortalToast message={toast} />
-
       {!(activeView === 'requests' && openRequestId) && (
         <>
           <PageHeader

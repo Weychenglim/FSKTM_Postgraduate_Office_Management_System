@@ -362,21 +362,16 @@ export const AnnouncementManagement: React.FC = () => {
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
-    if (file) {
-      setAttachedFile(file);
-      showToast(`Attached file: ${file.name}`);
-    }
+    if (file) setAttachedFile(file);
   };
 
   const handleRemoveAttachment = () => {
     if (attachedFile) {
       setAttachedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      showToast('Attachment removed.');
       return;
     }
     setRemoveExistingAttachment(true);
-    showToast('The current attachment will be removed when you save.');
   };
 
   // Shared submit: creates a new announcement, or updates the draft being edited.
@@ -530,7 +525,6 @@ export const AnnouncementManagement: React.FC = () => {
 
   const handleCancelEdit = () => {
     resetForm();
-    showToast('Edit cancelled.');
   };
 
   // Submit flow: Publish Now
@@ -895,7 +889,7 @@ export const AnnouncementManagement: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleAttachFile}
-                  className="inline-flex items-center gap-1.5 text-[10px] font-extrabold text-slate-600 hover:text-blue-600 transition"
+                  className="inline-flex items-center gap-1.5 text-slate-600 hover:text-blue-600 transition text-[11px] font-extrabold uppercase tracking-wider"
                 >
                   <Paperclip className="w-3.5 h-3.5" />
                   <span>Attach File</span>
