@@ -17,6 +17,13 @@ import { PortalButton } from './PortalPrimitives';
 
 const [OFFICE_PHONE, OFFICE_EMAIL] = LETTERHEAD.addressLines[2].split('|').map((part) => part.trim());
 
+const DEFAULT_MESSAGE = 'The portal is down for maintenance. Please try again later.';
+
+const plannedMessage = (maintenance: PortalMaintenance): string => {
+  const message = (maintenance.message || '').trim();
+  return message && message !== DEFAULT_MESSAGE ? message : '';
+};
+
 /** Above every page while maintenance is planned. */
 export const MaintenanceBanner: React.FC<{ maintenance: PortalMaintenance | null }> = ({ maintenance }) => {
   if (!maintenance || maintenanceStatus(maintenance) !== 'planned') return null;
@@ -25,6 +32,7 @@ export const MaintenanceBanner: React.FC<{ maintenance: PortalMaintenance | null
       <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <p className="min-w-0">
         <strong>Planned maintenance: {maintenanceWindow(maintenance)}.</strong> The portal will be unavailable then, so save your work before it starts.
+        {plannedMessage(maintenance) && <span className="mt-1 block [overflow-wrap:anywhere]">{plannedMessage(maintenance)}</span>}
       </p>
     </div>
   );
@@ -63,6 +71,7 @@ export const SignInMaintenanceNotice: React.FC<{ maintenance: PortalMaintenance 
     <div role="status" className="mb-12 w-full max-w-[490px] rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-left text-amber-900">
       <p className="text-[14px] font-extrabold">Planned maintenance: {maintenanceWindow(maintenance)}</p>
       <p className="mt-1 text-[13px] leading-relaxed">The portal will be unavailable then.</p>
+      {plannedMessage(maintenance) && <p className="mt-1 text-[13px] leading-relaxed [overflow-wrap:anywhere]">{plannedMessage(maintenance)}</p>}
     </div>
   );
 };

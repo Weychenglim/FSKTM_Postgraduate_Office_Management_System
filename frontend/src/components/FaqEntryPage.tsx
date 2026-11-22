@@ -277,8 +277,12 @@ export const FaqEntryPage: React.FC<{ entryId: string | null }> = ({ entryId }) 
   };
 
   const save = async (publish: boolean) => {
-    if (!form.category) {
-      setProblems({ category: 'Choose a topic.' });
+    const missing: Record<string, string> = {};
+    if (!form.category) missing.category = 'Choose a topic.';
+    if (publish && !form.question.trim()) missing.question = 'Write the question before publishing.';
+    if (publish && !form.answer.trim()) missing.answer = 'Write the answer before publishing.';
+    if (Object.keys(missing).length) {
+      setProblems(missing);
       return;
     }
     setBusy(publish ? 'publish' : 'save');

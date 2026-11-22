@@ -158,7 +158,7 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
           <ProfileField label="Supervisor" value={profile?.research?.supervisor} />
         </div>
         <p className="text-[12px] font-semibold text-slate-500">
-          Only your phone number can be changed here. For anything else, contact the postgraduate office.
+          Your phone number can be changed in Settings. For any other change, please contact the postgraduate office.
         </p>
       </div>
 

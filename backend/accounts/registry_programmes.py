@@ -22,7 +22,7 @@ MAX_PROGRAMME_KEY_LENGTH = 255
 MAX_PROGRAMME_VALUES = 100
 
 _PUNCTUATION = re.compile(r"[^\w\s]")
-_COURSEWORK = re.compile(r"\b(?:by )?coursework\b")
+_COURSEWORK = re.compile(r"\b(?:(?:by )?coursework|(?:secara )?kerja kursus)\b")
 
 
 def _words(value):
@@ -40,11 +40,21 @@ def _core(value):
     return _COURSEWORK.sub(" ", _words(value)).replace(" ", "")
 
 
+MALAY_NAMES = {
+    "Sarjana Sains Data": "MASTER OF DATA SCIENCE (COURSEWORK)",
+    "Sarjana Keselamatan Siber": "MASTER OF CYBER SECURITY (COURSEWORK)",
+    "Sarjana Kecerdasan Buatan": "MASTER OF ARTIFICIAL INTELLIGENCE (COURSEWORK)",
+}
+
+
 def similar_programme(value):
     """The one approved programme this name differs from only in letter case,
-    punctuation, spacing or "(Coursework)", else None."""
+    punctuation, spacing, "(Coursework)" or its official Malay name, else None."""
     matches = [programme for programme in APPROVED_PROGRAMMES if _core(programme) == _core(value)]
-    return matches[0] if len(matches) == 1 else None
+    if len(matches) == 1:
+        return matches[0]
+    malay = {_core(name): programme for name, programme in MALAY_NAMES.items()}
+    return malay.get(_core(value))
 
 
 def saved_choices():

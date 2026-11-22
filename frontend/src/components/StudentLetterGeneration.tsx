@@ -221,6 +221,7 @@ export const StudentLetterGeneration: React.FC<StudentLetterGenerationProps> = (
           onMessage={showToast}
           onLetterChange={replaceLetter}
           onRequestAgain={requestAgain}
+          canRequestAgain={(letter) => templates.some((template) => template.id === letter.templateId)}
           readyInDays={Object.fromEntries(templates.map((template) => [template.id, template.readyInDays]))}
         />
       ) : (

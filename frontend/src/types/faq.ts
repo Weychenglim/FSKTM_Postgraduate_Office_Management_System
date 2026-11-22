@@ -175,6 +175,7 @@ export interface FaqChatbotSettings {
   /** False until the server has an API key. */
   aiConfigured: boolean;
   aiUsedToday: number;
+  aiPaused?: boolean;
   aiDailyLimit: number;
   updatedBy: string;
   updatedAt: string;

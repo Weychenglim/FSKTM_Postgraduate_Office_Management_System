@@ -57,6 +57,7 @@ export interface DocumentFileInfo {
   size: number;
   pageCount: number | null;
   uploadedAt: string;
+  note?: string;
 }
 
 export interface DocumentSharing {

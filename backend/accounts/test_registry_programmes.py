@@ -90,6 +90,17 @@ class ProgrammeValuesTests(ProgrammeNamesBase):
             with self.subTest(value=value):
                 self.assertEqual(similar_programme(value), expected)
 
+    def test_official_malay_names_are_suggested(self):
+        cases = {
+            "Sarjana Keselamatan Siber": CS,
+            "SARJANA SAINS DATA (KERJA KURSUS)": DS,
+            "Sarjana Kecerdasan Buatan secara Kerja Kursus": AI,
+            "Sarjana Sains Komputer": None,
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(similar_programme(value), expected)
+
     def test_a_blank_programme_is_reported_as_missing(self):
         response = self.post([HEADER, "WQD290101,No Programme,,no.programme@example.test,"])
         row = response.data["rows"][0]

@@ -72,7 +72,7 @@ assert.equal(sidebarItemForPath('/my-profile'), SIDEBAR_ITEMS.DASHBOARD);
 const app = readFileSync(resolve('src/App.tsx'), 'utf8');
 assert.match(app, /pathname === APP_ROUTES\.myProfile && !isStudentWorkspace \? \(\s*<Navigate to=\{APP_ROUTES\.dashboard\} replace \/>/);
 const header = readFileSync(resolve('src/components/TopHeader.tsx'), 'utf8');
-assert.match(header, /navigate\(userRole === 'Student' \? APP_ROUTES\.myProfile : APP_ROUTES\.settings\)/);
+assert.match(header, /\{userRole === 'Student' && \([\s\S]{0,200}navigate\(APP_ROUTES\.myProfile\)/, 'My Profile is only in the student menu');
 assert.match(header, /<span>My Profile<\/span>/);
 assert.match(header, /setDropdownOpen\(false\); navigate\(APP_ROUTES\.settings\);/, 'Settings in the profile menu opens Settings');
 assert.ok(!SIDEBAR_MENU_ORDER.includes(SIDEBAR_ITEMS.SETTINGS), 'Settings is in the profile menu, not the sidebar');

@@ -1,3 +1,16 @@
+## QA fixes: the Low issues (20 November 2026)
+
+Xiang asked for the Low issues from the 13 November QA run to be fixed before the AP2 slides. 20 of 21 are closed (four were already fixed on 15 November). The full list with what changed is in `QA_2026-11-13/ISSUES.md` (outside the repo).
+
+- **Sign-in and account:** "My Profile" only in the student menu; an incomplete reset link explains itself; no sidebar item lit on My Profile and Settings; the planned maintenance warning shows the admin's message; a session ended elsewhere shows "Your session has ended. Please sign in again."
+- **Registry:** Clear filters on the Student Registry; Programmes tab heading; full leave type in the dropdown; official Malay programme names suggested in the import.
+- **Files and letters:** version time and note on the file page; revoked letters shown as Cancelled, issued letters as Issued; no "Request again" for a letter type that is gone.
+- **FAQ:** a duplicate published question is refused; an empty publish marks every missing field; a punctuation-only question gets "Type a question."; Settings warns about a popular question that is not live and about AI paused or used up; the test page says tests share the daily AI replies; student questions are paged.
+- **Notifications and accessibility:** an opened notification does not reopen on reload; Mark all as read confirms; labels on the notifications search and file pickers; a browser tab title per page.
+- **Left open:** ISS-019's Acting coordinators wording and dates, in Wey Cheng's `CoordinatorDelegations.tsx`. The 7 Note items are decisions, not bugs.
+- **Shared files touched:** `TopHeader.tsx`, `App.tsx`, `apiClient.ts`.
+- **Committed** on branch `Xiang-qa-low`, then main (PR #34) merged in.
+
 ## Special Semester moves students automatically (16 November 2026)
 
 The portal is only for Master by coursework in AI, Data Science and Cyber Security. All three plan Semester I, Semester II, then the Special Semester, so Xiang asked for the Special Semester to move students like a normal one. Plan and sources: `docs/superpowers/plans/2026-11-16-special-semester-automatic.md`.

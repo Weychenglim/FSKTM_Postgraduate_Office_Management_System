@@ -38,7 +38,9 @@ const topicIcon = (name: string) => TOPIC_ICONS.find(([pattern]) => pattern.test
 const problemText = (err: unknown) =>
   err instanceof ApiError && err.status === 429
     ? 'You have asked a lot of questions in a short time. Please wait a moment, then try again.'
-    : 'Something went wrong while looking for an answer.';
+    : err instanceof ApiError && err.status === 400 && err.message
+      ? err.message
+      : 'Something went wrong while looking for an answer.';
 
 /** Pick a topic on one side and read its questions on the other, without leaving the page. */
 const TopicBrowser: React.FC<{ topics: FaqStart['categories']; disabled: boolean; onPick: (link: FaqLink) => void }> = ({ topics, disabled, onPick }) => {
@@ -129,7 +131,7 @@ export const StudentFAQChatbot: React.FC = () => {
     try {
       add({ kind: 'reply', asked, typed, reply: await load(), feedback: 'none', contact: '' });
     } catch (err) {
-      add({ kind: 'problem', text: problemText(err), retry: () => void run(asked, typed, load) });
+      add({ kind: 'problem', text: problemText(err), retry: err instanceof ApiError && err.status === 400 ? undefined : () => void run(asked, typed, load) });
     } finally {
       setBusy(false);
     }

@@ -236,10 +236,13 @@ export const DocumentPage: React.FC<DocumentPageProps> = ({ documentId, isStuden
                   <h2 className="section-label">Versions</h2>
                   <ul className="space-y-2">
                     {document.versions.map((version, index) => (
-                      <li key={version.number} className="flex items-center justify-between gap-3 text-[14px]">
-                        <span className="font-semibold text-slate-800">Version {version.number}{index === 0 ? ' (current)' : ''}</span>
-                        <span className="flex items-center gap-3 text-slate-500">
-                          {shortDocumentDate(version.uploadedAt)}
+                      <li key={version.number} className="flex items-start justify-between gap-3 text-[14px]">
+                        <span className="min-w-0">
+                          <span className="block font-semibold text-slate-800">Version {version.number}{index === 0 ? ' (current)' : ''}</span>
+                          {version.note && <span className="block text-[13px] text-slate-600 [overflow-wrap:anywhere]">{version.note}</span>}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-3 text-slate-500">
+                          {historyTime(version.uploadedAt)}
                           <button type="button" className="font-bold text-blue-700 hover:text-blue-900" onClick={() => void download(version.number)}>Download</button>
                         </span>
                       </li>

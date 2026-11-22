@@ -994,6 +994,14 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
   const supervisorOptions = distinctValues(students.map(s => s.supervisor));
   const intakeOptions = intakeFilterOptions(students.map((student) => student.intakeLabel ?? ''));
   const activeFilters = [selectedProgramme, selectedIntake, selectedSemester, selectedSupervisor].filter((value) => value !== 'All').length;
+  const clearSearchAndFilters = () => {
+    setSearchQuery('');
+    setSelectedProgramme('All');
+    setSelectedIntake('All');
+    setSelectedSemester('All');
+    setSelectedSupervisor('All');
+    setCurrentPage(1);
+  };
   const columnCount = 5;
 
   // Paginated students records
@@ -1152,6 +1160,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                 >
                   Filters{activeFilters > 0 ? ` (${activeFilters})` : ''}
                 </PortalButton>
+                {!filtersOpen && (activeFilters > 0 || searchQuery.trim() !== '') && (
+                  <PortalButton variant="ghost" size="md" onClick={clearSearchAndFilters}>
+                    Clear filters
+                  </PortalButton>
+                )}
               </div>
 
               {filtersOpen && (
@@ -1214,17 +1227,11 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                     }}
                   />
 
-                  {activeFilters > 0 && (
+                  {(activeFilters > 0 || searchQuery.trim() !== '') && (
                     <PortalButton
                       variant="ghost"
                       size="md"
-                      onClick={() => {
-                        setSelectedProgramme('All');
-                        setSelectedIntake('All');
-                        setSelectedSemester('All');
-                        setSelectedSupervisor('All');
-                        setCurrentPage(1);
-                      }}
+                      onClick={clearSearchAndFilters}
                     >
                       Clear filters
                     </PortalButton>

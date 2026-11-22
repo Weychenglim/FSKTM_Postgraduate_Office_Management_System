@@ -37,7 +37,7 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
   onRequestNewLink,
 }) => {
   const [kind, setKind] = useState<PasswordLinkKind>(linkKind);
-  const [linkState, setLinkState] = useState<LinkState>('checking');
+  const [linkState, setLinkState] = useState<LinkState>(uid && token ? 'checking' : 'invalid');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -46,6 +46,10 @@ export const ResetPasswordPage: React.FC<ResetPasswordPageProps> = ({
   const copy = PASSWORD_LINK_COPY[kind];
 
   useEffect(() => {
+    if (!uid || !token) {
+      setLinkState('invalid');
+      return;
+    }
     let cancelled = false;
     setLinkState('checking');
     authApi

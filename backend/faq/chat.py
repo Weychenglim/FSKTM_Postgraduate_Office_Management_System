@@ -1,5 +1,6 @@
 """What the chatbot says (UC28): an answer, a few choices, or the office's
 contact text. Students' questions are kept without a name or student ID."""
+import re
 from datetime import timedelta
 
 from django.conf import settings
@@ -146,7 +147,7 @@ def conversation(question_id, token):
 
 def ask(text, *, typed=True, question_id=None, token=None, student=None):
     text = clean_question(text)
-    if not text:
+    if not re.search(r"\w", text):
         raise ChatRefused("Type a question.")
     reply, result = reply_for(text)
     earlier = conversation(question_id, token)
@@ -244,7 +245,7 @@ def start_screen():
 def try_question(text):
     """What a student would see, for the office. Nothing is saved."""
     text = clean_question(text)
-    if not text:
+    if not re.search(r"\w", text):
         raise ChatRefused("Type a question.")
     reply, result = reply_for(text)
     band = {STRONG: "Strong", POSSIBLE: "Possible", NONE: "None"}[result.band]
