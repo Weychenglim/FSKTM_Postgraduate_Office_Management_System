@@ -11,11 +11,15 @@ Pages pass ``wait=False`` so a real mail server sends in the background and
 the person who clicked doesn't wait for every email.
 """
 import threading
+from email.utils import parseaddr
 
 from django.conf import settings
 from django.core.mail import send_mass_mail
 
+from accounts.coordinator_alias import real_address
+
 SMTP_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+REAL_INBOX_BACKEND = "accounts.mail_backend.RealInboxBackend"
 
 ANNOUNCEMENT = "announcement"
 DEADLINE = "deadline"
@@ -46,14 +50,29 @@ def _send(messages):
     return send_mass_mail(messages, fail_silently=True)
 
 
+def _sends_by_smtp():
+    backend = settings.EMAIL_BACKEND
+    if backend == REAL_INBOX_BACKEND:
+        backend = getattr(settings, "REAL_EMAIL_BACKEND", backend)
+    return backend == SMTP_BACKEND
+
+
 def email_users(users, kind, subject, message, *, wait=True):
-    """Email every active user whose switches allow ``kind``. Returns how many
-    were sent, or how many were handed to the background send."""
-    allowed = [user for user in users if user.is_active and user.email and allows(user, kind)]
+    """Email every active user whose switches allow ``kind``, once per inbox.
+    Returns how many were sent, or how many were handed to the background send."""
+    allowed, inboxes = [], set()
+    for user in users:
+        if not (user.is_active and user.email and allows(user, kind)):
+            continue
+        inbox = parseaddr(real_address(user.email))[1].lower()
+        if inbox in inboxes:
+            continue
+        inboxes.add(inbox)
+        allowed.append(user)
     if not allowed:
         return 0
     messages = [(subject, message, settings.DEFAULT_FROM_EMAIL, [user.email]) for user in allowed]
-    if wait or settings.EMAIL_BACKEND != SMTP_BACKEND:
+    if wait or not _sends_by_smtp():
         return _send(messages)
     threading.Thread(target=_send, args=(messages,), daemon=True).start()
     return len(messages)

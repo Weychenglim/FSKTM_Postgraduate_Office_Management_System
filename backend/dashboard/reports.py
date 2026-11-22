@@ -752,7 +752,7 @@ def _participant_lifecycle_summary(user, programme):
     students = Student.objects.select_related("user")
     if programme:
         students = students.filter(programme__iexact=programme)
-    lecturers = Lecturer.objects.select_related("user")
+    lecturers = Lecturer.objects.select_related("user").exclude(coordinator__lecturer_account__isnull=False)
     counts = {
         "activeStudents": students.filter(status=Student.Status.ACTIVE).count(),
         "deferredStudents": students.filter(status=Student.Status.DEFERRED).count(),

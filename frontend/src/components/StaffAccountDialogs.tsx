@@ -145,7 +145,7 @@ export const ProgrammeDialog: React.FC<DialogProps> = ({ account, isOpen, onClos
     setPreview(null);
     setProblem(null);
     setOptions(null);
-    getStaffOptions().then(setOptions).catch(() => setOptions({ departments: [], programmes: [] }));
+    getStaffOptions().then(setOptions).catch(() => setOptions({ departments: [], programmes: [], lecturers: [] }));
   }, [isOpen]);
 
   const holderOf = (programme: string) => options?.programmes.find(row => row.programme === programme)?.coordinator;
@@ -295,8 +295,10 @@ export const SignInDialog: React.FC<DialogProps> = ({ account, isOpen, onClose, 
         <p className="text-[13px] text-slate-700">{account.name} still has open work:</p>
         <WorkList items={work} />
         <p className="text-[13px] text-slate-700">
-          {account.role === 'Programme Coordinator' && work.some(item => item.key === 'managedProgrammes')
-            ? 'Move them to "No programme" with Change programme first. '
+          {work.some(item => item.key === 'managedProgrammes')
+            ? account.coordinatorAccount
+              ? 'Move their coordinator account to "No programme" first. '
+              : account.role === 'Programme Coordinator' ? 'Move them to "No programme" with Change programme first. ' : ''
             : ''}
           Hand the rest over first, or use Employment on this page.
         </p>
@@ -321,7 +323,7 @@ export const SignInDialog: React.FC<DialogProps> = ({ account, isOpen, onClose, 
       <p className="text-[13px] text-slate-700">
         {turningOn
           ? `${account.name} can sign in again with their own password.`
-          : `${account.name} is signed out everywhere and can't sign in until it is turned back on. Their records stay as they are.`}
+          : `${account.name} is signed out everywhere and can't sign in until it is turned back on. Their records stay as they are.${account.coordinatorAccount && account.coordinatorAccount.status !== 'SIGN_IN_OFF' ? ' Their coordinator account is turned off too.' : ''}`}
       </p>
       {!turningOn && (
         <div className="space-y-1.5">
@@ -442,7 +444,7 @@ export const ActivationLinkDialog: React.FC<{ name: string; link: string | null;
       </p>
       <div className="space-y-1.5">
         <label htmlFor={inputId} className="block text-[13px] font-bold text-slate-700">Link</label>
-        <input id={inputId} readOnly value={link ?? ''} onFocus={event => event.target.select()} className="form-control form-control-md text-[13px]" />
+        <input id={inputId} readOnly value={link ?? ''} onFocus={event => event.target.select()} className="form-control form-control-md text-[14px]" />
       </div>
       {copied === false && <p className="text-[12px] text-slate-500">Select the link and copy it.</p>}
     </DialogShell>

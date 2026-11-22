@@ -124,7 +124,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         elif office_staff:
             department, student_no, staff_no = office_staff.department, None, office_staff.staff_no
         elif lecturer:
-            department, student_no, staff_no = lecturer.department, None, lecturer.staff_no
+            from .coordinator_alias import is_coordinator_account, shown_staff_id
+
+            staff_no = lecturer.staff_no
+            if is_coordinator_account(self):
+                staff_no = shown_staff_id(staff_no)
+            department, student_no = lecturer.department, None
         else:
             department, student_no, staff_no = "", None, None
 
@@ -436,6 +441,14 @@ class Coordinator(models.Model):
     )
     programme_managed = models.CharField(max_length=255, blank=True, default="")
     appointed_date = models.DateField(null=True, blank=True)
+    # Set when this is a lecturer's second, +coordinator account.
+    lecturer_account = models.OneToOneField(
+        User,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="linked_coordinator",
+    )
 
     def __str__(self):
         return f"Coordinator: {self.lecturer.user.full_name}"

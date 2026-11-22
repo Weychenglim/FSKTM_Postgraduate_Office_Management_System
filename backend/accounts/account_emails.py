@@ -6,6 +6,8 @@ addresses in full. Each email also reminds the person how to sign in.
 """
 from django.conf import settings
 
+from .coordinator_alias import is_coordinator_account
+
 ACTIVATION_SUBJECT = "Activate your FSKTM Postgraduate Office account"
 RESET_SUBJECT = "Reset your FSKTM Postgraduate Office password"
 SIGN_OFF = "Regards,\nFSKTM Postgraduate Office"
@@ -15,9 +17,46 @@ def portal_url():
     return settings.FRONTEND_URL.rstrip("/")
 
 
+def _programme_words(programme):
+    words = []
+    for word in programme.strip().lower().split():
+        if word in ("of", "and", "in") and words:
+            words.append(word)
+        elif word.startswith("("):
+            words.append("(" + word[1:].capitalize())
+        else:
+            words.append(word.capitalize())
+    return " ".join(words)
+
+
+def _for_programme(user):
+    """`` for the <programme>`` for a +coordinator account, else None."""
+    if not is_coordinator_account(user):
+        return None
+    programme = _programme_words(user.lecturer.coordinator.programme_managed)
+    return f" for the {programme}" if programme else ""
+
+
+def _coordinator_note(user):
+    for_programme = _for_programme(user)
+    if for_programme is None:
+        return None
+    return (
+        f"This email is about your Programme Coordinator account{for_programme}. It is "
+        f"separate from your lecturer account. Sign in to it with {user.email}."
+    )
+
+
+def _with_note(user, paragraphs):
+    note = _coordinator_note(user)
+    return [paragraphs[0], note, *paragraphs[1:]] if note else paragraphs
+
+
 def sign_in_identifiers(user):
     """What the sign-in page accepts for ``user``, as (label, value) pairs."""
     identifiers = [("Email", user.email)]
+    if is_coordinator_account(user):
+        return identifiers
     student = user._related_or_none("student")
     staff = user._related_or_none("office_staff") or user._related_or_none("lecturer")
     if student:
@@ -37,10 +76,15 @@ def _how_to_sign_in(user, opening, password):
 
 def activation_email(user, link):
     """Subject and body inviting a new account holder to set a first password."""
+    for_programme = _for_programme(user)
     paragraphs = [
         f"Dear {user.full_name},",
         "The FSKTM Postgraduate Office has created an account for you. You will use it "
-        "for services such as supervisor appointments, letters and office announcements.",
+        "for services such as supervisor appointments, letters and office announcements."
+        if for_programme is None
+        else f"The FSKTM Postgraduate Office has created a Programme Coordinator account for "
+        f"you{for_programme}. It is separate from your lecturer account, which you continue "
+        "to use for your lecturer work.",
         f"To start using your account, please set your password with this link:\n{link}",
         "This link does not expire. It stops working once you have set your password.",
         _how_to_sign_in(
@@ -76,7 +120,7 @@ def password_reset_email(user, link):
         "account, please contact the FSKTM Postgraduate Office.",
         SIGN_OFF,
     ]
-    return RESET_SUBJECT, "\n\n".join(paragraphs)
+    return RESET_SUBJECT, "\n\n".join(_with_note(user, paragraphs))
 
 
 EMAIL_CHANGED_SUBJECT = "The email for your FSKTM Postgraduate Office account has changed"
@@ -94,4 +138,4 @@ def email_changed_email(user, old_email):
         "If you did not expect this change, please contact the FSKTM Postgraduate Office.",
         SIGN_OFF,
     ]
-    return EMAIL_CHANGED_SUBJECT, "\n\n".join(paragraphs)
+    return EMAIL_CHANGED_SUBJECT, "\n\n".join(_with_note(user, paragraphs))

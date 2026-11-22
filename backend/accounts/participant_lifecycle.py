@@ -110,6 +110,16 @@ def lecturer_blockers(lecturer):
     user = lecturer.user
     coordinator = Coordinator.objects.filter(lecturer=lecturer).first()
     tasks = _unfinished_tasks(EvaluationTask.objects.filter(evaluator=user))
+    coordinators = [user]
+    managed = bool(coordinator and coordinator.programme_managed.strip())
+    linked = (
+        Coordinator.objects.filter(lecturer_account=user, lecturer__user__is_active=True)
+        .select_related("lecturer__user")
+        .first()
+    )
+    if linked is not None:
+        coordinators.append(linked.lecturer.user)
+        managed = managed or bool(linked.programme_managed.strip())
     return {
         "pendingCoSupervisorNominations": CoSupervisorNomination.objects.filter(
             candidate=user, status__in=CoSupervisorNomination.PENDING_STATUSES
@@ -135,11 +145,9 @@ def lecturer_blockers(lecturer):
         ).count(),
         "unfinishedMarksTasks": tasks.count(),
         "coordinatorDelegations": CoordinatorDelegation.objects.filter(
-            coordinator=user, revoked_at__isnull=True, ends_on__gte=today()
+            coordinator__in=coordinators, revoked_at__isnull=True, ends_on__gte=today()
         ).count(),
-        "managedProgrammes": int(
-            bool(coordinator and coordinator.programme_managed.strip())
-        ),
+        "managedProgrammes": int(managed),
     }
 
 
@@ -553,6 +561,8 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
     lecturer = Lecturer.objects.select_for_update().select_related("user").get(
         staff_no__iexact=staff_no
     )
+    if Coordinator.objects.filter(lecturer=lecturer, lecturer_account__isnull=False).exists():
+        raise ValueError("This coordinator account follows the lecturer account. Change the status there.")
     allowed = {
         Lecturer.Lifecycle.ACTIVE: {Lecturer.Lifecycle.RETIRING},
         Lecturer.Lifecycle.RETIRING: {
@@ -596,6 +606,14 @@ def transition_lecturer(*, staff_no, actor, target_status, reason):
         lecturer.user.is_active = False
         lecturer.user.save(update_fields=["is_active"])
         blacklist_user_refresh_tokens(lecturer.user)
+        from .staff_accounts import close_coordinator_account
+
+        close_coordinator_account(
+            owner=lecturer.user,
+            actor=actor,
+            reason="The lecturer has "
+            f"{'retired' if target_status == Lecturer.Lifecycle.RETIRED else 'resigned'}.",
+        )
     elif lecturer.lifecycle_status in LECTURER_LEFT:
         # The profile was kept while they were away, so only sign-in comes back.
         # Someone else may have taken over a programme in the meantime.
