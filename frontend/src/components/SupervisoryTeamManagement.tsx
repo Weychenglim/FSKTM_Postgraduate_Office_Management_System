@@ -481,7 +481,7 @@ export function SupervisoryTeamRouteContent({ workspace, view, routeStudentId, s
     const appointmentSemester=ownDetails?.semester??primary?.semester??team.primaryAppointmentDetails?.semester;
     const canOpenApprovedApplication=!!onNavigateToApplication && !!team.primaryAppointmentId
       && Number.isInteger(team.approvedApplicationId) && (team.approvedApplicationId??0)>0;
-    const approvedApplicationAction=canOpenApprovedApplication?<PortalButton size="sm" variant="primary" icon={FileText} disabled={busy} onClick={()=>onNavigateToApplication!(String(team.approvedApplicationId!))}>View approved application</PortalButton>:undefined;
+    const approvedApplicationAction=canOpenApprovedApplication?<PortalButton size="sm" icon={FileText} disabled={busy} onClick={()=>onNavigateToApplication!(String(team.approvedApplicationId!))}>View approved application</PortalButton>:undefined;
     const hasReplacementControls=role==='Office Staff/Admin' && primary?.appointmentLifecycle?.status==='ACTIVE'
       && !!(team.pendingPrimaryReplacement || (team.canChangePrimarySupervisor && team.primaryAppointmentId && onChangePrimarySupervisor));
     return <div className="space-y-5"><SupervisoryStudentDetailCard key={team.matricNo} team={team} busy={busy} initiallyOpen collapsible={false}

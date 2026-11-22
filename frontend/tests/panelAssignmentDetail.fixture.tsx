@@ -131,9 +131,17 @@ await scenario('Lecturer and Coordinator can trace the approved source without g
 });
 
 await scenario('Marking shortcuts match the exact student, role and task state',async()=>{
+  const submitted={...markingTask,status:'SUBMITTED',canEdit:false};
+  window.fetch=async input=>String(input).endsWith('/my-submitted-evaluations/')?Response.json([submitted]):Response.json([]);
+  let destination='';
+  await mount(<PanelAssignmentDetail assignment={assignment} onBack={()=>{}} onOpenMarksEntry={target=>destination=appointmentMarkingRoute(target)}/>);
+  await until(()=>!!button('View submitted marks'));
+  const marks=button('View submitted marks'),source=button('View approved application');
+  check(marks?.parentElement===source?.parentElement&&marks?.nextElementSibling===source&&marks?.classList.contains('bg-brand-navy')&&source?.classList.contains('bg-white'),'Panel marks and approved application must share one action group with distinct emphasis');
+  await click('View submitted marks');check(destination.includes('role=PANEL')&&destination.includes('task=801'),'Wrong submitted Panel task');geometry();
   const supervisor={...markingTask,id:802,evaluatorRole:'SUPERVISOR' as const,status:'NOT STARTED' as const};
   window.fetch=async input=>String(input).endsWith('/my-submitted-evaluations/')?Response.json([]):Response.json([markingTask,supervisor,{...markingTask,id:803,studentId:'OTHER'}]);
-  let destination='';await mount(<AppointmentMarkingAction studentId={markingTask.studentId} role="SUPERVISOR" onOpen={target=>destination=appointmentMarkingRoute(target)}/>);
+  await mount(<AppointmentMarkingAction studentId={markingTask.studentId} role="SUPERVISOR" onOpen={target=>destination=appointmentMarkingRoute(target)}/>);
   await until(()=>!!button('Enter marks'));await click('Enter marks');check(destination.includes('role=SUPERVISOR')&&destination.includes('task=802'),'Wrong Supervisor task');
   await mount(<div>Marking context<AppointmentMarkingAction studentId="NO-TASK" role="PANEL" onOpen={()=>{throw Error('Invented marking task');}}/></div>);await pause();check(!container.querySelector('button'),'Student without a task got a shortcut');
   window.fetch=async input=>String(input).endsWith('/my-submitted-evaluations/')?Response.json([]):Response.json([{...markingTask,canEdit:false}]);

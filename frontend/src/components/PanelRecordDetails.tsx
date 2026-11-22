@@ -72,14 +72,12 @@ export function PanelAppointmentRecordCard({record,actions,compact=false,showHis
   const active=lifecycle.status==='ACTIVE';
   const approved=record.coordinatorDecisionAt||lifecycle.lifecycle?.find(e=>e.action==='ACTIVATED')?.createdAt||record.appointmentDate;
   const events=(lifecycle.lifecycle??[]).filter(event=>event.action!=='ACTIVATED').map(e=>({...e,reason:e.reason??undefined}));
-  if(compact)return <div data-panel-appointment-record><AppointmentRecordSection actions={actions} history={(showHistory&&events.length>0)||children?<>{showHistory&&events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:null}{children}</>:undefined}>
+  if(compact)return <div data-panel-appointment-record><AppointmentRecordSection actions={actions} recordActions={markingAction||sourceAction?<>{markingAction}{sourceAction}</>:undefined} history={(showHistory&&events.length>0)||children?<>{showHistory&&events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:null}{children}</>:undefined}>
     <dl className="space-y-5"><div className="space-y-2"><dt className={label}>Appointment status</dt><dd><StatusBadge tone={active?'success':'neutral'}>{panelStatusLabel(lifecycle.status)}</StatusBadge></dd></div>
       <PanelDetailFact title="Appointment date" value={formatRequestDisplayDate(panelRecordedDate(approved))}/>
       {appointmentSemester && <PanelDetailFact title="Appointment semester" value={appointmentSemester}/>}
       {!active?<><PanelDetailFact title="Ended on" value={formatRequestDisplayDate(lifecycle.endedAt)}/>{lifecycle.endOutcome?<PanelDetailFact title="Outcome" value={panelStatusLabel(lifecycle.endOutcome)}/>:null}{lifecycle.endReason?<PanelDetailFact title="Reason" value={lifecycle.endReason}/>:null}{lifecycle.endedBy?<PanelDetailFact title="Recorded by" value={lifecycle.endedBy}/>:null}</>:null}
     </dl>
-    {markingAction}
-    {sourceAction?<div className="border-t border-slate-100 pt-6"><RequestDetailActions>{sourceAction}</RequestDetailActions></div>:null}
   </AppointmentRecordSection></div>;
   return <div data-panel-appointment-record><RequestDetailCard padding="lg" actions={actions} audit={events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:undefined}>
     <RequestSection title="Appointment record" headingClassName={text.heading}><dl className="grid gap-x-10 gap-y-6 pt-3 sm:grid-cols-2"><Fact label="Student" value={record.studentName} name/><Fact label="Appointed Panel member" value={record.recommendedMember} name/><div><dt className={text.label}>Appointment status</dt><dd className="mt-2"><StatusBadge tone={active?'success':'neutral'}>{panelStatusLabel(lifecycle.status)}</StatusBadge></dd></div><Fact label="Appointment date" value={formatRequestDisplayDate(panelRecordedDate(approved))}/>{!active?<Fact label="Ended on" value={formatRequestDisplayDate(lifecycle.endedAt)}/>:null}</dl></RequestSection>

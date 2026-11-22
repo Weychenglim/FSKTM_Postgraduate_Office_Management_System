@@ -14,7 +14,7 @@ import type {PanelAcademicTeam} from '../types/appointment';
 /** Authorised appointment data only; caller owns lifecycle and navigation capabilities. */
 export function PanelAssignmentDetails({record,contextAction,actions,academicTeam,onViewRequest,busy=false,markingAction}:{record:PanelPresentation;academicTeam?:PanelAcademicTeam|null;busy?:boolean;markingAction?:React.ReactNode;onViewRequest?:(id:string)=>void;contextAction?:React.ReactNode;actions?:React.ReactNode}) {
   const lifecycle=record.appointmentLifecycle;
-  const sourceAction=record.status==='APPROVED'&&record.id != null&&onViewRequest?<PortalButton variant="primary" icon={FileText} size="sm" disabled={busy} onClick={()=>onViewRequest(String(record.id))}>View approved application</PortalButton>:null;
+  const sourceAction=record.status==='APPROVED'&&record.id != null&&onViewRequest?<PortalButton icon={FileText} size="sm" disabled={busy} onClick={()=>onViewRequest(String(record.id))}>View approved application</PortalButton>:null;
   const changes=(lifecycle?.lifecycle??[]).filter(event=>event.action!=='ACTIVATED');
   return <div data-panel-assignment-detail className="space-y-7">
     <PanelStudentOverview record={record} actions={contextAction} assignment={academicTeam !== undefined} appointmentDetails/>

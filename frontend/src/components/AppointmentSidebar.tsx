@@ -5,9 +5,10 @@ import {SupervisionDetailSection} from './SupervisionDetailLayout';
 import {RequestDetailActions} from './RequestDetailPrimitives';
 
 /** The same hierarchy for Supervisor and Panel appointment sidebars. */
-export function AppointmentRecordSection({children,actions,history}:{children:React.ReactNode;actions?:React.ReactNode;history?:React.ReactNode}) {
+export function AppointmentRecordSection({children,actions,history,recordActions}:{children:React.ReactNode;actions?:React.ReactNode;history?:React.ReactNode;recordActions?:React.ReactNode}) {
   return <SupervisionDetailSection title="Appointment record" icon={CalendarDays}>
     {children}
+    {recordActions?<RequestDetailActions className="border-t border-slate-100 pt-4 empty:hidden">{recordActions}</RequestDetailActions>:null}
     {actions?<SupervisorRequestDisclosure title="Manage appointment"><RequestDetailActions>{actions}</RequestDetailActions></SupervisorRequestDisclosure>:null}
     {history?<div className="border-t border-slate-100 pt-6">{history}</div>:null}
   </SupervisionDetailSection>;

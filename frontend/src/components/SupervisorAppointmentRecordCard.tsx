@@ -59,7 +59,7 @@ export function SupervisorAppointmentRecordCard({record,onEnd,actions,compact=fa
   const label=compact ? supervisionDetailLabel : appointmentDetailTypography.label;
   const body=compact ? supervisionDetailBody : appointmentDetailTypography.body;
   const controls=actions||(onEnd&&active)?<div className={`flex flex-wrap items-start ${compact?'gap-3':'gap-2'}`}>{actions}{onEnd&&active?<AppointmentEndControl buttonLabel={compact?"End supervisor appointment":undefined} label="Supervisor appointment" context={<>{record.studentName} · {record.studentId}</>} decisionKey={record.studentId} disabled={!active} onSubmit={onEnd}/>:null}</div>:undefined;
-  if(compact)return <div data-supervisor-appointment-record><AppointmentRecordSection actions={controls} history={showHistory&&events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:undefined}>
+  if(compact)return <div data-supervisor-appointment-record><AppointmentRecordSection actions={controls} recordActions={markingAction||sourceAction?<>{markingAction}{sourceAction}</>:undefined} history={showHistory&&events.length?<RequestAuditHistory title="Appointment changes" events={events}/>:undefined}>
     <dl className="space-y-5">
       <div className="space-y-2"><dt className={label}>Appointment status</dt><dd><StatusBadge tone={active?'success':'neutral'}>{readableRecordStatus(record.status)}</StatusBadge></dd></div>
       <div className="space-y-2"><dt className={label}>Approved on</dt><dd className={body}>{recordedDate(record.approvedAt)}</dd></div>
@@ -71,8 +71,6 @@ export function SupervisorAppointmentRecordCard({record,onEnd,actions,compact=fa
         {record.endedBy?<div className="space-y-2"><dt className={label}>Recorded by</dt><dd className={body}>{record.endedBy}</dd></div>:null}
       </>:null}
     </dl>
-    {markingAction}
-    {sourceAction?<div className="border-t border-slate-100 pt-6"><RequestDetailActions>{sourceAction}</RequestDetailActions></div>:null}
   </AppointmentRecordSection></div>;
   return <div data-supervisor-appointment-record className="[&_.section-label]:font-semibold [&_.card-value]:font-semibold [&_.card-description]:font-normal"><RequestDetailCard padding="lg"
     actions={compact&&controls?<RequestDetailActions>{controls}</RequestDetailActions>:controls}

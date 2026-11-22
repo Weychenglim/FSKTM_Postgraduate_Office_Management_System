@@ -5270,3 +5270,5 @@ Follow-up verification (22 November 2026). Updated the supervision browser fixtu
 Added a responsive pending-review notice to the student research profile. It explains when approved content updates and opens the matching request. The mounted profile suite verified the action, approved content and student-only notice at 1440, 1024 and 390 px.
 
 Promoted the Office Research profiles button to a navy header action with a book icon and a larger target. The production build and staff navigation checks passed. All eight directory browser scenarios passed at 1280 and 390 px, including header alignment and opening the directory from Research records history.
+
+Grouped marking and approved application actions in the same Supervisor and Panel appointment record footer. Browser verification passed for 14 supervision and 16 Panel scenarios at 1440, 1024 and 390 px, including exact submitted marks navigation for both evaluator roles.

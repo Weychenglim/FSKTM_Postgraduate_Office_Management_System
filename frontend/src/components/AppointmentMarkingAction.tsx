@@ -2,7 +2,6 @@ import React,{useEffect,useState} from 'react';
 import {FilePenLine} from 'lucide-react';
 import {getEvaluationTasks,getSubmittedEvaluations} from '../services/marksApi';
 import {appointmentMarkingShortcut,mergeMarkingTasks,type AppointmentMarkingTarget} from '../utils/appointmentMarking';
-import {RequestDetailActions} from './RequestDetailPrimitives';
 import {PortalButton} from './PortalPrimitives';
 
 /** Only rendered in a Lecturer detail host; the API scopes tasks to the signed-in evaluator. */
@@ -20,5 +19,6 @@ export function AppointmentMarkingAction({studentId,role,onOpen,busy=false}:{stu
   },[studentId,role,attempt]);
   if(!state||state.key!==key)return null;
   if(state.error)return <div className="space-y-2"><p className="text-xs leading-6 text-slate-600">Marking availability could not be checked.</p><PortalButton size="sm" disabled={busy} onClick={()=>setAttempt(value=>value+1)}>Retry marking check</PortalButton></div>;
-  return state.shortcut?<div className="border-t border-slate-100 pt-6"><RequestDetailActions><PortalButton variant="primary" icon={FilePenLine} size="sm" disabled={busy} onClick={()=>onOpen(state.shortcut!.target)}>{state.shortcut.label}</PortalButton></RequestDetailActions></div>:null;
+  const shortcut = state.shortcut;
+  return shortcut?<PortalButton variant="primary" icon={FilePenLine} size="sm" disabled={busy} onClick={()=>onOpen(shortcut.target)}>{shortcut.label}</PortalButton>:null;
 }

@@ -86,7 +86,7 @@ function verifyStandardAction(label:string){
 for(const role of ['Lecturer','Programme Coordinator','Office Staff/Admin'] as const)await scenario(`${role} gets separated surfaces and its own controls`,async()=>{
   await mount(role,{...team,nominations:[]});geometry();
   check(button('View student record')?.classList.contains('bg-brand-navy'),'Student record action lost its primary style');
-  check(button('View approved application')?.classList.contains('bg-brand-navy'),'Approved application must use the primary style');
+  check(button('View approved application')?.classList.contains('bg-white'),'Approved application must use the secondary style');
   for(const label of ['View approved application','View student record'])check(button(label)?.querySelector('svg'),`${label} needs an icon`);
   for(const expected of ['Supervisory team','Research summary','Appointment record','First saved paragraph.','A complete second paragraph'])check(text().includes(expected),expected);
   check(!document.querySelector('[data-supervisor-appointment-record]')!.textContent!.includes('Example postgraduate'),'Student identity is repeated in appointment metadata');
@@ -192,6 +192,16 @@ await scenario('Lecturer supervisee details open the assigned Supervisor task; s
   window.fetch=async input=>{if(String(input).includes('/profile-link/'))return Response.json({studentId:7});reads++;return Response.json(String(input).endsWith('/my-submitted-evaluations/')?[]:[task,{...task,id:812,evaluatorRole:'PANEL'}]);};
   await mount('Lecturer',team,false,true);for(let i=0;i<100&&!button('Enter marks');i++)await tick();
   check(!!button('Enter marks'),'Supervisor shortcut missing');button('Enter marks')!.click();check(calls.includes(`marks:${team.matricNo}:SUPERVISOR:811`),'Wrong supervisee marking target');
+  await mount('Lecturer',team,false,false);
+  window.fetch=async input=>{
+    if(String(input).includes('/profile-link/'))return Response.json({studentId:7});
+    reads++;
+    return Response.json(String(input).endsWith('/my-submitted-evaluations/')?[{...task,status:'SUBMITTED',canEdit:false}]:[]);
+  };
+  await mount('Lecturer',team,false,true);for(let i=0;i<100&&!button('View submitted marks');i++)await tick();
+  const marks=button('View submitted marks'),source=button('View approved application');
+  check(marks?.parentElement===source?.parentElement&&marks?.nextElementSibling===source&&marks?.classList.contains('bg-brand-navy'),'Submitted marks and its secondary source must share one action group');
+  marks!.click();check(calls.includes(`marks:${team.matricNo}:SUPERVISOR:811`),'Wrong submitted supervisee marking target');geometry();
   reads=0;await mount('Office Staff/Admin',team,false,true);await tick();check(reads===0&&!button('Enter marks'),'Office fetched Lecturer tasks or gained marking');
   window.fetch=async()=>{throw Error('Unexpected HTTP request');};
 });

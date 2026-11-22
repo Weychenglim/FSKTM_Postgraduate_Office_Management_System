@@ -56,8 +56,8 @@ export function RequestDetailCard({ children, progress, actions, audit, padding 
 export const requestBodyTextClass = 'font-sans text-xs font-normal leading-relaxed text-slate-700 whitespace-pre-wrap break-words';
 
 /** Readable, equal-width actions for narrow detail sidebars; caller owns capabilities. */
-export function RequestDetailActions({ children }: { children: React.ReactNode }) {
-  return <div data-detail-actions className="space-y-3 [&_.flex]:flex-col [&_.flex]:items-stretch [&_.flex]:gap-3 [&_button]:w-full">{children}</div>;
+export function RequestDetailActions({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <div data-detail-actions className={`space-y-3 [&_.flex]:flex-col [&_.flex]:items-stretch [&_.flex]:gap-3 [&_button]:w-full ${className}`}>{children}</div>;
 }
 
 export function PrimaryRequestDecisionButtons({ positiveLabel, disabled, positiveDisabled = false, onPositive, onReject }: {
