@@ -73,9 +73,19 @@ def publish_problems(entry):
     problems = {}
     if not entry.question.strip():
         problems["question"] = "Write the question before publishing."
+    elif _published_twin(entry):
+        problems["question"] = "This question already has a published answer. Edit that answer instead."
     if not entry.answer.strip():
         problems["answer"] = "Write the answer before publishing."
     return problems
+
+
+def _published_twin(entry):
+    wording = " ".join(entry.question.split()).casefold()
+    others = FaqEntry.objects.filter(status=Status.PUBLISHED, question__iexact=" ".join(entry.question.split()))
+    if entry.pk:
+        others = others.exclude(pk=entry.pk)
+    return any(" ".join(other.question.split()).casefold() == wording for other in others)
 
 
 def history_dict(change):

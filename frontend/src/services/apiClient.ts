@@ -187,10 +187,20 @@ export async function request<T>(
  * let the app root send the user back to login, rather than leaving every later
  * call to fail with an opaque message.
  */
-function handleUnauthorized(): void {
+function handleUnauthorized(message?: string): void {
   if (getAuthToken() !== null) clearAuthToken();
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT, message ? { detail: { message } } : undefined));
+  }
+}
+
+async function unauthorizedMessage(res: Response): Promise<string | undefined> {
+  try {
+    const body = await res.clone().json();
+    const detail = body && typeof body === 'object' ? (body as { detail?: unknown }).detail : undefined;
+    return typeof detail === 'string' && /session/i.test(detail) ? detail : undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -205,7 +215,7 @@ async function sessionFetch(
   // A 401 for a session that was signed out or replaced while the request was
   // in flight says nothing about the current one.
   if (res.status === 401 && hadSession && authSession.getSessionVersion() === sessionVersion) {
-    handleUnauthorized();
+    handleUnauthorized(await unauthorizedMessage(res));
   }
   return res;
 }

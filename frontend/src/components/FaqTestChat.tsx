@@ -129,7 +129,7 @@ export const FaqTestChat: React.FC = () => {
   return (
     <RecordPage
       title="Test the chatbot"
-      subtitle="Nothing is saved."
+      subtitle="Nothing is saved. With AI replies on, each test uses one of the daily AI replies that students share."
       backLabel="Back to FAQ Chatbot"
       onBack={() => navigate(APP_ROUTES.faq)}
       pageKey="faq-test"

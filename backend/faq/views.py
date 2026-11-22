@@ -291,6 +291,7 @@ def settings_dict(chatbot):
         "aiEnabled": chatbot.ai_enabled,
         "aiConfigured": ai.configured(),
         "aiUsedToday": ai.used_today(),
+        "aiPaused": ai.paused(),
         "aiDailyLimit": settings.FAQ_AI_DAILY_LIMIT,
         "updatedBy": chatbot.updated_by.full_name if chatbot.updated_by else "",
         "updatedAt": chatbot.updated_at.isoformat(),

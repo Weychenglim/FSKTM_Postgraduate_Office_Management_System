@@ -34,7 +34,7 @@ const FEED_TABS: readonly FeedTab[] = ['announcements', 'notifications'];
 import { LoadingState, ErrorState } from './StateViews';
 import { NotificationItem } from '../types';
 import { downloadAnnouncementAttachment } from '../services';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useNotifications } from '../context/NotificationsContext';
 import { THIN_SCROLLBAR } from '../utils/scrollbar';
 import { notificationRecordRoute, type OpenNotificationState } from '../utils/notificationLinks';
@@ -221,7 +221,7 @@ const NotificationsContent: React.FC<NotificationsAnnouncementsProps> = ({
   const handleMarkAllRead = async () => {
     try {
       await markAllRead();
-
+      publish('All notifications are marked as read.', 'success');
     } catch (err) {
       publish(err instanceof Error ? err.message : 'Failed to update notifications.', 'danger');
     }
@@ -291,6 +291,7 @@ const NotificationsContent: React.FC<NotificationsAnnouncementsProps> = ({
 
   // The bell dropdown sends announcements here to be read in the detail view.
   const location = useLocation();
+  const navigateTo = useNavigate();
   const requestedId = (location.state as OpenNotificationState | null)?.openNotificationId;
   const openedRequest = useRef<string | null>(null);
   useEffect(() => {
@@ -300,7 +301,8 @@ const NotificationsContent: React.FC<NotificationsAnnouncementsProps> = ({
     openedRequest.current = requestedId;
     setActiveTab(requested.isAnnouncement ? 'announcements' : 'notifications');
     setSelectedNotification(requested);
-  }, [requestedId, items]);
+    navigateTo(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [requestedId, items, navigateTo, location.pathname, location.search]);
 
   return (
     <div id="notifications-announcements-root" className="readable-list space-y-8 text-left font-sans text-brand-navy text-xs pb-16 animate-fade-in relative">
@@ -339,6 +341,7 @@ const NotificationsContent: React.FC<NotificationsAnnouncementsProps> = ({
             </span>
             <input
               type="text"
+              aria-label={`Search ${noun}`}
               placeholder={`Search ${noun}...`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

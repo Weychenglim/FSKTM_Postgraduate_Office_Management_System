@@ -235,6 +235,10 @@ def enabled():
     return configured() and FaqSettings.load().ai_enabled
 
 
+def paused():
+    return bool(cache.get(PAUSE_KEY))
+
+
 def _daily_key():
     return f"faq-ai:used:{timezone.now().date().isoformat()}"
 

@@ -162,7 +162,10 @@ export const StudentStatusActions: React.FC<{ student: StudentRecord; onChanged:
         {kind === 'LEAVE' && (
           <label className={field}>
             Type of leave
-            <SelectMenu<LeaveOutcome> value={leave} options={LEAVE_OPTIONS} onChange={setLeave} disabled={busy} aria-label="Type of leave" />
+            <SelectMenu<LeaveOutcome> value={leave} options={LEAVE_OPTIONS} onChange={setLeave} disabled={busy} aria-label="Type of leave" showSelectedDescription={false} />
+            {LEAVE_OPTIONS.find((option) => option.value === leave)?.description && (
+              <span className="mt-1 block text-[12px] font-normal text-slate-500">{LEAVE_OPTIONS.find((option) => option.value === leave)?.description}</span>
+            )}
           </label>
         )}
         {kind === 'TERMINATE' && (

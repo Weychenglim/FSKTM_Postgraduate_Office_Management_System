@@ -199,7 +199,7 @@ export default function App() {
   useEffect(() => {
     const handleExpiry = (event: Event) => {
       const reason = (event as CustomEvent<{ message?: string } | null>).detail?.message;
-      setSessionNotice(reason || 'Your session has expired. Please sign in again.');
+      setSessionNotice(reason || 'Your session has ended. Please sign in again.');
       setCurrentUser(null);
     };
     window.addEventListener(SESSION_EXPIRED_EVENT, handleExpiry);
@@ -223,6 +223,16 @@ export default function App() {
   const isCoordinatorWorkspace = currentUser?.role === 'Programme Coordinator';
   const isStudentWorkspace = currentUser?.role === 'Student';
   const activeSidebarItem = sidebarItemForPath(pathname);
+
+  useEffect(() => {
+    const page = !currentUser
+      ? pathname === APP_ROUTES.forgotPassword ? 'Forgot password' : pathname === APP_ROUTES.resetPassword || pathname === APP_ROUTES.activateAccount ? 'Set password' : 'Sign in'
+      : pathname === APP_ROUTES.myProfile ? 'My Profile'
+      : pathname === APP_ROUTES.settings ? 'Settings'
+      : pathname === APP_ROUTES.notifications ? 'Notifications & Announcements'
+      : activeSidebarItem;
+    document.title = `${page} | FSKTM PostGrad System`;
+  }, [pathname, currentUser, activeSidebarItem]);
   const markRecordMatch = matchPath(`${APP_ROUTES.marksRecords}/:recordId`, pathname);
   const letterRequestMatch = matchPath(`${APP_ROUTES.lettersRequests}/:requestId`, pathname);
   const letterApplicationMatch = matchPath(`${APP_ROUTES.lettersApply}/:templateId`, pathname);
@@ -446,12 +456,12 @@ export default function App() {
   }
 
   if (!currentUser) {
-    if (isPasswordLinkPage && resetParams) {
+    if (isPasswordLinkPage) {
       return (
         <div id="application-entry" className="min-h-screen bg-[#f1f5f9]">
           <ResetPasswordPage
-            uid={resetParams.uid}
-            token={resetParams.token}
+            uid={resetParams?.uid ?? ''}
+            token={resetParams?.token ?? ''}
             kind={pathname === APP_ROUTES.activateAccount ? 'activation' : 'reset'}
             onBackToLogin={handleBackToLogin}
             onRequestNewLink={() => navigate(APP_ROUTES.forgotPassword)}
@@ -538,7 +548,7 @@ export default function App() {
       <NotificationsProvider>
         <PortalToast message={appToastMessage} />
         <AppLayout
-          activeItem={activeSidebarItem}
+          activeItem={pathname === APP_ROUTES.myProfile || pathname === APP_ROUTES.settings ? '' : activeSidebarItem}
           onNavigate={(target) => {
             setMarksRecordStatusTab('All Records');
             navigate(routeForSidebarItem(target));

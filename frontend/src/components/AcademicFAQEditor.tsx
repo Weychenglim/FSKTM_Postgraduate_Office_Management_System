@@ -306,6 +306,7 @@ const QuestionsTab: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
   const [adding, setAdding] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null);
+  const [page, setPage] = useState(1);
 
   const load = useCallback(() => {
     setError(null);
@@ -348,8 +349,9 @@ const QuestionsTab: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
       ) : groups.length === 0 ? (
         <EmptyState title="Nothing to look at right now." description="New questions the chatbot can't answer will appear here." />
       ) : (
+        <>
         <ul className="space-y-3">
-          {groups.map(group => (
+          {groups.slice((Math.min(page, Math.ceil(groups.length / QUESTIONS_PAGE_SIZE)) - 1) * QUESTIONS_PAGE_SIZE, Math.min(page, Math.ceil(groups.length / QUESTIONS_PAGE_SIZE)) * QUESTIONS_PAGE_SIZE).map(group => (
             <li key={group.key} className="space-y-3 rounded-2xl border border-slate-200 p-5">
               <div className="space-y-1">
                 <p className="text-[15px] font-bold text-brand-navy [overflow-wrap:anywhere]">"{group.text}"</p>
@@ -376,11 +378,15 @@ const QuestionsTab: React.FC<{ onChanged: () => void }> = ({ onChanged }) => {
             </li>
           ))}
         </ul>
+        <WorkspacePagination page={Math.min(page, Math.ceil(groups.length / QUESTIONS_PAGE_SIZE))} pageCount={Math.ceil(groups.length / QUESTIONS_PAGE_SIZE)} total={groups.length} noun="questions" onPage={setPage} pageSize={QUESTIONS_PAGE_SIZE} />
+        </>
       )}
       <PortalToast message={toast?.message ?? null} tone={toast?.tone ?? 'success'} onClose={() => setToast(null)} />
     </section>
   );
 };
+
+const QUESTIONS_PAGE_SIZE = 10;
 
 const NO_QUESTION = '';
 
@@ -485,6 +491,9 @@ const SettingsTab: React.FC = () => {
                 options={questionOptions(value)}
                 onChange={chosen => setCommon(current => current.map((item, at) => (at === index ? chosen : item)))}
               />
+              {value && !live.includes(value) && (
+                <p className="text-[12px] font-semibold text-amber-700">Not a live answer, so students do not see it. Choose another.</p>
+              )}
             </div>
           ))}
         </div>
@@ -496,6 +505,11 @@ const SettingsTab: React.FC = () => {
             <div>
               <p id={`${ids}-ai`} className="text-[14px] font-bold text-slate-800">Reply with AI</p>
               <p id={`${ids}-ai-use`} className="text-[12px] text-slate-500">Used today: {settings.aiUsedToday} of {settings.aiDailyLimit}</p>
+              {aiOn && settings.aiUsedToday >= settings.aiDailyLimit ? (
+                <p className="text-[12px] font-semibold text-amber-700">Today's AI replies are used up. Students get the search answers until tomorrow.</p>
+              ) : aiOn && settings.aiPaused ? (
+                <p className="text-[12px] font-semibold text-amber-700">Paused for a few minutes because the AI service limited requests. Students get the search answers meanwhile.</p>
+              ) : null}
             </div>
             <ToggleSwitch id={`${ids}-ai-switch`} checked={aiOn} onChange={setAiOn} labelledBy={`${ids}-ai`} describedBy={`${ids}-ai-use`} className="shrink-0 py-0" />
           </div>

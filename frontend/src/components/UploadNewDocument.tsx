@@ -328,6 +328,7 @@ export const UploadNewDocument: React.FC<UploadNewDocumentProps> = ({
                   ref={fileInput}
                   id="document-file"
                   type="file"
+                  aria-label="Choose a file"
                   className="sr-only"
                   accept={acceptAttribute(kinds.length ? kinds : fallbackKinds)}
                   onChange={event => chooseFile(event.target.files?.[0] ?? null)}

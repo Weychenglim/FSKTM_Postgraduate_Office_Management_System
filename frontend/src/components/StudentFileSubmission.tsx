@@ -280,6 +280,7 @@ export const StudentFileSubmission: React.FC = () => {
       <input
         ref={picker}
         type="file"
+        aria-label="Choose a file to send"
         className="sr-only"
         tabIndex={-1}
         aria-hidden="true"

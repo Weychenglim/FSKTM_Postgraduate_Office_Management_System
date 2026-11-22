@@ -135,7 +135,7 @@ const TopHeaderContent: React.FC<TopHeaderProps> = ({
                     <button
                       type="button"
                       disabled={unreadCount === 0}
-                      onClick={() => void markAllRead().catch(error => publish(error instanceof Error ? error.message : 'Unable to update notification read state.', 'danger'))}
+                      onClick={() => void markAllRead().then(() => publish('All notifications are marked as read.', 'success')).catch(error => publish(error instanceof Error ? error.message : 'Unable to update notification read state.', 'danger'))}
                       className="text-[10px] font-bold text-blue-600 hover:text-blue-800 disabled:text-slate-300 disabled:cursor-default cursor-pointer"
                     >
                       Mark all as read
@@ -223,18 +223,15 @@ const TopHeaderContent: React.FC<TopHeaderProps> = ({
                     <span className="card-caption text-slate-400 block">{userRole}</span>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setDropdownOpen(false);
-                      // Students get their profile and linked records page; staff
-                      // details live on the Settings page.
-                      navigate(userRole === 'Student' ? APP_ROUTES.myProfile : APP_ROUTES.settings);
-                    }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-brand-navy hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
-                  >
-                    <User className="w-4 h-4 text-slate-400" />
-                    <span>My Profile</span>
-                  </button>
+                  {userRole === 'Student' && (
+                    <button
+                      onClick={() => { setDropdownOpen(false); navigate(APP_ROUTES.myProfile); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-slate-600 hover:text-brand-navy hover:bg-slate-50 rounded-xl text-xs font-bold transition-all text-left cursor-pointer"
+                    >
+                      <User className="w-4 h-4 text-slate-400" />
+                      <span>My Profile</span>
+                    </button>
+                  )}
 
                   <button
                     onClick={() => { setDropdownOpen(false); navigate(APP_ROUTES.settings); }}

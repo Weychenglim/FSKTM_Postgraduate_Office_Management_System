@@ -44,6 +44,7 @@ def version_dict(version):
         "size": version.size,
         "pageCount": version.page_count,
         "uploadedAt": version.uploaded_at.isoformat(),
+        "note": version.note,
     }
 
 

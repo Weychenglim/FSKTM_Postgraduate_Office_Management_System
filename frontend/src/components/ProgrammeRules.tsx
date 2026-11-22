@@ -144,7 +144,7 @@ export const ProgrammeRules: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Student Registry" subtitle="How long each programme takes." />
+      <PageHeader title="Programmes" subtitle="How long each programme takes." />
       <RegistryModuleTabs active="programmes" />
       {error ? (
         <ErrorState message={error} onRetry={() => setReload(value => value + 1)} />

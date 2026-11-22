@@ -59,9 +59,9 @@ const STATUS_TONE: Record<GeneratedLetterStatus, BadgeTone> = {
   Revoked: 'danger',
 };
 
-export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus; replaced?: boolean }> = ({ status, replaced = false }) => (
+export const LetterStatusBadge: React.FC<{ status: GeneratedLetterStatus; replaced?: boolean; issued?: boolean }> = ({ status, replaced = false, issued = false }) => (
   <StatusBadge tone={replaced ? 'neutral' : STATUS_TONE[status] ?? 'neutral'} className="px-2 py-0.5 rounded-md">
-    {replaced ? 'Replaced' : LETTER_STATUS_LABEL[status] ?? status}
+    {replaced ? 'Replaced' : issued && status === 'Issued' ? 'Issued' : LETTER_STATUS_LABEL[status] ?? status}
   </StatusBadge>
 );
 
@@ -161,7 +161,7 @@ export const LetterView: React.FC<{ letter: GeneratedLetter; onClose: () => void
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
+          <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} issued />
           <button
             type="button"
             onClick={onClose}
@@ -242,7 +242,7 @@ export function requestSteps(letter: GeneratedLetter, readyInDays?: number | nul
       approved,
       letter.replacedById
         ? { id: 'ready', label: 'Replaced by a newer copy', state: 'cancelled', actorName: OFFICE, occurredAt: letter.revokedAt ?? undefined, description: `${letter.revokeReason || 'A newer copy replaced it.'} It is no longer valid.` }
-        : { id: 'ready', label: 'Revoked by the office', state: 'rejected', actorName: OFFICE, occurredAt: letter.revokedAt ?? undefined, reason: letter.revokeReason || undefined },
+        : { id: 'ready', label: 'Revoked by the office', state: 'cancelled', actorName: OFFICE, occurredAt: letter.revokedAt ?? undefined, reason: letter.revokeReason || undefined },
     ];
   }
   return [sent, approved, { id: 'ready', label: 'Ready to view and download', state: 'completed', showRecordedDetails: false, description: `Reference ${letter.referenceNumber}.` }];
@@ -261,6 +261,7 @@ interface StudentLetterRequestsProps {
   onLetterChange?: (letter: GeneratedLetter) => void;
   /** Ask for the same letter again, starting from this request's answers. */
   onRequestAgain?: (letter: GeneratedLetter) => void;
+  canRequestAgain?: (letter: GeneratedLetter) => boolean;
   /** How many working days each letter type usually takes, by template id. */
   readyInDays?: Record<string, number | null | undefined>;
 }
@@ -274,6 +275,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
   onMessage,
   onLetterChange,
   onRequestAgain,
+  canRequestAgain,
   readyInDays = {},
 }) => {
   const { viewLetter, printLetter, downloadPdf, isBusy, viewing, closeView } = useLetterOutput(onMessage);
@@ -386,7 +388,7 @@ export const StudentLetterRequests: React.FC<StudentLetterRequestsProps> = ({
                             <PortalButton size="sm" icon={FileDown} isLoading={isBusy(letter, 'pdf')} onClick={() => void downloadPdf(letter)}>PDF</PortalButton>
                           </>
                         )}
-                        {!automatic && letter.status !== 'Pending' && onRequestAgain && (
+                        {!automatic && letter.status !== 'Pending' && onRequestAgain && (canRequestAgain ? canRequestAgain(letter) : true) && (
                           <PortalButton size="sm" variant={left !== null && left <= EXPIRY_WARNING_DAYS ? 'primary' : 'secondary'} icon={RotateCcw} onClick={() => onRequestAgain(letter)}>
                             Request again
                           </PortalButton>
@@ -632,7 +634,7 @@ export const IssuedLettersRegister: React.FC<IssuedLettersRegisterProps> = ({ on
                     </td>
                     <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
                       <span className="card-label mb-1 block lg:hidden">Status</span>
-                      <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} />
+                      <LetterStatusBadge status={letter.status} replaced={Boolean(letter.replacedById)} issued />
                       {letter.status === 'Revoked' && letter.revokeReason && (
                         <p className={`card-caption mt-1 line-clamp-2 ${letter.replacedById ? '' : 'text-rose-700'}`}>
                           {letter.replacedById ? letter.revokeReason : `Reason: ${letter.revokeReason}`}
