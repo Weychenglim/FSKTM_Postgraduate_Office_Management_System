@@ -25,6 +25,7 @@ import {PeriodCalendarConnection,type PeriodCalendarStatus} from './PeriodCalend
 import {marksConfigurationRoute,programmeWindowCoverage} from '../utils/periodPresentation';
 import {PortalSelect} from './PortalSelect';
 import {DecisionDialog} from './DecisionDialog';
+import {DateTimeField} from './DateFields';
 import {DraftNavigationGuard} from './DraftNavigationGuard';
 import {RecordPage} from './RecordPage';
 import {SubmissionWindowDialog} from './SubmissionWindowDialog';
@@ -428,7 +429,9 @@ function OperationalPeriodManagementContent({semesterId,semesterLifecycle,entrie
           </div>
         </div>
       </section>:null}
-      <label className="form-label block">{extension?.target.kind==='event'?'New deadline (complete Malaysia day)':'New deadline (Malaysia time)'}<input type={extension?.target.kind==='event'?'date':'datetime-local'} className="form-control form-control-md mt-1" required value={deadline} onChange={event=>setDeadline(event.target.value)}/></label>
+      {extension?.target.kind==='event'
+        ?<label className="form-label block">New deadline (complete Malaysia day)<input type="date" className="form-control form-control-md mt-1" required value={deadline} onChange={event=>setDeadline(event.target.value)}/></label>
+        :<div><label htmlFor="extension-deadline" className="form-label block">New deadline (Malaysia time)</label><DateTimeField id="extension-deadline" label="New deadline" required value={deadline} onChange={setDeadline}/></div>}
       <label className="form-label block">Reason<textarea className="form-control form-control-md mt-1" rows={3} required value={reason} onChange={event=>setReason(event.target.value)}/></label>
     </DecisionDialog>
   </>;

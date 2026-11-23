@@ -103,12 +103,30 @@ export function timeLabel(value: string): string {
   return `${hour}:${pad(time.minute)} ${time.hour < 12 ? 'AM' : 'PM'}`;
 }
 
-/** Every ``step`` minutes through the day, then 11:59 PM for end-of-day deadlines. The current value is kept if it falls between steps. */
-export function timeOptions(step = 15, current = ''): Array<{ value: string; label: string }> {
-  const values = new Set<string>();
-  for (let minutes = 0; minutes < 24 * 60; minutes += step) values.add(`${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`);
-  values.add('23:59');
-  const kept = parseTime(current);
-  if (kept) values.add(`${pad(kept.hour)}:${pad(kept.minute)}`);
-  return Array.from(values).sort().map(value => ({ value, label: timeLabel(value) }));
+/** "HH:MM", or '' when the value is not a time. */
+export function normalTime(value: string): string {
+  const time = parseTime(value);
+  return time ? `${pad(time.hour)}:${pad(time.minute)}` : '';
+}
+
+/** A 24-hour "HH:MM" split the way the wheels show it: hour 1-12, minute, AM or PM. */
+export function toClock(value: string): { hour: number; minute: number; pm: boolean } | null {
+  const time = parseTime(value);
+  return time ? { hour: time.hour % 12 || 12, minute: time.minute, pm: time.hour >= 12 } : null;
+}
+
+export function fromClock({ hour, minute, pm }: { hour: number; minute: number; pm: boolean }): string {
+  return `${pad((hour % 12) + (pm ? 12 : 0))}:${pad(minute)}`;
+}
+
+/**
+ * Typing on a wheel: "1" then "2" gives 12, "0" then "9" gives 9. ``complete``
+ * is true once no further digit could follow, so focus can move on.
+ */
+export function typedNumber(previous: string, digit: string, allowed: number[]): { typed: string; value: number | null; complete: boolean } {
+  const largest = Math.max(...allowed);
+  for (const typed of [`${previous}${digit}`.slice(-2), digit]) {
+    if (allowed.includes(Number(typed))) return { typed, value: Number(typed), complete: typed.length === 2 || Number(typed) * 10 > largest };
+  }
+  return { typed: digit, value: null, complete: false };
 }

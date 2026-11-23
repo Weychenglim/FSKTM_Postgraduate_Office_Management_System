@@ -72,6 +72,7 @@ import {clearFeedbackFields,focusFeedback,readFormFeedback,type FormFeedbackStat
 import {DraftNavigationGuard} from './DraftNavigationGuard';
 import {DecisionFeedbackProvider, useDecisionFeedback} from './DecisionFeedback';
 import {MarkEntryPeriodList} from './MarkEntryPeriodList';
+import {DateTimeField} from './DateFields';
 
 interface MarkEntryPeriodConfigProps {
   onBack: () => void;
@@ -122,10 +123,10 @@ const periodToForm = (period: EvaluationPeriodOption): PeriodForm => ({
 export function MarksPeriodDeadlineControls({value,onChange,editable,error}: {
   value:string;onChange:(value:string)=>void;editable:boolean;onManageTimeline?:()=>void;error?:string;
 }) {
-  return <div className="space-y-3"><label className="form-label block">Closes at (Malaysia, UTC+08:00)
-    <input id="marks-period-closesAt" aria-invalid={!!error} aria-describedby={error?'marks-period-closesAt-error':undefined} required type="datetime-local" disabled={!editable} value={value} onChange={event=>onChange(event.target.value)} className="form-control form-control-md mt-2 w-full disabled:bg-slate-100"/>
+  return <div className="space-y-3"><div><label htmlFor="marks-period-closesAt" className="form-label block">Closes at (Malaysia, UTC+08:00)</label>
+    <DateTimeField id="marks-period-closesAt" label="Closes at" required invalid={!!error} describedBy={error?'marks-period-closesAt-error':undefined} disabled={!editable} value={value} onChange={onChange}/>
     <FieldError id="marks-period-closesAt-error" message={error}/>
-  </label></div>;
+  </div></div>;
 }
 
 const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
@@ -814,19 +815,20 @@ const MarkEntryPeriodContent: React.FC<MarkEntryPeriodConfigProps> = ({
               </div>
               </section>
               <section aria-labelledby="period-schedule-heading" className="period-config-section"><h3 id="period-schedule-heading" className="section-label mb-2">Schedule</h3><p className="card-description mb-5">Malaysia time (UTC+08:00).</p><div className="period-config-dates">
-                <label className="form-label block">
-                  Opens at (Malaysia, UTC+08:00)
-                  <input
+                <div>
+                  <label htmlFor={PERIOD_FIELDS.opensAt.id} className="form-label block">Opens at (Malaysia, UTC+08:00)</label>
+                  <DateTimeField
+                    id={PERIOD_FIELDS.opensAt.id}
+                    label="Opens at"
                     required
-                    {...fieldProps('opensAt')}
-                    type="datetime-local"
+                    invalid={!!formFeedback?.fields.opensAt}
+                    describedBy={formFeedback?.fields.opensAt ? `${PERIOD_FIELDS.opensAt.id}-error` : undefined}
                     disabled={!draftEditable}
                     value={form.opensAt}
-                    onChange={(event) => updateForm((current) => ({ ...current, opensAt: event.target.value }))}
-                    className="form-control form-control-md mt-2 w-full disabled:bg-slate-100"
+                    onChange={(value) => updateForm((current) => ({ ...current, opensAt: value }))}
                   />
                   {fieldError('opensAt')}
-                </label>
+                </div>
                 <MarksPeriodDeadlineControls error={formFeedback?.fields.closesAt} value={form.closesAt} editable={draftEditable} onChange={value=>updateForm(current=>({...current,closesAt:value}))} onManageTimeline={onManageTimeline?()=>onManageTimeline(selected??undefined):undefined}/>
               </div>
 
