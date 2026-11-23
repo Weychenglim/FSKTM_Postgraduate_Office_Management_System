@@ -1,3 +1,19 @@
+## Time picker with wheels (23 November 2026)
+
+Wey Cheng found the 15-minute time list slow. The time picker now works like a phone clock in every module. Only the time picker changed.
+
+- **Look:** the time box opens a small panel with three wheels: hour, minute, and AM or PM. The chosen time sits in a grey band in the middle and the numbers around it fade out. Every minute can be chosen. Four quick times sit below (9:00 AM, 12:00 PM, 5:00 PM, 11:59 PM), then DONE.
+- **Use:** scroll a wheel, click a number, or type. "5 3 0 p" gives 5:30 PM. Arrow keys move a wheel; Enter, DONE or Escape closes. The time is saved as soon as a wheel stops. The value is still "HH:MM", so callers and the API are unchanged (`components/DateFields.tsx`, `utils/dateFields.ts`).
+- **Wey Cheng's screens, for his review:**
+  - Time in `SubmissionScheduleField`.
+  - Opens at and Closes at in `MarkEntryPeriodConfig`, Deadline in `MarksCompletionWindows`, and New deadline in the `OperationalPeriodManagement` extension dialog. These used the browser's date-and-time box, so they now use `DateTimeField`: the portal date picker plus the new time wheels. The date-only event extension is unchanged.
+- **His tests:** `MarksDeadlineEntryPoint.test.tsx` and five browser fixtures (marksFeedback, marksSafeguards, moduleFeedback, periodsWorkspace, phaseOneDrafts) now choose dates and times through the pickers, using `tests/pickerControls.ts`.
+- **Checks:**
+  - TypeScript and the production build pass. Of 256 frontend test files, only `DashboardActionCentre.test.ts` fails, as on `main`.
+  - Real browser at 1280 and 390 px: 41 of 41 passed, covering typing, scrolling, clicking a number, arrow keys, the quick times, closing, and the panel fitting the screen.
+  - Wey Cheng's browser suites: marksFeedback, marksPeriodDrafts, marksSafeguards, moduleFeedback, periodHistory and phaseOneDrafts pass. periodsWorkspace keeps the same 3 failures as `main` (Marks semester context), and marksVisualPolish fails the same checks as on `main`.
+  - marksVisualPolish saves its screenshots over the tracked files in `output/`. Restore them with `git checkout -- output/` after running it.
+
 ## Coordinator accounts and portal consistency (22 November 2026)
 
 Two pieces of work on branch `Xiang-coordinator-consistency`. Wey Cheng's handoff, with his part and what to check in his modules, is `docs/HANDOFF_CONSISTENCY_AND_COORDINATOR_ACCOUNTS_2026-11-22.md`. The plan is `COORDINATOR_ACCOUNTS_AND_CONSISTENCY_PLAN_2026-11-22.md` (outside the repo).

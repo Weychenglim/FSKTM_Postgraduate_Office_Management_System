@@ -7,8 +7,9 @@ assert.equal(typeof config.MarksPeriodDeadlineControls,'function','Period deadli
 assert.equal(typeof assignment.MarksTaskDeadlineEntryPoint,'function','Task extra time must route to Periods & deadlines');
 const base={value:'2026-10-20T12:00',onChange:()=>{},onManageTimeline:()=>{}};
 const published=renderToStaticMarkup(<config.MarksPeriodDeadlineControls {...base} editable={false}/>);
-assert.match(published,/type="datetime-local" disabled=""/);
-assert.doesNotMatch(published,/<button|Manage deadlines in Periods &amp; deadlines/);
+assert.match(published,/aria-label="Closes at, date"[^>]*disabled=""/);
+assert.match(published,/aria-label="Closes at, time"[^>]*disabled=""/);
+assert.doesNotMatch(published,/Manage deadlines in Periods &amp; deadlines/);
 const draft=renderToStaticMarkup(<config.MarksPeriodDeadlineControls {...base} editable/>);
 assert.doesNotMatch(draft,/disabled=""|Manage deadlines in Periods &amp; deadlines/);
 const central=renderToStaticMarkup(<assignment.MarksTaskDeadlineEntryPoint tasks={[]} onChanged={async()=>{}} onManageTimeline={()=>{}}/>);

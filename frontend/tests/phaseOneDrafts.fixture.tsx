@@ -1,4 +1,5 @@
 import React from 'react';
+import {dateTimeValue,pickDateTime} from './pickerControls';
 import {createRoot, type Root} from 'react-dom/client';
 import {createMemoryRouter, RouterProvider} from 'react-router';
 import {EvaluationTaskAssignment} from '../src/components/EvaluationTaskAssignment';
@@ -73,8 +74,8 @@ await scenario('untouched selected-only deadline scope closes cleanly but edited
 });
 await scenario('deadline and scope edits become clean again when restored to their initialized values',async()=>{
   await mount(<OperationalPeriodManagement semesterId={9} semesterLifecycle="ACTIVE" entries={[]} onTimelineRefresh={()=>{}}/>);await until(()=>button('View Marks evaluations'));await click('View Marks evaluations');await click('Manage window');await click('Extend deadline');await until(()=>document.querySelector('dialog[open]'));
-  const date=document.querySelector<HTMLInputElement>('dialog input[type="datetime-local"]')!, original=date.value;
-  await enter(date,'2026-11-01T17:00');await click('Cancel',document.querySelector('dialog[open]')!);await until(()=>button('Keep editing'));await click('Keep editing');await enter(date,original);
+  const original=dateTimeValue('New deadline');
+  await pickDateTime('New deadline','2026-11-01T17:00');await click('Cancel',document.querySelector('dialog[open]')!);await until(()=>button('Keep editing'));await click('Keep editing');await pickDateTime('New deadline',original);
   await select('Apply to','selected');await click('Cancel',document.querySelector('dialog[open]')!);await until(()=>button('Keep editing'));await click('Keep editing');document.querySelector<HTMLInputElement>('dialog input[type="checkbox"]')!.click();await pause();await select('Apply to','everyone');
   await click('Cancel',document.querySelector('dialog[open]')!);check(!document.querySelector('dialog[open]')&&writes.length===0,'Restored scope/deadline still counted dirty');
 });
