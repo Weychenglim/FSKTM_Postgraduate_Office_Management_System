@@ -86,7 +86,7 @@ const ReasonDialog: React.FC<{
       </>}
     >
       {note && <p className="text-[13.5px] text-slate-700">{note}</p>}
-      <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+      <label className="flex flex-col gap-1.5 form-label mb-0">
         Reason (required)
         <textarea className="form-control min-h-20 px-3 py-2 text-[13.5px] font-medium" maxLength={1000} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} />
       </label>

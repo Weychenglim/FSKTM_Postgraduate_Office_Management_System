@@ -118,7 +118,7 @@ export const ProjectStageQuestion: React.FC<{
       >
         <p className="text-[13.5px] text-slate-600">Your programme coordinator will check your MAYA registration and update this record if needed. You can send one request each semester.</p>
         <div className="space-y-1.5">
-          <label htmlFor={`${titleId}-note`} className="block text-[13px] font-bold text-slate-700">Reason (optional)</label>
+          <label htmlFor={`${titleId}-note`} className="block form-label mb-0">Reason (optional)</label>
           <textarea id={`${titleId}-note`} className="form-control min-h-20 px-3.5 py-3 text-[14px]" maxLength={300} value={note} disabled={sending} onChange={event => setNote(event.target.value)} />
         </div>
         {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}

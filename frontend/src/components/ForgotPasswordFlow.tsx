@@ -173,7 +173,7 @@ export const ForgotPasswordFlow: React.FC<ForgotPasswordFlowProps> = ({ onBackTo
                 <form onSubmit={handlePostRequest} className="w-full text-left">
                   <FormInput
                     id="forgot-email"
-                    label="Email Address"
+                    label="Email address"
                     type="email"
                     icon={Mail}
                     placeholder="your.email@um.edu.my"

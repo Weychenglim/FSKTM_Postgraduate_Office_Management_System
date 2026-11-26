@@ -193,29 +193,29 @@ export const StudentSemestersCard: React.FC<{ matric: string; readOnly: boolean;
       >
         {dialog?.kind === 'add' && (
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+            <label className="flex flex-col gap-1.5 form-label mb-0">
               Session
               <input className="form-control form-control-md" value={session} disabled={busy} maxLength={9} placeholder="2026/2027" onChange={event => setSession(event.target.value)} />
             </label>
-            <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+            <label className="flex flex-col gap-1.5 form-label mb-0">
               Semester
               <SelectMenu<SemesterTerm> value={term} options={TERM_OPTIONS} onChange={setTerm} disabled={busy} aria-label="Semester" />
             </label>
           </div>
         )}
         {dialog?.kind !== 'extension' && dialog !== null && (
-          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+          <label className="flex flex-col gap-1.5 form-label mb-0">
             What happened that semester
             <SelectMenu<SemesterOutcome> value={outcome} options={OUTCOMES} onChange={setOutcome} disabled={busy} aria-label="What happened that semester" />
           </label>
         )}
         {dialog?.kind === 'extension' && (
           <>
-            <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+            <label className="flex flex-col gap-1.5 form-label mb-0">
               Extra semesters
               <input className="form-control form-control-md" type="number" min={0} max={3} value={extension} disabled={busy} onChange={event => setExtension(event.target.value)} />
             </label>
-            <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+            <label className="flex flex-col gap-1.5 form-label mb-0">
               Reason
               <input className="form-control form-control-md" value={reason} disabled={busy} maxLength={255} placeholder="Dean's approval, 12 March 2027" onChange={event => setReason(event.target.value)} />
             </label>

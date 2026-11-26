@@ -36,7 +36,7 @@ type Audience = 'students' | 'staff';
 const Field: React.FC<{ label: string; htmlFor?: string; children: React.ReactNode }> = ({ label, htmlFor, children }) => (
   <div className="space-y-2.5">
     {htmlFor ? (
-      <label htmlFor={htmlFor} className="block text-[14px] font-bold text-brand-navy">{label}</label>
+      <label htmlFor={htmlFor} className="block form-label mb-0">{label}</label>
     ) : (
       <p className="text-[14px] font-bold text-brand-navy">{label}</p>
     )}

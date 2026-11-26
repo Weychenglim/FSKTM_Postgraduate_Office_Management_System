@@ -20,12 +20,12 @@ export const FORM_ROW = 'grid gap-1.5 sm:grid-cols-[10rem_minmax(0,1fr)] lg:grid
 // The office's preview sits in half a page, so its hints go under the field.
 const COMPACT_ROW = 'grid gap-1.5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-x-4 sm:items-start';
 const Compact = createContext(false);
-const LABEL = 'text-[13px] font-semibold text-slate-700 sm:text-right sm:pt-3';
+const LABEL = 'form-label mb-0 sm:text-right sm:pt-3';
 const TYPE_IT = '__type_it__';
 
 const ADDRESS_ROWS: ReadonlyArray<{ field: keyof LetterRequestDetails; label: string; hint: string; missing?: string; narrow?: boolean }> = [
-  { field: 'addressLine1', label: 'Address Line 1', hint: 'Enter recipient address', missing: 'Enter the address.' },
-  { field: 'addressLine2', label: 'Address Line 2', hint: 'Enter recipient address' },
+  { field: 'addressLine1', label: 'Address line 1', hint: 'Enter recipient address', missing: 'Enter the address.' },
+  { field: 'addressLine2', label: 'Address line 2', hint: 'Enter recipient address' },
   { field: 'postcode', label: 'Postcode', hint: 'Enter recipient postcode', missing: 'Enter the postcode.', narrow: true },
   { field: 'city', label: 'City', hint: 'Enter recipient city', missing: 'Enter the city.' },
 ];
@@ -360,7 +360,7 @@ export const LetterFormFields: React.FC<LetterFormFieldsProps> = ({
         />
       </FormRow>
       {questions.map(questionRow)}
-      <FormRow label="Application Date">
+      <FormRow label="Application date">
         <p className="text-[13px] font-medium text-slate-700 sm:pt-3">{applicationDate}</p>
       </FormRow>
     </Compact.Provider>

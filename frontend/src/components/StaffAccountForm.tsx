@@ -44,7 +44,7 @@ export const Field: React.FC<{
   const holder = existingAccountPath(existing, APP_ROUTES.registryStaff);
   return (
     <div className={`space-y-1.5 ${className}`}>
-      <label htmlFor={id} className="block text-[13px] font-bold text-slate-700">{label}</label>
+      <label htmlFor={id} className="block form-label mb-0">{label}</label>
       {children}
       {hint && !problem && <p id={`${id}-hint`} className="text-[12px] text-slate-500">{hint}</p>}
       {problem && (

@@ -135,8 +135,8 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
           {profile?.status && <StatusBadge tone={profile.status === 'Active' ? 'success' : 'warning'}>{profile.status}</StatusBadge>}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-          <ProfileField label="Full Name" value={currentUser.fullName} />
-          <ProfileField label="Matric Number" value={currentUser.studentId} />
+          <ProfileField label="Full name" value={currentUser.fullName} />
+          <ProfileField label="Matric number" value={currentUser.studentId} />
           <ProfileField label="Email" value={currentUser.email} />
           <ProfileField
             label="Phone"
@@ -151,7 +151,7 @@ export const StudentMyRecords: React.FC<StudentMyRecordsProps> = ({ currentUser,
           />
           <ProfileField label="Programme" value={profile?.programme || currentUser.department} />
           <ProfileField label="Intake" value={displaySemester(profile?.intakeSemester)} />
-          <ProfileField label="Research Title" value={profile?.research?.title} />
+          <ProfileField label="Research title" value={profile?.research?.title} />
           <ProfileField label="Supervisor" value={profile?.research?.supervisor} />
         </div>
         <p className="text-[12px] font-semibold text-slate-500">

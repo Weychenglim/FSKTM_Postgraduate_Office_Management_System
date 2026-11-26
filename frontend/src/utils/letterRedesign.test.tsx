@@ -64,10 +64,10 @@ const html = renderToStaticMarkup(
     onAnswer={() => undefined}
   />,
 );
-for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'State', 'Country', 'Optional study details', 'Travel date', 'Which embassy?', 'Travelling with family?', 'Application Date']) {
+for (const label of ['Programme', 'Purpose', 'Recipient', 'Address line 1', 'State', 'Country', 'Optional study details', 'Travel date', 'Which embassy?', 'Travelling with family?', 'Application date']) {
   assert.ok(html.includes(label), `the form shows ${label}`);
 }
-assert.ok(html.indexOf('Purpose') < html.indexOf('Travel date') && html.indexOf('Travel date') < html.indexOf('Application Date'), 'rows follow the question order');
+assert.ok(html.indexOf('Purpose') < html.indexOf('Travel date') && html.indexOf('Travel date') < html.indexOf('Application date'), 'rows follow the question order');
 assert.match(html, /type="date"/);
 assert.equal((html.match(/aria-required="true"/g) ?? []).length, 5, 'every address line but the second is required, with the state and country');
 const preview = renderToStaticMarkup(
@@ -77,7 +77,7 @@ assert.ok((preview.match(/disabled=""/g) ?? []).length >= 5, 'nothing can be typ
 const noAddress = renderToStaticMarkup(
   <LetterFormFields questions={[{ ...questions[0], askAddress: false } as LetterFormQuestion]} programme="" applicationDate="" details={EMPTY_REQUEST_DETAILS} onDetails={() => undefined} answers={{}} onAnswer={() => undefined} />,
 );
-assert.ok(!noAddress.includes('Address Line 1'), 'a letter can skip the address rows');
+assert.ok(!noAddress.includes('Address line 1'), 'a letter can skip the address rows');
 
 // new questions get a free tag name
 const blank = newQuestion('date', 'Travel date', ['TRAVEL_DATE']);

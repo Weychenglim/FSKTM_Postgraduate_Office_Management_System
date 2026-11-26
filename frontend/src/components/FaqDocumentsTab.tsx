@@ -66,7 +66,7 @@ const RenameDialog: React.FC<{ document: FaqDocumentSummary | null; onClose: () 
         <PortalButton variant="primary" isLoading={busy} disabled={!title.trim()} onClick={() => void save()}>Save</PortalButton>
       </>}
     >
-      <label htmlFor={inputId} className="block text-[13px] font-bold text-slate-700">Title</label>
+      <label htmlFor={inputId} className="block form-label mb-0">Title</label>
       <input id={inputId} className="form-control form-control-md text-[14px]" maxLength={200} value={title} onChange={event => setTitle(event.target.value)} />
       <p className="text-[12px] text-slate-500">Students see it as "From {title || 'this title'}".</p>
       {problem && <p role="alert" className="text-[13px] font-semibold text-rose-700">{problem}</p>}

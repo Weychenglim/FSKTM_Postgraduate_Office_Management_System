@@ -2,16 +2,12 @@
 @layer components {
 .marks-workspace :is(h2, h3).section-label,
 .marks-workspace :is(h2, h3).section-heading { font-size: 1rem; font-weight: 600; line-height: 1.5; }
-.marks-workspace .card-value,
-.marks-workspace .form-label:not([data-workspace-filter-card] *) { font-weight: 600; }
+.marks-workspace .card-value { font-weight: 600; }
 .marks-workspace .card-description { line-height: 1.65; }
 .marks-workspace .data-th { text-transform: none; letter-spacing: normal; font-weight: 600; }
 .marks-workspace #monitoring-card .data-th { font-size: .75rem; }
-.marks-workspace .form-label:not([data-workspace-filter-card] *) { font-size: .75rem; font-weight: 600; line-height: 1.5; text-transform: none; letter-spacing: normal; }
-.marks-workspace .form-label:not([data-workspace-filter-card] *) { color: #475569; }
 .marks-workspace .form-control:not([data-workspace-filter-card] *) { padding: .625rem .75rem; font-size: .875rem; font-weight: 500; line-height: 1.5; }
 .marks-workspace :is(input, button).form-control:not([data-workspace-filter-card] *) { min-height: 42px; }
-.marks-workspace .period-config-editor .form-label { font-size: .875rem; }
 @media (max-width: 40rem) {
   .marks-workspace :is(input, textarea).form-control:not([data-workspace-filter-card] *) { font-size: 1rem; }
 }

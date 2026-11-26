@@ -254,7 +254,7 @@ export const SupervisorRequestHistory: React.FC<SupervisorRequestHistoryProps> =
           {/* Date Picker Range Box */}
           <div className="md:col-span-1.5 space-y-1.5 text-left font-sans col-span-2">
             <label className="form-label block">
-              Date Range
+              Date range
             </label>
             <div className="relative">
               <input

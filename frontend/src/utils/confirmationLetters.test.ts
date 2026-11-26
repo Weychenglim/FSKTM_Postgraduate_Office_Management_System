@@ -92,7 +92,7 @@ assert.match(form, /Letter Details Application Form/);
 assert.match(form, /Required information/);
 assert.match(form, /'Letter details', 'Check and send'/, 'two steps, ending with a check');
 assert.match(form, /getLetterForm\(template\.id\)/, 'the questions come from the letter type');
-for (const label of ['Programme', 'Purpose', 'Recipient', 'Address Line 1', 'Address Line 2', 'Postcode', 'City', 'State', 'Country', 'Application Date', 'Optional study details']) {
+for (const label of ['Programme', 'Purpose', 'Recipient', 'Address line 1', 'Address line 2', 'Postcode', 'City', 'State', 'Country', 'Application date', 'Optional study details']) {
   assert.ok(fields.includes(`'${label}'`) || fields.includes(`"${label}"`), `the form has ${label}`);
 }
 assert.match(form, /requestLetter\(\s*template\.id,\s*note\.trim\(\),\s*recipientQuestion \? details : undefined,/);

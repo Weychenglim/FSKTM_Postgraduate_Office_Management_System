@@ -121,9 +121,9 @@ await scenario('decision typography is consistent and isolated, with wrapping at
   await mount();
   const label = getComputedStyle(reason().parentElement!);
   const control = getComputedStyle(reason());
-  check(label.fontSize === '12px' && label.fontWeight === '600' && label.textTransform === 'none', 'Decision label must be 12px semibold sentence case');
+  check(label.fontSize === '14px' && label.fontWeight === '600' && label.textTransform === 'none', 'Decision label must use the shared 14px semibold sentence case label');
   check(control.fontSize === '12px' && control.fontWeight === '400', 'Entered reason must be 12px regular');
-  check(getComputedStyle(document.getElementById('outside-label')!).textTransform === 'uppercase', 'Decision styling leaked into unrelated forms');
+  const outside = getComputedStyle(document.getElementById('outside-label')!);check(outside.fontSize === label.fontSize && outside.fontWeight === label.fontWeight && outside.textTransform === label.textTransform, 'Decision labels differ from other form labels');
   const bounds = dialog().getBoundingClientRect();
   check(bounds.left >= 0 && bounds.right <= innerWidth, 'Dialog exceeds the viewport');
   check(dialog().scrollWidth <= dialog().clientWidth, 'Dialog content overflows horizontally');

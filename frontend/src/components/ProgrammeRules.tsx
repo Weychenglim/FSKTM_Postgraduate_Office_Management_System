@@ -210,11 +210,11 @@ export const ProgrammeRules: React.FC = () => {
           </div>
         )}
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+          <label className="flex flex-col gap-1.5 form-label mb-0">
             Minimum semesters
             <input className="form-control form-control-md" type="number" min={1} max={20} value={minimum} disabled={busy} onChange={event => setMinimum(event.target.value)} />
           </label>
-          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+          <label className="flex flex-col gap-1.5 form-label mb-0">
             Maximum semesters
             <input className="form-control form-control-md" type="number" min={1} max={20} value={maximum} disabled={busy} onChange={event => setMaximum(event.target.value)} />
           </label>
@@ -224,11 +224,11 @@ export const ProgrammeRules: React.FC = () => {
           Include Special Semesters in the minimum
         </label>
         <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+          <label className="flex flex-col gap-1.5 form-label mb-0">
             Research Project code
             <input className="form-control form-control-md uppercase" maxLength={16} value={courseCode} placeholder="WQD7025" disabled={busy} onChange={event => setCourseCode(event.target.value)} />
           </label>
-          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+          <label className="flex flex-col gap-1.5 form-label mb-0">
             Course name
             <input className="form-control form-control-md" maxLength={120} value={courseName} disabled={busy} onChange={event => setCourseName(event.target.value)} />
           </label>

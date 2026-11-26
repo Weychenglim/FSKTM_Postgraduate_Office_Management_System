@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -64,7 +64,7 @@ export const FilterCard: React.FC<FilterCardProps> = ({
         {/* Evaluation Stage Filter */}
         <div className="flex flex-col">
           <label className="form-label block label-evaluation-stage">
-            Evaluation Stage
+            Evaluation stage
           </label>
           <div className="relative">
             <PortalSelect
