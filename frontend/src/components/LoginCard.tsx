@@ -144,7 +144,7 @@ export const LoginCard: React.FC<LoginCardProps> = ({ onForgotPasswordClick, onL
           <form id="submission-form" onSubmit={handleLoginSubmit} className="w-full flex flex-col">
             <FormInput
               id="email-or-username"
-              label="Email or Staff / Student ID"
+              label="Email or staff / student ID"
               icon={User}
               placeholder="Student/staff ID or UM email"
               value={identifier}

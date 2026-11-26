@@ -183,7 +183,7 @@ try {
       assert(!!filterPanel, 'task filters reuse the portal workspace filter panel');
       assert(parseFloat(getComputedStyle(filterPanel).paddingTop) === (innerWidth >= 640 ? 20 : 12), 'task panel matches appointment desktop/mobile padding');
       assert(parseFloat(getComputedStyle(filterPanel.querySelector('button[aria-label="Evaluator role"]')!).fontSize) === 12, 'task filter values use the shared 12px font');
-      assert(parseFloat(getComputedStyle(filterPanel.querySelector('label')!).fontSize) === 10, 'task filter labels use the shared 10px font');
+      assert(parseFloat(getComputedStyle(filterPanel.querySelector('label')!).fontSize) === 14, 'task filter labels use the shared 14px label');
       assert(!!filterPanel.querySelector('button[aria-label="Evaluator role"]') && !!filterPanel.querySelector('button[aria-label="Task status"]'), 'task filters have labelled role and status fields');
       assert(!results.querySelector('[aria-label="Filter by evaluator role"]'), 'task roles do not use a separate pill filter design');
       assert(!generate.disabled, 'open periods allow generation');
@@ -540,7 +540,7 @@ try {
     assert(!!recordStatus, 'records have one labelled status control');
     assert(!button('Apply filters') && !search.form, 'records filter automatically without an Apply button or submission form');
     assert(parseFloat(getComputedStyle(search).fontSize) === 12 && parseFloat(getComputedStyle(filterPanel.querySelector('button[aria-label="Record status"]')!).fontSize) === 12, 'record filter values use the shared 12px font');
-    assert(parseFloat(getComputedStyle(search.labels![0]).fontSize) === 10, 'record filter labels use the shared 10px font');
+    assert(parseFloat(getComputedStyle(search.labels![0]).fontSize) === 14, 'record filter labels use the shared 14px label');
     if (innerWidth >= 1280) assert(Math.abs(search.getBoundingClientRect().bottom - filterPanel.querySelector('button[aria-label="Evaluation period"]')!.getBoundingClientRect().bottom) < 2, 'desktop search and period controls align along the same baseline');
     assert(surface.getBoundingClientRect().top < (page === 'records-monitoring-empty' ? 600 : 230), 'records workspace starts close to the heading, allowing its dashboard monitoring notice');
     if (page === 'records-error') {

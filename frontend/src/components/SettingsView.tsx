@@ -211,11 +211,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
           <PortalCard>
             <SectionTitle icon={User} title="Account & Contact" />
             <form onSubmit={handleSaveContact} className="mt-5">
-              <FormInput id="settings-full-name" label="Full Name" value={currentUser.fullName} readOnly aria-describedby="settings-email-policy" className="bg-slate-100 text-slate-500" />
+              <FormInput id="settings-full-name" label="Full name" value={currentUser.fullName} readOnly aria-describedby="settings-email-policy" className="bg-slate-100 text-slate-500" />
               <div className="grid grid-cols-1 sm:grid-cols-2 sm:gap-x-4">
                 <FormInput
                   id="settings-email"
-                  label="Email Address"
+                  label="Email address"
                   type="email"
                   icon={Mail}
                   value={currentUser.email}
@@ -225,7 +225,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                 />
                 <FormInput
                   id="settings-phone"
-                  label="Phone Number"
+                  label="Phone number"
                   type="tel"
                   icon={Phone}
                   placeholder="e.g. 012-3456789"
@@ -251,7 +251,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
             <form onSubmit={handleSavePassword} className="mt-5">
               <FormInput
                 id="settings-current-pw"
-                label="Current Password"
+                label="Current password"
                 type="password"
                 autoComplete="current-password"
                 icon={KeyRound}
@@ -263,7 +263,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                 <FormInput
                   id="settings-new-pw"
                   autoComplete="new-password"
-                  label="New Password"
+                  label="New password"
                   type="password"
                   icon={KeyRound}
                   value={newPassword}
@@ -273,7 +273,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser, onLogou
                 <FormInput
                   id="settings-confirm-pw"
                   autoComplete="new-password"
-                  label="Confirm New Password"
+                  label="Confirm new password"
                   type="password"
                   icon={KeyRound}
                   value={confirmPassword}

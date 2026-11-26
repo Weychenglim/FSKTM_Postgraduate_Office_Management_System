@@ -72,7 +72,7 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
     <form onSubmit={handleSavePassword} className="w-full text-left">
       <PasswordInput
         id={`${idPrefix}-current-pw`}
-        label="Current Password"
+        label="Current password"
         value={currentPassword}
         onChange={(e) => setCurrentPassword(e.target.value)}
         error={pwErrors.current}
@@ -81,7 +81,7 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
       />
       <PasswordInput
         id={`${idPrefix}-new-pw`}
-        label="New Password"
+        label="New password"
         value={newPassword}
         onChange={(e) => setNewPassword(e.target.value)}
         error={pwErrors.next}
@@ -90,7 +90,7 @@ export const PasswordChangeForm: React.FC<PasswordChangeFormProps> = ({
       />
       <PasswordInput
         id={`${idPrefix}-confirm-pw`}
-        label="Confirm New Password"
+        label="Confirm new password"
         value={confirmPassword}
         onChange={(e) => setConfirmPassword(e.target.value)}
         error={pwErrors.confirm}

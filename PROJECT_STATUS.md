@@ -1,3 +1,25 @@
+## Form labels and the shared table style (26 November 2026)
+
+Wey Cheng and Xiang agreed one label style and one table style. This is Xiang's part: the labels, and the table style tried first on Registry. Wey Cheng moves Marks Records onto the table style next.
+
+- **Form labels:** `.form-label` in `index.css` is now 14px, semibold, dark grey and sentence case, in every form of both modules. Buttons stay in capitals.
+  - Local overrides were removed so every form matches: `.decision-dialog-fields .form-label` and `.period-config-editor .form-label` (`index.css`), `.marks-workspace .form-label` (`marksWorkspace.css`), and the text parts of `.academic-semester-fields .form-label` and the submission window dialog's `.form-label` (`officeDashboard.css`). Their layout parts were kept.
+  - New Submission, the student letter form and 24 more of Xiang's field labels had their own 13px style; they now use `form-label`.
+  - Label text written in Title Case now reads in sentence case. Xiang's: Settings, password and sign-in forms, My Profile, Register New Students and the letter form. Wey Cheng's: the timeline drawers (Start date, End date, Target roles, Detail / description), the Marks filter (Evaluation stage) and Supervisor request history (Date range).
+- **Shared table style:** put `portal-table` on the element around the table, then use:
+  - `data-th` for headers: 12px, semibold, grey, sentence case. `data-td` for cells: 14px with medium spacing.
+  - `table-primary` for the main line in a cell, such as a name, and `table-note` for the smaller line under it.
+  - `table-fit` on a column that should be only as wide as its content, such as status or a date. It stays on one line from tablet width up.
+  - `table-open` on the last column, which holds the arrow that opens the record. The whole row opens it too.
+  - On phones, hide secondary columns with `hidden md:table-cell` (or `lg:`) and repeat the one key value under the name with `table-note md:hidden`. Name, status and the arrow always show.
+- **Registry pilot:** Students and Staff & Lecturers use the style. Staff & Lecturers no longer turns rows into cards on phones; it shows name, email and role, then status and the arrow, like Students. Other pages keep `readable-list` until the pilot is checked.
+- **Tests:** the letter tests use the new label text. Wey Cheng's `decisionDialog` fixture and `portalTypography` helper expect the shared label, and the shared table sizes inside `portal-table`.
+- **Checks:**
+  - TypeScript passes. Of 256 frontend test files, only `DashboardActionCentre.test.ts` fails, as on `main`.
+  - Real browser on a copy of the dev database at 1366, 820 and 390 px: 37 of 37 passed. This covered both Registry lists, the sign-in, Register New Students, Evaluation Period, Settings and New Submission labels, and no sideways scroll.
+  - All 67 browser suites: 59 pass. The other 8 fail the same way on a clean `main`: calendarDrafts, officeDashboard, panelRequestDetail, periodsWorkspace, phaseSixFeedback, projectStages, supervisionDetail and marksVisualPolish (the same 49 checks).
+  - The marksVisualPolish fixture now expects 14px filter labels on Marks Records and task assignment, the shared label size.
+
 ## Time picker with wheels (23 November 2026)
 
 Wey Cheng found the 15-minute time list slow. The time picker now works like a phone clock in every module. Only the time picker changed.
@@ -137,7 +159,7 @@ The portal is only for Master by coursework in AI, Data Science and Cyber Securi
 - **Expected completion** goes through the Special Semester when the programme counts it.
 - **RP stage and the maximum:** unchanged. A skipped Special Semester is not a break, so RP1 in Semester II then RP2 in Semester I stays allowed (confirmed by Xiang).
 - No migration, no dev DB change. No change to Wey Cheng's files.
-- **Not committed yet.**
+- **Committed** in `4397741`, now in main.
 
 ## Submissions: instructions, opening date and a full page (16 November 2026)
 
@@ -147,7 +169,7 @@ Xiang asked for Spectrum-style instructions on a submission and a date it opens,
 - **Instructions** (optional, up to 2,000 characters). Students open them under their row with "Instructions". They are in the email the students get.
 - **Submission opens** is Immediately or Scheduled. Before it opens, students see "Opens ... · Due ..." with no Upload, it does not count in their to-do number, and Remind is refused. It must open before the due date. The coordinator's card shows the opening date until then.
 - **Database:** `documents.0011` (two new fields). Dev DB backed up first to `db-backups/fsktm_pg_office_before_submission_fields_2026-11-16.dump`.
-- **Not committed yet.**
+- **Committed** in `4397741`, now in main.
 
 ## QA fixes: the High and Medium issues (15 November 2026)
 
@@ -173,7 +195,7 @@ Xiang asked to fix the serious issues from the 13 to 14 November QA run (`QA_202
 - **Announcements and reminders (ISS-041, 042, 043, 004).** Deadline reminders skip Graduated, Withdrawn, Terminated and Deceased students. The form has **Expires at** again (UC30); a start after the expiry is refused, and an expired announcement leaves everyone's feed and the bell count. An empty title or message is marked "Required". The three old reminder tests now use a published timeline, and reminder emails also work for timeline entries without a source id.
 - **Database:** `accounts.0025`, `announcements.0009`, `letters.0016` (data only).
 - **Shared or teammate files touched:** `auth/permissions.ts` (coordinator modules), `announcements/reminders.py` (two lines in a function Wey Cheng last changed), `announcements/models.py` `visible_notifications` (one line).
-- **Not committed yet.**
+- **Committed** in `4397741`, now in main.
 
 ## Five UX fixes on Xiang's modules (15 November 2026)
 
@@ -201,7 +223,7 @@ Xiang asked whether the Registry, Letters, File Management, Announcements and FA
   - Dev database migrated (backup first: `db-backups/fsktm_pg_office_before_letter_audience_2026-11-15.dump`).
 - **Shared files touched:** `TopHeader.tsx` (one word), `index.css` (new scoped rules at the end), `constants/routes.ts` (two routes).
 - **Checks:** backend letters, accounts, announcements, documents, faq and dashboard: 1442 tests with only the 7 failures already on main (3 in `announcements.test_reminders`, 4 dashboard timeline tests). New tests: 10 for who can request a letter, 1 for name order. Frontend 246 of 254 test files (the same 8 as on main) plus the new `ListToolbar.test.tsx`; type check with only Wey Cheng's 2 known errors; build passes. Browser check on a private database copy: 61 screens with no page errors and no sideways scroll, and a click-through of the five fixes, 35 of 35.
-- **Not committed yet.**
+- **Committed** in `4397741`, now in main.
 
 ## Requirement gaps closed, Word letters and the RP Registration card (13 November 2026)
 
@@ -219,7 +241,7 @@ Xiang asked to close the gaps left from the 29 October requirements check, to ad
 - **Word export (FR-55):** the office downloads an issued letter as a Word file with the same letterhead, reference, wording, detail rows, closing and Malay page as the PDF (`letters/word_export.py`, `GET /api/letters/requests/<id>/word/`). Download Word is on the request page and in the Issued letters pop-up. Students and lecturers keep the locked PDF only, because a Word file can be edited. `python-docx` is added to `requirements.txt`.
 - **RP Registration card on the student dashboard:** rebuilt in the same style as the Supervisor Status and Panel Appointment cards. While an answer is needed it sits at the top with an amber border: "Not confirmed", "Action required", the question and the two buttons. Once confirmed it moves below the timeline, next to the appointment cards: "Registered" or "Not registered", the semester, the course code and name, "Only your programme coordinator can change this record." and Request a correction. The wording is formal throughout (`stageCard` in `utils/projectStages.ts`).
 - **Checks:** backend 2401 tests with only the 8 failures already on main (4 dashboard timeline tests, run again on an untouched copy of the last commit; 3 in `announcements.test_reminders`; 1 appointments concurrency test). New tests: 4 Word export, 10 dashboard tasks, 6 file links. Frontend 246 of 254 test files (the same 8 as on main), type check with only Wey Cheng's 2 known errors, and the build. Browser check on a copy of the dev database, 32 of 32, as a student, a coordinator and the office at desktop and phone width: the card before and after answering, the correction request, each task opening its page, "Sent for", the archive warning, a popup closing at 4.0 seconds, and the Word file downloaded and opened in Word (two pages, matching the PDF).
-- **Not committed yet.**
+- **Committed** in `4397741`, now in main.
 
 ## AI replies in the FAQ chatbot switched on (13 November 2026)
 

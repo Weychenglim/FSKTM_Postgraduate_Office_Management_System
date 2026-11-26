@@ -1105,7 +1105,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
             </div>
           )}
 
-          <div className="readable-list bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs">
+          <div className="portal-table bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-3xs">
 
             <div className="p-4 sm:p-5 flex flex-col gap-4 select-none">
               <div role="group" aria-label="Show students by status" className="flex flex-wrap gap-2">
@@ -1244,8 +1244,8 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   <th className="data-th">Student</th>
                   <th className="data-th hidden md:table-cell">Programme</th>
                   <th className="data-th hidden xl:table-cell">Supervisor</th>
-                  <th className="data-th">Status</th>
-                  <th className="data-th w-12"><span className="sr-only">Open</span></th>
+                  <th className="data-th table-fit">Status</th>
+                  <th className="data-th table-open"><span className="sr-only">Open</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -1282,17 +1282,17 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       >
                         <td className="data-td">
                           <div className="flex items-center gap-3 text-left">
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 select-none border border-black/5 shadow-3xs ${student.avatarBg}`}>
+                            <div aria-hidden="true" className={`w-9 h-9 rounded-xl hidden sm:flex items-center justify-center font-bold text-xs shrink-0 select-none border border-black/5 shadow-3xs ${student.avatarBg}`}>
                               {student.avatarText}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="section-label">
+                              <h4 className="table-primary">
                                 {student.name}
                               </h4>
-                              <p className="text-[12px] text-slate-550 font-semibold font-mono mt-0.5">
+                              <p className="table-note font-mono">
                                 {student.id}
                               </p>
-                              <p className="md:hidden mt-1 text-[12px] font-semibold text-slate-500">
+                              <p className="table-note md:hidden">
                                 {describeProgramme(student.programme).field}
                               </p>
                             </div>
@@ -1306,31 +1306,31 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         <td className="data-td hidden xl:table-cell">
                           {student.supervisor ? (
                             <div className="text-left">
-                              <span className="text-[13px] font-bold text-slate-800 block">{student.supervisor}</span>
+                              <span className="table-primary">{student.supervisor}</span>
                               {student.supervisorStaffNo && (
-                                <span className="text-[12px] font-mono font-semibold text-slate-500">{student.supervisorStaffNo}</span>
+                                <span className="table-note font-mono">{student.supervisorStaffNo}</span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-[13px] font-semibold text-slate-500">Not assigned</span>
+                            <span className="text-slate-500">Not assigned</span>
                           )}
                         </td>
 
-                        <td className="data-td">
+                        <td className="data-td table-fit">
                           <StatusChip status={shownStatus(student)} />
                           {!readOnly && student.maximumFlag && (
-                            <span className={`mt-1 block text-[12px] font-bold ${student.maximumFlag === 'past' ? 'text-rose-700' : 'text-amber-700'}`}>
+                            <span className={`table-note mt-1 font-semibold ${student.maximumFlag === 'past' ? 'text-rose-700' : 'text-amber-700'}`}>
                               {student.maximumFlag === 'past' ? 'Past the maximum' : 'Last semester'}
                             </span>
                           )}
                           {accountNote && (
-                            <span className={`mt-1 block text-[12px] font-bold ${accountNote === 'Suspended' ? 'text-rose-700' : 'text-purple-700'}`}>
+                            <span className={`table-note mt-1 font-semibold ${accountNote === 'Suspended' ? 'text-rose-700' : 'text-purple-700'}`}>
                               {accountNote}
                             </span>
                           )}
                         </td>
 
-                        <td className="data-td w-12 pl-0 text-right">
+                        <td className="data-td table-open">
                           <button
                             type="button"
                             aria-label={`Open ${student.name}'s record`}
@@ -1653,7 +1653,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       {/* Full Name */}
                       <div className="flex flex-col text-left">
                         <label htmlFor="full-name" className="form-label block">
-                          Full Name
+                          Full name
                         </label>
                         <input
                           id="full-name"
@@ -1671,7 +1671,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         {/* Student ID */}
                         <div className="flex flex-col text-left">
                           <label htmlFor="student-id" className="form-label block">
-                            Student ID (Matric No.)
+                            Student ID (matric number)
                           </label>
                           <input
                             id="student-id"
@@ -1687,7 +1687,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                         {/* Official Email */}
                         <div className="flex flex-col text-left">
                           <label htmlFor="official-email" className="form-label block">
-                            Official Email
+                            Official email
                           </label>
                           <input
                             id="official-email"
@@ -1704,7 +1704,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                       {/* Phone Number */}
                       <div className="flex flex-col text-left">
                         <label htmlFor="phone-number" className="form-label block">
-                          Phone Number
+                          Phone number
                         </label>
                         <input
                           id="phone-number"
@@ -2320,7 +2320,7 @@ export const StudentRegistry: React.FC<StudentRegistryProps> = ({
                   </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className="flex flex-col gap-1 form-label">
-                      Full Name
+                      Full name
                       <input
                         type="text"
                         value={detailsDraft.name}

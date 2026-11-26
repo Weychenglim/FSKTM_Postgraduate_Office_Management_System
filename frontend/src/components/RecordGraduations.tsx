@@ -323,7 +323,7 @@ export const RecordGraduations: React.FC = () => {
         <NameGrid people={going} />
         {tab === 'finished' ? (
           <>
-            <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+            <label className="flex flex-col gap-1.5 form-label mb-0">
               Last semester
               <SelectMenu value={lastValue} options={lastOptions} onChange={setLastSemester} disabled={busy} aria-label="Last semester" />
             </label>
@@ -338,11 +338,11 @@ export const RecordGraduations: React.FC = () => {
           <>
             <p className="text-[13.5px] text-slate-600">Their supervisor and panel appointments will close, and each student will get a notice.</p>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+              <label className="flex flex-col gap-1.5 form-label mb-0">
                 Senate date
                 <DateField max={today()} value={senateDate} disabled={busy} onChange={setSenateDate} />
               </label>
-              <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+              <label className="flex flex-col gap-1.5 form-label mb-0">
                 Meeting reference
                 <input className="form-control form-control-md" maxLength={120} value={reference} disabled={busy} onChange={event => setReference(event.target.value)} />
               </label>
@@ -363,7 +363,7 @@ export const RecordGraduations: React.FC = () => {
           <PortalButton variant="primary" isLoading={busy} disabled={!reason.trim()} onClick={() => void sendBack()}>Back to Active</PortalButton>
         </>}
       >
-        <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+        <label className="flex flex-col gap-1.5 form-label mb-0">
           Reason
           <input className="form-control form-control-md" maxLength={1000} value={reason} disabled={busy} onChange={event => setReason(event.target.value)} />
         </label>

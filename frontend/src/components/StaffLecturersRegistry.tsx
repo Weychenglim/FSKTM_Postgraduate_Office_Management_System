@@ -5,7 +5,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { UserPlus } from 'lucide-react';
+import { ChevronRight, UserPlus } from 'lucide-react';
 import type { StaffAccountList, StaffRoleFilter, StaffStatusFilter } from '../types';
 import { getStaffAccounts } from '../services/staffAccountsApi';
 import { APP_ROUTES, routeForStaffAccount } from '../constants/routes';
@@ -38,9 +38,6 @@ const STATUS_OPTIONS: SelectMenuOption<StaffStatusFilter>[] = [
   { value: 'NOT_ACTIVATED', label: 'Not activated yet' },
   { value: 'SIGN_IN_OFF', label: 'Sign-in off' },
 ];
-
-const OPEN_LINK =
-  'inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-slate-700 shadow-3xs transition hover:bg-slate-50 hover:text-brand-navy focus:outline-none focus:ring-2 focus:ring-brand-navy/20';
 
 const STATUS_CHIP: Record<string, string> = {
   NOT_ACTIVATED: 'bg-amber-50 text-amber-800',
@@ -103,7 +100,7 @@ const StaffAccountList: React.FC = () => {
       />
       <RegistryModuleTabs active="staff_lecturers" />
 
-      <section aria-label="Staff accounts" className="app-card readable-list space-y-4 p-4 sm:p-5">
+      <section aria-label="Staff accounts" className="app-card portal-table space-y-4 p-4 sm:p-5">
         <ListToolbar>
           <ListToolbarRow>
             <ListSearch
@@ -130,63 +127,69 @@ const StaffAccountList: React.FC = () => {
           </p>
         ) : (
           <>
-            <table aria-label="Staff accounts" className="data-table block table-fixed lg:table">
-              <colgroup className="hidden lg:table-column-group">
-                {[36, 26, 13, 15, 10].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
-              </colgroup>
-              <thead className="hidden lg:table-header-group">
-                <tr className="data-thead bg-slate-50">
-                  <th scope="col" className="data-th">Name</th>
-                  <th scope="col" className="data-th">Role</th>
-                  <th scope="col" className="data-th">Status</th>
-                  <th scope="col" className="data-th">Last signed in</th>
-                  <th scope="col" className="data-th"><span className="sr-only">Open</span></th>
-                </tr>
-              </thead>
-              <tbody className="block space-y-3 lg:table-row-group lg:space-y-0">
-                {rows.map(account => (
-                  <tr key={account.id} className="data-row grid grid-cols-2 rounded-xl border border-slate-200 py-2 lg:table-row lg:rounded-none lg:border-x-0 lg:border-t-0 lg:py-0">
-                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
-                      <span className="flex items-center gap-3">
-                        <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-[12px] font-extrabold text-slate-700">
-                          {initials(account.name)}
-                        </span>
-                        <span className="min-w-0">
-                          <Link to={routeForStaffAccount(account.id)} className="block font-bold text-slate-800 hover:underline [overflow-wrap:anywhere]">
-                            {account.name}{account.isYou ? ' (you)' : ''}
-                          </Link>
-                          <span className="card-caption block break-all">{account.email}</span>
-                        </span>
-                      </span>
-                    </td>
-                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle [overflow-wrap:anywhere] lg:col-span-1 lg:table-cell lg:px-5 lg:py-4">
-                      <span className="card-label mb-1 block lg:hidden">Role</span>
-                      <span className="block font-bold text-slate-800">{ROLE_LABEL[account.role]}</span>
-                      <span className="card-caption block">{roleLine(account)}</span>
-                    </td>
-                    <td className="data-td block min-w-0 px-3 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
-                      <span className="card-label mb-1 block lg:hidden">Status</span>
-                      {account.status === 'ACTIVE' ? (
-                        <span className="text-slate-600">Active</span>
-                      ) : (
-                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-bold ${STATUS_CHIP[account.status]}`}>
-                          {STATUS_LABEL[account.status]}
-                        </span>
-                      )}
-                    </td>
-                    <td className="data-td block min-w-0 px-3 py-2 align-middle text-slate-600 lg:table-cell lg:px-5 lg:py-4">
-                      <span className="card-label mb-1 block lg:hidden">Last signed in</span>
-                      {account.lastSignedIn ? historyTime(account.lastSignedIn) : 'Never'}
-                    </td>
-                    <td className="data-td col-span-2 block min-w-0 px-3 py-2 align-middle lg:col-span-1 lg:table-cell lg:px-5 lg:py-4">
-                      <Link to={routeForStaffAccount(account.id)} className={OPEN_LINK} aria-label={`Open ${account.name}`}>
-                        Open
-                      </Link>
-                    </td>
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <table aria-label="Staff accounts" className="data-table">
+                <thead>
+                  <tr className="data-thead bg-slate-50">
+                    <th scope="col" className="data-th">Name</th>
+                    <th scope="col" className="data-th hidden md:table-cell">Role</th>
+                    <th scope="col" className="data-th table-fit">Status</th>
+                    <th scope="col" className="data-th table-fit hidden whitespace-nowrap lg:table-cell">Last signed in</th>
+                    <th scope="col" className="data-th table-open"><span className="sr-only">Open</span></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {rows.map(account => (
+                    <tr
+                      key={account.id}
+                      className="data-row cursor-pointer last:border-b-0"
+                      onClick={() => {
+                        if (!window.getSelection()?.toString()) navigate(routeForStaffAccount(account.id));
+                      }}
+                    >
+                      <td className="data-td">
+                        <span className="flex items-center gap-3">
+                          <span aria-hidden="true" className="hidden h-9 w-9 shrink-0 sm:flex items-center justify-center rounded-xl bg-slate-100 text-[12px] font-extrabold text-slate-700">
+                            {initials(account.name)}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="table-primary">{account.name}{account.isYou ? ' (you)' : ''}</span>
+                            <span className="table-note md:[overflow-wrap:break-word]">{account.email}</span>
+                            <span className="table-note md:hidden">{ROLE_LABEL[account.role]}</span>
+                          </span>
+                        </span>
+                      </td>
+                      <td className="data-td hidden md:table-cell [overflow-wrap:anywhere]">
+                        <span className="table-primary">{ROLE_LABEL[account.role]}</span>
+                        <span className="table-note">{roleLine(account)}</span>
+                      </td>
+                      <td className="data-td table-fit">
+                        {account.status === 'ACTIVE' ? (
+                          'Active'
+                        ) : (
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-[12px] font-bold ${STATUS_CHIP[account.status]}`}>
+                            {STATUS_LABEL[account.status]}
+                          </span>
+                        )}
+                      </td>
+                      <td className="data-td table-fit hidden whitespace-nowrap lg:table-cell">
+                        {account.lastSignedIn ? historyTime(account.lastSignedIn) : 'Never'}
+                      </td>
+                      <td className="data-td table-open">
+                        <Link
+                          to={routeForStaffAccount(account.id)}
+                          aria-label={`Open ${account.name}`}
+                          onClick={event => event.stopPropagation()}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-brand-navy"
+                        >
+                          <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             {data && data.count > 0 && (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="card-description">

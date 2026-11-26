@@ -13,11 +13,16 @@ export async function assertPortalTypography(tab) {
       'card-description': ['12px', '500'],
       'card-caption': ['10px', '500'],
       'card-metric': ['24px', '800'],
-      'form-label': ['10px', '800'],
+      'form-label': ['14px', '600'],
       'form-control': ['12px', '700'],
       'data-th': ['10px', '800'],
       'data-td': ['12px', '600'],
       'data-td-strong': ['12px', '700'],
+    };
+    const sharedTable = {
+      'data-th': ['12px', '600'],
+      'data-td': ['14px', '500'],
+      'data-td-strong': ['14px', '600'],
     };
     const failures = [];
     let checked = 0;
@@ -27,7 +32,7 @@ export async function assertPortalTypography(tab) {
       if (closed && !closed.querySelector('summary')?.contains(element)) continue;
       const style = getComputedStyle(element);
       const role = Object.keys(roles).find(role => element.classList.contains(role));
-      const [size, defaultWeight] = roles[role];
+      const [size, defaultWeight] = (element.closest('.portal-table') && sharedTable[role]) || roles[role];
       const formatted = element.getAttribute('data-typography') === 'formatted-content';
       const weight = formatted && element.classList.contains('font-black') ? '900' : defaultWeight;
       const mono = element.classList.contains('font-mono');

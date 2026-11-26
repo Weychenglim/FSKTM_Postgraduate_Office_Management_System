@@ -306,11 +306,11 @@ const SubmissionStudents: React.FC<{ id: number; refreshKey: number; onChanged: 
       >
         <p className="text-[13px] text-slate-600">Due for everyone: {historyTime(detail.dueAt)}</p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+          <label className="flex flex-col gap-1.5 form-label mb-0">
             New due date
             <DateField value={extDate} disabled={busy} onChange={setExtDate} />
           </label>
-          <label className="flex flex-col gap-1.5 text-[13px] font-bold text-slate-700">
+          <label className="flex flex-col gap-1.5 form-label mb-0">
             Time
             <TimeField value={extTime} disabled={busy} onChange={setExtTime} />
           </label>

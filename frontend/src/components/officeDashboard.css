@@ -203,7 +203,7 @@
 [data-office-dashboard] .office-tool-views { display:flex; flex-wrap:wrap; gap:4px; border-bottom:1px solid #e2e8f0; padding-bottom:12px; }
 
 /* Semester forms: labels above fields, with readable entered/selected values. */
-.academic-semester-fields .form-label { display:flex; flex-direction:column; gap:8px; color:#334155; font-size:13px; font-weight:600; text-transform:none; letter-spacing:0; }
+.academic-semester-fields .form-label { display:flex; flex-direction:column; gap:8px; }
 .academic-semester-fields :is(input,textarea) { display:block; }
 .academic-semester-fields :is(input,textarea,button[aria-haspopup="listbox"]) { margin-top:0; min-height:42px; color:#0f172a; font-size:14px; font-weight:600; }
 .academic-semester-fields button[aria-haspopup="listbox"] > span { font-size:inherit; font-weight:inherit; }
@@ -764,7 +764,6 @@
 }
 
 /* Submission window form: readable fields and clear sections inside a fixed shell. */
-[data-office-dashboard].submission-window-dialog .form-label { font-size:13px; font-weight:600; color:#334155; text-transform:none; letter-spacing:0; }
 [data-office-dashboard].submission-window-dialog .form-control { font-size:14px; min-height:42px; color:#0f172a; }
 [data-office-dashboard].submission-window-dialog .card-description { font-size:13px; line-height:1.6; color:#475569; }
 [data-office-dashboard].submission-window-dialog .section-heading { font-size:16px; line-height:1.4; font-weight:700; color:#0f172a; }

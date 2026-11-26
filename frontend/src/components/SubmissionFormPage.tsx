@@ -18,7 +18,7 @@ import { DateField, TimeField } from './DateFields';
 
 const NEW_TYPE = '_new';
 const INSTRUCTIONS_LIMIT = 2000;
-const LABEL = 'text-[13px] font-semibold text-slate-800';
+const LABEL = 'form-label mb-0';
 
 interface Draft {
   title: string;

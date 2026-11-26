@@ -217,7 +217,7 @@ export const ProgrammeDialog: React.FC<DialogProps> = ({ account, isOpen, onClos
         Now: <strong>{programmeName(account.programme) || 'No programme'}</strong>
       </p>
       <div className="space-y-1.5">
-        <label htmlFor={selectId} className="block text-[13px] font-bold text-slate-700">Move to</label>
+        <label htmlFor={selectId} className="block form-label mb-0">Move to</label>
         <SelectMenu id={selectId} value={choice} placeholder={options ? 'Choose a programme' : 'Loading...'} disabled={!options} options={choices} onChange={value => void pick(value)} />
       </div>
       {preview && (
@@ -327,7 +327,7 @@ export const SignInDialog: React.FC<DialogProps> = ({ account, isOpen, onClose, 
       </p>
       {!turningOn && (
         <div className="space-y-1.5">
-          <label htmlFor={reasonId} className="block text-[13px] font-bold text-slate-700">Reason</label>
+          <label htmlFor={reasonId} className="block form-label mb-0">Reason</label>
           <textarea
             id={reasonId}
             className="form-control min-h-20 px-3.5 py-3 text-[14px]"
@@ -443,7 +443,7 @@ export const ActivationLinkDialog: React.FC<{ name: string; link: string | null;
         {copied ? 'Copied. ' : ''}Send it to {name} yourself, for example by WhatsApp. It works until they set a password. Anyone with it can set the password, so send it only to them.
       </p>
       <div className="space-y-1.5">
-        <label htmlFor={inputId} className="block text-[13px] font-bold text-slate-700">Link</label>
+        <label htmlFor={inputId} className="block form-label mb-0">Link</label>
         <input id={inputId} readOnly value={link ?? ''} onFocus={event => event.target.select()} className="form-control form-control-md text-[14px]" />
       </div>
       {copied === false && <p className="text-[12px] text-slate-500">Select the link and copy it.</p>}

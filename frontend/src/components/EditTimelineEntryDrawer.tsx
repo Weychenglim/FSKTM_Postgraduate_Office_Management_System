@@ -207,7 +207,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="form-label block">
-                      Start Date
+                      Start date
                     </label>
                     <input
                       type="date"
@@ -220,7 +220,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                   </div>
                   <div className="space-y-1.5">
                     <label className="form-label block">
-                      End Date
+                      End date
                     </label>
                     <input
                       type="date"
@@ -241,7 +241,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                 {/* Field 4: Target Roles multi checkboxes */}
                 <div className="space-y-2 pt-1">
                   <label className="form-label block">
-                    Target Roles
+                    Target roles
                   </label>
                   <div className="flex items-center gap-4 flex-wrap">
                     <button
@@ -306,7 +306,7 @@ export const EditTimelineEntryDrawer: React.FC<EditTimelineEntryDrawerProps> = (
                 {/* Field 6: Description or notes field */}
                 <div className="space-y-1.5">
                   <label className="form-label block">
-                    Detail / Description
+                    Detail / description
                   </label>
                   <textarea
                     rows={3}

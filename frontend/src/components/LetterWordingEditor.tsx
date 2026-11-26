@@ -372,7 +372,7 @@ export const LetterWordingEditor: React.FC<LetterWordingEditorProps> = ({ values
                       </div>
                     )}
                     <div className="space-y-2 px-2 py-1">
-                      <label htmlFor="office-detail-label" className="block text-[12px] font-semibold text-slate-600">New blank</label>
+                      <label htmlFor="office-detail-label" className="block form-label mb-0">New blank</label>
                       <div className="flex gap-2">
                         <input
                           id="office-detail-label"
